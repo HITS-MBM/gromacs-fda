@@ -96,6 +96,9 @@
 #include "gromacs/swap/swapcoords.h"
 #include "gromacs/imd/imd.h"
 
+#include "pf_utils.h"
+#include "pf_io.h"
+
 #ifdef GMX_FAHCORE
 #include "corewrap.h"
 #endif
@@ -651,6 +654,11 @@ double do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
         fprintf(fplog, "\n");
     }
 
+    fr->pf_global = pf_init(nfile, fnm, top_global);
+    if ((fr->pf_global) && PAR(cr))
+      gmx_fatal(FARGS, "PF2 doesn't work in parallel ! Please start with '-nt 1' on the mdrun command line\n");
+    pf_open(fr->pf_global);
+
     walltime_accounting_start(walltime_accounting);
     wallcycle_start(wcycle, ewcRUN);
     print_start(fplog, cr, walltime_accounting, "mdrun");
@@ -957,6 +965,8 @@ double do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
                 /* If using an iterative integrator, reallocate space to match the decomposition */
             }
         }
+
+        pf_atoms_and_residues_init(fr->pf_global);
 
         if (MASTER(cr) && do_log)
         {
@@ -1301,6 +1311,13 @@ double do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
 
         /* ########  END FIRST UPDATE STEP  ############## */
         /* ########  If doing VV, we now have v(dt) ###### */
+
+        /* this test could be done inside pf_save_and_write_scalar_averages(), but is left here explicitly to be replaced with a more general mechanism */
+        if (fr->pf_global->time_averages->period != 1)
+          pf_save_and_write_scalar_time_averages(fr->pf_global, state->x, top_global);
+        else
+          pf_write_frame(fr->pf_global, state->x, top_global);
+
         if (bDoExpanded)
         {
             /* perform extended ensemble sampling in lambda - we don't
@@ -1969,6 +1986,10 @@ double do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
     {
         close_trj(status);
     }
+
+    if (fr->pf_global->time_averages->period != 1)
+      pf_write_scalar_time_averages(fr->pf_global);
+    pf_close(fr->pf_global);
 
     if (!(cr->duty & DUTY_PME))
     {

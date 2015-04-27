@@ -33,6 +33,12 @@
  * the research papers on the package. Check out http://www.gromacs.org.
  */
 
+#ifndef GMX_DOUBLE
+#define PF_TINY_REAL_NUMBER 1.0e-7f
+#else
+#define PF_TINY_REAL_NUMBER 1.0e-14
+#endif
+
 /* When calculating RF or Ewald interactions we calculate the electrostatic
  * forces and energies on excluded atom pairs here in the non-bonded loops.
  */
@@ -60,6 +66,9 @@
 
         ai = ci*UNROLLI + i;
 
+        //printf("ai = %i, x,y,z = %15.8f, %15.8f, %15.8f\n",
+        //	ai, xi[i*XI_STRIDE+XX], xi[i*XI_STRIDE+YY], xi[i*XI_STRIDE+ZZ]); fflush(stdout);
+
         type_i_off = type[ai]*ntype2;
 
         for (j = 0; j < UNROLLJ; j++)
@@ -86,7 +95,7 @@
             real vcoul;
 #endif
 #endif
-            real fscal;
+            real fscal,fvdw;
             real fx, fy, fz;
 
             /* A multiply mask used to zero an interaction
@@ -114,6 +123,9 @@
 
             aj = cj*UNROLLJ + j;
 
+            //printf("aj = %i, x,y,z = %15.8f, %15.8f, %15.8f\n",
+            //	aj, x[aj*X_STRIDE+XX], x[aj*X_STRIDE+YY], x[aj*X_STRIDE+ZZ]); fflush(stdout);
+
             dx  = xi[i*XI_STRIDE+XX] - x[aj*X_STRIDE+XX];
             dy  = xi[i*XI_STRIDE+YY] - x[aj*X_STRIDE+YY];
             dz  = xi[i*XI_STRIDE+ZZ] - x[aj*X_STRIDE+ZZ];
@@ -123,6 +135,8 @@
             /* Prepare to enforce the cut-off. */
             skipmask = (rsq >= rcut2) ? 0 : skipmask;
             /* 9 flops for r^2 + cut-off check */
+
+            //printf("skipmask = %30.20f\n", skipmask); fflush(stdout);
 
 #ifdef CHECK_EXCLS
             /* Excluded atoms are allowed to be on top of each other.
@@ -344,17 +358,51 @@
             if (i < UNROLLI/2)
 #endif
             {
-                fscal = frLJ*rinvsq + fcoul;
+            	fvdw = frLJ*rinvsq;
+                fscal = fvdw + fcoul;
                 /* 2 flops for scalar LJ+Coulomb force */
+
+#ifdef CALC_ENERGIES
+                /* pairwise forces */
+                if (pf_global->bInitialized) {
+                	if (fabs(fcoul) > PF_TINY_REAL_NUMBER && fabs(fvdw) > PF_TINY_REAL_NUMBER) {
+						pf_atom_add_nonbonded(pf_global, cellInv[ai], cellInv[aj], fcoul, fvdw, dx, dy, dz);
+						//printf("Add vdw and coulomb %i %i %15.8f %15.8f\n",
+						//	ai, aj, fcoul, fvdw); fflush(stdout);
+                	} else if (fabs(fcoul) > PF_TINY_REAL_NUMBER) {
+    					pf_atom_add_nonbonded_single(pf_global, cellInv[ai], cellInv[aj], PF_INTER_COULOMB, fcoul, dx, dy, dz);
+    					//printf("Add coulomb %i %i %15.8f\n", ai, aj, fcoul); fflush(stdout);
+                	} else if (fabs(fvdw) > PF_TINY_REAL_NUMBER) {
+                        pf_atom_add_nonbonded_single(pf_global, cellInv[ai], cellInv[aj], PF_INTER_LJ, fscal, dx, dy, dz);
+                        //printf("Add vdw %i %i %15.8f\n", ai, aj, fscal); fflush(stdout);
+                	}
+                }
+#endif
             }
 #ifdef HALF_LJ
             else
             {
                 fscal = fcoul;
+
+#ifdef CALC_ENERGIES
+				/* pairwise forces */
+				if (pf_global->bInitialized && fabs(fcoul) > PF_TINY_REAL_NUMBER) {
+					pf_atom_add_nonbonded_single(pf_global, cellInv[ai], cellInv[aj], PF_INTER_COULOMB, fcoul, dx, dy, dz);
+					//printf("Add coulomb %i %i %15.8f\n", ai, aj, fcoul); fflush(stdout);
+				}
+#endif
             }
 #endif
 #else
             fscal = frLJ*rinvsq;
+
+#ifdef CALC_ENERGIES
+            /* pairwise forces */
+            if (pf_global->bInitialized && fabs(fscal) > PF_TINY_REAL_NUMBER) {
+                pf_atom_add_nonbonded_single(pf_global, cellInv[ai], cellInv[aj], PF_INTER_LJ, fscal, dx, dy, dz);
+                //printf("Add vdw %i %i %15.8f\n", ai, aj, fscal); fflush(stdout);
+            }
+#endif
 #endif
             fx = fscal*dx;
             fy = fscal*dy;

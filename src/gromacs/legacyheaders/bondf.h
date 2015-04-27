@@ -112,7 +112,7 @@ real posres(int nbonds,
             const rvec x[], rvec f[], rvec vir_diag,
             t_pbc *pbc,
             real lambda, real *dvdlambda,
-            int refcoord_scaling, int ePBC, rvec comA, rvec comB);
+            int refcoord_scaling, int ePBC, rvec comA, rvec comB, t_pf_global *pf_global);
 /* Position restraints require a different pbc treatment from other bondeds */
 
 real fbposres(int nbonds,
@@ -138,7 +138,7 @@ void do_dih_fup(int i, int j, int k, int l, real ddphi,
                 rvec r_ij, rvec r_kj, rvec r_kl,
                 rvec m, rvec n, rvec f[], rvec fshift[],
                 const t_pbc *pbc, const t_graph *g,
-                const rvec *x, int t1, int t2, int t3);
+                const rvec *x, int t1, int t2, int t3, t_pf_global *pf_global);
 /* Do an update of the forces for dihedral potentials */
 
 void make_dp_periodic(real *dp);

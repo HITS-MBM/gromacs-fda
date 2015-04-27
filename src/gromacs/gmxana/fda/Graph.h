@@ -1,0 +1,68 @@
+/*
+ * Graph.h
+ *
+ *  Created on: Jan 27, 2015
+ *      Author: Bernd Doser, HITS gGmbH
+ */
+
+#ifndef GRAPH_H_
+#define GRAPH_H_
+
+#include "gromacs/legacyheaders/types/topology.h"
+#include "Node.h"
+#include <iostream>
+#include <vector>
+
+namespace fda_analysis {
+
+/**
+ * Special graph implementation compatible to Maximes Python script.
+ */
+class Graph
+{
+public:
+
+	Graph() {};
+
+	//! Build graph by adjacency matrix
+	Graph(std::vector<double> const& forceMatrix, rvec *coord, atom_id *index, int isize);
+
+	void convertInPDBMinGraphOrder(std::string const& outFilename, double threshold,
+		size_t minGraphOrder, bool onlyBiggestNetwork, bool append) const;
+
+	void convertInDIMACSMinGraphOrder(std::string const& outFilename, double threshold,
+		size_t minGraphOrder, bool onlyBiggestNetwork) const;
+
+	void updateCoordinates(rvec *coord, atom_id *index, int isize);
+
+private:
+
+	typedef std::vector<int> Network;
+	typedef std::vector<Network> Networks;
+
+	void createNetworkMinGraphOrder(Networks& networks, double threshold, size_t minGraphOrder, bool onlyBiggestNetwork) const;
+
+	void convertNetworkToPDB(std::string const& outFilename, Networks const& networks, double threshold,
+		size_t minGraphOrder, bool append) const;
+
+	void convertNetworkToDIMACS(std::string const& outFilename, Networks const& networks, double threshold,
+		size_t minGraphOrder) const;
+
+	void writeAtomToPDB(std::ofstream& os, int num, Node const& node, double force,
+        int numNetwork) const;
+
+	friend std::ostream& operator << (std::ostream& os, Graph const& graph);
+
+	std::vector<Node> nodes_;
+
+	std::vector<int> indices_;
+
+	static const char * const color[];
+
+};
+
+std::ostream& operator << (std::ostream& os, Graph const& graph);
+
+} // namespace fda_analysis
+
+#endif /* GRAPH_H_ */

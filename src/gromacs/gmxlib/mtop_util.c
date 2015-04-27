@@ -44,8 +44,9 @@
 #include "topsort.h"
 #include "symtab.h"
 #include "gmx_fatal.h"
+#include "programs/mdrun/pf_exclusions.h"
 
-static int gmx_mtop_maxresnr(const gmx_mtop_t *mtop, int maxres_renum)
+int gmx_mtop_maxresnr(const gmx_mtop_t *mtop, int maxres_renum)
 {
     int            maxresnr, mt, r;
     const t_atoms *atoms;
@@ -935,6 +936,76 @@ static void ilistcat(int ftype, t_ilist *dest, t_ilist *src, int copies,
     }
 }
 
+static void pf_ilistcat(int ftype, t_ilist *dest, t_ilist *src, int copies,
+                        int dnum, int snum)
+{
+	// Return if no bonded interaction is needed.
+	if (!(pf_global_data.type & (PF_INTER_BONDED + PF_INTER_NB14))) return;
+
+    int nral, c, i, a, atomIdx;
+    char needed;
+
+    nral = NRAL(ftype);
+
+    t_iatom *tmp;
+    snew(tmp,copies*src->nr);
+    int len = 0;
+
+    int *g1atomsBeg = pf_global_data.groups->a + pf_global_data.groups->index[pf_global_data.g1idx];
+    int *g1atomsEnd = pf_global_data.groups->a + pf_global_data.groups->index[pf_global_data.g1idx+1];
+    int *g1atomsCur = NULL;
+    int *g2atomsBeg = pf_global_data.groups->a + pf_global_data.groups->index[pf_global_data.g2idx];
+    int *g2atomsEnd = pf_global_data.groups->a + pf_global_data.groups->index[pf_global_data.g2idx+1];
+    int *g2atomsCur = NULL;
+
+    for (c = 0; c < copies; c++)
+    {
+        for (i = 0; i < src->nr; )
+        {
+            needed = 0;
+            for (a = 0; a < nral; a++)
+            {
+            	atomIdx = dnum + src->iatoms[i+a+1];
+        		for (g1atomsCur = g1atomsBeg; g1atomsCur < g1atomsEnd; ++g1atomsCur) {
+        			if (atomIdx == *g1atomsCur) needed = 1;
+        		}
+        		for (g2atomsCur = g2atomsBeg; g2atomsCur < g2atomsEnd; ++g2atomsCur) {
+        			if (atomIdx == *g2atomsCur) needed = 1;
+        		}
+            }
+            if (needed) {
+                tmp[len++] = src->iatoms[i];
+                for (a = 0; a < nral; a++) tmp[len++] = dnum + src->iatoms[i+a+1];
+
+                #ifdef FDA_BONDEXCL_PRINT_DEBUG_ON
+					fprintf(stderr, "=== DEBUG === bonded interaction %i", ftype);
+					fprintf(stderr, " %i", src->iatoms[i]);
+					for (a = 0; a < nral; a++) fprintf(stderr, " %i", dnum + src->iatoms[i+a+1]);
+					fprintf(stderr, " needed\n");
+					fflush(stderr);
+                #endif
+            } else {
+                #ifdef FDA_BONDEXCL_PRINT_DEBUG_ON
+					fprintf(stderr, "=== DEBUG === bonded interaction %i", ftype);
+					fprintf(stderr, " %i", src->iatoms[i]);
+					for (a = 0; a < nral; a++) fprintf(stderr, " %i", dnum + src->iatoms[i+a+1]);
+					fprintf(stderr, " not needed\n");
+					fflush(stderr);
+                #endif
+            }
+            i += a+1;
+        }
+        dnum += snum;
+    }
+
+    dest->nalloc = dest->nr + len;
+    srenew(dest->iatoms, dest->nalloc);
+
+    for (i = 0; i < len; i++) dest->iatoms[dest->nr++] = tmp[i];
+
+    sfree(tmp);
+}
+
 static void set_posres_params(t_idef *idef, gmx_molblock_t *molb,
                               int i0, int a_offset)
 {
@@ -1081,8 +1152,12 @@ static void gen_local_top(const gmx_mtop_t *mtop, const t_inputrec *ir,
             }
             else if (!(bMergeConstr && ftype == F_CONSTRNC))
             {
-                ilistcat(ftype, &idef->il[ftype], &molt->ilist[ftype],
-                         molb->nmol, destnr, srcnr);
+            	if (pf_global_data.FDA_bonded_exclusion_on)
+                    pf_ilistcat(ftype, &idef->il[ftype], &molt->ilist[ftype],
+                             molb->nmol, destnr, srcnr);
+            	else
+                    ilistcat(ftype, &idef->il[ftype], &molt->ilist[ftype],
+                             molb->nmol, destnr, srcnr);
             }
         }
         if (idef->il[F_POSRES].nr > nposre_old)

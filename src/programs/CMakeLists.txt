@@ -116,7 +116,11 @@ else()
         install(SCRIPT ${CREATE_LINKS_SCRIPT} COMPONENT links)
     endif()
 
-    if(BUILD_TESTING)
+    if(BUILD_TESTING AND NOT GMX_BUILD_FDA)
         add_subdirectory(mdrun/tests)
     endif()
+endif()
+
+if(BUILD_TESTING)
+    add_subdirectory(mdrun/fda_tests)
 endif()

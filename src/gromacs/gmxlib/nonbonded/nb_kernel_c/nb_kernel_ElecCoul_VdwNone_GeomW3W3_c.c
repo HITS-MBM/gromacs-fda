@@ -45,6 +45,8 @@
 #include "types/simple.h"
 #include "vec.h"
 #include "nrnb.h"
+#include "pf_array.h"
+#include "pf_interactions.h"
 
 /*
  * Gromacs nonbonded kernel:   nb_kernel_ElecCoul_VdwNone_GeomW3W3_VF_c
@@ -92,6 +94,8 @@ nb_kernel_ElecCoul_VdwNone_GeomW3W3_VF_c
     real             dx22,dy22,dz22,rsq22,rinv22,rinvsq22,r22,qq22,c6_22,c12_22,cexp1_22,cexp2_22;
     real             velec,felec,velecsum,facel,crf,krf,krf2;
     real             *charge;
+
+    t_pf_global * pf_global = fr->pf_global;
 
     x                = xx[0];
     f                = ff[0];
@@ -274,6 +278,10 @@ nb_kernel_ElecCoul_VdwNone_GeomW3W3_VF_c
             f[j_coord_offset+DIM*0+YY] -= ty;
             f[j_coord_offset+DIM*0+ZZ] -= tz;
 
+            /* pairwise forces */
+            if (pf_global->PFPS) pf_atom_add_nonbonded_single(pf_global, inr+0, jnr+0, PF_INTER_COULOMB, felec, dx00, dy00, dz00);
+            if (pf_global->VS) pf_atom_virial_bond(pf_global, inr+0, jnr+0, fscal, dx00, dy00, dz00);
+
             /**************************
              * CALCULATE INTERACTIONS *
              **************************/
@@ -299,6 +307,10 @@ nb_kernel_ElecCoul_VdwNone_GeomW3W3_VF_c
             f[j_coord_offset+DIM*1+XX] -= tx;
             f[j_coord_offset+DIM*1+YY] -= ty;
             f[j_coord_offset+DIM*1+ZZ] -= tz;
+
+            /* pairwise forces */
+            if (pf_global->PFPS) pf_atom_add_nonbonded_single(pf_global, inr+0, jnr+1, PF_INTER_COULOMB, felec, dx01, dy01, dz01);
+            if (pf_global->VS) pf_atom_virial_bond(pf_global, inr+0, jnr+1, fscal, dx01, dy01, dz01);
 
             /**************************
              * CALCULATE INTERACTIONS *
@@ -326,6 +338,10 @@ nb_kernel_ElecCoul_VdwNone_GeomW3W3_VF_c
             f[j_coord_offset+DIM*2+YY] -= ty;
             f[j_coord_offset+DIM*2+ZZ] -= tz;
 
+            /* pairwise forces */
+            if (pf_global->PFPS) pf_atom_add_nonbonded_single(pf_global, inr+0, jnr+2, PF_INTER_COULOMB, felec, dx02, dy02, dz02);
+            if (pf_global->VS) pf_atom_virial_bond(pf_global, inr+0, jnr+2, fscal, dx02, dy02, dz02);
+
             /**************************
              * CALCULATE INTERACTIONS *
              **************************/
@@ -351,6 +367,10 @@ nb_kernel_ElecCoul_VdwNone_GeomW3W3_VF_c
             f[j_coord_offset+DIM*0+XX] -= tx;
             f[j_coord_offset+DIM*0+YY] -= ty;
             f[j_coord_offset+DIM*0+ZZ] -= tz;
+
+            /* pairwise forces */
+            if (pf_global->PFPS) pf_atom_add_nonbonded_single(pf_global, inr+1, jnr+0, PF_INTER_COULOMB, felec, dx10, dy10, dz10);
+            if (pf_global->VS) pf_atom_virial_bond(pf_global, inr+1, jnr+0, fscal, dx10, dy10, dz10);
 
             /**************************
              * CALCULATE INTERACTIONS *
@@ -378,6 +398,10 @@ nb_kernel_ElecCoul_VdwNone_GeomW3W3_VF_c
             f[j_coord_offset+DIM*1+YY] -= ty;
             f[j_coord_offset+DIM*1+ZZ] -= tz;
 
+            /* pairwise forces */
+            if (pf_global->PFPS) pf_atom_add_nonbonded_single(pf_global, inr+1, jnr+1, PF_INTER_COULOMB, felec, dx11, dy11, dz11);
+            if (pf_global->VS) pf_atom_virial_bond(pf_global, inr+1, jnr+1, fscal, dx11, dy11, dz11);
+
             /**************************
              * CALCULATE INTERACTIONS *
              **************************/
@@ -403,6 +427,10 @@ nb_kernel_ElecCoul_VdwNone_GeomW3W3_VF_c
             f[j_coord_offset+DIM*2+XX] -= tx;
             f[j_coord_offset+DIM*2+YY] -= ty;
             f[j_coord_offset+DIM*2+ZZ] -= tz;
+
+            /* pairwise forces */
+            if (pf_global->PFPS) pf_atom_add_nonbonded_single(pf_global, inr+1, jnr+2, PF_INTER_COULOMB, felec, dx12, dy12, dz12);
+            if (pf_global->VS) pf_atom_virial_bond(pf_global, inr+1, jnr+2, fscal, dx12, dy12, dz12);
 
             /**************************
              * CALCULATE INTERACTIONS *
@@ -430,6 +458,10 @@ nb_kernel_ElecCoul_VdwNone_GeomW3W3_VF_c
             f[j_coord_offset+DIM*0+YY] -= ty;
             f[j_coord_offset+DIM*0+ZZ] -= tz;
 
+            /* pairwise forces */
+            if (pf_global->PFPS) pf_atom_add_nonbonded_single(pf_global, inr+2, jnr+0, PF_INTER_COULOMB, felec, dx20, dy20, dz20);
+            if (pf_global->VS) pf_atom_virial_bond(pf_global, inr+2, jnr+0, fscal, dx20, dy20, dz20);
+
             /**************************
              * CALCULATE INTERACTIONS *
              **************************/
@@ -456,6 +488,10 @@ nb_kernel_ElecCoul_VdwNone_GeomW3W3_VF_c
             f[j_coord_offset+DIM*1+YY] -= ty;
             f[j_coord_offset+DIM*1+ZZ] -= tz;
 
+            /* pairwise forces */
+            if (pf_global->PFPS) pf_atom_add_nonbonded_single(pf_global, inr+2, jnr+1, PF_INTER_COULOMB, felec, dx21, dy21, dz21);
+            if (pf_global->VS) pf_atom_virial_bond(pf_global, inr+2, jnr+1, fscal, dx21, dy21, dz21);
+
             /**************************
              * CALCULATE INTERACTIONS *
              **************************/
@@ -481,6 +517,10 @@ nb_kernel_ElecCoul_VdwNone_GeomW3W3_VF_c
             f[j_coord_offset+DIM*2+XX] -= tx;
             f[j_coord_offset+DIM*2+YY] -= ty;
             f[j_coord_offset+DIM*2+ZZ] -= tz;
+
+            /* pairwise forces */
+            if (pf_global->PFPS) pf_atom_add_nonbonded_single(pf_global, inr+2, jnr+2, PF_INTER_COULOMB, felec, dx22, dy22, dz22);
+            if (pf_global->VS) pf_atom_virial_bond(pf_global, inr+2, jnr+2, fscal, dx22, dy22, dz22);
 
             /* Inner loop uses 243 flops */
         }
@@ -572,6 +612,8 @@ nb_kernel_ElecCoul_VdwNone_GeomW3W3_F_c
     real             dx22,dy22,dz22,rsq22,rinv22,rinvsq22,r22,qq22,c6_22,c12_22,cexp1_22,cexp2_22;
     real             velec,felec,velecsum,facel,crf,krf,krf2;
     real             *charge;
+
+    t_pf_global * pf_global = fr->pf_global;
 
     x                = xx[0];
     f                = ff[0];
@@ -748,6 +790,10 @@ nb_kernel_ElecCoul_VdwNone_GeomW3W3_F_c
             f[j_coord_offset+DIM*0+YY] -= ty;
             f[j_coord_offset+DIM*0+ZZ] -= tz;
 
+            /* pairwise forces */
+            if (pf_global->PFPS) pf_atom_add_nonbonded_single(pf_global, inr+0, jnr+0, PF_INTER_COULOMB, felec, dx00, dy00, dz00);
+            if (pf_global->VS) pf_atom_virial_bond(pf_global, inr+0, jnr+0, fscal, dx00, dy00, dz00);
+
             /**************************
              * CALCULATE INTERACTIONS *
              **************************/
@@ -770,6 +816,10 @@ nb_kernel_ElecCoul_VdwNone_GeomW3W3_F_c
             f[j_coord_offset+DIM*1+XX] -= tx;
             f[j_coord_offset+DIM*1+YY] -= ty;
             f[j_coord_offset+DIM*1+ZZ] -= tz;
+
+            /* pairwise forces */
+            if (pf_global->PFPS) pf_atom_add_nonbonded_single(pf_global, inr+0, jnr+1, PF_INTER_COULOMB, felec, dx01, dy01, dz01);
+            if (pf_global->VS) pf_atom_virial_bond(pf_global, inr+0, jnr+1, fscal, dx01, dy01, dz01);
 
             /**************************
              * CALCULATE INTERACTIONS *
@@ -794,6 +844,10 @@ nb_kernel_ElecCoul_VdwNone_GeomW3W3_F_c
             f[j_coord_offset+DIM*2+YY] -= ty;
             f[j_coord_offset+DIM*2+ZZ] -= tz;
 
+            /* pairwise forces */
+            if (pf_global->PFPS) pf_atom_add_nonbonded_single(pf_global, inr+0, jnr+2, PF_INTER_COULOMB, felec, dx02, dy02, dz02);
+            if (pf_global->VS) pf_atom_virial_bond(pf_global, inr+0, jnr+2, fscal, dx02, dy02, dz02);
+
             /**************************
              * CALCULATE INTERACTIONS *
              **************************/
@@ -816,6 +870,10 @@ nb_kernel_ElecCoul_VdwNone_GeomW3W3_F_c
             f[j_coord_offset+DIM*0+XX] -= tx;
             f[j_coord_offset+DIM*0+YY] -= ty;
             f[j_coord_offset+DIM*0+ZZ] -= tz;
+
+            /* pairwise forces */
+            if (pf_global->PFPS) pf_atom_add_nonbonded_single(pf_global, inr+1, jnr+0, PF_INTER_COULOMB, felec, dx10, dy10, dz10);
+            if (pf_global->VS) pf_atom_virial_bond(pf_global, inr+1, jnr+0, fscal, dx10, dy10, dz10);
 
             /**************************
              * CALCULATE INTERACTIONS *
@@ -840,6 +898,10 @@ nb_kernel_ElecCoul_VdwNone_GeomW3W3_F_c
             f[j_coord_offset+DIM*1+YY] -= ty;
             f[j_coord_offset+DIM*1+ZZ] -= tz;
 
+            /* pairwise forces */
+            if (pf_global->PFPS) pf_atom_add_nonbonded_single(pf_global, inr+1, jnr+1, PF_INTER_COULOMB, felec, dx11, dy11, dz11);
+            if (pf_global->VS) pf_atom_virial_bond(pf_global, inr+1, jnr+1, fscal, dx11, dy11, dz11);
+
             /**************************
              * CALCULATE INTERACTIONS *
              **************************/
@@ -862,6 +924,10 @@ nb_kernel_ElecCoul_VdwNone_GeomW3W3_F_c
             f[j_coord_offset+DIM*2+XX] -= tx;
             f[j_coord_offset+DIM*2+YY] -= ty;
             f[j_coord_offset+DIM*2+ZZ] -= tz;
+
+            /* pairwise forces */
+            if (pf_global->PFPS) pf_atom_add_nonbonded_single(pf_global, inr+1, jnr+2, PF_INTER_COULOMB, felec, dx12, dy12, dz12);
+            if (pf_global->VS) pf_atom_virial_bond(pf_global, inr+1, jnr+2, fscal, dx12, dy12, dz12);
 
             /**************************
              * CALCULATE INTERACTIONS *
@@ -886,6 +952,10 @@ nb_kernel_ElecCoul_VdwNone_GeomW3W3_F_c
             f[j_coord_offset+DIM*0+YY] -= ty;
             f[j_coord_offset+DIM*0+ZZ] -= tz;
 
+            /* pairwise forces */
+            if (pf_global->PFPS) pf_atom_add_nonbonded_single(pf_global, inr+2, jnr+0, PF_INTER_COULOMB, felec, dx20, dy20, dz20);
+            if (pf_global->VS) pf_atom_virial_bond(pf_global, inr+2, jnr+0, fscal, dx20, dy20, dz20);
+
             /**************************
              * CALCULATE INTERACTIONS *
              **************************/
@@ -909,6 +979,10 @@ nb_kernel_ElecCoul_VdwNone_GeomW3W3_F_c
             f[j_coord_offset+DIM*1+YY] -= ty;
             f[j_coord_offset+DIM*1+ZZ] -= tz;
 
+            /* pairwise forces */
+            if (pf_global->PFPS) pf_atom_add_nonbonded_single(pf_global, inr+2, jnr+1, PF_INTER_COULOMB, felec, dx21, dy21, dz21);
+            if (pf_global->VS) pf_atom_virial_bond(pf_global, inr+2, jnr+1, fscal, dx21, dy21, dz21);
+
             /**************************
              * CALCULATE INTERACTIONS *
              **************************/
@@ -931,6 +1005,10 @@ nb_kernel_ElecCoul_VdwNone_GeomW3W3_F_c
             f[j_coord_offset+DIM*2+XX] -= tx;
             f[j_coord_offset+DIM*2+YY] -= ty;
             f[j_coord_offset+DIM*2+ZZ] -= tz;
+
+            /* pairwise forces */
+            if (pf_global->PFPS) pf_atom_add_nonbonded_single(pf_global, inr+2, jnr+2, PF_INTER_COULOMB, felec, dx22, dy22, dz22);
+            if (pf_global->VS) pf_atom_virial_bond(pf_global, inr+2, jnr+2, fscal, dx22, dy22, dz22);
 
             /* Inner loop uses 234 flops */
         }

@@ -140,6 +140,41 @@ static const int tpss[] =
 };
 #define NTPSS asize(tpss)
 
+// FDA scalar stress type
+static const int tstrs[] =
+{
+    efPSA, efPSR, efVMA
+};
+#define NTSTRS asize(tstrs)
+
+// FDA atomic or residue based force pairs
+static const int tpfx[] =
+{
+    efPFA, efPFR
+};
+#define NTPFX asize(tpfx)
+
+// FDA resulting networks (pdb or dimacs)
+static const int tgrx[] =
+{
+    efPDB, efDIM
+};
+#define NTGRX asize(tgrx)
+
+// FDA atomic or residue based punctual stress
+static const int tpsx[] =
+{
+    efPSA, efPSR
+};
+#define NTPSX asize(tpsx)
+
+// FDA view stress format (pdb or xpm)
+static const int tvst[] =
+{
+    efPDB, efXPM
+};
+#define NTVST asize(tvst)
+
 typedef struct
 {
     int         ftype;
@@ -204,6 +239,19 @@ static const t_deffile
     { eftASC, ".edi", "sam",    NULL, "ED sampling input"},
     { eftASC, ".cub", "pot",  NULL, "Gaussian cube file" },
     { eftASC, ".xpm", "root", NULL, "X PixMap compatible matrix file" },
+    { eftASC, ".pfi", "fda", NULL, "FDA paired force input file" },
+    { eftBIN, ".pfa", "fda", NULL, "FDA paired force output atom-based matrix file" },
+    { eftBIN, ".pfr", "fda", NULL, "FDA paired force output residue-based matrix file" },
+    { eftBIN, ".psa", "fda", NULL, "FDA punctual stress output atom-based matrix file" },
+    { eftBIN, ".psr", "fda", NULL, "FDA punctual stress output residue-based matrix file" },
+    { eftBIN, ".vsa", "fda", NULL, "FDA virial stress output atom-based matrix file" },
+    { eftBIN, ".vma", "fda", NULL, "FDA von Mises virial stress output atom-based matrix file" },
+    { eftGEN, ".???", "fda", "-f", "FDA punctual or virial stress", NTSTRS, tstrs },
+    { eftGEN, ".???", "fda", "-f", "FDA atomic or residue based force pairs", NTPFX, tpfx },
+    { eftGEN, ".???", "fda", "-o", "FDA resulting networks (pdb or dimacs)", NTGRX, tgrx },
+    { eftASC, ".dmc", "fda", NULL, "FDA network graph DIMACS" },
+    { eftGEN, ".???", "fda", NULL, "FDA atomic or residue based punctual stress", NTPSX, tpsx },
+    { eftGEN, ".???", "fda", NULL, "FDA view stress format (pdb or xpm)", NTVST, tvst },
     { eftASC, "", "rundir", NULL, "Run directory" }
 };
 

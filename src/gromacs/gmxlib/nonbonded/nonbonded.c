@@ -69,6 +69,9 @@
 #include "nb_generic_cg.h"
 #include "nb_generic_adress.h"
 
+#include "pf_interactions.h"
+#include "pf_array.h"
+
 /* Different default (c) and SIMD instructions interaction-specific kernels */
 #include "nb_kernel_c/nb_kernel_c.h"
 
@@ -550,6 +553,7 @@ do_nonbonded_listed(int ftype, int nbonds,
     real             LFC[2], LFV[2], DLF[2], lfac_coul[2], lfac_vdw[2], dlfac_coul[2], dlfac_vdw[2];
     real             qqB, c6B, c12B, sigma2_def, sigma2_min;
 
+    t_pf_global * pf_global = fr->pf_global;
 
     switch (ftype)
     {
@@ -690,6 +694,9 @@ do_nonbonded_listed(int ftype, int nbonds,
         /* Add the forces */
         rvec_inc(f[ai], dx);
         rvec_dec(f[aj], dx);
+
+    	if (pf_global->bInitialized)
+    	    pf_atom_add_bonded(pf_global, ai, aj, PF_INTER_NB14, dx);
 
         if (g)
         {

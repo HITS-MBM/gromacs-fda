@@ -144,7 +144,7 @@ void set_pull_init(t_inputrec *ir, gmx_mtop_t *mtop, rvec *x, matrix box, real l
  * If bStart adds the distance to the initial reference location.
  */
 
-int str_nelem(const char *str, int maxptr, char *ptr[]);
+//int str_nelem(const char *str, int maxptr, char *ptr[]);
 /* helper function from readir.c to convert strings */
 
 void read_adressparams(int *ninp_p, t_inpfile **inp_p, t_adress *adress, warninp_t wi);

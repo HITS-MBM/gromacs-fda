@@ -1411,6 +1411,7 @@ nd %s",
     }
 }
 
+#if 0
 /* count the number of text elemets separated by whitespace in a string.
     str = the input string
     maxptr = the maximum number of allowed elements
@@ -1454,6 +1455,7 @@ int str_nelem(const char *str, int maxptr, char *ptr[])
 
     return np;
 }
+#endif
 
 /* interpret a number of doubles from a string and put them in an array,
    after allocating space for them.

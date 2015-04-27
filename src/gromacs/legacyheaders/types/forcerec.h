@@ -42,6 +42,7 @@
 #include "nb_verlet.h"
 #include "interaction_const.h"
 #include "hw_info.h"
+#include "pf_array.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -443,6 +444,9 @@ typedef struct {
 
     /* Limit for printing large forces, negative is don't print */
     real print_force;
+
+    /* pf structure */
+    t_pf_global *pf_global;
 
     /* coarse load balancing time measurement */
     double t_fnbf;

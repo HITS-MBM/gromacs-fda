@@ -75,6 +75,7 @@
 #include "domdec.h"
 #include "genborn.h"
 #include "nbnxn_atomdata.h"
+#include "nbnxn_internal.h"
 #include "nbnxn_search.h"
 #include "nbnxn_kernels/nbnxn_kernel_ref.h"
 #include "nbnxn_kernels/simd_4xn/nbnxn_kernel_simd_4xn.h"
@@ -336,7 +337,7 @@ static void posres_wrapper(FILE *fplog,
                   (const rvec*)x, fr->f_novirsum, fr->vir_diag_posres,
                   ir->ePBC == epbcNONE ? NULL : &pbc,
                   lambda[efptRESTRAINT], &dvdl,
-                  fr->rc_scaling, fr->ePBC, fr->posres_com, fr->posres_comB);
+                  fr->rc_scaling, fr->ePBC, fr->posres_com, fr->posres_comB, fr->pf_global);
     if (bSepDVDL)
     {
         gmx_print_sepdvdl(fplog, interaction_function[F_POSRES].longname, v, dvdl);
@@ -359,7 +360,7 @@ static void posres_wrapper(FILE *fplog,
                                 top->idef.iparams_posres,
                                 (const rvec*)x, NULL, NULL,
                                 ir->ePBC == epbcNONE ? NULL : &pbc, lambda_dum, &dvdl,
-                                fr->rc_scaling, fr->ePBC, fr->posres_com, fr->posres_comB);
+                                fr->rc_scaling, fr->ePBC, fr->posres_com, fr->posres_comB, fr->pf_global);
             enerd->enerpart_lambda[i] += v;
         }
     }
@@ -585,7 +586,9 @@ static void do_nb_verlet(t_forcerec *fr,
                              enerd->grpp.ener[egCOULSR],
                              fr->bBHAM ?
                              enerd->grpp.ener[egBHAMSR] :
-                             enerd->grpp.ener[egLJSR]);
+                             enerd->grpp.ener[egLJSR],
+                             fr->pf_global,
+                             fr->nbv->nbs->a);
             break;
 
         case nbnxnk4xN_SIMD_4xN:

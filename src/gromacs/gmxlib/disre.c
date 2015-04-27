@@ -368,7 +368,7 @@ real ta_disres(int nfa, const t_iatom forceatoms[], const t_iparams ip[],
                const t_pbc *pbc, const t_graph *g,
                real gmx_unused lambda, real gmx_unused *dvdlambda,
                const t_mdatoms gmx_unused *md, t_fcdata *fcd,
-               int gmx_unused *global_atom_index)
+               int gmx_unused *global_atom_index, t_pf_global gmx_unused *pf_global)
 {
     const real      sixth       = 1.0/6.0;
     const real      seven_three = 7.0/3.0;

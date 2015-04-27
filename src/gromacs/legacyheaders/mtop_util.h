@@ -40,6 +40,8 @@
 extern "C" {
 #endif
 
+int gmx_mtop_maxresnr(const gmx_mtop_t *mtop, int maxres_renum);
+
 /* Should be called after generating or reading mtop,
  * to set some compute intesive variables to avoid
  * N^2 operations later on.

@@ -51,6 +51,8 @@
 #include "nonbonded.h"
 #include "nb_kernel.h"
 
+#include "pf_array.h"
+
 void
 gmx_nb_generic_kernel(t_nblist *                nlist,
                       rvec *                    xx,
@@ -60,6 +62,8 @@ gmx_nb_generic_kernel(t_nblist *                nlist,
                       nb_kernel_data_t *        kernel_data,
                       t_nrnb *                  nrnb)
 {
+    fprintf(stdout,"Calling gmx_nb_generic_kernel.\n");
+
     int           nri, ntype, table_nelements, ielec, ivdw;
     real          facel, gbtabscale;
     int           n, ii, is3, ii3, k, nj0, nj1, jnr, j3, ggid, nnn, n0;
@@ -100,6 +104,13 @@ gmx_nb_generic_kernel(t_nblist *                nlist,
     real          vdw_swV3, vdw_swV4, vdw_swV5, vdw_swF2, vdw_swF3, vdw_swF4;
     real          ewclj, ewclj2, ewclj6, ewcljrsq, poly, exponent, sh_lj_ewald;
     gmx_bool      bExactElecCutoff, bExactVdwCutoff, bExactCutoff;
+
+    t_pf_global * pf_global;
+    real          pf_coul, pf_vdw;
+
+	pf_global           = fr->pf_global;
+	pf_coul             = 0.0;
+	pf_vdw              = 0.0;
 
     x                   = xx[0];
     f                   = ff[0];
@@ -259,6 +270,7 @@ gmx_nb_generic_kernel(t_nblist *                nlist,
                         /* Vanilla cutoff coulomb */
                         velec            = qq*rinv;
                         felec            = velec*rinvsq;
+                        pf_coul          = felec;
                         /* The shift for the Coulomb potential is stored in
                          * the RF parameter c_rf, which is 0 without shift
                          */
@@ -269,6 +281,7 @@ gmx_nb_generic_kernel(t_nblist *                nlist,
                         /* Reaction-field */
                         velec            = qq*(rinv+fr->k_rf*rsq-fr->c_rf);
                         felec            = qq*(rinv*rinvsq-2.0*fr->k_rf);
+                        pf_coul          = felec;
                         break;
 
                     case GMX_NBKERNEL_ELEC_CUBICSPLINETABLE:
@@ -282,6 +295,7 @@ gmx_nb_generic_kernel(t_nblist *                nlist,
                         FF               = Fp+Geps+2.0*Heps2;
                         velec            = qq*VV;
                         felec            = -qq*FF*tabscale*rinv;
+                        pf_coul          = felec;
                         break;
 
                     case GMX_NBKERNEL_ELEC_GENERALIZEDBORN:
@@ -298,6 +312,7 @@ gmx_nb_generic_kernel(t_nblist *                nlist,
                         rinvcorr         = (fr->coulomb_modifier == eintmodPOTSHIFT) ? rinv-fr->ic->sh_ewald : rinv;
                         velec            = qq*(rinvcorr-(ewtab[ewitab+2]-ewtabhalfspace*eweps*(ewtab[ewitab]+felec)));
                         felec            = qq*rinv*(rinvsq-felec);
+                        pf_coul          = felec;
                         break;
 
                     default:
@@ -346,6 +361,7 @@ gmx_nb_generic_kernel(t_nblist *                nlist,
                         vvdw_disp        = c6*rinvsix;
                         vvdw_rep         = c12*rinvsix*rinvsix;
                         fvdw             = (vvdw_rep-vvdw_disp)*rinvsq;
+                        pf_vdw           = fvdw;
                         if (fr->vdw_modifier == eintmodPOTSHIFT)
                         {
                             vvdw             = (vvdw_rep + c12*sh_repulsion)/12.0 - (vvdw_disp + c6*sh_dispersion)/6.0;
@@ -367,6 +383,7 @@ gmx_nb_generic_kernel(t_nblist *                nlist,
                         br               = cexp2*rsq*rinv;
                         vvdw_rep         = cexp1*exp(-br);
                         fvdw             = (br*vvdw_rep-vvdw_disp)*rinvsq;
+                        pf_vdw           = fvdw;
                         if (fr->vdw_modifier == eintmodPOTSHIFT)
                         {
                             vvdw             = (vvdw_rep-cexp1*exp(-cexp2*rvdw))-(vvdw_disp + c6*sh_dispersion)/6.0;
@@ -400,6 +417,7 @@ gmx_nb_generic_kernel(t_nblist *                nlist,
                         vvdw_rep         = c12*VV;
                         fijR             = c12*FF;
                         fvdw             = -(fijD+fijR)*tabscale*rinv;
+                        pf_vdw           = fvdw;
                         vvdw             = vvdw_disp + vvdw_rep;
                         break;
 
@@ -416,6 +434,7 @@ gmx_nb_generic_kernel(t_nblist *                nlist,
                         vvdw_disp        = (c6-c6grid*(1.0-poly))*rinvsix;
                         vvdw_rep         = c12*rinvsix*rinvsix;
                         fvdw             = (vvdw_rep - vvdw_disp - c6grid*(1.0/6.0)*exponent*ewclj6)*rinvsq;
+                        pf_vdw           = fvdw;
                         if (fr->vdw_modifier == eintmodPOTSHIFT)
                         {
                             vvdw             = (vvdw_rep + c12*sh_repulsion)/12.0 - (vvdw_disp + c6*sh_dispersion - c6grid*sh_lj_ewald)/6.0;
@@ -460,6 +479,10 @@ gmx_nb_generic_kernel(t_nblist *                nlist,
             f[j3+0]          = f[j3+0] - tx;
             f[j3+1]          = f[j3+1] - ty;
             f[j3+2]          = f[j3+2] - tz;
+
+	        /* pairwise forces */
+		    if (pf_global->PFPS) pf_atom_add_nonbonded(fr->pf_global, ii, jnr, pf_coul, pf_vdw, dx, dy, dz);
+		    if (pf_global->VS) pf_atom_virial_bond(fr->pf_global, ii, jnr, fscal, dx, dy, dz);
         }
 
         f[ii3+0]         = f[ii3+0] + fix;

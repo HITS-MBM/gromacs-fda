@@ -56,7 +56,7 @@ typedef real t_ifunc (int nbonds, const t_iatom iatoms[],
                       const t_pbc *pbc, const t_graph *g,
                       real lambda, real *dvdlambda,
                       const t_mdatoms *md, t_fcdata *fcd,
-                      int *ddgatindex);
+                      int *ddgatindex, t_pf_global *pf_global);
 
 /*
  * The function type t_ifunc() calculates one interaction, using iatoms[]

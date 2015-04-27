@@ -211,10 +211,12 @@ static void check_viol(FILE *log,
         dr[clust_id].aver_3[ndr] += drt;
         dr[clust_id].aver_6[ndr] += fcd->disres.Rt_6[0];
 
+        gmx_fatal(FARGS, "FDA: interaction_function F_DISRES called without fr->pf_global.\n");
+
         snew(fshift, SHIFTS);
         ener = interaction_function[F_DISRES].ifunc(n, &forceatoms[i], forceparams,
                                                     (const rvec*)x, f, fshift,
-                                                    pbc, g, lam, &dvdl, NULL, fcd, NULL);
+                                                    pbc, g, lam, &dvdl, NULL, fcd, NULL, NULL);
         sfree(fshift);
         viol = fcd->disres.sumviol;
 

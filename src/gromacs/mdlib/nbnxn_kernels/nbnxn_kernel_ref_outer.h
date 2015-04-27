@@ -33,6 +33,9 @@
  * the research papers on the package. Check out http://www.gromacs.org.
  */
 
+#include "pf_array.h"
+#include "pf_interactions.h"
+
 #define UNROLLI    NBNXN_CPU_CLUSTER_I_SIZE
 #define UNROLLJ    NBNXN_CPU_CLUSTER_I_SIZE
 
@@ -103,7 +106,9 @@ NBK_FUNC_NAME(_VgrpF)
 #ifdef CALC_ENERGIES
  ,
  real                       *Vvdw,
- real                       *Vc
+ real                       *Vc,
+ t_pf_global                *pf_global,
+ int                        *cellInv
 #endif
 )
 {

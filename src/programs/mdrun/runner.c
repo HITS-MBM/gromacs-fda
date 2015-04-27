@@ -78,6 +78,9 @@
 #include "macros.h"
 #include "gmx_thread_affinity.h"
 #include "inputrec.h"
+#include "readinp.h"
+#include "gromacs/utility/cstringutil.h"
+#include "index.h"
 
 #include "gromacs/fileio/tpxio.h"
 #include "gromacs/mdlib/nbnxn_search.h"
@@ -96,6 +99,8 @@
 
 #include "gpu_utils.h"
 #include "nbnxn_cuda_data_mgmt.h"
+
+#include "pf_exclusions.h"
 
 typedef struct {
     gmx_integrator_t *func;
@@ -1150,6 +1155,13 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
     {
         /* Read (nearly) all data required for the simulation */
         read_tpx_state(ftp2fn(efTPX, nfile, fnm), inputrec, state, NULL, mtop);
+
+        // Initialize FDA global array
+        pf_global_data_init(nfile, fnm);
+
+    	// Exclusions for FDA must be generated directly behind the file import.
+    	// Call of pf_init would be too late, since neighbor lists allocation will be before.
+        pf_modify_energy_group_exclusions(mtop, inputrec);
 
         if (inputrec->cutoff_scheme != ecutsVERLET &&
             ((Flags & MD_TESTVERLET) || getenv("GMX_VERLET_SCHEME") != NULL))
