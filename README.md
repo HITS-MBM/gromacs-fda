@@ -13,7 +13,7 @@ The analysis of individual atomic pairwise forces, which we call Force Distribut
 Installation and usage
 ----------------------
 
-Please find the GROMACS-FDA manual at fda-manual/fda-manual.pdf
+Please find the GROMACS-FDA manual at [fda-manual](fda-manual/fda-manual.pdf).
 
 Citations
 ---------
