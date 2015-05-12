@@ -104,27 +104,34 @@ INSTANTIATE_TEST_CASE_P(AllFDAShortestPathTests, FDAShortestPathTest, ::testing:
         {"-ipf", "fda.pfr", "-s", "glycine_trimer.pdb", "-n", "index.ndx", "-frame", "0", "-source", "0", "-dest", "2", "-nk", "2"},
         "C-alpha",
         "result.pdb",
-        "ref0.pdb"
+        "FDAShortestPathTest.ref0.pdb"
     ),
     TestDataStructure(
         "glycine_trimer",
-        {"-ipf", "fda.pfr", "-s", "glycine_trimer.pdb", "-n", "index.ndx", "-frame", "average 11", "-source", "0", "-dest", "2", "-nk", "2"},
+        {"-ipf", "fda.pfr", "-s", "glycine_trimer.pdb", "-n", "index.ndx", "-frame", "average 3", "-source", "0", "-dest", "2", "-nk", "2", "-pymol", "result.pml"},
         "C-alpha",
         "result.pdb",
-        "ref1.pdb"
+        "FDAShortestPathTest.ref1.pdb"
     ),
     TestDataStructure(
         "glycine_trimer",
-        {"-ipf", "fda.pfr", "-s", "glycine_trimer.pdb", "-n", "index.ndx", "-frame", "average 11", "-source", "0", "-dest", "2", "-nk", "2", "-convert"},
+        {"-ipf", "fda.pfr", "-s", "glycine_trimer.pdb", "-n", "index.ndx", "-frame", "average 3", "-source", "0", "-dest", "2", "-nk", "2", "-convert", "-pymol", "result.pml"},
         "C-alpha",
         "result.pdb",
-        "ref2.pdb"
+        "FDAShortestPathTest.ref2.pdb"
     ),
     TestDataStructure(
         "glycine_trimer",
-        {"-ipf", "fda.pfr", "-s", "glycine_trimer.pdb", "-n", "index.ndx", "-frame", "all", "-source", "0", "-dest", "2", "-nk", "2"},
+        {"-ipf", "fda.pfr", "-s", "glycine_trimer.pdb", "-n", "index.ndx", "-frame", "all", "-source", "0", "-dest", "2", "-nk", "2", "-pymol", "result.pml"},
         "C-alpha",
         "result.pdb",
-        "ref3.pdb"
+        "FDAShortestPathTest.ref3.pdb"
+    ),
+    TestDataStructure(
+        "glycine_trimer",
+        {"-ipf", "fda.pfr", "-s", "glycine_trimer.pdb", "-n", "index.ndx", "-frame", "skip 3", "-source", "0", "-dest", "2", "-nk", "2", "-pymol", "result.pml"},
+        "C-alpha",
+        "result.pdb",
+        "FDAShortestPathTest.ref4.pdb"
     )
 ));

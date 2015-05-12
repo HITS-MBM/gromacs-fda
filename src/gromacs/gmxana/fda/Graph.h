@@ -57,7 +57,10 @@ private:
 
 	std::vector<int> indices_;
 
-	static const char * const color[];
+    static std::vector<std::string> colors;
+
+    /// Flag for printing warning only one time per run.
+    static bool virginValueToLargeForPDB;
 
 };
 

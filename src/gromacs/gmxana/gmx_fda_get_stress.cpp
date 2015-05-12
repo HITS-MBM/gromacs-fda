@@ -94,7 +94,7 @@ int gmx_fda_get_stress(int argc, char *argv[])
         opsFile << std::endl;
     }
 
-    std::cout << "All done" << std::endl;
+    std::cout << "All done." << std::endl;
     return 0;
 
 }

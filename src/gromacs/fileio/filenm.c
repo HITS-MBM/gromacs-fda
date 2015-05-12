@@ -252,6 +252,7 @@ static const t_deffile
     { eftASC, ".dmc", "fda", NULL, "FDA network graph DIMACS" },
     { eftGEN, ".???", "fda", NULL, "FDA atomic or residue based punctual stress", NTPSX, tpsx },
     { eftGEN, ".???", "fda", NULL, "FDA view stress format (pdb or xpm)", NTVST, tvst },
+    { eftASC, ".pml", "fda", NULL, "FDA pymol script for pdb-trajectory" },
     { eftASC, "", "rundir", NULL, "Run directory" }
 };
 

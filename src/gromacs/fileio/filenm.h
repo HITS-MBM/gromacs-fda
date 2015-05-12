@@ -62,7 +62,7 @@ enum {
     efEDI,
     efCUB,
     efXPM,
-    efPFI, efPFA, efPFR, efPSA, efPSR, efVSA, efVMA, efSTR, efPFX, efGRX, efDIM, efPSX, efVST,
+    efPFI, efPFA, efPFR, efPSA, efPSR, efVSA, efVMA, efSTR, efPFX, efGRX, efDIM, efPSX, efVST, efPML,
     efRND,
     efNR
 };

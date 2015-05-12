@@ -55,7 +55,10 @@ private:
 
 	std::vector<Coordinate> coordinates_;
 
-	static const char * const color[];
+    static std::vector<std::string> colors;
+
+    /// Flag for printing warning only one time per run.
+    static bool virginValueToLargeForPDB;
 
 };
 

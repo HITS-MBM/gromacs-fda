@@ -35,9 +35,11 @@ using namespace fda_analysis;
 int gmx_fda_shortest_path(int argc, char *argv[])
 {
     const char *desc[] = {
-        "[THISMODULE] calculate the k-shortest paths between a source node "
-    	"and a destination node of a FDA force network. The graph will "
-        "printed in the PDB-format, which allow an easy visualization with "
+        "[THISMODULE] calculates the k-shortest paths between a source node "
+    	"and a destination node of a FDA force network. "
+        "If the optional file [TT]-ipf-diff[tt] is used the differences of the pairwise forces will be taken. "
+        "The option [TT]-pymol[tt] can be used to generate a Pymol script, which can be directly called by Pymol. "
+        "The graph will printed in the PDB-format, which allow an easy visualization with "
     	"an program of your choice. "
     	"Each path will be determined and segment names will be assign to each "
         "of them, thus coloring them by segment id will help the analysis "
@@ -68,7 +70,8 @@ int gmx_fda_shortest_path(int argc, char *argv[])
         { efTPS, NULL, NULL, ffREAD },
         { efTRX, "-traj", NULL, ffOPTRD },
         { efNDX, NULL, NULL, ffOPTRD },
-        { efPDB, "-o", "result", ffWRITE }
+        { efPDB, "-o", "result", ffWRITE },
+        { efPML, "-pymol", "result", ffOPTWR }
     };
 
 #define NFILE asize(fnm)
@@ -78,6 +81,9 @@ int gmx_fda_shortest_path(int argc, char *argv[])
 
     if (opt2bSet("-ipf-diff", NFILE, fnm) and (fn2ftp(opt2fn("-ipf-diff", NFILE, fnm)) != fn2ftp(opt2fn("-ipf", NFILE, fnm))))
         gmx_fatal(FARGS, "Type of the file (-ipf-diff) does not match the type of the file (-ipf).");
+
+    if (fn2ftp(opt2fn("-ipf", NFILE, fnm)) == efPFR and !opt2bSet("-n", NFILE, fnm))
+        gmx_fatal(FARGS, "Index file is needed for residuebased pairwise forces.");
 
     // Get number of particles
     int nbParticles = getMaxIndexSecondColumnFirstFrame(opt2fn("-ipf", NFILE, fnm)) + 1;
@@ -119,66 +125,109 @@ int gmx_fda_shortest_path(int argc, char *argv[])
 
     PDB pdb(opt2fn("-s", NFILE, fnm), std::vector<int>(index, index + isize));
 
-    if (frameType == ALL)
-    {
+    std::vector<double> forceMatrix, forceMatrix2;
+
+    // Pymol pml-file
+    std::string molecularTrajectoryFilename = "traj.pdb";
+    FILE *molecularTrajectoryFile = NULL;
+    if (opt2bSet("-pymol", NFILE, fnm)) {
+        std::ofstream pmlFile(opt2fn("-pymol", NFILE, fnm));
+        pmlFile << "load " << molecularTrajectoryFilename << ", object=trajectory" << std::endl;
+        pmlFile << "set connect_mode, 1" << std::endl;
+        pmlFile << "load " << opt2fn("-o", NFILE, fnm) << ", object=network, discrete=1, multiplex=1" << std::endl;
+        pmlFile << "spectrum segi, blue_white_red, network" << std::endl;
+        molecularTrajectoryFile = gmx_ffopen(molecularTrajectoryFilename.c_str(), "w");
+    }
+
+    if (frameType == SINGLE) {
+
+        int frame = atoi(frameString);
+        forceMatrix = parseScalarFileFormat(opt2fn("-ipf", NFILE, fnm), nbParticles, frame);
+        if (opt2bSet("-ipf-diff", NFILE, fnm)) {
+            forceMatrix2 = parseScalarFileFormat(opt2fn("-ipf-diff", NFILE, fnm), nbParticles, frame);
+            for (int i = 0; i < nbParticles2; ++i) forceMatrix[i] -= forceMatrix2[i];
+        }
+
+        for (auto & f : forceMatrix) f = std::abs(f);
+
+        // Convert from kJ/mol/nm into pN
+        if (convert) for (auto & f : forceMatrix) f *= 1.66;
+
+        BoostGraph graph(forceMatrix);
+        BoostGraph::PathList shortestPaths = graph.findKShortestPaths(source, dest, numberOfShortestPaths);
+
+        pdb.writePaths(opt2fn("-o", NFILE, fnm), shortestPaths, forceMatrix, false);
+
+    } else {
+
         // Read trajectory coordinates
         t_trxstatus *status;
         real time;
         rvec *coord_traj;
         matrix box;
-        read_first_x(oenv, &status, opt2fn("-traj", NFILE, fnm), &time, &coord_traj, box);
 
         int nbFrames = getNumberOfFrames(opt2fn("-ipf", NFILE, fnm));
-        for (int frame = 0; frame != nbFrames; frame += frameValue)
+        for (int frame = 0; frame < nbFrames; ++frame)
         {
-    		std::vector<double> forceMatrix, forceMatrix2;
-			forceMatrix = parseScalarFileFormat(opt2fn("-ipf", NFILE, fnm), nbParticles, frame);
-			if (opt2bSet("-ipf-diff", NFILE, fnm)) forceMatrix2 = parseScalarFileFormat(opt2fn("-ipf-diff", NFILE, fnm), nbParticles, frame);
+            if (frame == 0) read_first_x(oenv, &status, opt2fn("-traj", NFILE, fnm), &time, &coord_traj, box);
+            else read_next_x(oenv, status, &time, coord_traj, box);
 
-    		if (opt2bSet("-ipf-diff", NFILE, fnm)) for (int i = 0; i < nbParticles2; ++i) forceMatrix[i] -= forceMatrix2[i];
+            if (frameType == SKIP and frame%frameValue) continue;
+
+			forceMatrix = parseScalarFileFormat(opt2fn("-ipf", NFILE, fnm), nbParticles, frame);
+			if (opt2bSet("-ipf-diff", NFILE, fnm)) {
+			    forceMatrix2 = parseScalarFileFormat(opt2fn("-ipf-diff", NFILE, fnm), nbParticles, frame);
+			    for (int i = 0; i < nbParticles2; ++i) forceMatrix[i] -= forceMatrix2[i];
+			}
     		for (auto & f : forceMatrix) f = std::abs(f);
 
     		// Convert from kJ/mol/nm into pN
     		if (convert) for (auto & f : forceMatrix) f *= 1.66;
 
+            if (frameType == AVERAGE) {
+                for (int frameAvg = 0; frameAvg < frameValue - 1; ++frameAvg)
+                {
+                    std::vector<double> forceMatrixAvg, forceMatrixAvg2;
+                    forceMatrixAvg = parseScalarFileFormat(opt2fn("-ipf", NFILE, fnm), nbParticles, frame);
+                    if (opt2bSet("-ipf-diff", NFILE, fnm)) {
+                        forceMatrixAvg2 = parseScalarFileFormat(opt2fn("-ipf-diff", NFILE, fnm), nbParticles, frame);
+                        for (int i = 0; i < nbParticles2; ++i) forceMatrixAvg[i] -= forceMatrixAvg2[i];
+                    }
+
+                    for (auto & f : forceMatrixAvg) f = std::abs(f);
+
+                    // Convert from kJ/mol/nm into pN
+                    if (convert) for (auto & f : forceMatrixAvg) f *= 1.66;
+
+                    for (int i = 0; i < nbParticles2; ++i) forceMatrix[i] += forceMatrixAvg[i];
+                }
+                for (int i = 0; i < nbParticles2; ++i) forceMatrix[i] /= frameValue;
+            }
+
     		BoostGraph graph(forceMatrix);
     		BoostGraph::PathList shortestPaths = graph.findKShortestPaths(source, dest, numberOfShortestPaths);
 
-            read_next_x(oenv, status, &time, coord_traj, box);
     		pdb.updateCoordinates(coord_traj);
     		pdb.writePaths(opt2fn("-o", NFILE, fnm), shortestPaths, forceMatrix, frame);
+
+            // Write moleculare trajectory for pymol script
+            if (opt2bSet("-pymol", NFILE, fnm))
+                write_pdbfile(molecularTrajectoryFile, "FDA trajectory for Pymol visualization", &top.atoms, coord_traj, ePBC, box, ' ', 0, NULL, TRUE);
+
+            if (frameType == AVERAGE) {
+                frame += frameValue - 1;
+                // It would be better to skip the next frameValue - 1 frames instead of reading them.
+                for (int frameAvg = 0; frameAvg < frameValue - 1; ++frameAvg) {
+                    read_next_x(oenv, status, &time, coord_traj, box);
+                }
+            }
         }
-
         close_trj(status);
-
-    } else {
-
-		std::vector<double> forceMatrix, forceMatrix2;
-
-		if (frameType == SINGLE) {
-			int frame = atoi(frameString);
-			forceMatrix = parseScalarFileFormat(opt2fn("-ipf", NFILE, fnm), nbParticles, frame);
-			if (opt2bSet("-ipf-diff", NFILE, fnm)) forceMatrix2 = parseScalarFileFormat(opt2fn("-ipf-diff", NFILE, fnm), nbParticles, frame);
-		} else if (frameType == AVERAGE) {
-			forceMatrix = getAveragedForcematrix(opt2fn("-ipf", NFILE, fnm), nbParticles);
-			if (opt2bSet("-ipf-diff", NFILE, fnm)) forceMatrix2 = getAveragedForcematrix(opt2fn("-ipf", NFILE, fnm), nbParticles);
-		} else {
-			gmx_fatal(FARGS, "Unknown frame type: %s", EnumParser<FrameType>()(frameType).c_str());
-		}
-
-		if (opt2bSet("-ipf-diff", NFILE, fnm)) for (int i = 0; i < nbParticles2; ++i) forceMatrix[i] -= forceMatrix2[i];
-		for (auto & f : forceMatrix) f = std::abs(f);
-
-		// Convert from kJ/mol/nm into pN
-		if (convert) for (auto & f : forceMatrix) f *= 1.66;
-
-		BoostGraph graph(forceMatrix);
-		BoostGraph::PathList shortestPaths = graph.findKShortestPaths(source, dest, numberOfShortestPaths);
-
-		pdb.writePaths(opt2fn("-o", NFILE, fnm), shortestPaths, forceMatrix, false);
     }
 
-    std::cout << "All done" << std::endl;
+    if (opt2bSet("-pymol", NFILE, fnm)) gmx_ffclose(molecularTrajectoryFile);
+
+    std::cout << "All done." << std::endl;
     return 0;
 
 }

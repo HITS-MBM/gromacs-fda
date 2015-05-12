@@ -104,27 +104,48 @@ INSTANTIATE_TEST_CASE_P(AllFDAGraphTests, FDAGraphTest, ::testing::Values(
         {"-ipf", "cap0_all_prot.pfr", "-ipf-diff", "cap1_all_prot.pfr", "-s", "1G6N.pdb", "-n", "index.ndx", "-frame", "0", "-t", "100", "-min", "2", "-convert"},
 		"C-alpha",
         "result.pdb",
-        "ref.pdb"
+        "FDAGraphTest.ref0.pdb"
     ),
     TestDataStructure(
         "maxime_all_prot",
         {"-ipf", "cap0_all_prot.pfr", "-ipf-diff", "cap1_all_prot.pfr", "-s", "1G6N.pdb", "-n", "index.ndx", "-frame", "0", "-t", "20", "-min", "2", "-convert"},
         "C-alpha",
         "result.dmc",
-        "ref.dmc"
+        "FDAGraphTest.ref1.dmc"
     ),
     TestDataStructure(
         "alagly",
         {"-ipf", "fda.pfa", "-s", "conf.gro", "-frame", "0"},
         "",
         "result.pdb",
-        "ref.pdb"
+        "FDAGraphTest.ref2.pdb"
     ),
     TestDataStructure(
         "alagly",
-        {"-ipf", "fda.pfa", "-s", "conf.gro", "-frame", "all", "-t", "1000"},
+        {"-ipf", "fda.pfa", "-s", "conf.gro", "-frame", "all", "-t", "1000", "-pymol", "result.pml"},
         "",
-        "result2.pdb",
-        "ref2.pdb"
+        "result.pdb",
+        "FDAGraphTest.ref3.pdb"
+    ),
+    TestDataStructure(
+        "alagly",
+        {"-ipf", "fda.pfa", "-s", "conf.gro", "-frame", "skip 3", "-t", "1000", "-pymol", "result.pml"},
+        "",
+        "result.pdb",
+        "FDAGraphTest.ref4.pdb"
+    ),
+    TestDataStructure(
+        "alagly",
+        {"-ipf", "fda.pfa", "-s", "conf.gro", "-frame", "average 3", "-t", "1000", "-pymol", "result.pml"},
+        "",
+        "result.pdb",
+        "FDAGraphTest.ref5.pdb"
+    ),
+    TestDataStructure(
+        "glycine_trimer",
+        {"-ipf", "fda.pfr", "-s", "glycine_trimer.pdb", "-traj", "traj.trr", "-n", "index.ndx", "-frame", "all", "-pymol", "result.pml"},
+        "C-alpha",
+        "result.pdb",
+        "FDAGraphTest.ref6.pdb"
     )
 ));

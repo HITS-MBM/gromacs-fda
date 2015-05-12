@@ -200,6 +200,9 @@ void Graph::convertNetworkToPDB(std::string const& filename, Networks const& net
     int numNetwork = 0;
     int n = 1;
 
+    real currentForce;
+    bool valueToLargeForPDB = false;
+
     for (auto network : networks) {
         if (network.size() >= minGraphOrder) {
         	for (auto nodeId : network) {
@@ -219,8 +222,13 @@ void Graph::convertNetworkToPDB(std::string const& filename, Networks const& net
                     			add = false;
                     	}
                     	if (add) {
-                    		writeAtomToPDB(pdb, n, node, node.forces_[connectedIndex.index], numNetwork);
-                    		writeAtomToPDB(pdb, n+1, connectedNode, node.forces_[connectedIndex.index], numNetwork);
+                    	    currentForce = node.forces_[connectedIndex.index];
+                    	    if (currentForce > 999.99) {
+                    	        valueToLargeForPDB = true;
+                    	        currentForce = 999.99;
+                    	    }
+                    		writeAtomToPDB(pdb, n, node, currentForce, numNetwork);
+                    		writeAtomToPDB(pdb, n+1, connectedNode, currentForce, numNetwork);
                             connections << "CONECT" << std::setw(5) << n << std::setw(5) << n+1 << std::endl;
                             finishedPairs.push_back(std::make_pair(node.index_, connectedNode.index_));
                             n += 2;
@@ -233,6 +241,10 @@ void Graph::convertNetworkToPDB(std::string const& filename, Networks const& net
     }
 
     if (numNetwork > 10) gmx_warning("%d networks are found, which could be difficult to visualize", numNetwork);
+    if (virginValueToLargeForPDB and valueToLargeForPDB) {
+        gmx_warning("Force values larger than 999.99 are detected. For these only the maximum value (999.99) will be printed in PDB.");
+        virginValueToLargeForPDB = false;
+    }
 
     pdb << connections.str() << "ENDMDL" << std::endl;
 }
@@ -304,16 +316,18 @@ void Graph::writeAtomToPDB(std::ofstream& os, int num, Node const& node, double 
        << std::setw(8) << node.y_
        << std::setw(8) << node.z_
        << std::setprecision(2) << std::setw(6) << 1.0
-       << std::setw(6) << force
-       << std::setw(8) << color[numNetwork % 32]
+       << std::setprecision(2) << std::setw(6) << force
+       << std::setw(8) << colors[numNetwork % 32]
        << std::endl;
 }
 
-const char * const Graph::color[] =
+std::vector<std::string> Graph::colors =
     {"AA", "AB", "AC", "AD", "AE", "AF", "AG", "AH", "AI", "AJ",
      "AK", "AL", "AM", "AN", "AO", "AP", "AQ", "AR", "AS", "AT",
      "AU", "AV", "AW", "AX", "AY", "AZ", "BA", "BB", "BC", "BD",
      "BE", "BF"};
+
+bool Graph::virginValueToLargeForPDB = true;
 
 std::ostream& operator << (std::ostream& os, Graph const& graph)
 {

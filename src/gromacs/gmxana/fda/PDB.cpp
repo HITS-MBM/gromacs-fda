@@ -78,14 +78,24 @@ void PDB::writePaths(std::string const& filename, std::vector< std::vector<int> 
     std::vector<int>::const_iterator i1, i2;
 	int dim = sqrt(forceMatrix.size());
 
+    real currentForce;
+    bool valueToLargeForPDB = false;
+
     for (auto const& path : shortestPaths)
     {
 		for (size_t n = 0; n < path.size() - 1; ++n)
 		{
 			i = path[n];
 			j = path[n+1];
-			writeAtomToPDB(pdb, numAtom, indices_[i], coordinates_[i], forceMatrix[i*dim+j], numNetwork);
-			writeAtomToPDB(pdb, numAtom + 1, indices_[j], coordinates_[j], forceMatrix[i*dim+j], numNetwork);
+
+            currentForce = forceMatrix[i*dim+j];
+            if (currentForce > 999.99) {
+                valueToLargeForPDB = true;
+                currentForce = 999.99;
+            }
+
+			writeAtomToPDB(pdb, numAtom, indices_[i], coordinates_[i], currentForce, numNetwork);
+			writeAtomToPDB(pdb, numAtom + 1, indices_[j], coordinates_[j], currentForce, numNetwork);
 
 			connections << "CONECT" << std::setw(5) << numAtom << std::setw(5) << numAtom + 1 << std::endl;
 
@@ -94,8 +104,13 @@ void PDB::writePaths(std::string const& filename, std::vector< std::vector<int> 
 		++numNetwork;
     }
 
+    if (virginValueToLargeForPDB and valueToLargeForPDB) {
+        gmx_warning("Force values larger than 999.99 are detected. For these only the maximum value (999.99) will be printed in PDB.");
+        virginValueToLargeForPDB = false;
+    }
+
     pdb << connections.str()
-        << "END" << std::endl;
+        << "ENDMDL" << std::endl;
 }
 
 void PDB::updateCoordinates(const rvec x[])
@@ -129,8 +144,8 @@ void PDB::writeAtomToPDB(std::ofstream& os, int num, int index, Coordinate const
        << std::setw(8) << coord[1]
        << std::setw(8) << coord[2]
        << std::setprecision(2) << std::setw(6) << 1.0
-       << std::setw(6) << force
-       << std::setw(8) << color[numNetwork % 32]
+       << std::setprecision(2) << std::setw(6) << force
+       << std::setw(8) << colors[numNetwork % 32]
        << std::endl;
 }
 
@@ -139,12 +154,14 @@ void PDB::checkSanity() const
 	 if (indices_.size() != coordinates_.size()) gmx_fatal(FARGS, "PDB sanity check failed.");
 }
 
-const char * const PDB::color[] =
+std::vector<std::string> PDB::colors =
 {
 	"AA", "AB", "AC", "AD", "AE", "AF", "AG", "AH", "AI", "AJ",
     "AK", "AL", "AM", "AN", "AO", "AP", "AQ", "AR", "AS", "AT",
     "AU", "AV", "AW", "AX", "AY", "AZ", "BA", "BB", "BC", "BD",
     "BE", "BF"
 };
+
+bool PDB::virginValueToLargeForPDB = true;
 
 } // namespace fda_analysis

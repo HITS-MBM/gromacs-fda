@@ -716,9 +716,9 @@ t_pf_global *pf_init(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global) {
     
   /* initialization of time averages */
   snew(pf_global->time_averages, 1);
-  ITYPE("pf_time_averages_period", pf_global->time_averages->period, 1);
+  ITYPE("time_averages_period", pf_global->time_averages->period, 1);
   if (pf_global->time_averages->period < 0)
-    gmx_fatal(FARGS, "Invalid value for pf_time_averages_period: %d\n", pf_global->time_averages->period);
+    gmx_fatal(FARGS, "Invalid value for time_averages_period: %d\n", pf_global->time_averages->period);
   pf_global->time_averages->steps = 0;
   if (pf_global->time_averages->period != 1) {
     if (pf_global->OnePair != PF_ONEPAIR_SUMMED)
