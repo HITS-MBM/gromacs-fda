@@ -89,10 +89,7 @@ void PDB::writePaths(std::string const& filename, std::vector< std::vector<int> 
 			j = path[n+1];
 
             currentForce = forceMatrix[i*dim+j];
-            if (currentForce > 999.99) {
-                valueToLargeForPDB = true;
-                currentForce = 999.99;
-            }
+            if (currentForce > 999.99) valueToLargeForPDB = true;
 
 			writeAtomToPDB(pdb, numAtom, indices_[i], coordinates_[i], currentForce, numNetwork);
 			writeAtomToPDB(pdb, numAtom + 1, indices_[j], coordinates_[j], currentForce, numNetwork);
@@ -105,7 +102,8 @@ void PDB::writePaths(std::string const& filename, std::vector< std::vector<int> 
     }
 
     if (virginValueToLargeForPDB and valueToLargeForPDB) {
-        gmx_warning("Force values larger than 999.99 are detected. For these only the maximum value (999.99) will be printed in PDB.");
+        gmx_warning("Force values larger than 999.99 are detected. Therefore, the general PDB format of the b-factor column of Real(6.2) is broken. "
+                    "It is tested that it works for Pymol and VMD, but it is not guaranteed that it will work for other visualization programs.");
         virginValueToLargeForPDB = false;
     }
 

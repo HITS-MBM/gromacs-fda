@@ -223,10 +223,7 @@ void Graph::convertNetworkToPDB(std::string const& filename, Networks const& net
                     	}
                     	if (add) {
                     	    currentForce = node.forces_[connectedIndex.index];
-                    	    if (currentForce > 999.99) {
-                    	        valueToLargeForPDB = true;
-                    	        currentForce = 999.99;
-                    	    }
+                    	    if (currentForce > 999.99) valueToLargeForPDB = true;
                     		writeAtomToPDB(pdb, n, node, currentForce, numNetwork);
                     		writeAtomToPDB(pdb, n+1, connectedNode, currentForce, numNetwork);
                             connections << "CONECT" << std::setw(5) << n << std::setw(5) << n+1 << std::endl;
@@ -242,7 +239,8 @@ void Graph::convertNetworkToPDB(std::string const& filename, Networks const& net
 
     if (numNetwork > 10) gmx_warning("%d networks are found, which could be difficult to visualize", numNetwork);
     if (virginValueToLargeForPDB and valueToLargeForPDB) {
-        gmx_warning("Force values larger than 999.99 are detected. For these only the maximum value (999.99) will be printed in PDB.");
+        gmx_warning("Force values larger than 999.99 are detected. Therefore, the general PDB format of the b-factor column of Real(6.2) is broken. "
+                    "It is tested that it works for Pymol and VMD, but it is not guaranteed that it will work for other visualization programs.");
         virginValueToLargeForPDB = false;
     }
 

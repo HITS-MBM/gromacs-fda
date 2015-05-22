@@ -187,11 +187,10 @@ int gmx_fda_view_stress(int argc, char *argv[])
 
 	            for (int i = 0; i < nbParticles; ++i) {
 	                currentStress = stressMatrix[frameValue*nbParticles + i];
+	                top.atoms.pdbinfo[i].bfac = currentStress;
 	                if (currentStress > 999.99) {
-	                    top.atoms.pdbinfo[i].bfac = 999.99;
 	                    valueToLargeForPDB = true;
 	                }
-	                else top.atoms.pdbinfo[i].bfac = currentStress;
 	            }
 
 	            write_pdbfile(fp, title.c_str(), &top.atoms, coord_traj, ePBC, box, ' ', 0, NULL, TRUE);
@@ -247,7 +246,9 @@ int gmx_fda_view_stress(int argc, char *argv[])
 
 	} else gmx_fatal(FARGS, "Missing output filename -opdb or -oxpm.");
 
-    if (valueToLargeForPDB) gmx_warning("Stress values larger than 999.99 are detected. For these only the maximum value (999.99) will be printed in PDB.");
+    if (valueToLargeForPDB)
+        gmx_warning("Stress values larger than 999.99 are detected. Therefore, the general PDB format of the b-factor column of Real(6.2) is broken. "
+                    "It is tested that it works for Pymol and VMD, but it is not guaranteed that it will work for other visualization programs.");
 
     std::cout << "All done." << std::endl;
     return 0;
