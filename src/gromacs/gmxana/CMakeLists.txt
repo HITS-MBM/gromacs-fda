@@ -32,12 +32,14 @@
 # To help us fund GROMACS development, we humbly ask that you cite
 # the research papers on the package. Check out http://www.gromacs.org.
 
-set(CMAKE_VERBOSE_MAKEFILE true)
+if(NOT GMX_CXX11)
+  message(FATAL_ERROR "GROMACS FDA analysis can not compiled without C++11")
+endif()
 
 file(GLOB GMXANA_SOURCES *.c *.cpp)
 
 set(GMXANA_PUBLIC_HEADERS
-    gstat.h
+  gstat.h
 )
 gmx_install_headers(gmxana ${GMXANA_PUBLIC_HEADERS})
 
@@ -46,5 +48,5 @@ add_subdirectory(fda)
 set(LIBGROMACS_SOURCES ${LIBGROMACS_SOURCES} ${GMXANA_SOURCES} ${LIB_FDA_ANA_SOURCES} PARENT_SCOPE)
     
 if(BUILD_TESTING)
-    add_subdirectory(legacytests)
+  add_subdirectory(legacytests)
 endif()
