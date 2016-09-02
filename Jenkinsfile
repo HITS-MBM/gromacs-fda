@@ -1,3 +1,5 @@
+#!groovy
+
 node {
     stage 'Checkout'
     git url: "https://github.com/HITS-MBM/gromacs-fda.git", branch: 'fda'
