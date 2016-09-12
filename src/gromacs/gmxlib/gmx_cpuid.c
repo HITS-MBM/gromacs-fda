@@ -37,23 +37,27 @@
 #endif
 
 #ifdef HAVE_SCHED_H
-#define _GNU_SOURCE
-#include <sched.h>
+#  ifndef _GNU_SOURCE
+#    define _GNU_SOURCE 1
+#  endif
+#  include <sched.h>
 #endif
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
-#ifdef _MSC_VER
+#ifdef GMX_NATIVE_WINDOWS
 /* MSVC definition for __cpuid() */
-#include <intrin.h>
+    #ifdef _MSC_VER
+        #include <intrin.h>
+    #endif
 /* sysinfo functions */
-#include <windows.h>
+    #include <windows.h>
 #endif
 #ifdef HAVE_UNISTD_H
 /* sysconf() definition */
-#include <unistd.h>
+    #include <unistd.h>
 #endif
 
 #include "gmx_cpuid.h"
@@ -555,7 +559,7 @@ cpuid_check_amd_x86(gmx_cpuid_t                cpuid)
     /* Query APIC information on AMD */
     if (max_extfn >= 0x80000008)
     {
-#if (defined HAVE_SCHED_H && defined HAVE_SCHED_SETAFFINITY && defined HAVE_SYSCONF && defined __linux__)
+#if (defined HAVE_SCHED_AFFINITY && defined HAVE_SYSCONF && defined __linux__)
         /* Linux */
         unsigned int   i;
         cpu_set_t      cpuset, save_cpuset;
@@ -669,7 +673,7 @@ cpuid_check_intel_x86(gmx_cpuid_t                cpuid)
     if (max_stdfn >= 0xB)
     {
         /* Query x2 APIC information from cores */
-#if (defined HAVE_SCHED_H && defined HAVE_SCHED_SETAFFINITY && defined HAVE_SYSCONF && defined __linux__)
+#if (defined HAVE_SCHED_AFFINITY && defined HAVE_SYSCONF && defined __linux__)
         /* Linux */
         unsigned int   i;
         cpu_set_t      cpuset, save_cpuset;

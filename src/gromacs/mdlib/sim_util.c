@@ -397,7 +397,8 @@ static void pull_potential_wrapper(FILE *fplog,
                                    t_mdatoms *mdatoms,
                                    gmx_enerdata_t *enerd,
                                    real *lambda,
-                                   double t)
+                                   double t,
+                                   gmx_wallcycle_t wcycle)
 {
     t_pbc  pbc;
     real   dvdl;
@@ -407,6 +408,7 @@ static void pull_potential_wrapper(FILE *fplog,
      * The virial contribution is calculated directly,
      * which is why we call pull_potential after calc_virial.
      */
+    wallcycle_start(wcycle, ewcPULLPOT);
     set_pbc(&pbc, ir->ePBC, box);
     dvdl                     = 0;
     enerd->term[F_COM_PULL] +=
@@ -417,6 +419,7 @@ static void pull_potential_wrapper(FILE *fplog,
         gmx_print_sepdvdl(fplog, "Com pull", enerd->term[F_COM_PULL], dvdl);
     }
     enerd->dvdl_lin[efptRESTRAINT] += dvdl;
+    wallcycle_stop(wcycle, ewcPULLPOT);
 }
 
 static void pme_receive_force_ener(FILE           *fplog,
@@ -1413,21 +1416,19 @@ void do_force_cutsVERLET(FILE *fplog, t_commrec *cr,
 
     if (bDoForces && DOMAINDECOMP(cr))
     {
+        if (bUseGPU)
+        {
+            /* We are done with the CPU compute, but the GPU local non-bonded
+             * kernel can still be running while we communicate the forces.
+             * We start a counter here, so we can, hopefully, time the rest
+             * of the GPU kernel execution and data transfer.
+             */
+            wallcycle_start(wcycle, ewcWAIT_GPU_NB_L_EST);
+        }
+
         /* Communicate the forces */
         wallcycle_start(wcycle, ewcMOVEF);
         dd_move_f(cr->dd, f, fr->fshift);
-        /* Do we need to communicate the separate force array
-         * for terms that do not contribute to the single sum virial?
-         * Position restraints and electric fields do not introduce
-         * inter-cg forces, only full electrostatics methods do.
-         * When we do not calculate the virial, fr->f_novirsum = f,
-         * so we have already communicated these forces.
-         */
-        if (EEL_FULL(fr->eeltype) && cr->dd->n_intercg_excl &&
-            (flags & GMX_FORCE_VIRIAL))
-        {
-            dd_move_f(cr->dd, fr->f_novirsum, NULL);
-        }
         if (bSepLRF)
         {
             /* We should not update the shift forces here,
@@ -1443,13 +1444,44 @@ void do_force_cutsVERLET(FILE *fplog, t_commrec *cr,
         /* wait for local forces (or calculate in emulation mode) */
         if (bUseGPU)
         {
+            float       cycles_tmp, cycles_wait_est;
+            const float cuda_api_overhead_margin = 50000.0f; /* cycles */
+
             wallcycle_start(wcycle, ewcWAIT_GPU_NB_L);
             nbnxn_cuda_wait_gpu(nbv->cu_nbv,
                                 nbv->grp[eintLocal].nbat,
                                 flags, eatLocal,
                                 enerd->grpp.ener[egLJSR], enerd->grpp.ener[egCOULSR],
                                 fr->fshift);
-            cycles_wait_gpu += wallcycle_stop(wcycle, ewcWAIT_GPU_NB_L);
+            cycles_tmp      = wallcycle_stop(wcycle, ewcWAIT_GPU_NB_L);
+
+            if (bDoForces && DOMAINDECOMP(cr))
+            {
+                cycles_wait_est = wallcycle_stop(wcycle, ewcWAIT_GPU_NB_L_EST);
+
+                if (cycles_tmp < cuda_api_overhead_margin)
+                {
+                    /* We measured few cycles, it could be that the kernel
+                     * and transfer finished earlier and there was no actual
+                     * wait time, only API call overhead.
+                     * Then the actual time could be anywhere between 0 and
+                     * cycles_wait_est. As a compromise, we use half the time.
+                     */
+                    cycles_wait_est *= 0.5f;
+                }
+            }
+            else
+            {
+                /* No force communication so we actually timed the wait */
+                cycles_wait_est = cycles_tmp;
+            }
+            /* Even though this is after dd_move_f, the actual task we are
+             * waiting for runs asynchronously with dd_move_f and we usually
+             * have nothing to balance it with, so we can and should add
+             * the time to the force time for load balancing.
+             */
+            cycles_force    += cycles_wait_est;
+            cycles_wait_gpu += cycles_wait_est;
 
             /* now clear the GPU outputs while we finish the step on the CPU */
 
@@ -1501,7 +1533,7 @@ void do_force_cutsVERLET(FILE *fplog, t_commrec *cr,
         }
 
         /* If we have NoVirSum forces, but we do not calculate the virial,
-         * we sum fr->f_novirum=f later.
+         * we sum fr->f_novirsum=f later.
          */
         if (vsite && !(fr->bF_NoVirSum && !(flags & GMX_FORCE_VIRIAL)))
         {
@@ -1530,8 +1562,12 @@ void do_force_cutsVERLET(FILE *fplog, t_commrec *cr,
 
     if (inputrec->ePull == epullUMBRELLA || inputrec->ePull == epullCONST_F)
     {
+        /* Since the COM pulling is always done mass-weighted, no forces are
+         * applied to vsites and this call can be done after vsite spreading.
+         */
         pull_potential_wrapper(fplog, bSepDVDL, cr, inputrec, box, x,
-                               f, vir_force, mdatoms, enerd, lambda, t);
+                               f, vir_force, mdatoms, enerd, lambda, t,
+                               wcycle);
     }
 
     /* Add the forces from enforced rotation potentials (if any) */
@@ -1975,7 +2011,7 @@ void do_force_cutsGROUP(FILE *fplog, t_commrec *cr,
         }
 
         /* If we have NoVirSum forces, but we do not calculate the virial,
-         * we sum fr->f_novirum=f later.
+         * we sum fr->f_novirsum=f later.
          */
         if (vsite && !(fr->bF_NoVirSum && !(flags & GMX_FORCE_VIRIAL)))
         {
@@ -2005,7 +2041,8 @@ void do_force_cutsGROUP(FILE *fplog, t_commrec *cr,
     if (inputrec->ePull == epullUMBRELLA || inputrec->ePull == epullCONST_F)
     {
         pull_potential_wrapper(fplog, bSepDVDL, cr, inputrec, box, x,
-                               f, vir_force, mdatoms, enerd, lambda, t);
+                               f, vir_force, mdatoms, enerd, lambda, t,
+                               wcycle);
     }
 
     /* Add the forces from enforced rotation potentials (if any) */
@@ -2825,7 +2862,8 @@ void init_md(FILE *fplog,
              int nfile, const t_filenm fnm[],
              gmx_mdoutf_t *outf, t_mdebin **mdebin,
              tensor force_vir, tensor shake_vir, rvec mu_tot,
-             gmx_bool *bSimAnn, t_vcm **vcm, unsigned long Flags)
+             gmx_bool *bSimAnn, t_vcm **vcm, unsigned long Flags,
+             gmx_wallcycle_t wcycle)
 {
     int  i, j, n;
     real tmpt, mod;
@@ -2881,7 +2919,7 @@ void init_md(FILE *fplog,
 
     if (nfile != -1)
     {
-        *outf = init_mdoutf(fplog, nfile, fnm, Flags, cr, ir, mtop, oenv);
+        *outf = init_mdoutf(fplog, nfile, fnm, Flags, cr, ir, mtop, oenv, wcycle);
 
         *mdebin = init_mdebin((Flags & MD_APPENDFILES) ? NULL : mdoutf_get_fp_ene(*outf),
                               mtop, ir, mdoutf_get_fp_dhdl(*outf));

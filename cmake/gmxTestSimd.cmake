@@ -43,10 +43,10 @@ macro(gmx_use_clang_as_with_gnu_compilers_on_osx)
     # does not support AVX, so we need to tell the linker to use the clang
     # compilers assembler instead - and this has to happen before we detect AVX
     # flags.
-    if(APPLE AND ${CMAKE_C_COMPILER_ID} STREQUAL "GNU")
+    if(APPLE AND "${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
         gmx_test_cflag(GNU_C_USE_CLANG_AS "-Wa,-q" SIMD_C_FLAGS)
     endif()
-    if(APPLE AND ${CMAKE_CXX_COMPILER_ID} STREQUAL "GNU")
+    if(APPLE AND "${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
         gmx_test_cxxflag(GNU_CXX_USE_CLANG_AS "-Wa,-q" SIMD_CXX_FLAGS)
     endif()
 endmacro()
@@ -179,8 +179,8 @@ int main(){__m128 x=_mm_set1_ps(0.5);x=_mm_frcz_ps(x);return _mm_movemask_ps(x);
     # We don't have the full compiler version string yet (BUILD_C_COMPILER),
     # so we can't distinguish vanilla from Apple clang versions, but catering for a few rare AMD
     # hackintoshes is not worth the effort.
-    if (APPLE AND (${CMAKE_C_COMPILER_ID} STREQUAL "Clang" OR
-                ${CMAKE_CXX_COMPILER_ID} STREQUAL "Clang"))
+    if (APPLE AND ("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang" OR
+                "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang"))
         message(WARNING "Due to a known compiler bug, Clang up to version 3.2 (and Apple Clang up to version 4.1) produces incorrect code with AVX_128_FMA SIMD. As we cannot work around this bug on OS X, you will have to select a different compiler or SIMD instruction set.")
     endif()
 
@@ -231,12 +231,12 @@ elseif(${GMX_SIMD} STREQUAL "AVX2_256")
 
     gmx_find_cflag_for_source(CFLAGS_AVX2 "C compiler AVX2 flag"
                               "#include<immintrin.h>
-                              int main(){__m256 x=_mm256_set1_ps(0.5);x=_mm256_fmadd_ps(x,x,x);return _mm256_movemask_ps(x);}"
+                              int main(){__m256i x=_mm256_set1_epi32(5);x=_mm256_add_epi32(x,x);return _mm256_movemask_epi8(x);}"
                               SIMD_C_FLAGS
                               "-march=core-avx2" "-mavx2" "/arch:AVX" "-hgnu") # no AVX2-specific flag for MSVC yet
     gmx_find_cxxflag_for_source(CXXFLAGS_AVX2 "C++ compiler AVX2 flag"
                                 "#include<immintrin.h>
-                                int main(){__m256 x=_mm256_set1_ps(0.5);x=_mm256_fmadd_ps(x,x,x);return _mm256_movemask_ps(x);}"
+                                int main(){__m256i x=_mm256_set1_epi32(5);x=_mm256_add_epi32(x,x);return _mm256_movemask_epi8(x);}"
                                 SIMD_CXX_FLAGS
                                 "-march=core-avx2" "-mavx2" "/arch:AVX" "-hgnu") # no AVX2-specific flag for MSVC yet
 
@@ -265,6 +265,8 @@ elseif(${GMX_SIMD} STREQUAL "IBM_QPX")
 
 elseif(${GMX_SIMD} STREQUAL "SPARC64_HPC_ACE")
 
+    # Note that GMX_RELAXED_DOUBLE_PRECISION is enabled by default in the top-level CMakeLists.txt
+
     set(GMX_SIMD_SPARC64_HPC_ACE 1)
     set(SIMD_STATUS_MESSAGE "Enabling Sparc64 HPC-ACE SIMD instructions")
 
@@ -291,6 +293,25 @@ endif()
 gmx_check_if_changed(SIMD_CHANGED GMX_SIMD)
 if (SIMD_CHANGED AND DEFINED SIMD_STATUS_MESSAGE)
     message(STATUS "${SIMD_STATUS_MESSAGE}")
+endif()
+
+# By default, 32-bit windows cannot pass SIMD (SSE/AVX) arguments in registers,
+# and even on 64-bit (all platforms) it is only used for a handful of arguments.
+# The __vectorcall (MSVC, from MSVC2013) or __regcall (ICC) calling conventions
+# enable this, which is critical to enable 32-bit SIMD and improves performance
+# for 64-bit SIMD.
+# Check if the compiler supports one of these, and in that case set gmx_simdcall
+# to that string. If we do not have any such calling convention modifier, set it
+# to an empty string.
+if(NOT DEFINED GMX_SIMD_CALLING_CONVENTION)
+    foreach(callconv __vectorcall __regcall "")
+        set(callconv_compile_var "_callconv_${callconv}")
+        check_c_source_compiles("int ${callconv} f(int i) {return i;} int main(void) {return f(0);}" ${callconv_compile_var})
+        if(${callconv_compile_var})
+            set(GMX_SIMD_CALLING_CONVENTION "${callconv}" CACHE INTERNAL "Calling convention for SIMD routines" FORCE)
+            break()
+        endif()
+    endforeach()
 endif()
 
 endmacro()

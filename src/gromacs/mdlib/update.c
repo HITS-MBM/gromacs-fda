@@ -1318,7 +1318,7 @@ static void deform(gmx_update_t upd,
         x[i][YY] = mu[YY][YY]*x[i][YY]+mu[ZZ][YY]*x[i][ZZ];
         x[i][ZZ] = mu[ZZ][ZZ]*x[i][ZZ];
     }
-    if (*scale_tot)
+    if (scale_tot != NULL)
     {
         /* The transposes of the scaling matrices are stored,
          * so we need to do matrix multiplication in the inverse order.
@@ -1515,6 +1515,10 @@ static void combine_forces(gmx_update_t upd,
                 {
                     xp[i][d] = state->x[i][d] + fac*f_lr[i][d]*md->invmass[i];
                 }
+                else
+                {
+                    xp[i][d] = state->x[i][d];
+                }
             }
         }
         constrain(NULL, FALSE, FALSE, constr, idef, ir, NULL, cr, step, 0, 1.0, md,
@@ -1663,6 +1667,7 @@ void update_constraints(FILE             *fplog,
 
     if (inputrec->eI == eiSD1 && bDoConstr && !bFirstHalf)
     {
+        wallcycle_start(wcycle, ewcUPDATE);
         xprime = get_xprime(state, upd);
 
         nth = gmx_omp_nthreads_get(emntUpdate);
@@ -1689,6 +1694,7 @@ void update_constraints(FILE             *fplog,
                           DOMAINDECOMP(cr) ? cr->dd->gatindex : NULL);
         }
         inc_nrnb(nrnb, eNR_UPDATE, homenr);
+        wallcycle_stop(wcycle, ewcUPDATE);
 
         if (bDoConstr)
         {
@@ -1708,6 +1714,7 @@ void update_constraints(FILE             *fplog,
 
     if ((inputrec->eI == eiSD2) && !(bFirstHalf))
     {
+        wallcycle_start(wcycle, ewcUPDATE);
         xprime = get_xprime(state, upd);
 
         nth = gmx_omp_nthreads_get(emntUpdate);
@@ -1732,6 +1739,7 @@ void update_constraints(FILE             *fplog,
                           DOMAINDECOMP(cr) ? cr->dd->gatindex : NULL);
         }
         inc_nrnb(nrnb, eNR_UPDATE, homenr);
+        wallcycle_stop(wcycle, ewcUPDATE);
 
         if (bDoConstr)
         {
@@ -1767,7 +1775,9 @@ void update_constraints(FILE             *fplog,
         }
         else
         {
-#pragma omp parallel for num_threads(gmx_omp_nthreads_get(emntUpdate)) schedule(static)
+            nth = gmx_omp_nthreads_get(emntUpdate);
+
+#pragma omp parallel for num_threads(nth) schedule(static)
             for (i = start; i < nrend; i++)
             {
                 copy_rvec(upd->xp[i], state->x[i]);

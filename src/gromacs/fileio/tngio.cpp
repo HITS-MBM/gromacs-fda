@@ -58,21 +58,24 @@
 
 static const char *modeToVerb(char mode)
 {
+    const char *p;
     switch (mode)
     {
         case 'r':
-            return "reading";
+            p = "reading";
             break;
         case 'w':
-            return "writing";
+            p = "writing";
             break;
         case 'a':
-            return "appending";
+            p = "appending";
             break;
         default:
             gmx_fatal(FARGS, "Invalid file opening mode %c", mode);
-            return "";
+            p = "";
+            break;
     }
+    return p;
 }
 
 void gmx_tng_open(const char       *filename,
@@ -144,12 +147,14 @@ void gmx_tng_open(const char       *filename,
 //             tng_last_program_name_set(*tng, programInfo);
 //         }
 
-#ifdef HAVE_UNISTD_H
+#if defined(HAVE_UNISTD_H) && !defined(__MINGW32__)
         char username[256];
-        getlogin_r(username, 256);
-        if (mode == 'w')
+        if (!getlogin_r(username, 256))
         {
-            tng_first_user_name_set(*tng, username);
+            if (mode == 'w')
+            {
+                tng_first_user_name_set(*tng, username);
+            }
         }
 /* TODO: This should be implemented when the above fixme is done (adding data to
  * the header). */

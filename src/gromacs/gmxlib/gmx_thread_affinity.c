@@ -35,10 +35,12 @@
 #ifdef HAVE_CONFIG_H
 #include <config.h>
 #endif
-#if defined(HAVE_SCHED_H) && defined(HAVE_SCHED_GETAFFINITY)
-#define _GNU_SOURCE
-#include <sched.h>
-#include <sys/syscall.h>
+#ifdef HAVE_SCHED_AFFINITY
+#  ifndef _GNU_SOURCE
+#    define _GNU_SOURCE 1
+#  endif
+#  include <sched.h>
+#  include <sys/syscall.h>
 #endif
 #include <string.h>
 #include <errno.h>
@@ -375,10 +377,13 @@ gmx_check_thread_affinity_set(FILE            gmx_unused *fplog,
                               int             gmx_unused  nthreads_hw_avail,
                               gmx_bool        gmx_unused  bAfterOpenmpInit)
 {
-#ifdef HAVE_SCHED_GETAFFINITY
+#ifdef HAVE_SCHED_AFFINITY
     cpu_set_t mask_current;
     int       i, ret, cpu_count, cpu_set;
     gmx_bool  bAllSet;
+#ifdef GMX_LIB_MPI
+    gmx_bool  bAllSet_All;
+#endif
 
     assert(hw_opt);
     if (hw_opt->thread_affinity == threadaffOFF)
@@ -418,6 +423,11 @@ gmx_check_thread_affinity_set(FILE            gmx_unused *fplog,
     {
         bAllSet = bAllSet && (CPU_ISSET(i, &mask_current) != 0);
     }
+
+#ifdef GMX_LIB_MPI
+    MPI_Allreduce(&bAllSet, &bAllSet_All, 1, MPI_INT, MPI_LAND, MPI_COMM_WORLD);
+    bAllSet = bAllSet_All;
+#endif
 
     if (!bAllSet)
     {
@@ -459,5 +469,5 @@ gmx_check_thread_affinity_set(FILE            gmx_unused *fplog,
             fprintf(debug, "Default affinity mask found\n");
         }
     }
-#endif /* HAVE_SCHED_GETAFFINITY */
+#endif /* HAVE_SCHED_AFFINITY */
 }

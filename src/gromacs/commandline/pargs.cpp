@@ -798,7 +798,7 @@ gmx_bool parse_common_args(int *argc, char *argv[], unsigned long Flags,
         if (context != NULL && !(FF(PCA_QUIET)))
         {
             gmx::Options options(NULL, NULL);
-            options.setDescription(gmx::ConstArrayRef<const char *>(desc, ndesc));
+            options.setDescription(gmx::constArrayRefFromArray(desc, ndesc));
             for (i = 0; i < nfile; i++)
             {
                 gmx::filenmToOptions(&options, &fnm[i]);
@@ -810,14 +810,14 @@ gmx_bool parse_common_args(int *argc, char *argv[], unsigned long Flags,
             gmx::CommandLineHelpWriter(options)
                 .setShowDescriptions(true)
                 .setTimeUnitString(output_env_get_time_unit(*oenv))
-                .setKnownIssues(gmx::ConstArrayRef<const char *>(bugs, nbugs))
+                .setKnownIssues(gmx::constArrayRefFromArray(bugs, nbugs))
                 .writeHelp(*context);
         }
     }
     GMX_CATCH_ALL_AND_EXIT_WITH_FATAL_ERROR;
 
     /* Set the nice level */
-#ifdef HAVE_UNISTD_H
+#if defined(HAVE_UNISTD_H) && !defined(__MINGW32__)
 #ifndef GMX_NO_NICE
     /* The some system, e.g. the catamount kernel on cray xt3 do not have nice(2). */
     if (nicelevel != 0 && !bExit)

@@ -121,6 +121,7 @@ void atoms2md(gmx_mtop_t *mtop, t_inputrec *ir,
     t_grpopts            *opts;
     gmx_groups_t         *groups;
     gmx_molblock_t       *molblock;
+    int                   nthreads gmx_unused;
 
     bLJPME = EVDW_PME(ir->vdwtype);
 
@@ -155,26 +156,23 @@ void atoms2md(gmx_mtop_t *mtop, t_inputrec *ir,
         srenew(md->massT, md->nalloc);
         srenew(md->invmass, md->nalloc);
         srenew(md->chargeA, md->nalloc);
+        srenew(md->typeA, md->nalloc);
+        if (md->nPerturbed)
+        {
+            srenew(md->chargeB, md->nalloc);
+            srenew(md->typeB, md->nalloc);
+        }
         if (bLJPME)
         {
             srenew(md->sqrt_c6A, md->nalloc);
             srenew(md->sigmaA, md->nalloc);
             srenew(md->sigma3A, md->nalloc);
-        }
-        if (md->nPerturbed)
-        {
-            srenew(md->chargeB, md->nalloc);
-            if (bLJPME)
+            if (md->nPerturbed)
             {
                 srenew(md->sqrt_c6B, md->nalloc);
                 srenew(md->sigmaB, md->nalloc);
                 srenew(md->sigma3B, md->nalloc);
             }
-        }
-        srenew(md->typeA, md->nalloc);
-        if (md->nPerturbed)
-        {
-            srenew(md->typeB, md->nalloc);
         }
         srenew(md->ptype, md->nalloc);
         if (opts->ngtc > 1)
@@ -233,7 +231,8 @@ void atoms2md(gmx_mtop_t *mtop, t_inputrec *ir,
 
     alook = gmx_mtop_atomlookup_init(mtop);
 
-#pragma omp parallel for num_threads(gmx_omp_nthreads_get(emntDefault)) schedule(static)
+    nthreads = gmx_omp_nthreads_get(emntDefault);
+#pragma omp parallel for num_threads(nthreads) schedule(static)
     for (i = 0; i < md->nr; i++)
     {
         int      g, ag, molb;

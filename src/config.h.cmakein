@@ -41,6 +41,8 @@
  *
  * \inlibraryapi
  */
+#ifndef GMX_CONFIG_H
+#define GMX_CONFIG_H
 #include "gromacs/utility/gmx_header_config.h"
 
 /* TODO: For now, disable Doxygen warnings from here */
@@ -122,6 +124,9 @@
 
 /* String for SIMD instruction choice (for writing to log files and stdout) */
 #define GMX_SIMD_STRING "@GMX_SIMD@"
+
+/* Calling convention string (if any) for routines with SIMD variable args */
+#define gmx_simdcall @GMX_SIMD_CALLING_CONVENTION@
 
 /* Integer byte order is big endian. */
 #cmakedefine GMX_INTEGER_BIG_ENDIAN
@@ -307,11 +312,8 @@
 /* Define to 1 if you have the sysconf() function */
 #cmakedefine HAVE_SYSCONF
 
-/* Define to 1 if you have the sched_getaffinity() function */
-#cmakedefine HAVE_SCHED_GETAFFINITY
-
-/* Define to 1 if you have the sched_setaffinity() function */
-#cmakedefine HAVE_SCHED_SETAFFINITY
+/* Define to 1 if you have the all the affinity functions in sched.h */
+#cmakedefine HAVE_SCHED_AFFINITY
 
 /* Bytes in IEEE fp word are in big-endian order if set, little-endian if not.
    Only relevant when FLOAT_FORMAT_IEEE754 is defined. */
@@ -351,5 +353,10 @@
 
 /* Define if we have pipes */
 #cmakedefine HAVE_PIPES
+
+/* Define if we have zlib */
+#cmakedefine HAVE_ZLIB
+
+#endif
 
 /*! \endcond */

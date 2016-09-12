@@ -809,6 +809,11 @@ static void modify_PMEsettings(
     sfree(ir);
 }
 
+static gmx_bool can_scale_rvdw(int vdwtype)
+{
+    return (evdwCUT == vdwtype ||
+            evdwPME == vdwtype);
+}
 
 #define EPME_SWITCHED(e) ((e) == eelPMESWITCH || (e) == eelPMEUSERSWITCH)
 
@@ -958,7 +963,7 @@ static void make_benchmark_tprs(
     fprintf(fp, " No.   scaling  rcoulomb");
     fprintf(fp, "  nkx  nky  nkz");
     fprintf(fp, "   spacing");
-    if (evdwCUT == ir->vdwtype)
+    if (can_scale_rvdw(ir->vdwtype))
     {
         fprintf(fp, "      rvdw");
     }
@@ -1015,11 +1020,14 @@ static void make_benchmark_tprs(
                 ir->rlist = ir->rcoulomb + nlist_buffer;
             }
 
-            if (bScaleRvdw && evdwCUT == ir->vdwtype)
+            if (bScaleRvdw && can_scale_rvdw(ir->vdwtype))
             {
-                if (ecutsVERLET == ir->cutoff_scheme)
+                if (ecutsVERLET == ir->cutoff_scheme ||
+                    evdwPME == ir->vdwtype)
                 {
-                    /* With Verlet, the van der Waals radius must always equal the Coulomb radius */
+                    /* With either the Verlet cutoff-scheme or LJ-PME,
+                       the van der Waals radius must always equal the
+                       Coulomb radius */
                     ir->rvdw = ir->rcoulomb;
                 }
                 else
@@ -1067,7 +1075,7 @@ static void make_benchmark_tprs(
         fprintf(fp, "%4d%10f%10f", j, fac, ir->rcoulomb);
         fprintf(fp, "%5d%5d%5d", ir->nkx, ir->nky, ir->nkz);
         fprintf(fp, " %9f ", info->fsx[j]);
-        if (evdwCUT == ir->vdwtype)
+        if (can_scale_rvdw(ir->vdwtype))
         {
             fprintf(fp, "%10f", ir->rvdw);
         }
@@ -1322,9 +1330,12 @@ static void make_sure_it_runs(char *mdrun_cmd_line, int length, FILE *fp,
     {
         /* To prevent confusion, do not again issue a gmx_fatal here since we already
          * get the error message from mdrun itself */
-        sprintf(msg,    "Cannot run the benchmark simulations! Please check the error message of\n"
+        sprintf(msg,
+                "Cannot run the first benchmark simulation! Please check the error message of\n"
                 "mdrun for the source of the problem. Did you provide a command line\n"
-                "argument that neither g_tune_pme nor mdrun understands? Offending command:\n"
+                "argument that neither gmx tune_pme nor mdrun understands? If you're\n"
+                "sure your command line should work, you can bypass this check with \n"
+                "gmx tune_pme -nocheck. The failing command was:\n"
                 "\n%s\n\n", command);
 
         fprintf(stderr, "%s", msg);
@@ -1355,7 +1366,7 @@ static void do_the_tests(
         int             npme_fixed,     /* If >= -1, test fixed number of PME
                                          * nodes only                             */
         const char     *npmevalues_opt, /* Which -npme values should be tested    */
-        t_perf        **perfdata,       /* Here the performace data is stored     */
+        t_perf        **perfdata,       /* Here the performance data is stored    */
         int            *pmeentries,     /* Entries in the nPMEnodes list          */
         int             repeats,        /* Repeat each test this often            */
         int             nnodes,         /* Total number of nodes = nPP + nPME     */
@@ -1368,7 +1379,8 @@ static void do_the_tests(
         const t_filenm *fnm,            /* List of filenames from command line    */
         int             nfile,          /* Number of files specified on the cmdl. */
         int             presteps,       /* DLB equilibration steps, is checked    */
-        gmx_int64_t     cpt_steps)      /* Time step counter in the checkpoint    */
+        gmx_int64_t     cpt_steps,      /* Time step counter in the checkpoint    */
+        gmx_bool        bCheck)         /* Check whether benchmark mdrun works    */
 {
     int      i, nr, k, ret, count = 0, totaltests;
     int     *nPMEnodes = NULL;
@@ -1468,8 +1480,11 @@ static void do_the_tests(
                         cmd_stub, pd->nPMEnodes, tpr_names[k], cmd_args_bench);
 
                 /* To prevent that all benchmarks fail due to a show-stopper argument
-                 * on the mdrun command line, we make a quick check first */
-                if (bFirst)
+                 * on the mdrun command line, we make a quick check first.
+                 * This check can be turned off in cases where the automatically chosen
+                 * number of PME-only ranks leads to a number of PP ranks for which no
+                 * decomposition can be found (e.g. for large prime numbers) */
+                if (bFirst && bCheck)
                 {
                     make_sure_it_runs(pd->mdrun_cmd_line, cmdline_length, fp, fnm, nfile);
                 }
@@ -2030,6 +2045,9 @@ int gmx_tune_pme(int argc, char *argv[])
         "need to provide a machine- or hostfile. This can also be passed",
         "via the MPIRUN variable, e.g.[PAR]",
         "[TT]export MPIRUN=\"/usr/local/mpirun -machinefile hosts\"[tt][PAR]",
+        "Before doing the actual benchmark runs, [THISMODULE] will do a quick",
+        "check whether mdrun works as expected with the provided parallel settings",
+        "if the [TT]-check[tt] option is activated (the default).",
         "Please call [THISMODULE] with the normal options you would pass to",
         "[gmx-mdrun] and add [TT]-np[tt] for the number of ranks to perform the",
         "tests on, or [TT]-ntmpi[tt] for the number of threads. You can also add [TT]-r[tt]",
@@ -2039,7 +2057,7 @@ int gmx_tune_pme(int argc, char *argv[])
         "written with enlarged cutoffs and smaller Fourier grids respectively.",
         "Typically, the first test (number 0) will be with the settings from the input",
         "[TT].tpr[tt] file; the last test (number [TT]ntpr[tt]) will have the Coulomb cutoff",
-        "specified by [TT]-rmax[tt] with a somwhat smaller PME grid at the same time. ",
+        "specified by [TT]-rmax[tt] with a somewhat smaller PME grid at the same time. ",
         "In this last test, the Fourier spacing is multiplied with [TT]rmax[tt]/rcoulomb. ",
         "The remaining [TT].tpr[tt] files will have equally-spaced Coulomb radii (and Fourier "
         "spacings) between these extremes. [BB]Note[bb] that you can set [TT]-ntpr[tt] to 1",
@@ -2049,7 +2067,7 @@ int gmx_tune_pme(int argc, char *argv[])
         "MD systems. The dynamic load balancing needs about 100 time steps",
         "to adapt to local load imbalances, therefore the time step counters",
         "are by default reset after 100 steps. For large systems (>1M atoms), as well as ",
-        "for a higher accuarcy of the measurements, you should set [TT]-resetstep[tt] to a higher value.",
+        "for a higher accuracy of the measurements, you should set [TT]-resetstep[tt] to a higher value.",
         "From the 'DD' load imbalance entries in the md.log output file you",
         "can tell after how many steps the load is sufficiently balanced. Example call:[PAR]"
         "[TT]gmx tune_pme -np 64 -s protein.tpr -launch[tt][PAR]",
@@ -2176,6 +2194,7 @@ int gmx_tune_pme(int argc, char *argv[])
     gmx_bool     bKeepAndNumCPT        = FALSE;
     gmx_bool     bResetCountersHalfWay = FALSE;
     gmx_bool     bBenchmark            = TRUE;
+    gmx_bool     bCheck                = TRUE;
 
     output_env_t oenv = NULL;
 
@@ -2213,12 +2232,14 @@ int gmx_tune_pme(int argc, char *argv[])
           "Take timings for this many steps in the benchmark runs" },
         { "-resetstep", FALSE, etINT,  {&presteps},
           "Let dlb equilibrate this many steps before timings are taken (reset cycle counters after this many steps)" },
-        { "-simsteps", FALSE, etINT64, {&new_sim_nsteps},
+        { "-nsteps",   FALSE, etINT64, {&new_sim_nsteps},
           "If non-negative, perform this many steps in the real run (overwrites nsteps from [TT].tpr[tt], add [TT].cpt[tt] steps)" },
         { "-launch",   FALSE, etBOOL, {&bLaunch},
           "Launch the real simulation after optimization" },
         { "-bench",    FALSE, etBOOL, {&bBenchmark},
           "Run the benchmarks or just create the input [TT].tpr[tt] files?" },
+        { "-check",    FALSE, etBOOL, {&bCheck},
+          "Before the benchmark runs, check whether mdrun works in parallel" },
         /******************/
         /* mdrun options: */
         /******************/
@@ -2470,7 +2491,7 @@ int gmx_tune_pme(int argc, char *argv[])
     {
         do_the_tests(fp, tpr_names, maxPMEnodes, minPMEnodes, npme_fixed, npmevalues_opt[0], perfdata, &pmeentries,
                      repeats, nnodes, ntprs, bThreads, cmd_mpirun, cmd_np, cmd_mdrun,
-                     cmd_args_bench, fnm, NFILE, presteps, cpt_steps);
+                     cmd_args_bench, fnm, NFILE, presteps, cpt_steps, bCheck);
 
         fprintf(fp, "\nTuning took%8.1f minutes.\n", (gmx_gettime()-seconds)/60.0);
 

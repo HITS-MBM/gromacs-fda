@@ -91,10 +91,12 @@ static void init_pull_group(t_pull_group *pg,
 }
 
 static void init_pull_coord(t_pull_coord *pcrd, int eGeom,
-                            const char *origin_buf, const char *vec_buf)
+                            const char *origin_buf, const char *vec_buf,
+                            warninp_t wi)
 {
     int    m;
     dvec   origin, vec;
+    char   buf[STRLEN];
 
     string2dvec(origin_buf, origin);
     if (pcrd->group[0] != 0 && dnorm(origin) > 0)
@@ -104,6 +106,20 @@ static void init_pull_coord(t_pull_coord *pcrd, int eGeom,
 
     if (eGeom == epullgDIST)
     {
+        if (pcrd->init < 0)
+        {
+            sprintf(buf, "The initial pull distance is negative with geometry %s, while a distance can not be negative. Use geometry %s instead.",
+                    EPULLGEOM(eGeom), EPULLGEOM(epullgDIR));
+            warning_error(wi, buf);
+        }
+        /* TODO: With a positive init but a negative rate things could still
+         * go wrong, but it might be fine if you don't pull too far.
+         * We should give a warning or note when there is only one pull dim
+         * active, since that is usually the problematic case when you should
+         * be using direction. We will do this later, since an already planned
+         * generalization of the pull code makes pull dim available here.
+         */
+
         clear_dvec(vec);
     }
     else
@@ -210,7 +226,8 @@ char **read_pullparams(int *ninp_p, t_inpfile **inp_p,
         nscan = sscanf(groups, "%d %d %d", &pcrd->group[0], &pcrd->group[1], &idum);
         if (nscan != 2)
         {
-            fprintf(stderr, "ERROR: %s should have %d components\n", buf, 2);
+            fprintf(stderr, "ERROR: %s should contain %d pull group indices\n",
+                    buf, 2);
             nerror++;
         }
         sprintf(buf, "pull-coord%d-origin", i);
@@ -227,7 +244,7 @@ char **read_pullparams(int *ninp_p, t_inpfile **inp_p,
         RTYPE(buf,              pcrd->kB, pcrd->k);
 
         /* Initialize the pull coordinate */
-        init_pull_coord(pcrd, pull->eGeom, origin_buf, vec_buf);
+        init_pull_coord(pcrd, pull->eGeom, origin_buf, vec_buf, wi);
     }
 
     *ninp_p   = ninp;
@@ -254,7 +271,7 @@ void make_pull_groups(t_pull *pull,
 
         if (strcmp(pgnames[g], "") == 0)
         {
-            gmx_fatal(FARGS, "Group pull_group%d required by grompp was undefined.", g);
+            gmx_fatal(FARGS, "Pull option pull_group%d required by grompp has not been set.", g);
         }
 
         ig        = search_string(pgnames[g], grps->nr, gnames);
@@ -394,10 +411,10 @@ void set_pull_init(t_inputrec *ir, gmx_mtop_t *mtop, rvec *x, matrix box, real l
     t_pull_group *pgrp0, *pgrp1;
     t_pbc         pbc;
     int           c, m;
-    double        t_start, tinvrate;
-    real          init;
+    double        t_start;
+    real          init = 0;
     dvec          dr;
-    double        dev;
+    double        dev, value;
 
     init_pull(NULL, ir, 0, NULL, mtop, NULL, oenv, lambda, FALSE, 0);
     md = init_mdatoms(NULL, mtop, ir->efep);
@@ -414,7 +431,7 @@ void set_pull_init(t_inputrec *ir, gmx_mtop_t *mtop, rvec *x, matrix box, real l
 
     pull_calc_coms(NULL, pull, md, &pbc, t_start, x, NULL);
 
-    fprintf(stderr, "Pull group  natoms  pbc atom  distance at start     reference at t=0\n");
+    fprintf(stderr, "Pull group  natoms  pbc atom  distance at start  reference at t=0\n");
     for (c = 0; c < pull->ncoord; c++)
     {
         pcrd  = &pull->coord[c];
@@ -426,28 +443,21 @@ void set_pull_init(t_inputrec *ir, gmx_mtop_t *mtop, rvec *x, matrix box, real l
         fprintf(stderr, "%8d  %8d  %8d ",
                 pcrd->group[1], pgrp1->nat, pgrp1->pbcatom+1);
 
-        init       = pcrd->init;
-        pcrd->init = 0;
+        if (bStart)
+        {
+            init       = pcrd->init;
+            pcrd->init = 0;
+        }
 
-        if (pcrd->rate == 0)
-        {
-            tinvrate = 0;
-        }
-        else
-        {
-            tinvrate = t_start/pcrd->rate;
-        }
-        get_pull_coord_distance(pull, c, &pbc, 0, dr, &dev);
-        fprintf(stderr, " %6.3f ", dev);
+        get_pull_coord_distance(pull, c, &pbc, t_start, dr, &dev);
+        /* Calculate the value of the coordinate at t_start */
+        value = pcrd->init + t_start*pcrd->rate + dev;
+        fprintf(stderr, " %10.3f nm", value);
 
         if (bStart)
         {
-            pcrd->init = init + dev - tinvrate;
+            pcrd->init = value + init;
         }
-        else
-        {
-            pcrd->init = init;
-        }
-        fprintf(stderr, " %6.3f\n", pcrd->init);
+        fprintf(stderr, "     %10.3f nm\n", pcrd->init);
     }
 }

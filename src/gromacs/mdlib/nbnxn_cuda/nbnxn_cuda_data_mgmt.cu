@@ -60,7 +60,12 @@
 #include "pmalloc_cuda.h"
 #include "gpu_utils.h"
 
-#include "gromacs/utility/common.h"
+// Hack for release-5-0 only to avoid a common.h dependency in CUDA code,
+// which causes issues with some nvcc/boost combinations.
+// Solved with a larger-scale header refactoring in master.
+#ifndef GMX_UNUSED_VALUE
+#define GMX_UNUSED_VALUE(value) (void)value
+#endif
 
 static bool bUseCudaEventBlockingSync = false; /* makes the CPU thread block */
 
@@ -572,7 +577,7 @@ void nbnxn_cuda_init(FILE                 *fplog,
          * priorities, because we are querying the priority range which in this
          * case will be a single value.
          */
-#if CUDA_VERSION >= 5500
+#if CUDA_VERSION >= 5050
         {
             int highest_priority;
             stat = cudaDeviceGetStreamPriorityRange(NULL, &highest_priority);
