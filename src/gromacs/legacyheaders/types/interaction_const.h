@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2012,2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2012,2013,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -33,8 +33,10 @@
  * the research papers on the package. Check out http://www.gromacs.org.
  */
 
-#ifndef _INTERACTION_CONST_
-#define _INTERACTION_CONST_
+#ifndef GMX_LEGACYHEADERS_INTERACTION_CONST_H
+#define GMX_LEGACYHEADERS_INTERACTION_CONST_H
+
+#include "gromacs/utility/real.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -66,6 +68,8 @@ typedef struct {
 } switch_consts_t;
 
 typedef struct {
+    int             cutoff_scheme;
+
     /* VdW */
     int             vdwtype;
     int             vdw_modifier;
@@ -133,4 +137,4 @@ typedef struct {
 }
 #endif
 
-#endif /* _INTERACTION_CONST_ */
+#endif

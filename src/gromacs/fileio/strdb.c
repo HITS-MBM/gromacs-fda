@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -34,21 +34,18 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-#include "strdb.h"
+#include "gmxpre.h"
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
+#include "strdb.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "gmx_fatal.h"
-#include "gromacs/utility/smalloc.h"
 #include "gromacs/utility/cstringutil.h"
-
-#include "gromacs/fileio/futil.h"
+#include "gromacs/utility/fatalerror.h"
+#include "gromacs/utility/futil.h"
+#include "gromacs/utility/smalloc.h"
 
 gmx_bool get_a_line(FILE *fp, char line[], int n)
 {
@@ -124,7 +121,7 @@ int get_strings(const char *db, char ***strings)
 {
     FILE  *in;
     char **ptr;
-    char   buf[256];
+    char   buf[STRLEN];
     int    i, nstr;
 
     in = libopen(db);
@@ -138,14 +135,14 @@ int get_strings(const char *db, char ***strings)
     snew(ptr, nstr);
     for (i = 0; (i < nstr); i++)
     {
-        if (1 != fscanf(in, "%s", buf))
+        if (NULL == fgets2(buf, STRLEN, in))
         {
             gmx_fatal(FARGS, "Cannot read string from buffer");
         }
 #ifdef DEBUG
         fprintf(stderr, "Have read: %s\n", buf);
 #endif
-        ptr[i] = strdup(buf);
+        ptr[i] = gmx_strdup(buf);
     }
     gmx_ffclose(in);
 
@@ -177,7 +174,7 @@ int fget_lines(FILE *in, char ***strings)
     int    i, nstr;
     char  *pret;
 
-    pret = fgets(buf, STRLEN-1, in);
+    pret = fgets(buf, STRLEN, in);
     if (pret == NULL  || sscanf(buf, "%d", &nstr) != 1)
     {
         gmx_warning("File is empty");
@@ -188,7 +185,7 @@ int fget_lines(FILE *in, char ***strings)
     snew(ptr, nstr);
     for (i = 0; (i < nstr); i++)
     {
-        fgets2(buf, STRLEN-1, in);
+        fgets2(buf, STRLEN, in);
         ptr[i] = gmx_strdup(buf);
     }
 
@@ -226,7 +223,7 @@ int get_file(const char *db, char ***strings)
             maxi += 50;
             srenew(ptr, maxi);
         }
-        ptr[i] = strdup(buf);
+        ptr[i] = gmx_strdup(buf);
         i++;
     }
     nstr = i;

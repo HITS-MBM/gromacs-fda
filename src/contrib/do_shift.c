@@ -38,19 +38,17 @@
 
 #include <stdlib.h>
 #include "errno.h"
-#include "sysstuff.h"
 #include "typedefs.h"
 #include "gromacs/utility/cstringutil.h"
 #include "macros.h"
 #include "gromacs/utility/smalloc.h"
-#include "mshift.h"
 #include "gromacs/commandline/pargs.h"
 #include "copyrite.h"
 #include "gromacs/fileio/confio.h"
-#include "gmx_fatal.h"
-#include "xvgr.h"
+#include "gromacs/utility/fatalerror.h"
+#include "gromacs/fileio/xvgr.h"
 #include "gstat.h"
-#include "index.h"
+#include "gromacs/topology/index.h"
 #include "gromacs/fileio/pdbio.h"
 
 void cat(FILE *out,char *fn,real t)
@@ -121,7 +119,7 @@ int main(int argc,char *argv[])
 #define NFILE asize(fnm)
 
   CopyRight(stdout,argv[0]);
-  parse_common_args(&argc,argv,PCA_CAN_TIME | PCA_BE_NICE ,NFILE,fnm,
+  parse_common_args(&argc,argv,PCA_CAN_TIME,NFILE,fnm,
 		    asize(pa),pa,asize(desc),desc,asize(bugs),bugs);
 		    
   top=read_top(ftp2fn(efTPX,NFILE,fnm));

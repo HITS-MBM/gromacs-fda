@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2010,2011,2012,2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2010,2011,2012,2013,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -32,31 +32,27 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
+#include "gmxpre.h"
+
+#include "membed.h"
 
 #include <signal.h>
 #include <stdlib.h>
-#include "typedefs.h"
-#include "types/commrec.h"
-#include "gromacs/utility/smalloc.h"
-#include "sysstuff.h"
-#include "vec.h"
-#include "macros.h"
-#include "main.h"
-#include "gromacs/fileio/futil.h"
+
 #include "gromacs/essentialdynamics/edsam.h"
-#include "index.h"
-#include "physics.h"
-#include "names.h"
-#include "mtop_util.h"
 #include "gromacs/fileio/tpxio.h"
+#include "gromacs/legacyheaders/macros.h"
+#include "gromacs/legacyheaders/names.h"
+#include "gromacs/legacyheaders/readinp.h"
+#include "gromacs/legacyheaders/typedefs.h"
+#include "gromacs/legacyheaders/types/commrec.h"
+#include "gromacs/math/vec.h"
+#include "gromacs/pbcutil/pbc.h"
+#include "gromacs/topology/index.h"
+#include "gromacs/topology/mtop_util.h"
 #include "gromacs/utility/cstringutil.h"
-#include "membed.h"
-#include "pbc.h"
-#include "readinp.h"
-#include "gromacs/gmxpreprocess/readir.h"
+#include "gromacs/utility/futil.h"
+#include "gromacs/utility/smalloc.h"
 
 /* information about scaling center */
 typedef struct {
@@ -890,14 +886,16 @@ int rm_bonded(t_block *ins_at, gmx_mtop_t *mtop)
 /* Write a topology where the number of molecules is correct for the system after embedding */
 static void top_update(const char *topfile, rm_t *rm_p, gmx_mtop_t *mtop)
 {
-#define TEMP_FILENM "temp.top"
-    int        bMolecules = 0;
+    int        bMolecules         = 0;
     FILE      *fpin, *fpout;
     char       buf[STRLEN], buf2[STRLEN], *temp;
     int        i, *nmol_rm, nmol, line;
+    char       temporary_filename[STRLEN];
 
     fpin  = gmx_ffopen(topfile, "r");
-    fpout = gmx_ffopen(TEMP_FILENM, "w");
+    strncpy(temporary_filename, "temp.topXXXXXX", STRLEN);
+    gmx_tmpnam(temporary_filename);
+    fpout = gmx_ffopen(temporary_filename, "w");
 
     snew(nmol_rm, mtop->nmoltype);
     for (i = 0; i < rm_p->nr; i++)
@@ -966,8 +964,7 @@ static void top_update(const char *topfile, rm_t *rm_p, gmx_mtop_t *mtop)
     /* use gmx_ffopen to generate backup of topinout */
     fpout = gmx_ffopen(topfile, "w");
     gmx_ffclose(fpout);
-    rename(TEMP_FILENM, topfile);
-#undef TEMP_FILENM
+    rename(temporary_filename, topfile);
 }
 
 void rescale_membed(int step_rel, gmx_membed_t membed, rvec *x)
@@ -983,6 +980,32 @@ void rescale_membed(int step_rel, gmx_membed_t membed, rvec *x)
         membed->fac[2] += membed->z_step;
     }
     resize(membed->r_ins, x, membed->pos_ins, membed->fac);
+}
+
+/* We would like gn to be const as well, but C doesn't allow this */
+/* TODO this is utility functionality (search for the index of a
+   string in a collection), so should be refactored and located more
+   centrally. Also, it nearly duplicates the same string in readir.c */
+static int search_string(const char *s, int ng, char *gn[])
+{
+    int i;
+
+    for (i = 0; (i < ng); i++)
+    {
+        if (gmx_strcasecmp(s, gn[i]) == 0)
+        {
+            return i;
+        }
+    }
+
+    gmx_fatal(FARGS,
+              "Group %s selected for embedding was not found in the index file.\n"
+              "Group names must match either [moleculetype] names or custom index group\n"
+              "names, in which case you must supply an index file to the '-n' option\n"
+              "of grompp.",
+              s);
+
+    return -1;
 }
 
 gmx_membed_t init_membed(FILE *fplog, int nfile, const t_filenm fnm[], gmx_mtop_t *mtop,
@@ -1039,7 +1062,7 @@ gmx_membed_t init_membed(FILE *fplog, int nfile, const t_filenm fnm[], gmx_mtop_
         get_input(membed_input, &xy_fac, &xy_max, &z_fac, &z_max, &it_xy, &it_z, &probe_rad, &low_up_rm,
                   &maxwarn, &pieces, &bALLOW_ASYMMETRY);
 
-        tpr_version = get_tpr_version(ftp2fn(efTPX, nfile, fnm));
+        tpr_version = get_tpr_version(ftp2fn(efTPR, nfile, fnm));
         if (tpr_version < membed_version)
         {
             gmx_fatal(FARGS, "Version of *.tpr file to old (%d). "
@@ -1119,14 +1142,15 @@ gmx_membed_t init_membed(FILE *fplog, int nfile, const t_filenm fnm[], gmx_mtop_
         {
             warn++;
             fprintf(stderr, "\nWarning %d;\nThe number of steps used to grow the z-coordinate of %s (%d)"
-                    " is probably too small.\nIncrease -nz or maxwarn.\n\n", warn, ins, it_z);
+                    " is probably too small.\nIncrease -nz or the maxwarn setting in the membed input file.\n\n", warn, ins, it_z);
         }
 
         if (it_xy+it_z > inputrec->nsteps)
         {
             warn++;
             fprintf(stderr, "\nWarning %d:\nThe number of growth steps (-nxy + -nz) is larger than the "
-                    "number of steps in the tpr.\n\n", warn);
+                    "number of steps in the tpr.\n"
+                    "(increase maxwarn in the membed input file to override)\n\n", warn);
         }
 
         fr_id = -1;
@@ -1202,13 +1226,13 @@ gmx_membed_t init_membed(FILE *fplog, int nfile, const t_filenm fnm[], gmx_mtop_
             warn++;
             fprintf(stderr, "\nWarning %d:\nThe xy-area is very small compared to the area of the protein.\n"
                     "This might cause pressure problems during the growth phase. Just try with\n"
-                    "current setup (-maxwarn + 1), but if pressure problems occur, lower the\n"
-                    "compressibility in the mdp-file or use no pressure coupling at all.\n\n", warn);
+                    "current setup and increase 'maxwarn' in your membed settings file, but lower the\n"
+                    "compressibility in the mdp-file or disable pressure coupling if problems occur.\n\n", warn);
         }
 
         if (warn > maxwarn)
         {
-            gmx_fatal(FARGS, "Too many warnings.\n");
+            gmx_fatal(FARGS, "Too many warnings (override by setting maxwarn in the membed input file)\n");
         }
 
         printf("The estimated area of the protein in the membrane is %.3f nm^2\n", prot_area);
@@ -1271,7 +1295,7 @@ gmx_membed_t init_membed(FILE *fplog, int nfile, const t_filenm fnm[], gmx_mtop_
             warn++;
             fprintf(stderr, "\nWarning %d:\nTrying to remove a larger lipid area than the estimated "
                     "protein area\nTry making the -xyinit resize factor smaller or increase "
-                    "maxwarn.\n\n", warn);
+                    "maxwarn in the membed input file.\n\n", warn);
         }
 
         /*remove all lipids and waters overlapping and update all important structures*/
@@ -1287,8 +1311,8 @@ gmx_membed_t init_membed(FILE *fplog, int nfile, const t_filenm fnm[], gmx_mtop_
 
         if (warn > maxwarn)
         {
-            gmx_fatal(FARGS, "Too many warnings.\nIf you are sure these warnings are harmless, "
-                      "you can increase -maxwarn");
+            gmx_fatal(FARGS, "Too many warnings.\nIf you are sure these warnings are harmless,\n"
+                      "you can increase the maxwarn setting in the membed input file.");
         }
 
         if (ftp2bSet(efTOP, nfile, fnm))

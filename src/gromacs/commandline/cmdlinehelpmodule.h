@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2012,2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2012,2013,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -42,17 +42,17 @@
 #ifndef GMX_COMMANDLINE_CMDLINEHELPMODULE_H
 #define GMX_COMMANDLINE_CMDLINEHELPMODULE_H
 
-#include "cmdlinemodule.h"
-#include "cmdlinemodulemanager-impl.h"
-
+#include "gromacs/commandline/cmdlinemodule.h"
 #include "gromacs/onlinehelp/helptopicinterface.h"
-#include "gromacs/utility/common.h"
+#include "gromacs/utility/classhelpers.h"
+
+#include "cmdlinemodulemanager-impl.h"
 
 namespace gmx
 {
 
 class CommandLineHelpContext;
-class File;
+class FileOutputRedirectorInterface;
 class ProgramContextInterface;
 
 class CommandLineHelpModuleImpl;
@@ -100,10 +100,12 @@ class CommandLineHelpModule : public CommandLineModuleInterface
         /*! \brief
          * Adds a top-level help topic.
          *
-         * \param[in] topic  Help topic to add.
+         * \param[in] topic     Help topic to add.
+         * \param[in] bExported Whether this topic will be directly exported to
+         *     the user guide.
          * \throws    std::bad_alloc if out of memory.
          */
-        void addTopic(HelpTopicPointer topic);
+        void addTopic(HelpTopicPointer topic, bool bExported);
         //! Sets whether hidden options will be shown in help.
         void setShowHidden(bool bHidden);
         /*! \brief
@@ -115,12 +117,12 @@ class CommandLineHelpModule : public CommandLineModuleInterface
         void setModuleOverride(const CommandLineModuleInterface &module);
 
         /*! \brief
-         * Sets a file to write help output to instead of default `stdout`.
+         * Sets a file redirector for writing help output.
          *
          * Used for unit testing; see
-         * CommandLineModuleManager::setOutputRedirect() for more details.
+         * CommandLineModuleManager::setOutputRedirector() for more details.
          */
-        void setOutputRedirect(File *output);
+        void setOutputRedirector(FileOutputRedirectorInterface *output);
 
         virtual const char *name() const { return "help"; }
         virtual const char *shortDescription() const
@@ -128,6 +130,10 @@ class CommandLineHelpModule : public CommandLineModuleInterface
             return "Print help information";
         }
 
+        virtual void init(CommandLineModuleSettings *settings)
+        {
+            settings->setDefaultNiceLevel(0);
+        }
         virtual int run(int argc, char *argv[]);
         virtual void writeHelp(const CommandLineHelpContext &context) const;
 

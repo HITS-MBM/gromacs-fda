@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2012,2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2012,2013,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -43,15 +43,17 @@
 #define GMX_OPTIONS_FILENAMEOPTIONSTORAGE_H
 
 #include <string>
+#include <vector>
 
-#include "filenameoption.h"
-#include "optionfiletype.h"
-#include "optionstoragetemplate.h"
+#include "gromacs/options/filenameoption.h"
+#include "gromacs/options/optionfiletype.h"
+#include "gromacs/options/optionstoragetemplate.h"
 
 namespace gmx
 {
 
 class FileNameOption;
+class FileNameOptionManager;
 
 /*! \internal \brief
  * Converts, validates, and stores file names.
@@ -59,8 +61,14 @@ class FileNameOption;
 class FileNameOptionStorage : public OptionStorageTemplate<std::string>
 {
     public:
-        //! \copydoc StringOptionStorage::StringOptionStorage()
-        explicit FileNameOptionStorage(const FileNameOption &settings);
+        /*! \brief
+         * Initializes the storage from option settings.
+         *
+         * \param[in] settings   Storage settings.
+         * \param     manager    Manager for this object (can be NULL).
+         */
+        FileNameOptionStorage(const FileNameOption  &settings,
+                              FileNameOptionManager *manager);
 
         virtual OptionInfo &optionInfo() { return info_; }
         virtual std::string typeString() const;
@@ -75,21 +83,34 @@ class FileNameOptionStorage : public OptionStorageTemplate<std::string>
         bool isInputOutputFile() const { return bRead_ && bWrite_; }
         //! \copydoc FileNameOptionInfo::isLibraryFile()
         bool isLibraryFile() const { return bLibrary_; }
+        //! \copydoc FileNameOptionInfo::allowMissing()
+        bool allowMissing() const { return bAllowMissing_; }
 
         //! \copydoc FileNameOptionInfo::isDirectoryOption()
         bool isDirectoryOption() const;
+        //! \copydoc FileNameOptionInfo::isTrajectoryOption()
+        bool isTrajectoryOption() const;
+        //! \copydoc FileNameOptionInfo::defaultExtension()
+        const char *defaultExtension() const;
         //! \copydoc FileNameOptionInfo::extensions()
-        ConstArrayRef<const char *> extensions() const;
+        std::vector<const char *> extensions() const;
+        //! \copydoc FileNameOptionInfo::isValidType()
+        bool isValidType(int fileType) const;
+        //! \copydoc FileNameOptionInfo::fileTypes()
+        ConstArrayRef<int> fileTypes() const;
 
     private:
         virtual void convertValue(const std::string &value);
+        virtual void processAll();
 
         FileNameOptionInfo      info_;
-        OptionFileType          filetype_;
-        int                     legacyType_;
+        FileNameOptionManager  *manager_;
+        int                     fileType_;
+        const char             *defaultExtension_;
         bool                    bRead_;
         bool                    bWrite_;
         bool                    bLibrary_;
+        bool                    bAllowMissing_;
 };
 
 } // namespace gmx

@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -34,57 +34,54 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
+#include "gmxpre.h"
+
 #include "pdb2gmx.h"
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
-
 #include <ctype.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
-#include "sysstuff.h"
-#include "typedefs.h"
-#include "gromacs/fileio/gmxfio.h"
-#include "gromacs/utility/smalloc.h"
-#include "copyrite.h"
-#include "gromacs/utility/cstringutil.h"
-#include "gromacs/fileio/confio.h"
-#include "symtab.h"
-#include "vec.h"
 #include "gromacs/commandline/pargs.h"
-#include "gromacs/fileio/futil.h"
-#include "gmx_fatal.h"
+#include "gromacs/fileio/confio.h"
+#include "gromacs/fileio/gmxfio.h"
 #include "gromacs/fileio/pdbio.h"
-#include "toputil.h"
-#include "h_db.h"
-#include "physics.h"
-#include "pgutil.h"
-#include "calch.h"
-#include "resall.h"
-#include "pdb2top.h"
-#include "ter_db.h"
-#include "gromacs/gmxlib/conformation-utilities.h"
-#include "genhydro.h"
-#include "readinp.h"
-#include "atomprop.h"
-#include "index.h"
-#include "fflibutil.h"
-#include "macros.h"
-
 #include "gromacs/fileio/strdb.h"
+#include "gromacs/gmxlib/conformation-utilities.h"
+#include "gromacs/gmxpreprocess/fflibutil.h"
+#include "gromacs/gmxpreprocess/genhydro.h"
+#include "gromacs/gmxpreprocess/h_db.h"
+#include "gromacs/gmxpreprocess/hizzie.h"
+#include "gromacs/gmxpreprocess/pdb2top.h"
+#include "gromacs/gmxpreprocess/pgutil.h"
+#include "gromacs/gmxpreprocess/resall.h"
+#include "gromacs/gmxpreprocess/specbond.h"
+#include "gromacs/gmxpreprocess/ter_db.h"
+#include "gromacs/gmxpreprocess/toputil.h"
+#include "gromacs/gmxpreprocess/xlate.h"
+#include "gromacs/legacyheaders/copyrite.h"
+#include "gromacs/legacyheaders/macros.h"
+#include "gromacs/legacyheaders/readinp.h"
+#include "gromacs/legacyheaders/typedefs.h"
+#include "gromacs/math/vec.h"
+#include "gromacs/topology/atomprop.h"
+#include "gromacs/topology/block.h"
+#include "gromacs/topology/index.h"
+#include "gromacs/topology/residuetypes.h"
+#include "gromacs/topology/symtab.h"
+#include "gromacs/utility/cstringutil.h"
+#include "gromacs/utility/dir_separator.h"
+#include "gromacs/utility/fatalerror.h"
+#include "gromacs/utility/smalloc.h"
 
-#include "hizzie.h"
-#include "specbond.h"
-#include "xlate.h"
-
+#define RTP_MAXCHAR 5
 typedef struct {
-    char gmx[6];
-    char main[6];
-    char nter[6];
-    char cter[6];
-    char bter[6];
+    char gmx[RTP_MAXCHAR+2];
+    char main[RTP_MAXCHAR+2];
+    char nter[RTP_MAXCHAR+2];
+    char cter[RTP_MAXCHAR+2];
+    char bter[RTP_MAXCHAR+2];
 } rtprename_t;
 
 
@@ -225,8 +222,25 @@ static void read_rtprename(const char *fname, FILE *fp,
     while (get_a_line(fp, line, STRLEN))
     {
         srenew(rr, n+1);
-        nc = sscanf(line, "%s %s %s %s %s %s",
-                    rr[n].gmx, rr[n].main, rr[n].nter, rr[n].cter, rr[n].bter, buf);
+        /* line is NULL-terminated and length<STRLEN, so final arg cannot overflow.
+         * For other args, we read up to 6 chars (so we can detect if the length is > 5).
+         * Note that the buffer length has been increased to 7 to allow this,
+         * so we just need to make sure the strings have zero-length initially.
+         */
+        rr[n].gmx[0]  = '\0';
+        rr[n].main[0] = '\0';
+        rr[n].nter[0] = '\0';
+        rr[n].cter[0] = '\0';
+        rr[n].bter[0] = '\0';
+        nc            = sscanf(line, "%6s %6s %6s %6s %6s %s",
+                               rr[n].gmx, rr[n].main, rr[n].nter, rr[n].cter, rr[n].bter, buf);
+        if (strlen(rr[n].gmx) > RTP_MAXCHAR || strlen(rr[n].main) > RTP_MAXCHAR ||
+            strlen(rr[n].nter) > RTP_MAXCHAR || strlen(rr[n].cter) > RTP_MAXCHAR || strlen(rr[n].bter) > RTP_MAXCHAR)
+        {
+            gmx_fatal(FARGS, "Residue renaming database '%s' has strings longer than %d chars in first 5 columns:\n%s",
+                      fname, RTP_MAXCHAR, line);
+        }
+
         if (ncol == 0)
         {
             if (nc != 2 && nc != 5)
@@ -515,7 +529,7 @@ void write_posres(char *fn, t_atoms *pdba, real fc)
 static int read_pdball(const char *inf, const char *outf, char *title,
                        t_atoms *atoms, rvec **x,
                        int *ePBC, matrix box, gmx_bool bRemoveH,
-                       t_symtab *symtab, gmx_residuetype_t rt, const char *watres,
+                       t_symtab *symtab, gmx_residuetype_t *rt, const char *watres,
                        gmx_atomprop_t aps, gmx_bool bVerbose)
 /* Read a pdb file. (containing proteins) */
 {
@@ -836,7 +850,8 @@ static int remove_duplicate_atoms(t_atoms *pdba, rvec x[], gmx_bool bVerbose)
     return pdba->nr;
 }
 
-void find_nc_ter(t_atoms *pdba, int r0, int r1, int *r_start, int *r_end, gmx_residuetype_t rt)
+void find_nc_ter(t_atoms *pdba, int r0, int r1, int *r_start, int *r_end,
+                 gmx_residuetype_t *rt)
 {
     int         i;
     const char *p_startrestype;
@@ -1098,9 +1113,9 @@ typedef struct {
 int gmx_pdb2gmx(int argc, char *argv[])
 {
     const char *desc[] = {
-        "[THISMODULE] reads a [TT].pdb[tt] (or [TT].gro[tt]) file, reads",
+        "[THISMODULE] reads a [REF].pdb[ref] (or [REF].gro[ref]) file, reads",
         "some database files, adds hydrogens to the molecules and generates",
-        "coordinates in GROMACS (GROMOS), or optionally [TT].pdb[tt], format",
+        "coordinates in GROMACS (GROMOS), or optionally [REF].pdb[ref], format",
         "and a topology in GROMACS format.",
         "These files can subsequently be processed to generate a run input file.",
         "[PAR]",
@@ -1125,7 +1140,7 @@ int gmx_pdb2gmx(int argc, char *argv[])
         "Check Chapter 5 of the manual for more information about file formats.",
         "[PAR]",
 
-        "Note that a [TT].pdb[tt] file is nothing more than a file format, and it",
+        "Note that a [REF].pdb[ref] file is nothing more than a file format, and it",
         "need not necessarily contain a protein structure. Every kind of",
         "molecule for which there is support in the database can be converted.",
         "If there is no support in the database, you can add it yourself.[PAR]",
@@ -1172,10 +1187,10 @@ int gmx_pdb2gmx(int argc, char *argv[])
         "This can be turned off (no merging), all non-water chains can be merged into a",
         "single molecule, or the selection can be done interactively.[PAR]",
 
-        "[THISMODULE] will also check the occupancy field of the [TT].pdb[tt] file.",
+        "[THISMODULE] will also check the occupancy field of the [REF].pdb[ref] file.",
         "If any of the occupancies are not one, indicating that the atom is",
         "not resolved well in the structure, a warning message is issued.",
-        "When a [TT].pdb[tt] file does not originate from an X-ray structure determination",
+        "When a [REF].pdb[ref] file does not originate from an X-ray structure determination",
         "all occupancy fields may be zero. Either way, it is up to the user",
         "to verify the correctness of the input data (read the article!).[PAR]",
 
@@ -1187,9 +1202,9 @@ int gmx_pdb2gmx(int argc, char *argv[])
         "from the input and before new hydrogens are added. This means that",
         "you should not use [TT]-ignh[tt].[PAR]",
 
-        "The [TT].gro[tt] and [TT].g96[tt] file formats do not support chain",
-        "identifiers. Therefore it is useful to enter a [TT].pdb[tt] file name at",
-        "the [TT]-o[tt] option when you want to convert a multi-chain [TT].pdb[tt] file.",
+        "The [REF].gro[ref] and [TT].g96[tt] file formats do not support chain",
+        "identifiers. Therefore it is useful to enter a [REF].pdb[ref] file name at",
+        "the [TT]-o[tt] option when you want to convert a multi-chain [REF].pdb[ref] file.",
         "[PAR]",
 
         "The option [TT]-vsite[tt] removes hydrogen and fast improper dihedral",
@@ -1232,7 +1247,7 @@ int gmx_pdb2gmx(int argc, char *argv[])
     t_hackblock      *ah;
     t_symtab          symtab;
     gpp_atomtype_t    atype;
-    gmx_residuetype_t rt;
+    gmx_residuetype_t*rt;
     const char       *top_fn;
     char              fn[256], itp_fn[STRLEN], posre_fn[STRLEN], buf_fn[STRLEN];
     char              molname[STRLEN], title[STRLEN], quote[STRLEN];
@@ -1364,13 +1379,13 @@ int gmx_pdb2gmx(int argc, char *argv[])
         { "-deuterate", FALSE, etBOOL, {&bDeuterate},
           "Change the mass of hydrogens to 2 amu" },
         { "-chargegrp", TRUE, etBOOL, {&bChargeGroups},
-          "Use charge groups in the [TT].rtp[tt] file"  },
+          "Use charge groups in the [REF].rtp[ref] file"  },
         { "-cmap", TRUE, etBOOL, {&bCmap},
-          "Use cmap torsions (if enabled in the [TT].rtp[tt] file)"  },
+          "Use cmap torsions (if enabled in the [REF].rtp[ref] file)"  },
         { "-renum", TRUE, etBOOL, {&bRenumRes},
           "Renumber the residues consecutively in the output"  },
         { "-rtpres", TRUE, etBOOL, {&bRTPresname},
-          "Use [TT].rtp[tt] entry names as residue names"  }
+          "Use [REF].rtp[ref] entry names as residue names"  }
     };
 #define NPARGS asize(pa)
 
@@ -1682,7 +1697,7 @@ int gmx_pdb2gmx(int argc, char *argv[])
             chains[i].pdba->atom[j] = pdba_all.atom[pdb_ch[si].start+j];
             snew(chains[i].pdba->atomname[j], 1);
             *chains[i].pdba->atomname[j] =
-                strdup(*pdba_all.atomname[pdb_ch[si].start+j]);
+                gmx_strdup(*pdba_all.atomname[pdb_ch[si].start+j]);
             chains[i].pdba->pdbinfo[j] = pdba_all.pdbinfo[pdb_ch[si].start+j];
             copy_rvec(pdbx[pdb_ch[si].start+j], chains[i].x[j]);
         }
@@ -1699,7 +1714,7 @@ int gmx_pdb2gmx(int argc, char *argv[])
         {
             chains[i].pdba->resinfo[j] = pdba_all.resinfo[k+j];
             snew(chains[i].pdba->resinfo[j].name, 1);
-            *chains[i].pdba->resinfo[j].name = strdup(*pdba_all.resinfo[k+j].name);
+            *chains[i].pdba->resinfo[j].name = gmx_strdup(*pdba_all.resinfo[k+j].name);
             /* make all chain identifiers equal to that of the chain */
             chains[i].pdba->resinfo[j].chainid = pdb_ch[si].chainid;
         }
@@ -2057,7 +2072,7 @@ int gmx_pdb2gmx(int argc, char *argv[])
 
             nincl++;
             srenew(incls, nincl);
-            incls[nincl-1] = strdup(itp_fn);
+            incls[nincl-1] = gmx_strdup(itp_fn);
             itp_file       = gmx_fio_fopen(itp_fn, "w");
         }
         else
@@ -2068,12 +2083,12 @@ int gmx_pdb2gmx(int argc, char *argv[])
         srenew(mols, nmol+1);
         if (cc->bAllWat)
         {
-            mols[nmol].name = strdup("SOL");
+            mols[nmol].name = gmx_strdup("SOL");
             mols[nmol].nr   = pdba->nres;
         }
         else
         {
-            mols[nmol].name = strdup(molname);
+            mols[nmol].name = gmx_strdup(molname);
             mols[nmol].nr   = 1;
         }
         nmol++;

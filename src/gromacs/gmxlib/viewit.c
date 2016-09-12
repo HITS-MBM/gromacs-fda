@@ -35,18 +35,18 @@
  * the research papers on the package. Check out http://www.gromacs.org.
  */
 /* This file is completely threadsafe - keep it that way! */
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
+#include "gmxpre.h"
 
+#include "gromacs/legacyheaders/viewit.h"
+
+#include <stdlib.h>
 #include <string.h>
 
-#include "oenv.h"
-#include "viewit.h"
-#include "gromacs/utility/cstringutil.h"
 #include "gromacs/fileio/filenm.h"
-#include "macros.h"
-#include "gmx_fatal.h"
+#include "gromacs/legacyheaders/macros.h"
+#include "gromacs/legacyheaders/oenv.h"
+#include "gromacs/utility/cstringutil.h"
+#include "gromacs/utility/fatalerror.h"
 
 static const int   can_view_ftp[] = {
     0,
@@ -58,7 +58,7 @@ static const char* view_program[] = {
     "ghostview",    "display",      NULL,           "xterm -e rasmol"
 };
 
-int can_view(int ftp)
+static int can_view(int ftp)
 {
     int i;
 
@@ -123,15 +123,10 @@ void do_view(const output_env_t oenv, const char *fn, const char *opts)
             {
                 sprintf(buf, "%s %s %s &", cmd, opts ? opts : "", fn);
                 fprintf(stderr, "Executing '%s'\n", buf);
-#ifdef GMX_NO_SYSTEM
-                printf("Warning-- No calls to system(3) supported on this platform.");
-                printf("Warning-- Skipping execution of 'system(\"%s\")'.", buf);
-#else
                 if (0 != system(buf) )
                 {
                     gmx_fatal(FARGS, "Failed executing command: %s", buf);
                 }
-#endif
             }
         }
     }

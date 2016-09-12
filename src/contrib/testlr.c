@@ -35,8 +35,8 @@
 #include <math.h>
 #include <string.h>
 #include "typedefs.h"
-#include "vec.h"
-#include "physics.h"
+#include "gromacs/math/vec.h"
+#include "gromacs/math/units.h"
 #include "macros.h"
 #include "names.h"
 #include "gromacs/utility/smalloc.h"
@@ -44,15 +44,12 @@
 #include "gromacs/commandline/pargs.h"
 #include "gromacs/fileio/writeps.h"
 #include "copyrite.h"
-#include "xvgr.h"
-#include "minvert.h"
 #include "pppm.h"
 #include "readinp.h"
-#include "main.h"
 #include "force.h"
 #include "nrnb.h"
 #include "coulomb.h"
-#include "mshift.h"
+#include "gromacs/pbcutil/mshift.h"
 #include "poisson.h"
 #include "mdatoms.h"
 

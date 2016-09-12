@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2014, by the GROMACS development team, led by
+ * Copyright (c) 2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -32,11 +32,11 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
+#include "gmxpre.h"
 
 #include "simd.h"
+
+#include "gromacs/simd/simd.h"
 
 namespace gmx
 {
@@ -80,21 +80,6 @@ const gmx_simd_real_t rSimd_Exp      = setSimdRealFrom3R( 1.40552351710274526239
 const gmx_simd_real_t rSimd_ExpDouble = setSimdRealFrom3R( 6.287393598732017379054414e+176,
                                                            8.794495252903116023030553e-140,
                                                            -3.637060701570496477655022e+202);
-// Magic FP numbers corresponding to specific bit patterns
-const gmx_simd_real_t rSimd_Bits1    = setSimdRealFrom1R(-1.07730874267432137e+236);
-const gmx_simd_real_t rSimd_Bits2    = setSimdRealFrom1R(-9.25596313493178307e+061);
-const gmx_simd_real_t rSimd_Bits3    = setSimdRealFrom1R(-8.57750588235293981e+003);
-const gmx_simd_real_t rSimd_Bits4    = setSimdRealFrom1R( 1.22416778341839096e-250);
-const gmx_simd_real_t rSimd_Bits5    = setSimdRealFrom1R(-1.15711777004554095e+294);
-const gmx_simd_real_t rSimd_Bits6    = setSimdRealFrom1R( 1.53063836115600621e-018);
-#    else
-// Magic FP numbers corresponding to specific bit patterns
-const gmx_simd_real_t rSimd_Bits1    = setSimdRealFrom1R(-5.9654142337e+29);
-const gmx_simd_real_t rSimd_Bits2    = setSimdRealFrom1R(-1.0737417600e+08);
-const gmx_simd_real_t rSimd_Bits3    = setSimdRealFrom1R(-6.0235290527e+00);
-const gmx_simd_real_t rSimd_Bits4    = setSimdRealFrom1R( 1.0788832913e-31);
-const gmx_simd_real_t rSimd_Bits5    = setSimdRealFrom1R(-1.0508719529e+37);
-const gmx_simd_real_t rSimd_Bits6    = setSimdRealFrom1R( 1.1488970369e-02);
 #    endif
 #endif  // GMX_SIMD_HAVE_REAL
 #ifdef GMX_SIMD_HAVE_INT32

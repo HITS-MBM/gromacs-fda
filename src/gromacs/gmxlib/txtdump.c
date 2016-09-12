@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -34,21 +34,21 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
+#include "gmxpre.h"
 
 /* This file is completely threadsafe - please keep it that way! */
 
-#include <stdio.h>
-#include "typedefs.h"
-#include "types/commrec.h"
-#include "names.h"
-#include "txtdump.h"
-#include "vec.h"
-#include "macros.h"
+#include "gromacs/legacyheaders/txtdump.h"
 
-#include "gmx_fatal.h"
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "gromacs/legacyheaders/macros.h"
+#include "gromacs/legacyheaders/names.h"
+#include "gromacs/legacyheaders/typedefs.h"
+#include "gromacs/legacyheaders/types/commrec.h"
+#include "gromacs/math/vec.h"
+#include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/smalloc.h"
 
 int pr_indent(FILE *fp, int n)
@@ -634,8 +634,17 @@ static void pr_pull_coord(FILE *fp, int indent, int c, t_pull_coord *pcrd)
     fprintf(fp, "pull-coord %d:\n", c);
     PI("group[0]", pcrd->group[0]);
     PI("group[1]", pcrd->group[1]);
+    if (pcrd->eGeom == epullgDIRRELATIVE)
+    {
+        PI("group[2]", pcrd->group[2]);
+        PI("group[3]", pcrd->group[3]);
+    }
+    PS("type", EPULLTYPE(pcrd->eType));
+    PS("geometry", EPULLGEOM(pcrd->eGeom));
+    pr_ivec(fp, indent, "dim", pcrd->dim, DIM, TRUE);
     pr_rvec(fp, indent, "origin", pcrd->origin, DIM, TRUE);
     pr_rvec(fp, indent, "vec", pcrd->vec, DIM, TRUE);
+    PS("start", EBOOL(pcrd->bStart));
     PR("init", pcrd->init);
     PR("rate", pcrd->rate);
     PR("k", pcrd->k);
@@ -751,16 +760,16 @@ static void pr_fepvals(FILE *fp, int indent, t_lambda *fep, gmx_bool bMDPformat)
     PS("dhdl-derivatives", DHDLDERIVATIVESTYPE(fep->dhdl_derivatives));
 };
 
-static void pr_pull(FILE *fp, int indent, t_pull *pull)
+static void pr_pull(FILE *fp, int indent, pull_params_t *pull)
 {
     int g;
 
-    PS("pull-geometry", EPULLGEOM(pull->eGeom));
-    pr_ivec(fp, indent, "pull-dim", pull->dim, DIM, TRUE);
-    PR("pull-r1", pull->cyl_r1);
-    PR("pull-r0", pull->cyl_r0);
+    PR("pull-cylinder-r", pull->cylinder_r);
     PR("pull-constr-tol", pull->constr_tol);
-    PS("pull-print-reference", EBOOL(pull->bPrintRef));
+    PS("pull-print-COM1", EBOOL(pull->bPrintCOM1));
+    PS("pull-print-COM2", EBOOL(pull->bPrintCOM2));
+    PS("pull-print-ref-value", EBOOL(pull->bPrintRefValue));
+    PS("pull-print-components", EBOOL(pull->bPrintComp));
     PI("pull-nstxout", pull->nstxout);
     PI("pull-nstfout", pull->nstfout);
     PI("pull-ngroups", pull->ngroup);
@@ -792,8 +801,8 @@ static void pr_rotgrp(FILE *fp, int indent, int g, t_rotgrp *rotg)
     PR("rot-min-gauss", rotg->min_gaussian);
     PR("rot-eps", rotg->eps);
     PS("rot-fit-method", EROTFIT(rotg->eFittype));
-    PI("rot_potfit_nstep", rotg->PotAngle_nstep);
-    PR("rot_potfit_step", rotg->PotAngle_step);
+    PI("rot-potfit-nstep", rotg->PotAngle_nstep);
+    PR("rot-potfit-step", rotg->PotAngle_step);
 }
 
 static void pr_rot(FILE *fp, int indent, t_rot *rot)
@@ -964,7 +973,7 @@ void pr_inputrec(FILE *fp, int indent, const char *title, t_inputrec *ir,
         PR("gb-obc-beta", ir->gb_obc_beta);
         PR("gb-obc-gamma", ir->gb_obc_gamma);
         PR("gb-dielectric-offset", ir->gb_dielectric_offset);
-        PS("sa-algorithm", ESAALGORITHM(ir->gb_algorithm));
+        PS("sa-algorithm", ESAALGORITHM(ir->sa_algorithm));
         PR("sa-surface-tension", ir->sa_surface_tension);
 
         /* Options for weak coupling algorithms */
@@ -1024,8 +1033,8 @@ void pr_inputrec(FILE *fp, int indent, const char *title, t_inputrec *ir,
         PR("wall-ewald-zfac", ir->wall_ewald_zfac);
 
         /* COM PULLING */
-        PS("pull", EPULLTYPE(ir->ePull));
-        if (ir->ePull != epullNO)
+        PS("pull", EBOOL(ir->bPull));
+        if (ir->bPull)
         {
             pr_pull(fp, indent, ir->pull);
         }
@@ -1411,7 +1420,7 @@ void pr_ilist(FILE *fp, int indent, const char *title,
                 j++;
                 for (k = 0; k < interaction_function[ftype].nratoms; k++)
                 {
-                    (void) fprintf(fp, " %u", *(iatoms++));
+                    (void) fprintf(fp, " %d", *(iatoms++));
                 }
                 (void) fprintf(fp, "\n");
                 i += 1+interaction_function[ftype].nratoms;
@@ -1554,13 +1563,13 @@ static void low_pr_blocka(FILE *fp, int indent, const char *title, t_blocka *blo
         for (i = 0; i <= block->nr; i++)
         {
             (void) pr_indent(fp, indent+INDENT);
-            (void) fprintf(fp, "%s->index[%d]=%u\n",
+            (void) fprintf(fp, "%s->index[%d]=%d\n",
                            title, bShowNumbers ? i : -1, block->index[i]);
         }
         for (i = 0; i < block->nra; i++)
         {
             (void) pr_indent(fp, indent+INDENT);
-            (void) fprintf(fp, "%s->a[%d]=%u\n",
+            (void) fprintf(fp, "%s->a[%d]=%d\n",
                            title, bShowNumbers ? i : -1, block->a[i]);
         }
     }
@@ -1641,7 +1650,7 @@ void pr_blocka(FILE *fp, int indent, const char *title, t_blocka *block, gmx_boo
                         (void) fprintf(fp, "\n");
                         size = pr_indent(fp, indent+INDENT);
                     }
-                    size += fprintf(fp, "%u", block->a[j]);
+                    size += fprintf(fp, "%d", block->a[j]);
                 }
                 (void) fprintf(fp, "}\n");
                 start = end;
@@ -1873,7 +1882,7 @@ static void pr_molblock(FILE *fp, int indent, const char *title,
 void pr_mtop(FILE *fp, int indent, const char *title, gmx_mtop_t *mtop,
              gmx_bool bShowNumbers)
 {
-    int mt, mb;
+    int mt, mb, j;
 
     if (available(fp, mtop, indent, title))
     {
@@ -1885,6 +1894,16 @@ void pr_mtop(FILE *fp, int indent, const char *title, gmx_mtop_t *mtop,
         for (mb = 0; mb < mtop->nmolblock; mb++)
         {
             pr_molblock(fp, indent, "molblock", &mtop->molblock[mb], mb, mtop->moltype);
+        }
+        pr_str(fp, indent, "bIntermolecularInteractions", EBOOL(mtop->bIntermolecularInteractions));
+        if (mtop->bIntermolecularInteractions)
+        {
+            for (j = 0; (j < F_NRE); j++)
+            {
+                pr_ilist(fp, indent, interaction_function[j].longname,
+                         mtop->ffparams.functype,
+                         &mtop->intermolecular_ilist[j], bShowNumbers);
+            }
         }
         pr_ffparams(fp, indent, "ffparams", &(mtop->ffparams), bShowNumbers);
         pr_atomtypes(fp, indent, "atomtypes", &(mtop->atomtypes), bShowNumbers);
@@ -1908,6 +1927,7 @@ void pr_top(FILE *fp, int indent, const char *title, t_topology *top, gmx_bool b
         pr_atomtypes(fp, indent, "atomtypes", &(top->atomtypes), bShowNumbers);
         pr_block(fp, indent, "cgs", &top->cgs, bShowNumbers);
         pr_block(fp, indent, "mols", &top->mols, bShowNumbers);
+        pr_str(fp, indent, "bIntermolecularInteractions", EBOOL(top->bIntermolecularInteractions));
         pr_blocka(fp, indent, "excls", &top->excls, bShowNumbers);
         pr_idef(fp, indent, "idef", &top->idef, bShowNumbers);
     }

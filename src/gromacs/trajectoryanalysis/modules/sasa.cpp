@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2006, The GROMACS development team.
- * Copyright (c) 2008,2009,2010,2011,2012,2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2008,2009,2010,2011,2012,2013,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -41,38 +41,41 @@
  * \author Teemu Murtola <teemu.murtola@gmail.com> (C++ conversion)
  * \ingroup module_trajectoryanalysis
  */
+#include "gmxpre.h"
+
 #include "sasa.h"
 
 #include <algorithm>
 #include <string>
 #include <vector>
 
-#include "gromacs/legacyheaders/atomprop.h"
-#include "gromacs/legacyheaders/copyrite.h"
-#include "gromacs/legacyheaders/pbc.h"
-#include "gromacs/legacyheaders/physics.h"
-#include "gromacs/legacyheaders/symtab.h"
-#include "gromacs/legacyheaders/vec.h"
-
 #include "gromacs/analysisdata/analysisdata.h"
 #include "gromacs/analysisdata/modules/average.h"
 #include "gromacs/analysisdata/modules/plot.h"
 #include "gromacs/fileio/confio.h"
-#include "gromacs/fileio/futil.h"
 #include "gromacs/fileio/pdbio.h"
+#include "gromacs/fileio/trx.h"
+#include "gromacs/legacyheaders/copyrite.h"
+#include "gromacs/math/units.h"
+#include "gromacs/math/vec.h"
 #include "gromacs/options/basicoptions.h"
 #include "gromacs/options/filenameoption.h"
 #include "gromacs/options/options.h"
+#include "gromacs/pbcutil/pbc.h"
 #include "gromacs/selection/selection.h"
 #include "gromacs/selection/selectionoption.h"
+#include "gromacs/topology/atomprop.h"
+#include "gromacs/topology/symtab.h"
+#include "gromacs/topology/topology.h"
 #include "gromacs/trajectoryanalysis/analysismodule.h"
 #include "gromacs/trajectoryanalysis/analysissettings.h"
 #include "gromacs/utility/exceptions.h"
-#include "gromacs/utility/scoped_ptr_sfree.h"
+#include "gromacs/utility/futil.h"
+#include "gromacs/utility/scoped_cptr.h"
 #include "gromacs/utility/smalloc.h"
 #include "gromacs/utility/stringutil.h"
 
-#include "nsc.h"
+#include "surfacearea.h"
 
 namespace gmx
 {
@@ -384,6 +387,8 @@ class Sasa : public TrajectoryAnalysisModule
          * Empty if the free energy output has not been requested.
          */
         std::vector<real>       dgsFactor_;
+        //! Calculation algorithm.
+        SurfaceAreaCalculator   calculator_;
 
         // Copy and assign disallowed by base.
 };
@@ -408,7 +413,7 @@ Sasa::initOptions(Options *options, TrajectoryAnalysisSettings *settings)
         "See Eisenhaber F, Lijnzaad P, Argos P, Sander C, & Scharf M",
         "(1995) J. Comput. Chem. 16, 273-284 for the algorithm used.",
         "With [TT]-q[tt], the Connolly surface can be generated as well",
-        "in a [TT].pdb[tt] file where the nodes are represented as atoms",
+        "in a [REF].pdb[ref] file where the nodes are represented as atoms",
         "and the edges connecting the nearest nodes as CONECT records.",
         "[TT]-odg[tt] allows for estimation of solvation free energies",
         "from per-atom solvation energies per exposed surface area.[PAR]",
@@ -424,13 +429,15 @@ Sasa::initOptions(Options *options, TrajectoryAnalysisSettings *settings)
         "The average and standard deviation of the area over the trajectory",
         "can be calculated per residue and atom (options [TT]-or[tt] and",
         "[TT]-oa[tt]).[PAR]",
-        //"In combination with the latter option an [TT].itp[tt] file can be",
+        //"In combination with the latter option an [REF].itp[ref] file can be",
         //"generated (option [TT]-i[tt])",
         //"which can be used to restrain surface atoms.[PAR]",
 
         "With the [TT]-tv[tt] option the total volume and density of the",
-        "molecule can be computed.",
-        "Please consider whether the normal probe radius is appropriate",
+        "molecule can be computed. With [TT]-pbc[tt] (the default), you",
+        "must ensure that your molecule/surface group is not split across PBC.",
+        "Otherwise, you will get non-sensical results.",
+        "Please also consider whether the normal probe radius is appropriate",
         "in this case or whether you would rather use, e.g., 0. It is good",
         "to keep in mind that the results for volume and density are very",
         "approximate. For example, in ice Ih, one can easily fit water molecules in the",
@@ -438,7 +445,7 @@ Sasa::initOptions(Options *options, TrajectoryAnalysisSettings *settings)
         "that are both too high."
     };
 
-    options->setDescription(concatenateStrings(desc));
+    options->setDescription(desc);
 
     options->addOption(FileNameOption("o").filetype(eftPlot).outputFile().required()
                            .store(&fnArea_).defaultBasename("area")
@@ -470,7 +477,7 @@ Sasa::initOptions(Options *options, TrajectoryAnalysisSettings *settings)
     //options->addOption(DoubleOption("minarea").store(&minarea_)
     //                       .description("The minimum area (nm^2) to count an atom as a surface atom when writing a position restraint file (see help)"));
     options->addOption(BooleanOption("prot").store(&bIncludeSolute_)
-                           .description("Output the protein to the Connolly [TT].pdb[tt] file too"));
+                           .description("Output the protein to the Connolly [REF].pdb[ref] file too"));
     options->addOption(DoubleOption("dgs").store(&dgsDefault_)
                            .description("Default value for solvation free energy per area (kJ/mol/nm^2)"));
 
@@ -549,24 +556,18 @@ Sasa::initAnalysis(const TrajectoryAnalysisSettings &settings,
         dgsFactor_.reserve(surfaceSel_.posCount());
     }
 
+    const int resCount = surfaceSel_.initOriginalIdsToGroup(top_, INDEX_RES);
+
     // TODO: Not exception-safe, but nice solution would be to have a C++
     // atom properties class...
     gmx_atomprop_t     aps = gmx_atomprop_init();
 
     ConstArrayRef<int> atomIndices = surfaceSel_.atomIndices();
-    int                prevResind  = atoms.atom[atomIndices[0]].resind;
-    int                resCount    = 0;
     int                ndefault    = 0;
     for (int i = 0; i < surfaceSel_.posCount(); i++)
     {
         const int ii     = atomIndices[i];
         const int resind = atoms.atom[ii].resind;
-        if (resind != prevResind)
-        {
-            ++resCount;
-            prevResind = resind;
-        }
-        surfaceSel_.setOriginalId(i, resCount);
         real      radius;
         if (!gmx_atomprop_query(aps, epropVDW,
                                 *(atoms.resinfo[resind].name),
@@ -593,9 +594,6 @@ Sasa::initAnalysis(const TrajectoryAnalysisSettings &settings,
     }
     gmx_atomprop_destroy(aps);
 
-    // The loop above doesn't count the last residue.
-    ++resCount;
-
     // Pre-compute mapping from the output groups to the calculation group,
     // and store it in the selection ID map for easy lookup.
     for (size_t g = 0; g < outputSel_.size(); ++g)
@@ -614,6 +612,9 @@ Sasa::initAnalysis(const TrajectoryAnalysisSettings &settings,
             outputSel_[g].setOriginalId(i, j);
         }
     }
+
+    calculator_.setDotCount(ndots_);
+    calculator_.setRadii(radii_);
 
     // Initialize all the output data objects and initialize the output plotters.
 
@@ -654,7 +655,7 @@ Sasa::initAnalysis(const TrajectoryAnalysisSettings &settings,
                 AnalysisDataPlotModulePointer plotm(
                         new AnalysisDataPlotModule(settings.plotSettings()));
                 plotm->setFileName(fnAtomArea_);
-                plotm->setTitle("Area per residue over the trajectory");
+                plotm->setTitle("Area per atom over the trajectory");
                 plotm->setXLabel("Atom");
                 plotm->setXFormat(8, 0);
                 plotm->setYLabel("Area (nm\\S2\\N)");
@@ -666,11 +667,18 @@ Sasa::initAnalysis(const TrajectoryAnalysisSettings &settings,
         }
         {
             AnalysisDataAverageModulePointer avem(new AnalysisDataAverageModule);
+            int prevResind = -1;
+            int row        = 0;
             for (int i = 0; i < surfaceSel_.posCount(); ++i)
             {
                 const int atomIndex     = surfaceSel_.position(i).atomIndices()[0];
                 const int residueIndex  = atoms.atom[atomIndex].resind;
-                avem->setXAxisValue(i, atoms.resinfo[residueIndex].nr);
+                if (residueIndex != prevResind)
+                {
+                    avem->setXAxisValue(row, atoms.resinfo[residueIndex].nr);
+                    prevResind = residueIndex;
+                    ++row;
+                }
             }
             residueArea_.addModule(avem);
             if (!fnResidueArea_.empty())
@@ -678,7 +686,7 @@ Sasa::initAnalysis(const TrajectoryAnalysisSettings &settings,
                 AnalysisDataPlotModulePointer plotm(
                         new AnalysisDataPlotModule(settings.plotSettings()));
                 plotm->setFileName(fnResidueArea_);
-                plotm->setTitle("Area per atom over the trajectory");
+                plotm->setTitle("Area per residue over the trajectory");
                 plotm->setXLabel("Residue");
                 plotm->setXFormat(8, 0);
                 plotm->setYLabel("Area (nm\\S2\\N)");
@@ -913,12 +921,10 @@ Sasa::analyzeFrame(int frnr, const t_trxframe &fr, t_pbc *pbc,
     real  totarea, totvolume;
     real *area = NULL, *surfacedots = NULL;
     int   nsurfacedots;
-    int   retval = nsc_dclm_pbc(surfaceSel.coordinates().data(), &radii_[0],
-                                frameData.index_.size(), ndots_, flag, &totarea,
-                                &area, &totvolume, &surfacedots, &nsurfacedots,
-                                &frameData.index_[0],
-                                pbc != NULL ? pbc->ePBC : epbcNONE,
-                                pbc != NULL ? pbc->box : NULL);
+    calculator_.calculate(surfaceSel.coordinates().data(), pbc,
+                          frameData.index_.size(), &frameData.index_[0], flag,
+                          &totarea, &totvolume, &area,
+                          &surfacedots, &nsurfacedots);
     // Unpack the atomwise areas into the frameData.atomAreas_ array for easier
     // indexing in the case of dynamic surfaceSel.
     if (area != NULL)
@@ -939,11 +945,7 @@ Sasa::analyzeFrame(int frnr, const t_trxframe &fr, t_pbc *pbc,
         }
         sfree(area);
     }
-    scoped_ptr_sfree dotsGuard(surfacedots);
-    if (retval != 0)
-    {
-        GMX_THROW(InternalError("nsc_dclm_pbc failed"));
-    }
+    scoped_guard_sfree dotsGuard(surfacedots);
 
     if (bConnolly)
     {

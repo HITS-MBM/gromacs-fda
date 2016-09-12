@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -34,45 +34,45 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
+#include "gmxpre.h"
 
-#include <math.h>
-#include <sys/types.h>
-#include <stdio.h>
-#include <string.h>
-#include <errno.h>
-#include <ctype.h>
-#include <assert.h>
-
-#include "gromacs/fileio/futil.h"
-#include "sysstuff.h"
-#include "typedefs.h"
-#include "gromacs/utility/smalloc.h"
-#include "macros.h"
-#include "gromacs/fileio/gmxfio.h"
-#include "txtdump.h"
-#include "physics.h"
-#include "macros.h"
-#include "names.h"
-#include "gromacs/utility/cstringutil.h"
-#include "symtab.h"
-#include "gmx_fatal.h"
-#include "warninp.h"
-#include "vsite_parm.h"
-
-#include "grompp-impl.h"
-#include "toputil.h"
-#include "toppush.h"
-#include "topdirs.h"
-#include "gpp_nextnb.h"
 #include "topio.h"
-#include "topshake.h"
-#include "gmxcpp.h"
-#include "gpp_bond_atomtype.h"
-#include "genborn.h"
+
+#include <assert.h>
+#include <ctype.h>
+#include <errno.h>
+#include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include <sys/types.h>
+
+#include "gromacs/fileio/gmxfio.h"
+#include "gromacs/gmxpreprocess/gmxcpp.h"
+#include "gromacs/gmxpreprocess/gpp_bond_atomtype.h"
+#include "gromacs/gmxpreprocess/gpp_nextnb.h"
+#include "gromacs/gmxpreprocess/grompp-impl.h"
+#include "gromacs/gmxpreprocess/topdirs.h"
+#include "gromacs/gmxpreprocess/toppush.h"
+#include "gromacs/gmxpreprocess/topshake.h"
+#include "gromacs/gmxpreprocess/toputil.h"
+#include "gromacs/gmxpreprocess/vsite_parm.h"
+#include "gromacs/legacyheaders/genborn.h"
+#include "gromacs/legacyheaders/macros.h"
+#include "gromacs/legacyheaders/names.h"
+#include "gromacs/legacyheaders/txtdump.h"
+#include "gromacs/legacyheaders/typedefs.h"
+#include "gromacs/legacyheaders/warninp.h"
+#include "gromacs/math/units.h"
 #include "gromacs/math/utilities.h"
+#include "gromacs/topology/block.h"
+#include "gromacs/topology/symtab.h"
+#include "gromacs/topology/topology.h"
+#include "gromacs/utility/cstringutil.h"
+#include "gromacs/utility/fatalerror.h"
+#include "gromacs/utility/futil.h"
+#include "gromacs/utility/smalloc.h"
 
 #define OPENDIR     '[' /* starting sign for directive */
 #define CLOSEDIR    ']' /* ending sign for directive   */
@@ -336,7 +336,7 @@ static char ** cpp_opts(const char *define, const char *include,
                     else
                     {
                         srenew(cppopts, ++ncppopts);
-                        cppopts[ncppopts-1] = strdup(buf);
+                        cppopts[ncppopts-1] = gmx_strdup(buf);
                     }
                     sfree(buf);
                     ptr = rptr;
@@ -528,6 +528,31 @@ generate_gb_exclusion_interactions(t_molinfo *mi, gpp_atomtype_t atype, t_nextnb
 }
 
 
+static void make_atoms_sys(int nmolb, const gmx_molblock_t *molb,
+                           const t_molinfo *molinfo,
+                           t_atoms *atoms)
+{
+    int            mb, m, a;
+    const t_atoms *mol_atoms;
+
+    atoms->nr   = 0;
+    atoms->atom = NULL;
+
+    for (mb = 0; mb < nmolb; mb++)
+    {
+        mol_atoms = &molinfo[molb[mb].type].atoms;
+
+        srenew(atoms->atom, atoms->nr + molb[mb].nmol*mol_atoms->nr);
+
+        for (m = 0; m < molb[mb].nmol; m++)
+        {
+            for (a = 0; a < mol_atoms->nr; a++)
+            {
+                atoms->atom[atoms->nr++] = mol_atoms->atom[a];
+            }
+        }
+    }
+}
 
 
 static char **read_topol(const char *infile, const char *outfile,
@@ -536,6 +561,7 @@ static char **read_topol(const char *infile, const char *outfile,
                          gpp_atomtype_t atype,
                          int         *nrmols,
                          t_molinfo   **molinfo,
+                         t_molinfo   **intermolecular_interactions,
                          t_params    plist[],
                          int         *combination_rule,
                          double      *reppow,
@@ -562,6 +588,7 @@ static char **read_topol(const char *infile, const char *outfile,
     DirStack       *DS;
     directive       d, newd;
     t_nbparam     **nbparam, **pair;
+    gmx_bool        bIntermolecularInteractions;
     t_block2       *block2;
     real            fudgeLJ = -1;    /* Multiplication factor to generate 1-4 from LJ */
     gmx_bool        bReadDefaults, bReadMolType, bGenPairs, bWarn_copy_A_B;
@@ -605,9 +632,10 @@ static char **read_topol(const char *infile, const char *outfile,
     pair     = NULL;      /* The temporary pair interaction matrix */
     block2   = NULL;      /* the extra exclusions			 */
     nb_funct = F_LJ;
+
     *reppow  = 12.0;      /* Default value for repulsion power     */
 
-    comb     = 0;
+    *intermolecular_interactions = NULL;
 
     /* Init the number of CMAP torsion angles  and grid spacing */
     plist[F_CMAP].grid_spacing = 0;
@@ -639,7 +667,7 @@ static char **read_topol(const char *infile, const char *outfile,
 
             set_warning_line(wi, cpp_cur_file(&handle), cpp_cur_linenr(&handle));
 
-            pline = strdup(line);
+            pline = gmx_strdup(line);
 
             /* Strip trailing '\' from pline, if it exists */
             sl = strlen(pline);
@@ -657,7 +685,7 @@ static char **read_topol(const char *infile, const char *outfile,
                 /* Since we depend on the '\' being present to continue to read, we copy line
                  * to a tmp string, strip the '\' from that string, and cat it to pline
                  */
-                tmp_line = strdup(line);
+                tmp_line = gmx_strdup(line);
 
                 sl = strlen(tmp_line);
                 if ((sl > 0) && (tmp_line[sl-1] == CONTINUE))
@@ -696,7 +724,7 @@ static char **read_topol(const char *infile, const char *outfile,
                      * without the brackets into dirstr, then
                      * skip spaces and tabs on either side of directive
                      */
-                    dirstr = strdup((pline+1));
+                    dirstr = gmx_strdup((pline+1));
                     if ((dummy2 = strchr (dirstr, CLOSEDIR)) != NULL)
                     {
                         (*dummy2) = 0;
@@ -728,6 +756,22 @@ static char **read_topol(const char *infile, const char *outfile,
                                       cpp_error(&handle, eCPP_SYNTAX), dir2str(newd));
                             /* d = d_invalid; */
                         }
+
+                        if (d == d_intermolecular_interactions)
+                        {
+                            if (*intermolecular_interactions == NULL)
+                            {
+                                /* We (mis)use the moleculetype processing
+                                 * to process the intermolecular interactions
+                                 * by making a "molecule" of the size of the system.
+                                 */
+                                snew(*intermolecular_interactions, 1);
+                                init_molinfo(*intermolecular_interactions);
+                                mi0 = *intermolecular_interactions;
+                                make_atoms_sys(nmolb, molb, *molinfo,
+                                               &mi0->atoms);
+                            }
+                        }
                     }
                     sfree(dirstr);
                 }
@@ -758,8 +802,7 @@ static char **read_topol(const char *infile, const char *outfile,
                                 fudgeLJ   = 1.0;
                                 *fudgeQQ  = 1.0;
 
-                                get_nbparm(nb_str, comb_str, &nb_funct, &comb, wi);
-                                *combination_rule = comb;
+                                get_nbparm(nb_str, comb_str, &nb_funct, combination_rule, wi);
                                 if (nscan >= 3)
                                 {
                                     bGenPairs = (gmx_strncasecmp(genpairs, "Y", 1) == 0);
@@ -857,14 +900,14 @@ static char **read_topol(const char *infile, const char *outfile,
                                 }
                                 ntype  = get_atomtype_ntypes(atype);
                                 ncombs = (ntype*(ntype+1))/2;
-                                generate_nbparams(comb, nb_funct, &(plist[nb_funct]), atype, wi);
+                                generate_nbparams(*combination_rule, nb_funct, &(plist[nb_funct]), atype, wi);
                                 ncopy = copy_nbparams(nbparam, nb_funct, &(plist[nb_funct]),
                                                       ntype);
                                 fprintf(stderr, "Generated %d of the %d non-bonded parameter combinations\n", ncombs-ncopy, ncombs);
                                 free_nbparam(nbparam, ntype);
                                 if (bGenPairs)
                                 {
-                                    gen_pairs(&(plist[nb_funct]), &(plist[F_LJ14]), fudgeLJ, comb);
+                                    gen_pairs(&(plist[nb_funct]), &(plist[F_LJ14]), fudgeLJ, *combination_rule);
                                     ncopy = copy_nbparams(pair, nb_funct, &(plist[F_LJ14]),
                                                           ntype);
                                     fprintf(stderr, "Generated %d of the %d 1-4 parameter combinations\n", ncombs-ncopy, ncombs);
@@ -888,6 +931,10 @@ static char **read_topol(const char *infile, const char *outfile,
                         case d_pairs:
                             push_bond(d, plist, mi0->plist, &(mi0->atoms), atype, pline, FALSE,
                                       bGenPairs, *fudgeQQ, bZero, &bWarn_copy_A_B, wi);
+                            break;
+                        case d_pairs_nb:
+                            push_bond(d, plist, mi0->plist, &(mi0->atoms), atype, pline, FALSE,
+                                      FALSE, 1.0, bZero, &bWarn_copy_A_B, wi);
                             break;
 
                         case d_vsites2:
@@ -995,7 +1042,7 @@ static char **read_topol(const char *infile, const char *outfile,
                             break;
                         }
                         default:
-                            fprintf (stderr, "case: %d\n", d);
+                            fprintf (stderr, "case: %d\n", (int)d);
                             gmx_incons("unknown directive");
                     }
                 }
@@ -1051,6 +1098,11 @@ static char **read_topol(const char *infile, const char *outfile,
 
     done_bond_atomtype(&batype);
 
+    if (*intermolecular_interactions != NULL)
+    {
+        sfree(mi0->atoms.atom);
+    }
+
     *nrmols = nmol;
 
     *nmolblock = nmolb;
@@ -1072,6 +1124,7 @@ char **do_top(gmx_bool          bVerbose,
               gpp_atomtype_t    atype,
               int              *nrmols,
               t_molinfo       **molinfo,
+              t_molinfo       **intermolecular_interactions,
               t_inputrec       *ir,
               int              *nmolblock,
               gmx_molblock_t  **molblock,
@@ -1096,7 +1149,8 @@ char **do_top(gmx_bool          bVerbose,
         printf("processing topology...\n");
     }
     title = read_topol(topfile, tmpfile, opts->define, opts->include,
-                       symtab, atype, nrmols, molinfo,
+                       symtab, atype,
+                       nrmols, molinfo, intermolecular_interactions,
                        plist, combination_rule, repulsion_power,
                        opts, fudgeQQ, nmolblock, molblock,
                        ir->efep != efepNO, bGenborn, bZero, wi);
@@ -1360,7 +1414,6 @@ static void generate_qmexcl_moltype(gmx_moltype_t *molt, unsigned char *grpnr,
         j       = 0;
         while (j < molt->ilist[i].nr)
         {
-            bexcl = FALSE;
             a1    = molt->ilist[i].iatoms[j+1];
             a2    = molt->ilist[i].iatoms[j+2];
             bexcl = ((bQMMM[a1] && bQMMM[a2]) ||

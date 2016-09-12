@@ -38,10 +38,9 @@ endif()
 
 file(GLOB GMXANA_SOURCES *.c *.cpp)
 
-set(GMXANA_PUBLIC_HEADERS
+gmx_install_headers(
   gstat.h
 )
-gmx_install_headers(gmxana ${GMXANA_PUBLIC_HEADERS})
 
 add_subdirectory(fda)
 

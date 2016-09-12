@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -34,60 +34,58 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
+#include "gmxpre.h"
+
 #include "grompp.h"
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
-
-#include <sys/types.h>
-#include <math.h>
-#include <string.h>
+#include <assert.h>
 #include <errno.h>
 #include <limits.h>
-#include <assert.h>
+#include <math.h>
+#include <string.h>
 
-#include "sysstuff.h"
-#include "gromacs/utility/smalloc.h"
-#include "macros.h"
-#include "readir.h"
-#include "toputil.h"
-#include "topio.h"
-#include "gromacs/fileio/confio.h"
-#include "readir.h"
-#include "symtab.h"
-#include "names.h"
-#include "grompp-impl.h"
-#include "gromacs/random/random.h"
-#include "gromacs/gmxpreprocess/gen_maxwell_velocities.h"
-#include "vec.h"
-#include "gromacs/fileio/futil.h"
+#include <sys/types.h>
+
 #include "gromacs/commandline/pargs.h"
-#include "splitter.h"
-#include "gromacs/gmxpreprocess/sortwater.h"
-#include "convparm.h"
-#include "gmx_fatal.h"
-#include "warninp.h"
-#include "index.h"
-#include "gromacs/fileio/gmxfio.h"
-#include "gromacs/fileio/trnio.h"
-#include "gromacs/fileio/tpxio.h"
-#include "gromacs/fileio/trxio.h"
-#include "vsite_parm.h"
-#include "txtdump.h"
-#include "calcgrid.h"
-#include "add_par.h"
+#include "gromacs/fileio/confio.h"
 #include "gromacs/fileio/enxio.h"
-#include "perf_est.h"
-#include "compute_io.h"
-#include "gpp_atomtype.h"
-#include "mtop_util.h"
-#include "genborn.h"
-#include "calc_verletbuf.h"
-#include "tomorse.h"
+#include "gromacs/fileio/gmxfio.h"
+#include "gromacs/fileio/tpxio.h"
+#include "gromacs/fileio/trnio.h"
+#include "gromacs/fileio/trxio.h"
+#include "gromacs/gmxpreprocess/add_par.h"
+#include "gromacs/gmxpreprocess/convparm.h"
+#include "gromacs/gmxpreprocess/gen_maxwell_velocities.h"
+#include "gromacs/gmxpreprocess/gpp_atomtype.h"
+#include "gromacs/gmxpreprocess/grompp-impl.h"
+#include "gromacs/gmxpreprocess/readir.h"
+#include "gromacs/gmxpreprocess/sortwater.h"
+#include "gromacs/gmxpreprocess/tomorse.h"
+#include "gromacs/gmxpreprocess/topio.h"
+#include "gromacs/gmxpreprocess/toputil.h"
+#include "gromacs/gmxpreprocess/vsite_parm.h"
 #include "gromacs/imd/imd.h"
+#include "gromacs/legacyheaders/calcgrid.h"
+#include "gromacs/legacyheaders/genborn.h"
+#include "gromacs/legacyheaders/macros.h"
+#include "gromacs/legacyheaders/names.h"
+#include "gromacs/legacyheaders/perf_est.h"
+#include "gromacs/legacyheaders/splitter.h"
+#include "gromacs/legacyheaders/txtdump.h"
+#include "gromacs/legacyheaders/warninp.h"
+#include "gromacs/math/vec.h"
+#include "gromacs/mdlib/calc_verletbuf.h"
+#include "gromacs/mdlib/compute_io.h"
+#include "gromacs/pbcutil/pbc.h"
+#include "gromacs/random/random.h"
+#include "gromacs/topology/mtop_util.h"
+#include "gromacs/topology/symtab.h"
+#include "gromacs/topology/topology.h"
 #include "gromacs/utility/cstringutil.h"
-
+#include "gromacs/utility/fatalerror.h"
+#include "gromacs/utility/futil.h"
+#include "gromacs/utility/smalloc.h"
+#include "gromacs/utility/snprintf.h"
 
 static int rm_interactions(int ifunc, int nrmols, t_molinfo mols[])
 {
@@ -405,6 +403,8 @@ static void check_shells_inputrec(gmx_mtop_t *mtop,
     }
 }
 
+/* TODO Decide whether this function can be consolidated with
+ * gmx_mtop_ftype_count */
 static gmx_bool nint_ftype(gmx_mtop_t *mtop, t_molinfo *mi, int ftype)
 {
     int nint, mb;
@@ -499,7 +499,8 @@ new_status(const char *topfile, const char *topppfile, const char *confin,
            t_gromppopts *opts, t_inputrec *ir, gmx_bool bZero,
            gmx_bool bGenVel, gmx_bool bVerbose, t_state *state,
            gpp_atomtype_t atype, gmx_mtop_t *sys,
-           int *nmi, t_molinfo **mi, t_params plist[],
+           int *nmi, t_molinfo **mi, t_molinfo **intermolecular_interactions,
+           t_params plist[],
            int *comb, double *reppow, real *fudgeQQ,
            gmx_bool bMorse,
            warninp_t wi)
@@ -524,7 +525,8 @@ new_status(const char *topfile, const char *topppfile, const char *confin,
     /* TOPOLOGY processing */
     sys->name = do_top(bVerbose, topfile, topppfile, opts, bZero, &(sys->symtab),
                        plist, comb, reppow, fudgeQQ,
-                       atype, &nrmols, &molinfo, ir,
+                       atype, &nrmols, &molinfo, intermolecular_interactions,
+                       ir,
                        &nmolblock, &molblock, bGB,
                        wi);
 
@@ -627,11 +629,21 @@ new_status(const char *topfile, const char *topppfile, const char *confin,
                     nmismatch, (nmismatch == 1) ? "" : "s", topfile, confin);
             warning(wi, buf);
         }
+
+        /* Do more checks, mostly related to constraints */
         if (bVerbose)
         {
             fprintf(stderr, "double-checking input for internal consistency...\n");
         }
-        double_check(ir, state->box, nint_ftype(sys, molinfo, F_CONSTR), wi);
+        {
+            int bHasNormalConstraints = 0 < (nint_ftype(sys, molinfo, F_CONSTR) +
+                                             nint_ftype(sys, molinfo, F_CONSTRNC));
+            int bHasAnyConstraints = bHasNormalConstraints || 0 < nint_ftype(sys, molinfo, F_SETTLE);
+            double_check(ir, state->box,
+                         bHasNormalConstraints,
+                         bHasAnyConstraints,
+                         wi);
+        }
     }
 
     if (bGenVel)
@@ -779,7 +791,7 @@ static void cont_status(const char *slog, const char *ener,
 
     /* Set the relative box lengths for preserving the box shape.
      * Note that this call can lead to differences in the last bit
-     * with respect to using gmx convert-tpr to create a [TT].tpx[tt] file.
+     * with respect to using gmx convert-tpr to create a [REF].tpx[ref] file.
      */
     set_box_rel(ir, state);
 
@@ -1374,7 +1386,7 @@ static void set_verlet_buffer(const gmx_mtop_t *mtop,
                             &ls, &n_nonlin_vsite, &rlist_1x1);
 
     /* Set the pair-list buffer size in ir */
-    verletbuf_get_list_setup(FALSE, &ls);
+    verletbuf_get_list_setup(FALSE, FALSE, &ls);
     calc_verlet_buffer_size(mtop, det(box), ir, buffer_temp,
                             &ls, &n_nonlin_vsite, &ir->rlist);
 
@@ -1391,6 +1403,8 @@ static void set_verlet_buffer(const gmx_mtop_t *mtop,
     printf("Set rlist, assuming %dx%d atom pair-list, to %.3f nm, buffer size %.3f nm\n",
            ls.cluster_size_i, ls.cluster_size_j,
            ir->rlist, ir->rlist-max(ir->rvdw, ir->rcoulomb));
+
+    printf("Note that mdrun will redetermine rlist based on the actual pair-list setup\n");
 
     if (sqr(ir->rlistlong) >= max_cutoff2(ir->ePBC, box))
     {
@@ -1426,29 +1440,26 @@ int gmx_grompp(int argc, char *argv[])
         "only the atom types are used for generating interaction parameters.[PAR]",
 
         "[THISMODULE] uses a built-in preprocessor to resolve includes, macros, ",
-        "etc. The preprocessor supports the following keywords:[PAR]",
-        "#ifdef VARIABLE[BR]",
-        "#ifndef VARIABLE[BR]",
-        "#else[BR]",
-        "#endif[BR]",
-        "#define VARIABLE[BR]",
-        "#undef VARIABLE[BR]"
-        "#include \"filename\"[BR]",
-        "#include <filename>[PAR]",
+        "etc. The preprocessor supports the following keywords::",
+        "",
+        "    #ifdef VARIABLE",
+        "    #ifndef VARIABLE",
+        "    #else",
+        "    #endif",
+        "    #define VARIABLE",
+        "    #undef VARIABLE",
+        "    #include \"filename\"",
+        "    #include <filename>",
+        "",
         "The functioning of these statements in your topology may be modulated by",
-        "using the following two flags in your [TT].mdp[tt] file:[PAR]",
-        "[TT]define = -DVARIABLE1 -DVARIABLE2[BR]",
-        "include = -I/home/john/doe[tt][BR]",
+        "using the following two flags in your [REF].mdp[ref] file::",
+        "",
+        "    define = -DVARIABLE1 -DVARIABLE2",
+        "    include = -I/home/john/doe",
+        "",
         "For further information a C-programming textbook may help you out.",
         "Specifying the [TT]-pp[tt] flag will get the pre-processed",
         "topology file written out so that you can verify its contents.[PAR]",
-
-        /* cpp has been unnecessary for some time, hasn't it?
-            "If your system does not have a C-preprocessor, you can still",
-            "use [TT]grompp[tt], but you do not have access to the features ",
-            "from the cpp. Command line options to the C-preprocessor can be given",
-            "in the [TT].mdp[tt] file. See your local manual (man cpp).[PAR]",
-         */
 
         "When using position restraints a file with restraint coordinates",
         "can be supplied with [TT]-r[tt], otherwise restraining will be done",
@@ -1462,7 +1473,7 @@ int gmx_grompp(int argc, char *argv[])
         "unless the [TT]-time[tt] option is used. Only if this information",
         "is absent will the coordinates in the [TT]-c[tt] file be used.",
         "Note that these velocities will not be used when [TT]gen_vel = yes[tt]",
-        "in your [TT].mdp[tt] file. An energy file can be supplied with",
+        "in your [REF].mdp[ref] file. An energy file can be supplied with",
         "[TT]-e[tt] to read Nose-Hoover and/or Parrinello-Rahman coupling",
         "variables.[PAR]",
 
@@ -1473,8 +1484,10 @@ int gmx_grompp(int argc, char *argv[])
         "You then supply the old checkpoint file directly to [gmx-mdrun]",
         "with [TT]-cpi[tt]. If you wish to change the ensemble or things",
         "like output frequency, then supplying the checkpoint file to",
-        "[THISMODULE] with [TT]-t[tt] along with a new [TT].mdp[tt] file",
-        "with [TT]-f[tt] is the recommended procedure.[PAR]",
+        "[THISMODULE] with [TT]-t[tt] along with a new [REF].mdp[ref] file",
+        "with [TT]-f[tt] is the recommended procedure. Actually preserving",
+        "the ensemble (if possible) still requires passing the checkpoint",
+        "file to [gmx-mdrun] [TT]-cpi[tt].[PAR]",
 
         "By default, all bonded interactions which have constant energy due to",
         "virtual site constructions will be removed. If this constant energy is",
@@ -1503,12 +1516,12 @@ int gmx_grompp(int argc, char *argv[])
     t_gromppopts      *opts;
     gmx_mtop_t        *sys;
     int                nmi;
-    t_molinfo         *mi;
+    t_molinfo         *mi, *intermolecular_interactions;
     gpp_atomtype_t     atype;
     t_inputrec        *ir;
     int                natoms, nvsite, comb, mt;
     t_params          *plist;
-    t_state            state;
+    t_state           *state;
     matrix             box;
     real               max_spacing, fudgeQQ;
     double             reppow;
@@ -1536,7 +1549,7 @@ int gmx_grompp(int argc, char *argv[])
         { efNDX, NULL,  NULL,        ffOPTRD },
         { efTOP, NULL,  NULL,        ffREAD  },
         { efTOP, "-pp", "processed", ffOPTWR },
-        { efTPX, "-o",  NULL,        ffWRITE },
+        { efTPR, "-o",  NULL,        ffWRITE },
         { efTRN, "-t",  NULL,        ffOPTRD },
         { efEDR, "-e",  NULL,        ffOPTRD },
         /* This group is needed by the VMD viewer as the start configuration for IMD sessions: */
@@ -1627,9 +1640,11 @@ int gmx_grompp(int argc, char *argv[])
     {
         gmx_fatal(FARGS, "%s does not exist", fn);
     }
+    snew(state, 1);
     new_status(fn, opt2fn_null("-pp", NFILE, fnm), opt2fn("-c", NFILE, fnm),
-               opts, ir, bZero, bGenVel, bVerbose, &state,
-               atype, sys, &nmi, &mi, plist, &comb, &reppow, &fudgeQQ,
+               opts, ir, bZero, bGenVel, bVerbose, state,
+               atype, sys, &nmi, &mi, &intermolecular_interactions,
+               plist, &comb, &reppow, &fudgeQQ,
                opts->bMorse,
                wi);
 
@@ -1702,7 +1717,7 @@ int gmx_grompp(int argc, char *argv[])
                       "\n"
                       "It appears as if you are trying to run a QM/MM calculation, but the force\n"
                       "field you are using does not contain atom numbers fields. This is an\n"
-                      "optional field (introduced in Gromacs 3.3) for general runs, but mandatory\n"
+                      "optional field (introduced in GROMACS 3.3) for general runs, but mandatory\n"
                       "for QM/MM. The good news is that it is easy to add - put the atom number as\n"
                       "an integer just before the mass column in ffXXXnb.itp.\n"
                       "NB: United atoms have the same atom numbers as normal ones.\n\n");
@@ -1798,7 +1813,8 @@ int gmx_grompp(int argc, char *argv[])
     }
 
     ntype = get_atomtype_ntypes(atype);
-    convert_params(ntype, plist, mi, comb, reppow, fudgeQQ, sys);
+    convert_params(ntype, plist, mi, intermolecular_interactions,
+                   comb, reppow, fudgeQQ, sys);
 
     if (debug)
     {
@@ -1817,7 +1833,7 @@ int gmx_grompp(int argc, char *argv[])
     /* Check velocity for virtual sites and shells */
     if (bGenVel)
     {
-        check_vel(sys, state.v);
+        check_vel(sys, state->v);
     }
 
     /* check for shells and inpurecs */
@@ -1849,7 +1865,7 @@ int gmx_grompp(int argc, char *argv[])
     }
     do_index(mdparin, ftp2fn_null(efNDX, NFILE, fnm),
              sys, bVerbose, ir,
-             bGenVel ? state.v : NULL,
+             bGenVel ? state->v : NULL,
              wi);
 
     if (ir->cutoff_scheme == ecutsVERLET && ir->verletbuf_tol > 0 &&
@@ -1867,7 +1883,7 @@ int gmx_grompp(int argc, char *argv[])
                 }
                 else
                 {
-                    buffer_temp = calc_temp(sys, ir, state.v);
+                    buffer_temp = calc_temp(sys, ir, state->v);
                 }
                 if (buffer_temp > 0)
                 {
@@ -1897,34 +1913,38 @@ int gmx_grompp(int argc, char *argv[])
             }
             else
             {
-                /* We warn for NVE simulations with >1(.1)% drift tolerance */
-                const real drift_tol = 0.01;
-                real       ener_runtime;
-
-                /* We use 2 DOF per atom = 2kT pot+kin energy, to be on
-                 * the safe side with constraints (without constraints: 3 DOF).
+                /* We warn for NVE simulations with a drift tolerance that
+                 * might result in a 1(.1)% drift over the total run-time.
+                 * Note that we can't warn when nsteps=0, since we don't
+                 * know how many steps the user intends to run.
                  */
-                ener_runtime = 2*BOLTZ*buffer_temp/(ir->nsteps*ir->delta_t);
-
                 if (EI_MD(ir->eI) && ir->etc == etcNO && ir->nstlist > 1 &&
-                    ir->nsteps > 0 &&
-                    ir->verletbuf_tol > 1.1*drift_tol*ener_runtime)
+                    ir->nsteps > 0)
                 {
-                    sprintf(warn_buf, "You are using a Verlet buffer tolerance of %g kJ/mol/ps for an NVE simulation of length %g ps, which can give a final drift of %d%%. For conserving energy to %d%%, you might need to set verlet-buffer-tolerance to %.1e.",
-                            ir->verletbuf_tol, ir->nsteps*ir->delta_t,
-                            (int)(ir->verletbuf_tol/ener_runtime*100 + 0.5),
-                            (int)(100*drift_tol + 0.5),
-                            drift_tol*ener_runtime);
-                    warning_note(wi, warn_buf);
+                    const real driftTolerance = 0.01;
+                    /* We use 2 DOF per atom = 2kT pot+kin energy,
+                     * to be on the safe side with constraints.
+                     */
+                    const real totalEnergyDriftPerAtomPerPicosecond = 2*BOLTZ*buffer_temp/(ir->nsteps*ir->delta_t);
+
+                    if (ir->verletbuf_tol > 1.1*driftTolerance*totalEnergyDriftPerAtomPerPicosecond)
+                    {
+                        sprintf(warn_buf, "You are using a Verlet buffer tolerance of %g kJ/mol/ps for an NVE simulation of length %g ps, which can give a final drift of %d%%. For conserving energy to %d%% when using constraints, you might need to set verlet-buffer-tolerance to %.1e.",
+                                ir->verletbuf_tol, ir->nsteps*ir->delta_t,
+                                (int)(ir->verletbuf_tol/totalEnergyDriftPerAtomPerPicosecond*100 + 0.5),
+                                (int)(100*driftTolerance + 0.5),
+                                driftTolerance*totalEnergyDriftPerAtomPerPicosecond);
+                        warning_note(wi, warn_buf);
+                    }
                 }
 
-                set_verlet_buffer(sys, ir, buffer_temp, state.box, wi);
+                set_verlet_buffer(sys, ir, buffer_temp, state->box, wi);
             }
         }
     }
 
     /* Init the temperature coupling state */
-    init_gtc_state(&state, ir->opts.ngtc, 0, ir->opts.nhchainlength); /* need to add nnhpres here? */
+    init_gtc_state(state, ir->opts.ngtc, 0, ir->opts.nhchainlength); /* need to add nnhpres here? */
 
     if (bVerbose)
     {
@@ -1964,24 +1984,24 @@ int gmx_grompp(int argc, char *argv[])
             fprintf(stderr, "getting data from old trajectory ...\n");
         }
         cont_status(ftp2fn(efTRN, NFILE, fnm), ftp2fn_null(efEDR, NFILE, fnm),
-                    bNeedVel, bGenVel, fr_time, ir, &state, sys, oenv);
+                    bNeedVel, bGenVel, fr_time, ir, state, sys, oenv);
     }
 
     if (ir->ePBC == epbcXY && ir->nwall != 2)
     {
-        clear_rvec(state.box[ZZ]);
+        clear_rvec(state->box[ZZ]);
     }
 
     if (ir->cutoff_scheme != ecutsVERLET && ir->rlist > 0)
     {
         set_warning_line(wi, mdparin, -1);
-        check_chargegroup_radii(sys, ir, state.x, wi);
+        check_chargegroup_radii(sys, ir, state->x, wi);
     }
 
     if (EEL_FULL(ir->coulombtype) || EVDW_PME(ir->vdwtype))
     {
         /* Calculate the optimal grid dimensions */
-        copy_mat(state.box, box);
+        copy_mat(state->box, box);
         if (ir->ePBC == epbcXY && ir->nwall == 2)
         {
             svmul(ir->wall_ewald_zfac, box[ZZ], box[ZZ]);
@@ -2005,13 +2025,13 @@ int gmx_grompp(int argc, char *argv[])
        potentially conflict if not handled correctly. */
     if (ir->efep != efepNO)
     {
-        state.fep_state = ir->fepvals->init_fep_state;
+        state->fep_state = ir->fepvals->init_fep_state;
         for (i = 0; i < efptNR; i++)
         {
             /* init_lambda trumps state definitions*/
             if (ir->fepvals->init_lambda >= 0)
             {
-                state.lambda[i] = ir->fepvals->init_lambda;
+                state->lambda[i] = ir->fepvals->init_lambda;
             }
             else
             {
@@ -2021,20 +2041,20 @@ int gmx_grompp(int argc, char *argv[])
                 }
                 else
                 {
-                    state.lambda[i] = ir->fepvals->all_lambda[i][state.fep_state];
+                    state->lambda[i] = ir->fepvals->all_lambda[i][state->fep_state];
                 }
             }
         }
     }
 
-    if (ir->ePull != epullNO)
+    if (ir->bPull)
     {
-        set_pull_init(ir, sys, state.x, state.box, state.lambda[efptMASS], oenv, opts->pull_start);
+        set_pull_init(ir, sys, state->x, state->box, state->lambda[efptMASS], oenv);
     }
 
     if (ir->bRot)
     {
-        set_reference_positions(ir->rot, state.x, state.box,
+        set_reference_positions(ir->rot, state->x, state->box,
                                 opt2fn("-ref", NFILE, fnm), opt2bSet("-ref", NFILE, fnm),
                                 wi);
     }
@@ -2043,7 +2063,7 @@ int gmx_grompp(int argc, char *argv[])
 
     if (EEL_PME(ir->coulombtype))
     {
-        float ratio = pme_load_estimate(sys, ir, state.box);
+        float ratio = pme_load_estimate(sys, ir, state->box);
         fprintf(stderr, "Estimate for the relative computational load of the PME mesh part: %.2f\n", ratio);
         /* With free energy we might need to do PME both for the A and B state
          * charges. This will double the cost, but the optimal performance will
@@ -2085,11 +2105,13 @@ int gmx_grompp(int argc, char *argv[])
     }
 
     done_warning(wi, FARGS);
-    write_tpx_state(ftp2fn(efTPX, NFILE, fnm), ir, &state, sys);
+    write_tpx_state(ftp2fn(efTPR, NFILE, fnm), ir, state, sys);
 
     /* Output IMD group, if bIMD is TRUE */
-    write_IMDgroup_to_file(ir->bIMD, ir, &state, sys, NFILE, fnm);
+    write_IMDgroup_to_file(ir->bIMD, ir, state, sys, NFILE, fnm);
 
+    done_state(state);
+    sfree(state);
     done_atomtype(atype);
     done_mtop(sys, TRUE);
     done_inputrec_strings();

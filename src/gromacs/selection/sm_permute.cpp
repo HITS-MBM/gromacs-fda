@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2009,2010,2011,2012,2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2009,2010,2011,2012,2013,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -39,14 +39,16 @@
  * \author Teemu Murtola <teemu.murtola@gmail.com>
  * \ingroup module_selection
  */
-#include "gromacs/legacyheaders/macros.h"
-#include "gromacs/legacyheaders/vec.h"
+#include "gmxpre.h"
 
+#include "gromacs/legacyheaders/macros.h"
+#include "gromacs/math/vec.h"
 #include "gromacs/selection/position.h"
-#include "gromacs/selection/selmethod.h"
 #include "gromacs/utility/exceptions.h"
 #include "gromacs/utility/smalloc.h"
 #include "gromacs/utility/stringutil.h"
+
+#include "selmethod.h"
 
 /*! \internal \brief
  * Data structure for the \p permute selection modifier.
@@ -123,11 +125,11 @@ static gmx_ana_selparam_t smparams_permute[] = {
 };
 
 /** Help text for the \p permute selection modifier. */
-static const char *help_permute[] = {
-    "PERMUTING SELECTIONS[PAR]",
-
-    "[TT]permute P1 ... PN[tt][PAR]",
-
+static const char *const help_permute[] = {
+    "::",
+    "",
+    "  permute P1 ... PN",
+    "",
     "By default, all selections are evaluated such that the atom indices are",
     "returned in ascending order. This can be changed by appending",
     "[TT]permute P1 P2 ... PN[tt] to an expression.",
@@ -153,7 +155,8 @@ gmx_ana_selmethod_t sm_permute = {
     NULL,
     NULL,
     &evaluate_permute,
-    {"permute P1 ... PN", asize(help_permute), help_permute},
+    {"POSEXPR permute P1 ... PN",
+     "Permuting selections", asize(help_permute), help_permute},
 };
 
 static void *
@@ -236,7 +239,7 @@ free_data_permute(void *data)
 
 static void
 evaluate_permute(t_topology * /* top */, t_trxframe * /* fr */, t_pbc * /* pbc */,
-                 gmx_ana_pos_t *p, gmx_ana_selvalue_t *out, void *data)
+                 gmx_ana_pos_t * /*p*/, gmx_ana_selvalue_t *out, void *data)
 {
     t_methoddata_permute *d = (t_methoddata_permute *)data;
     int                   i, j, b;
@@ -259,7 +262,7 @@ evaluate_permute(t_topology * /* top */, t_trxframe * /* fr */, t_pbc * /* pbc *
                 /* De-permute the reference ID */
                 refid = refid - (refid % d->n) + d->perm[refid % d->n];
             }
-            gmx_ana_pos_append(out->u.p, p, b, refid);
+            gmx_ana_pos_append(out->u.p, &d->p, b, refid);
         }
     }
     gmx_ana_pos_append_finish(out->u.p);

@@ -42,14 +42,14 @@ endif()
 
 set(LIBGROMACS_SOURCES ${LIBGROMACS_SOURCES} ${FILEIO_SOURCES} PARENT_SCOPE)
 
-set(FILEIO_PUBLIC_HEADERS
+gmx_install_headers(
     confio.h
     enxio.h
     filenm.h
-    futil.h
     gmxfio.h
     matio.h
     mdoutf.h
+    mtxio.h
     pdbio.h
     tpxio.h
     trajectory_writing.h
@@ -58,8 +58,8 @@ set(FILEIO_PUBLIC_HEADERS
     trxio.h
     xdr_datatype.h
     xtcio.h
+    xvgr.h
     )
-gmx_install_headers(fileio ${FILEIO_PUBLIC_HEADERS})
 
 if (GMX_USE_TNG AND TNG_IO_DEFINITIONS)
     set_property(SOURCE tngio.cpp

@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2009,2010,2012,2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2009,2010,2012,2013,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -32,10 +32,11 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
+#include "gmxpre.h"
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
+#include "vmdio.h"
+
+#include "config.h"
 
 /* Derived from PluginMgr.C and catdcd.c */
 
@@ -85,10 +86,10 @@
 /*                                                                           */
 /*****************************************************************************/
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
 #include <assert.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 /*
  * Plugin header files; get plugin source from www.ks.uiuc.edu/Research/vmd"
@@ -98,17 +99,19 @@
 #ifndef GMX_NATIVE_WINDOWS
 #include <glob.h>
 #else
-#include <windows.h>
-#include <shlobj.h>
+#ifndef _WIN32_IE
+#define _WIN32_IE 0x0500 /* SHGetFolderPath is available since WinXP/IE5 */
 #endif
+#include <shlobj.h>
+#include <windows.h>
+#endif
+
+#include "gromacs/fileio/gmxfio.h"
+#include "gromacs/fileio/trx.h"
+#include "gromacs/math/vec.h"
+#include "gromacs/utility/basedefinitions.h"
+#include "gromacs/utility/futil.h"
 #include "gromacs/utility/smalloc.h"
-#include "futil.h"
-#include "vmdio.h"
-
-
-#include "types/simple.h"
-#include "vec.h"
-#include "gmxfio.h"
 
 
 typedef int (*initfunc)(void);
@@ -322,7 +325,7 @@ static int load_vmd_library(const char *fn, t_gmxvmdplugin *vmdplugin)
         printf("\nNo VMD Plugins found\n"
                "Set the environment variable VMD_PLUGIN_PATH to the molfile folder within the\n"
                "VMD installation.\n"
-               "The architecture (e.g. 32bit versus 64bit) of Gromacs and VMD has to match.\n");
+               "The architecture (e.g. 32bit versus 64bit) of GROMACS and VMD has to match.\n");
         return 0;
     }
     for (i = 0; i < globbuf.gl_pathc && vmdplugin->api == NULL; i++)

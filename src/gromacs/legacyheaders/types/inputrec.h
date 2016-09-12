@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -37,11 +37,11 @@
 #ifndef _inputrec_h_
 #define _inputrec_h_
 
+#include <stdio.h>
 
-#include "simple.h"
-#include "enums.h"
-#include "../sysstuff.h"
-#include "../../swap/enums.h"
+#include "gromacs/legacyheaders/types/enums.h"
+#include "gromacs/legacyheaders/types/simple.h"
+#include "gromacs/swap/enums.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -98,42 +98,26 @@ typedef struct {
     gmx_bool    *bTS;
 } t_grpopts;
 
-enum {
-    epgrppbcNONE, epgrppbcREFAT, epgrppbcCOS
-};
-
 typedef struct {
     int         nat;        /* Number of atoms in the pull group */
     atom_id    *ind;        /* The global atoms numbers */
-    int         nat_loc;    /* Number of local pull atoms */
-    int         nalloc_loc; /* Allocation size for ind_loc and weight_loc */
-    atom_id    *ind_loc;    /* Local pull indices */
     int         nweight;    /* The number of weights (0 or nat) */
     real       *weight;     /* Weights (use all 1 when weight==NULL) */
-    real       *weight_loc; /* Weights for the local indices */
-    int         epgrppbc;   /* The type of pbc for this pull group, see enum above */
     atom_id     pbcatom;    /* The reference atom for pbc (global number) */
-
-    /* Variables not present in mdp, but used at run time */
-    real        wscale;     /* scaling factor for the weights: sum w m/sum w w m */
-    real        invtm;      /* inverse total mass of the group: 1/wscale sum w m */
-    dvec        x;          /* center of mass before update */
-    dvec        xp;         /* center of mass after update before constraining */
 } t_pull_group;
 
 typedef struct {
-    int         group[2];   /* The pull groups, index in group in t_pull */
+    int         group[4];   /* The pull groups, index in group in t_pull */
+    int         eType;      /* The pull type: umbrella, constraint, ... */
+    int         eGeom;      /* The pull geometry */
+    ivec        dim;        /* Used to select components for constraint */
     rvec        origin;     /* The origin for the absolute reference */
     rvec        vec;        /* The pull vector, direction or position */
+    gmx_bool    bStart;     /* Set init based on the initial structure */
     real        init;       /* Initial reference displacement */
     real        rate;       /* Rate of motion (nm/ps) */
     real        k;          /* force constant */
     real        kB;         /* force constant for state B */
-
-    /* Variables not present in mdp, but used at run time */
-    dvec        dr;         /* The distance from the reference group */
-    double      f_scal;     /* Scalar force for directional pulling */
-    dvec        f;          /* force due to the pulling/constraining */
 } t_pull_coord;
 
 typedef struct {
@@ -206,33 +190,23 @@ typedef struct {
 } t_expanded;
 
 typedef struct {
-    int            ngroup;     /* number of pull groups */
-    int            ncoord;     /* number of pull coordinates */
-    int            eGeom;      /* pull geometry */
-    ivec           dim;        /* used to select components for constraint */
-    real           cyl_r1;     /* radius of cylinder for dynamic COM */
-    real           cyl_r0;     /* radius of cylinder including switch length */
-    real           constr_tol; /* absolute tolerance for constraints in (nm) */
-    gmx_bool       bPrintRef;  /* Print coordinates of the first group in each coord */
-    int            nstxout;    /* Output frequency for pull x */
-    int            nstfout;    /* Output frequency for pull f */
-    int            ePBC;       /* the boundary conditions */
-    int            npbcdim;    /* do pbc in dims 0 <= dim < npbcdim */
-    gmx_bool       bRefAt;     /* do we need reference atoms for a group COM ? */
-    int            cosdim;     /* dimension for cosine weighting, -1 if none */
-    gmx_bool       bVirial;    /* do we need to add the pull virial? */
-    t_pull_group  *group;      /* groups to pull/restrain/etc/ */
-    t_pull_coord  *coord;      /* the pull coordinates */
+    int            ngroup;         /* number of pull groups */
+    int            ncoord;         /* number of pull coordinates */
+    real           cylinder_r;     /* radius of cylinder for dynamic COM */
+    real           constr_tol;     /* absolute tolerance for constraints in (nm) */
+    gmx_bool       bPrintCOM1;     /* Print coordinates of COM 1 for each coord */
+    gmx_bool       bPrintCOM2;     /* Print coordinates of COM 2 for each coord */
+    gmx_bool       bPrintRefValue; /* Print the reference value for each coord */
+    gmx_bool       bPrintComp;     /* Print cartesian components for each coord with geometry=distance */
+    int            nstxout;        /* Output frequency for pull x */
+    int            nstfout;        /* Output frequency for pull f */
 
-    /* Variables not present in mdp, but used at run time */
-    t_pull_group  *dyna;       /* dynamic groups for use with local constraints */
-    rvec          *rbuf;       /* COM calculation buffer */
-    dvec          *dbuf;       /* COM calculation buffer */
-    double        *dbuf_cyl;   /* cylinder ref. groups COM calculation buffer */
+    t_pull_group  *group;          /* groups to pull/restrain/etc/ */
+    t_pull_coord  *coord;          /* the pull coordinates */
+} pull_params_t;
 
-    FILE          *out_x;      /* output file for pull data */
-    FILE          *out_f;      /* output file for pull data */
-} t_pull;
+/* Abstract type for COM pull caclulations only defined in the pull module */
+struct pull_t;
 
 
 /* Abstract types for enforced rotation only defined in pull_rotation.c       */
@@ -281,7 +255,7 @@ typedef struct {
 } t_IMD;
 
 /* Abstract types for position swapping only defined in swapcoords.c */
-typedef struct swap *gmx_swapcoords_t;
+typedef struct t_swap *gmx_swapcoords_t;
 
 typedef struct {
     int              nstswap;           /* Every how many steps a swap is attempted?    */
@@ -442,8 +416,10 @@ typedef struct {
     int             wall_atomtype[2];        /* The atom type for walls                      */
     real            wall_density[2];         /* Number density for walls                     */
     real            wall_ewald_zfac;         /* Scaling factor for the box for Ewald         */
-    int             ePull;                   /* Type of pulling: no, umbrella or constraint  */
-    t_pull         *pull;                    /* The data for center of mass pulling          */
+    gmx_bool        bPull;                   /* Do we do COM pulling?                        */
+    pull_params_t  *pull;                    /* The data for center of mass pulling          */
+    struct pull_t  *pull_work;               /* The COM pull force calculation data structure; TODO this pointer should live somewhere else */
+
     gmx_bool        bRot;                    /* Calculate enforced rotation potential(s)?    */
     t_rot          *rot;                     /* The data for enforced rotation potentials    */
     int             eSwapCoords;             /* Do ion/water position exchanges (CompEL)?    */

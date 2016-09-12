@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -35,26 +35,23 @@
  * the research papers on the package. Check out http://www.gromacs.org.
  */
 /* This file is completely threadsafe - keep it that way! */
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
+#include "gmxpre.h"
 
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
-#include "main.h"
-#include "macros.h"
-#include "gromacs/utility/smalloc.h"
-#include "gromacs/fileio/futil.h"
-#include "sysstuff.h"
-#include "txtdump.h"
-#include "gmx_fatal.h"
-#include "names.h"
+
+#include "gromacs/fileio/enxio.h"
 #include "gromacs/fileio/tpxio.h"
 #include "gromacs/fileio/trxio.h"
-#include "gromacs/fileio/enxio.h"
-#include "mtop_util.h"
+#include "gromacs/legacyheaders/macros.h"
+#include "gromacs/legacyheaders/names.h"
+#include "gromacs/legacyheaders/txtdump.h"
+#include "gromacs/topology/mtop_util.h"
 #include "gromacs/utility/cstringutil.h"
+#include "gromacs/utility/fatalerror.h"
+#include "gromacs/utility/futil.h"
+#include "gromacs/utility/smalloc.h"
 
 static void cmp_int(FILE *fp, const char *s, int index, int i1, int i2)
 {
@@ -89,11 +86,11 @@ static void cmp_us(FILE *fp, const char *s, int index, unsigned short i1, unsign
     {
         if (index != -1)
         {
-            fprintf(fp, "%s[%d] (%u - %u)\n", s, index, i1, i2);
+            fprintf(fp, "%s[%d] (%hu - %hu)\n", s, index, i1, i2);
         }
         else
         {
-            fprintf(fp, "%s (%u - %u)\n", s, i1, i2);
+            fprintf(fp, "%s (%hu - %hu)\n", s, i1, i2);
         }
     }
 }
@@ -454,6 +451,7 @@ static void cmp_top(FILE *fp, t_topology *t1, t_topology *t2, real ftol, real ab
         cmp_atoms(fp, &(t1->atoms), &(t2->atoms), ftol, abstol);
         cmp_block(fp, &t1->cgs, &t2->cgs, "cgs");
         cmp_block(fp, &t1->mols, &t2->mols, "mols");
+        cmp_bool(fp, "bIntermolecularInteractions", -1, t1->bIntermolecularInteractions, t2->bIntermolecularInteractions);
         cmp_blocka(fp, &t1->excls, &t2->excls, "excls");
     }
     else
@@ -839,8 +837,8 @@ static void cmp_inputrec(FILE *fp, t_inputrec *ir1, t_inputrec *ir2, real ftol, 
     cmp_real(fp, "inputrec->wall_density[1]", -1, ir1->wall_density[1], ir2->wall_density[1], ftol, abstol);
     cmp_real(fp, "inputrec->wall_ewald_zfac", -1, ir1->wall_ewald_zfac, ir2->wall_ewald_zfac, ftol, abstol);
 
-    cmp_int(fp, "inputrec->ePull", -1, ir1->ePull, ir2->ePull);
-    if (ir1->ePull == ir2->ePull && ir1->ePull != epullNO)
+    cmp_bool(fp, "inputrec->bPull", -1, ir1->bPull, ir2->bPull);
+    if (ir1->bPull && ir2->bPull)
     {
         cmp_pull(fp);
     }
@@ -891,7 +889,7 @@ static void cmp_inputrec(FILE *fp, t_inputrec *ir1, t_inputrec *ir2, real ftol, 
     cmp_cosines(fp, "et", ir1->et, ir2->et, ftol, abstol);
 }
 
-static void comp_pull_AB(FILE *fp, t_pull *pull, real ftol, real abstol)
+static void comp_pull_AB(FILE *fp, pull_params_t *pull, real ftol, real abstol)
 {
     int i;
 
@@ -1013,7 +1011,7 @@ void comp_tpx(const char *fn1, const char *fn2,
         }
         else
         {
-            if (ir[0].ePull != epullNO)
+            if (ir[0].bPull)
             {
                 comp_pull_AB(stdout, ir->pull, ftol, abstol);
             }

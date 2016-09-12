@@ -1,7 +1,7 @@
 #
 # This file is part of the GROMACS molecular simulation package.
 #
-# Copyright (c) 2012,2013,2014, by the GROMACS development team, led by
+# Copyright (c) 2012,2013,2014,2015, by the GROMACS development team, led by
 # Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
 # and including many others, as listed in the AUTHORS file in the
 # top-level source directory and at http://www.gromacs.org.
@@ -32,7 +32,7 @@
 # To help us fund GROMACS development, we humbly ask that you cite
 # the research papers on the package. Check out http://www.gromacs.org.
 
-# Manage the Gromacs shared library setup.
+# Manage the GROMACS shared library setup.
 
 ########################################################################
 # Shared/static library settings
@@ -60,8 +60,12 @@ if (GMX_PREFER_STATIC_LIBS)
     set(SHARED_LIBS_DEFAULT OFF)
 endif()
 set(GMX_PREFER_STATIC_LIBS_DEFAULT OFF)
-if (WIN32 AND NOT CYGWIN AND NOT BUILD_SHARED_LIBS)
+if (WIN32 AND NOT BUILD_SHARED_LIBS)
     set(GMX_PREFER_STATIC_LIBS_DEFAULT ON)
+endif()
+if (NOT GMX_BUILD_SHARED_EXE)
+    set(GMX_PREFER_STATIC_LIBS_DEFAULT ON)
+    set(SHARED_LIBS_DEFAULT OFF)
 endif()
 
 # Declare the user-visible options
@@ -73,7 +77,7 @@ endif()
 if (UNIX)
     set(GMX_PREFER_STATIC_LIBS_DESCRIPTION
         "When finding libraries prefer static archives (it will only work if static versions of external dependencies are available and found)")
-elseif (WIN32 AND NOT CYGWIN)
+elseif (WIN32)
     set(GMX_PREFER_STATIC_LIBS_DESCRIPTION
         "When finding libraries prefer static system libraries (MT instead of MD)")
 endif()
@@ -85,7 +89,7 @@ mark_as_advanced(GMX_PREFER_STATIC_LIBS)
 if (UNIX AND GMX_PREFER_STATIC_LIBS)
     if(BUILD_SHARED_LIBS)
         # Warn the user about the combination. But don't overwrite the request.
-        message(WARNING "Searching for static libraries requested, and building shared Gromacs libraries requested. This might cause problems linking later.")
+        message(WARNING "Searching for static libraries requested, and building shared GROMACS libraries requested. This might cause problems linking later.")
     endif()
     # On Linux .a is the static library suffix, on Mac OS X .lib can also
     # be used, so we'll add both to the preference list.
@@ -112,19 +116,24 @@ function(gmx_manage_prefer_static_libs_flags build_type)
     endforeach()
 endfunction()
 
-IF( WIN32 AND NOT CYGWIN)
+IF( WIN32)
   if (NOT BUILD_SHARED_LIBS)
       if(NOT GMX_PREFER_STATIC_LIBS)
-          message(WARNING "Shared system libraries requested, and static Gromacs libraries requested.")
+          message(WARNING "Shared system libraries requested, and static GROMACS libraries requested.")
       endif()
   else()
-      message(FATAL_ERROR "BUILD_SHARED_LIBS=ON not yet working for Windows in the master branch")
+      if(MINGW)
+          set(CMAKE_SHARED_LINKER_FLAGS "-Wl,--export-all-symbols ${CMAKE_SHARED_LINKER_FLAGS}")
+      else()
+          message(FATAL_ERROR "BUILD_SHARED_LIBS=ON not yet working for Windows in the master branch")
+      endif()
       if(GMX_PREFER_STATIC_LIBS)
           #this combination segfaults (illegal passing of file handles)
-          message(FATAL_ERROR "Static system libraries requested, and shared Gromacs libraries requested.")
+          message(FATAL_ERROR "Static system libraries requested, and shared GROMACS libraries requested.")
       endif()
-      add_definitions(-DUSE_VISIBILITY -DTMPI_USE_VISIBILITY)
-      set(PKG_CFLAGS "$PKG_CFLAGS -DUSE_VISIBILITY -DTMPI_USE_VISIBILITY")
+      # Visibility not yet implemented
+      # add_definitions(-DUSE_VISIBILITY -DTMPI_USE_VISIBILITY)
+      # set(PKG_CFLAGS "$PKG_CFLAGS -DUSE_VISIBILITY -DTMPI_USE_VISIBILITY")
   endif()
 
   IF (GMX_PREFER_STATIC_LIBS)

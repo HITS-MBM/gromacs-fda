@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2012,2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2012,2013,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -55,6 +55,7 @@ enum gmx_cpuid_vendor
     GMX_CPUID_VENDOR_AMD,
     GMX_CPUID_VENDOR_FUJITSU,
     GMX_CPUID_VENDOR_IBM,
+    GMX_CPUID_VENDOR_ARM,
     GMX_CPUID_NVENDORS
 };
 
@@ -81,6 +82,10 @@ enum gmx_cpuid_feature
     GMX_CPUID_FEATURE_X86_APIC,          /* APIC support                                 */
     GMX_CPUID_FEATURE_X86_AVX,           /* Advanced vector extensions                   */
     GMX_CPUID_FEATURE_X86_AVX2,          /* AVX2 including gather support (not used yet) */
+    GMX_CPUID_FEATURE_X86_AVX_512F,      /* Foundation AVX-512 instructions              */
+    GMX_CPUID_FEATURE_X86_AVX_512PF,     /* Extended gather/scatter for AVX-512          */
+    GMX_CPUID_FEATURE_X86_AVX_512ER,     /* Extended-range 1/x and /1sqrt(x) for AVX-512 */
+    GMX_CPUID_FEATURE_X86_AVX_512CD,     /* Memory conflict-detection for AVX-512        */
     GMX_CPUID_FEATURE_X86_CLFSH,         /* Supports CLFLUSH instruction                 */
     GMX_CPUID_FEATURE_X86_CMOV,          /* Conditional move insn support                */
     GMX_CPUID_FEATURE_X86_CX8,           /* Supports CMPXCHG8B (8-byte compare-exchange) */
@@ -111,14 +116,23 @@ enum gmx_cpuid_feature
     GMX_CPUID_FEATURE_X86_TDT,           /* TSC deadline timer                           */
     GMX_CPUID_FEATURE_X86_X2APIC,        /* Extended xAPIC Support                       */
     GMX_CPUID_FEATURE_X86_XOP,           /* AMD extended instructions, only AMD for now  */
+    GMX_CPUID_FEATURE_ARM_NEON,          /* 32-bit ARM NEON                              */
+    GMX_CPUID_FEATURE_ARM_NEON_ASIMD,    /* 64-bit ARM AArch64 Advanced SIMD             */
+    GMX_CPUID_FEATURE_IBM_QPX,           /* IBM QPX SIMD (BlueGene/Q and later)          */
+    GMX_CPUID_FEATURE_IBM_VMX,           /* IBM VMX SIMD (Altivec on Power6 and later)   */
+    GMX_CPUID_FEATURE_IBM_VSX,           /* IBM VSX SIMD (Power7 and later)              */
     GMX_CPUID_NFEATURES
 };
 
 
 /* Currently supported SIMD instruction sets, intrinsics or other similar combinations
  * in Gromacs. There is not always a 1-to-1 correspondence with feature flags; on some AMD
- * hardware we prefer to use 128bit AVX instructions (although 256-bit ones could be executed),
- * and we still haven't written the AVX2 kernels.
+ * hardware we prefer to use 128bit AVX instructions (although 256-bit ones could be executed).
+ * These are listed in increasing order for sets supported by one CPU.
+ * The order is only used for printing "minimum" and "maximum" suggested
+ * SIMD instruction sets for nodes in a cluster, so pairs like
+ * GMX_CPUID_SIMD_X86_AVX_128_FMA vs GMX_CPUID_SIMD_X86_AVX_256 which strictly
+ * speaking can't be ordered are not really an issue.
  */
 enum gmx_cpuid_simd
 {
@@ -130,8 +144,14 @@ enum gmx_cpuid_simd
     GMX_CPUID_SIMD_X86_AVX_128_FMA,
     GMX_CPUID_SIMD_X86_AVX_256,
     GMX_CPUID_SIMD_X86_AVX2_256,
+    GMX_CPUID_SIMD_X86_AVX_512F,
+    GMX_CPUID_SIMD_X86_AVX_512ER,
     GMX_CPUID_SIMD_SPARC64_HPC_ACE,
     GMX_CPUID_SIMD_IBM_QPX,
+    GMX_CPUID_SIMD_IBM_VMX,
+    GMX_CPUID_SIMD_IBM_VSX,
+    GMX_CPUID_SIMD_ARM_NEON,
+    GMX_CPUID_SIMD_ARM_NEON_ASIMD,
     GMX_CPUID_NSIMD
 };
 
@@ -151,6 +171,11 @@ gmx_cpuid_simd_string[GMX_CPUID_NSIMD];
 /* Abstract data type with CPU detection information. Set by gmx_cpuid_init(). */
 typedef struct gmx_cpuid *
     gmx_cpuid_t;
+
+
+/* Return the SIMD instruction set GROMACS was compiled with. */
+enum gmx_cpuid_simd
+gmx_compiled_simd           ();
 
 
 /* Fill the data structure by using CPU detection instructions.
@@ -192,6 +217,13 @@ gmx_cpuid_stepping          (gmx_cpuid_t                cpuid);
 int
 gmx_cpuid_feature           (gmx_cpuid_t                cpuid,
                              enum gmx_cpuid_feature     feature);
+
+
+/* Check whether the CPU is an Intel with Nehalem microarchitecture.
+ * Return 0 if not Intel Nehalem, 1 if Intel Nehalem.
+ */
+int
+gmx_cpuid_is_intel_nehalem  (const gmx_cpuid_t          cpuid);
 
 
 /* Return pointers to cpu topology information.
@@ -293,9 +325,12 @@ gmx_cpuid_simd_suggest  (gmx_cpuid_t                    cpuid);
  * would suggest for the current hardware. Always print stats to the log file
  * if it is non-NULL, and if we don't have a match, print a warning in log
  * (if non-NULL) and if print_to_stderr!=0 also to stderr.
+ * The suggested SIMD instruction set simd_suggest is obtained with
+ * gmx_cpuid_simd_suggest(), but with MPI this might be different for
+ * different nodes, so it shoul be passed here after parallel reduction.
  */
 int
-gmx_cpuid_simd_check    (gmx_cpuid_t                cpuid,
+gmx_cpuid_simd_check    (enum gmx_cpuid_simd        simd_suggest,
                          FILE *                     log,
                          int                        print_to_stderr);
 

@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -34,11 +34,11 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-#include "gromacs/utility/smalloc.h"
+#include "gmxpre.h"
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
+#include "smalloc.h"
+
+#include "config.h"
 
 #include <errno.h>
 #include <stdio.h>
@@ -48,16 +48,23 @@
 #ifdef WITH_DMALLOC
 #include <dmalloc.h>
 #endif
+#ifdef HAVE__ALIGNED_MALLOC
+#include <malloc.h>
+#endif
 
-#include "gromacs/legacyheaders/gmx_fatal.h"
+#include "thread_mpi/threads.h"
 
+#include "gromacs/utility/dir_separator.h"
+#include "gromacs/utility/fatalerror.h"
 #ifdef PRINT_ALLOC_KB
+#include "gromacs/utility/basenetwork.h"
 #include "gromacs/utility/gmxmpi.h"
 #endif
 
-#ifdef DEBUG
-#include "thread_mpi/threads.h"
+static gmx_bool            g_bOverAllocDD     = FALSE;
+static tMPI_Thread_mutex_t g_over_alloc_mutex = TMPI_THREAD_MUTEX_INITIALIZER;
 
+#ifdef DEBUG
 static void log_action(int bMal, const char *what, const char *file, int line,
                        int nelem, int size, void *ptr)
 {
@@ -149,12 +156,9 @@ void *save_calloc(const char *name, const char *file, int line,
     else
     {
 #ifdef PRINT_ALLOC_KB
-        int rank = 0;
         if (nelem*elsize >= PRINT_ALLOC_KB*1024)
         {
-#ifdef GMX_MPI
-            MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-#endif
+            int rank = gmx_node_rank();
             printf("Allocating %.1f MB for %s (called from file %s, line %d on %d)\n",
                    nelem*elsize/1048576.0, name, file, line, rank);
         }
@@ -203,12 +207,9 @@ void *save_realloc(const char *name, const char *file, int line, void *ptr,
     else
     {
 #ifdef PRINT_ALLOC_KB
-        int rank = 0;
         if (size >= PRINT_ALLOC_KB*1024)
         {
-#ifdef GMX_MPI
-            MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-#endif
+            int rank = gmx_node_rank();
             printf("Reallocating %.1f MB for %s (called from file %s, line %d on %d)\n",
                    size/1048576.0, name, file, line, rank);
         }
@@ -286,12 +287,12 @@ void *save_malloc_aligned(const char *name, const char *file, int line,
 #ifdef PRINT_ALLOC_KB
         if (nelem*elsize >= PRINT_ALLOC_KB*1024)
         {
-            printf("Allocating %.1f MB for %s\n",
-                   nelem*elsize/(PRINT_ALLOC_KB*1024.0), name);
+            int rank = gmx_node_rank();
+            printf("Allocating %.1f MB for %s (called from file %s, line %d on %d)\n",
+                   nelem*elsize/1048576.0, name, file, line, rank);
         }
 #endif
 
-        allocate_fail = FALSE; /* stop compiler warnings */
 #ifdef HAVE_POSIX_MEMALIGN
         allocate_fail = (0 != posix_memalign(&malloced, alignment, nelem*elsize));
 #elif defined HAVE_MEMALIGN
@@ -340,7 +341,7 @@ void *save_calloc_aligned(const char *name, const char *file, int line,
 }
 
 /* This routine can NOT be called with any pointer */
-void save_free_aligned(const char *name, const char *file, int line, void *ptr)
+void save_free_aligned(const char gmx_unused *name, const char gmx_unused *file, int gmx_unused line, void *ptr)
 {
     int   i, j;
     void *free = ptr;
@@ -358,5 +359,26 @@ void save_free_aligned(const char *name, const char *file, int line, void *ptr)
 #else
         _aligned_free(free);
 #endif
+    }
+}
+
+void set_over_alloc_dd(gmx_bool set)
+{
+    tMPI_Thread_mutex_lock(&g_over_alloc_mutex);
+    /* we just make sure that we don't set this at the same time.
+       We don't worry too much about reading this rarely-set variable */
+    g_bOverAllocDD = set;
+    tMPI_Thread_mutex_unlock(&g_over_alloc_mutex);
+}
+
+int over_alloc_dd(int n)
+{
+    if (g_bOverAllocDD)
+    {
+        return OVER_ALLOC_FAC*n + 100;
+    }
+    else
+    {
+        return n;
     }
 }

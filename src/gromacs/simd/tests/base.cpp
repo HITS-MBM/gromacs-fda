@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2014, by the GROMACS development team, led by
+ * Copyright (c) 2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -32,17 +32,17 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
+#include "gmxpre.h"
+
+#include "base.h"
 
 #include <math.h>
 
-#include "testutils/testoptions.h"
-#include "gromacs/options/options.h"
 #include "gromacs/options/basicoptions.h"
+#include "gromacs/options/options.h"
+#include "gromacs/utility/basedefinitions.h"
 
-#include "base.h"
+#include "testutils/testoptions.h"
 
 namespace gmx
 {

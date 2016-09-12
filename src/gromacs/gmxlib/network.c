@@ -34,38 +34,29 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
+#include "gmxpre.h"
 
-#include <string.h>
-#include "gmx_fatal.h"
-#include "main.h"
-#include "gromacs/utility/smalloc.h"
-#include "types/commrec.h"
-#include "network.h"
-#include "copyrite.h"
+#include "gromacs/legacyheaders/network.h"
+
+#include "config.h"
+
 #include <ctype.h>
-#include "macros.h"
+#include <stdarg.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "gromacs/legacyheaders/copyrite.h"
+#include "gromacs/legacyheaders/macros.h"
+#include "gromacs/legacyheaders/types/commrec.h"
+#include "gromacs/utility/basenetwork.h"
 #include "gromacs/utility/cstringutil.h"
-
+#include "gromacs/utility/fatalerror.h"
+#include "gromacs/utility/futil.h"
 #include "gromacs/utility/gmxmpi.h"
-
+#include "gromacs/utility/smalloc.h"
 
 /* The source code in this file should be thread-safe.
       Please keep it that way. */
-
-gmx_bool gmx_mpi_initialized(void)
-{
-    int n;
-#ifndef GMX_MPI
-    return 0;
-#else
-    MPI_Initialized(&n);
-
-    return n;
-#endif
-}
 
 void gmx_fill_commrec_from_mpi(t_commrec gmx_unused *cr)
 {
@@ -142,144 +133,6 @@ t_commrec *reinitialize_commrec_for_this_thread(const t_commrec gmx_unused *cro)
 #else
     return NULL;
 #endif
-}
-
-int  gmx_node_num(void)
-{
-#ifndef GMX_MPI
-    return 1;
-#else
-    int i;
-    (void) MPI_Comm_size(MPI_COMM_WORLD, &i);
-    return i;
-#endif
-}
-
-int gmx_node_rank(void)
-{
-#ifndef GMX_MPI
-    return 0;
-#else
-    int i;
-    (void) MPI_Comm_rank(MPI_COMM_WORLD, &i);
-    return i;
-#endif
-}
-
-static int mpi_hostname_hash(void)
-{
-    int hash_int;
-
-#ifndef GMX_LIB_MPI
-    /* We have a single physical node */
-    hash_int = 0;
-#else
-    int  resultlen;
-    char mpi_hostname[MPI_MAX_PROCESSOR_NAME];
-
-    /* This procedure can only differentiate nodes with different names.
-     * Architectures where different physical nodes have identical names,
-     * such as IBM Blue Gene, should use an architecture specific solution.
-     */
-    MPI_Get_processor_name(mpi_hostname, &resultlen);
-
-    /* The string hash function returns an unsigned int. We cast to an int.
-     * Negative numbers are converted to positive by setting the sign bit to 0.
-     * This makes the hash one bit smaller.
-     * A 63-bit hash (with 64-bit int) should be enough for unique node hashes,
-     * even on a million node machine. 31 bits might not be enough though!
-     */
-    hash_int =
-        (int)gmx_string_fullhash_func(mpi_hostname, gmx_string_hash_init);
-    if (hash_int < 0)
-    {
-        hash_int -= INT_MIN;
-    }
-#endif
-
-    return hash_int;
-}
-
-#if defined GMX_LIB_MPI && defined GMX_TARGET_BGQ
-#include <spi/include/kernel/location.h>
-
-static int bgq_nodenum(void)
-{
-    int           hostnum;
-    Personality_t personality;
-    Kernel_GetPersonality(&personality, sizeof(personality));
-    /* Each MPI rank has a unique coordinate in a 6-dimensional space
-       (A,B,C,D,E,T), with dimensions A-E corresponding to different
-       physical nodes, and T within each node. Each node has sixteen
-       physical cores, each of which can have up to four hardware
-       threads, so 0 <= T <= 63 (but the maximum value of T depends on
-       the confituration of ranks and OpenMP threads per
-       node). However, T is irrelevant for computing a suitable return
-       value for gmx_hostname_num().
-     */
-    hostnum  = personality.Network_Config.Acoord;
-    hostnum *= personality.Network_Config.Bnodes;
-    hostnum += personality.Network_Config.Bcoord;
-    hostnum *= personality.Network_Config.Cnodes;
-    hostnum += personality.Network_Config.Ccoord;
-    hostnum *= personality.Network_Config.Dnodes;
-    hostnum += personality.Network_Config.Dcoord;
-    hostnum *= personality.Network_Config.Enodes;
-    hostnum += personality.Network_Config.Ecoord;
-
-    if (debug)
-    {
-        fprintf(debug,
-                "Torus ID A: %d / %d B: %d / %d C: %d / %d D: %d / %d E: %d / %d\nNode ID T: %d / %d core: %d / %d hardware thread: %d / %d\n",
-                personality.Network_Config.Acoord,
-                personality.Network_Config.Anodes,
-                personality.Network_Config.Bcoord,
-                personality.Network_Config.Bnodes,
-                personality.Network_Config.Ccoord,
-                personality.Network_Config.Cnodes,
-                personality.Network_Config.Dcoord,
-                personality.Network_Config.Dnodes,
-                personality.Network_Config.Ecoord,
-                personality.Network_Config.Enodes,
-                Kernel_ProcessorCoreID(),
-                16,
-                Kernel_ProcessorID(),
-                64,
-                Kernel_ProcessorThreadID(),
-                4);
-    }
-    return hostnum;
-}
-#endif
-
-int gmx_physicalnode_id_hash(void)
-{
-    int hash;
-
-#ifndef GMX_MPI
-    hash = 0;
-#else
-#ifdef GMX_THREAD_MPI
-    /* thread-MPI currently puts the thread number in the process name,
-     * we might want to change this, as this is inconsistent with what
-     * most MPI implementations would do when running on a single node.
-     */
-    hash = 0;
-#else
-#ifdef GMX_TARGET_BGQ
-    hash = bgq_nodenum();
-#else
-    hash = mpi_hostname_hash();
-#endif
-#endif
-#endif
-
-    if (debug)
-    {
-        fprintf(debug, "In gmx_physicalnode_id_hash: hash %d\n", hash);
-    }
-
-    return hash;
 }
 
 void gmx_setup_nodecomm(FILE gmx_unused *fplog, t_commrec *cr)
@@ -461,33 +314,6 @@ void gmx_barrier(const t_commrec gmx_unused *cr)
     gmx_call("gmx_barrier");
 #else
     MPI_Barrier(cr->mpi_comm_mygroup);
-#endif
-}
-
-void gmx_abort(int gmx_unused noderank, int gmx_unused nnodes, int gmx_unused errorno)
-{
-#ifndef GMX_MPI
-    gmx_call("gmx_abort");
-#else
-#ifdef GMX_THREAD_MPI
-    fprintf(stderr, "Halting program %s\n", ShortProgram());
-    gmx_thanx(stderr);
-    exit(1);
-#else
-    if (nnodes > 1)
-    {
-        fprintf(stderr, "Halting parallel program %s on CPU %d out of %d\n",
-                ShortProgram(), noderank, nnodes);
-    }
-    else
-    {
-        fprintf(stderr, "Halting program %s\n", ShortProgram());
-    }
-
-    gmx_thanx(stderr);
-    MPI_Abort(MPI_COMM_WORLD, errorno);
-    exit(1);
-#endif
 #endif
 }
 
@@ -871,4 +697,48 @@ void gmx_sumli_sim(int gmx_unused nr, gmx_int64_t gmx_unused r[], const gmx_mult
     }
 #endif
 #endif
+}
+
+gmx_bool gmx_fexist_master(const char *fname, t_commrec *cr)
+{
+    gmx_bool bExist;
+
+    if (SIMMASTER(cr))
+    {
+        bExist = gmx_fexist(fname);
+    }
+    if (PAR(cr))
+    {
+        gmx_bcast(sizeof(bExist), &bExist, cr);
+    }
+    return bExist;
+}
+
+void gmx_fatal_collective(int f_errno, const char *file, int line,
+                          const t_commrec *cr, gmx_domdec_t *dd,
+                          const char *fmt, ...)
+{
+    va_list  ap;
+    gmx_bool bMaster, bFinalize;
+#ifdef GMX_MPI
+    int      result;
+    /* Check if we are calling on all processes in MPI_COMM_WORLD */
+    if (cr != NULL)
+    {
+        MPI_Comm_compare(cr->mpi_comm_mysim, MPI_COMM_WORLD, &result);
+    }
+    else
+    {
+        MPI_Comm_compare(dd->mpi_comm_all, MPI_COMM_WORLD, &result);
+    }
+    /* Any result except MPI_UNEQUAL allows us to call MPI_Finalize */
+    bFinalize = (result != MPI_UNEQUAL);
+#else
+    bFinalize = TRUE;
+#endif
+    bMaster = (cr != NULL && MASTER(cr)) || (dd != NULL && DDMASTER(dd));
+
+    va_start(ap, fmt);
+    gmx_fatal_mpi_va(f_errno, file, line, bMaster, bFinalize, fmt, ap);
+    va_end(ap);
 }

@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2009,2010,2011,2012,2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2009,2010,2011,2012,2013,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -39,17 +39,18 @@
  * \author Teemu Murtola <teemu.murtola@gmail.com>
  * \ingroup module_selection
  */
-#include "gromacs/legacyheaders/macros.h"
+#include "gmxpre.h"
 
+#include "gromacs/legacyheaders/macros.h"
 #include "gromacs/selection/indexutil.h"
-#include "gromacs/selection/poscalc.h"
 #include "gromacs/selection/position.h"
-#include "gromacs/selection/selmethod.h"
 #include "gromacs/utility/cstringutil.h"
 #include "gromacs/utility/smalloc.h"
 
 #include "keywords.h"
+#include "poscalc.h"
 #include "selelem.h"
+#include "selmethod.h"
 
 /*! \internal \brief
  * Data structure for position keyword evaluation.
@@ -142,7 +143,7 @@ static gmx_ana_selparam_t smparams_com[] = {
 
 /** Selection method data for position keyword evaluation. */
 gmx_ana_selmethod_t sm_keyword_pos = {
-    "kw_pos", POS_VALUE, SMETH_DYNAMIC | SMETH_VARNUMVAL,
+    "kw_pos", POS_VALUE, SMETH_DYNAMIC | SMETH_VARNUMVAL | SMETH_ALLOW_UNSORTED,
     asize(smparams_keyword_pos), smparams_keyword_pos,
     &init_data_pos,
     &set_poscoll_pos,
@@ -152,7 +153,7 @@ gmx_ana_selmethod_t sm_keyword_pos = {
     NULL,
     &evaluate_pos,
     NULL,
-    {NULL, 0, NULL},
+    {NULL, NULL, 0, NULL},
 };
 
 /** Selection method data for the \p cog method. */
@@ -167,7 +168,7 @@ gmx_ana_selmethod_t sm_cog = {
     NULL,
     &evaluate_pos,
     NULL,
-    {"cog of ATOM_EXPR [pbc]", 0, NULL},
+    {"cog of ATOM_EXPR [pbc]", NULL, 0, NULL},
 };
 
 /** Selection method data for the \p com method. */
@@ -182,7 +183,7 @@ gmx_ana_selmethod_t sm_com = {
     NULL,
     &evaluate_pos,
     NULL,
-    {"com of ATOM_EXPR [pbc]", 0, NULL},
+    {"com of ATOM_EXPR [pbc]", NULL, 0, NULL},
 };
 
 /*!
@@ -222,6 +223,19 @@ static void
 set_poscoll_pos(gmx::PositionCalculationCollection *pcc, void *data)
 {
     ((t_methoddata_pos *)data)->pcc = pcc;
+}
+
+bool
+_gmx_selelem_is_default_kwpos(const gmx::SelectionTreeElement &sel)
+{
+    if (sel.type != SEL_EXPRESSION || !sel.u.expr.method
+        || sel.u.expr.method->name != sm_keyword_pos.name)
+    {
+        return false;
+    }
+
+    t_methoddata_pos *d = static_cast<t_methoddata_pos *>(sel.u.expr.mdata);
+    return d->type == NULL;
 }
 
 /*!

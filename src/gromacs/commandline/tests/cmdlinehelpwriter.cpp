@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2012,2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2012,2013,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -45,12 +45,14 @@
  * \author Teemu Murtola <teemu.murtola@gmail.com>
  * \ingroup module_commandline
  */
+#include "gmxpre.h"
+
+#include "gromacs/commandline/cmdlinehelpwriter.h"
+
 #include <gtest/gtest.h>
 
-#include "gromacs/legacyheaders/types/simple.h"
-
 #include "gromacs/commandline/cmdlinehelpcontext.h"
-#include "gromacs/commandline/cmdlinehelpwriter.h"
+#include "gromacs/math/vectypes.h"
 #include "gromacs/options/basicoptions.h"
 #include "gromacs/options/filenameoption.h"
 #include "gromacs/options/options.h"
@@ -77,7 +79,8 @@ void CommandLineHelpWriterTest::checkHelp(gmx::CommandLineHelpWriter *writer)
 {
     std::string                 filename = tempFiles_.getTemporaryFilePath("helptext.txt");
     gmx::File                   file(filename, "w");
-    gmx::CommandLineHelpContext context(&file, gmx::eHelpOutputFormat_Console, NULL);
+    gmx::CommandLineHelpContext context(&file, gmx::eHelpOutputFormat_Console,
+                                        NULL, "test");
     context.setShowHidden(bHidden_);
     writer->writeHelp(context);
     file.close();
@@ -224,15 +227,15 @@ TEST_F(CommandLineHelpWriterTest, HandlesSelectionOptions)
     using gmx::SelectionFileOption;
     using gmx::SelectionOption;
 
-    gmx::Options options(NULL, NULL);
+    gmx::Options                options(NULL, NULL);
+    gmx::SelectionCollection    selections;
+    gmx::SelectionOptionManager manager(&selections);
+    options.addManager(&manager);
     options.addOption(SelectionFileOption("sf"));
     options.addOption(SelectionOption("refsel").required()
                           .description("Reference selection option"));
     options.addOption(SelectionOption("sel").required().valueCount(2)
                           .description("Selection option"));
-    gmx::SelectionCollection    selections;
-    gmx::SelectionOptionManager manager(&selections);
-    setManagerForSelectionOptions(&options, &manager);
     options.finish();
     manager.parseRequestedFromString(
             "resname SOL;"

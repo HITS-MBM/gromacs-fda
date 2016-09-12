@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -34,33 +34,30 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
+#include "gmxpre.h"
 
 #include <math.h>
 #include <string.h>
 
 #include "gromacs/commandline/pargs.h"
-#include "sysstuff.h"
-#include "typedefs.h"
-#include "gromacs/utility/smalloc.h"
-#include "macros.h"
-#include "vec.h"
-#include "pbc.h"
-#include "gromacs/fileio/futil.h"
-#include "index.h"
-#include "mshift.h"
-#include "xvgr.h"
-#include "princ.h"
-#include "rmpbc.h"
-#include "txtdump.h"
+#include "gromacs/correlationfunctions/autocorr.h"
 #include "gromacs/fileio/tpxio.h"
 #include "gromacs/fileio/trxio.h"
-#include "gstat.h"
+#include "gromacs/fileio/xvgr.h"
+#include "gromacs/gmxana/gmx_ana.h"
+#include "gromacs/gmxana/gstat.h"
+#include "gromacs/gmxana/princ.h"
+#include "gromacs/legacyheaders/macros.h"
+#include "gromacs/legacyheaders/txtdump.h"
+#include "gromacs/legacyheaders/typedefs.h"
+#include "gromacs/legacyheaders/viewit.h"
+#include "gromacs/math/vec.h"
+#include "gromacs/pbcutil/rmpbc.h"
+#include "gromacs/topology/index.h"
+#include "gromacs/utility/fatalerror.h"
+#include "gromacs/utility/futil.h"
+#include "gromacs/utility/smalloc.h"
 #include "gmx_ana.h"
-
-#include "gromacs/legacyheaders/gmx_fatal.h"
 
 real calc_gyro(rvec x[], int gnx, atom_id index[], t_atom atom[], real tm,
                rvec gvec, rvec d, gmx_bool bQ, gmx_bool bRot, gmx_bool bMOI, matrix trans)
@@ -176,12 +173,16 @@ void calc_gyro_z(rvec x[], matrix box,
     fprintf(out, "\n");
 }
 
+
 int gmx_gyrate(int argc, char *argv[])
 {
     const char     *desc[] = {
         "[THISMODULE] computes the radius of gyration of a molecule",
         "and the radii of gyration about the [IT]x[it]-, [IT]y[it]- and [IT]z[it]-axes,",
         "as a function of time. The atoms are explicitly mass weighted.[PAR]",
+        "The axis components corresponds to the mass-weighted root-mean-square",
+        "of the radii components orthogonal to each axis, for example:[PAR]",
+        "Rg(x) = sqrt((sum_i m_i (R_i(y)^2 + R_i(z)^2))/(sum_i m_i)).[PAR]",
         "With the [TT]-nmol[tt] option the radius of gyration will be calculated",
         "for multiple molecules by splitting the analysis group in equally",
         "sized parts.[PAR]",
@@ -220,7 +221,7 @@ int gmx_gyrate(int argc, char *argv[])
     atom_id        *index;
     output_env_t    oenv;
     gmx_rmpbc_t     gpbc   = NULL;
-    const char     *leg[]  = { "Rg", "RgX", "RgY", "RgZ" };
+    const char     *leg[]  = { "Rg", "Rg\\sX\\N", "Rg\\sY\\N", "Rg\\sZ\\N" };
     const char     *legI[] = { "Itot", "I1", "I2", "I3" };
 #define NLEG asize(leg)
     t_filenm        fnm[] = {
@@ -237,7 +238,7 @@ int gmx_gyrate(int argc, char *argv[])
     npargs = asize(pa);
     ppa    = add_acf_pargs(&npargs, pa);
 
-    if (!parse_common_args(&argc, argv, PCA_CAN_TIME | PCA_CAN_VIEW | PCA_BE_NICE,
+    if (!parse_common_args(&argc, argv, PCA_CAN_TIME | PCA_CAN_VIEW,
                            NFILE, fnm, npargs, ppa, asize(desc), desc, 0, NULL, &oenv))
     {
         return 0;
@@ -284,17 +285,17 @@ int gmx_gyrate(int argc, char *argv[])
     if (bQ)
     {
         out = xvgropen(ftp2fn(efXVG, NFILE, fnm),
-                       "Radius of Charge", "Time (ps)", "Rg (nm)", oenv);
+                       "Radius of Charge (total and around axes)", "Time (ps)", "Rg (nm)", oenv);
     }
     else if (bMOI)
     {
         out = xvgropen(ftp2fn(efXVG, NFILE, fnm),
-                       "Moments of inertia", "Time (ps)", "I (a.m.u. nm\\S2\\N)", oenv);
+                       "Moments of inertia (total and around axes)", "Time (ps)", "I (a.m.u. nm\\S2\\N)", oenv);
     }
     else
     {
         out = xvgropen(ftp2fn(efXVG, NFILE, fnm),
-                       "Radius of gyration", "Time (ps)", "Rg (nm)", oenv);
+                       "Radius of gyration (total and around axes)", "Time (ps)", "Rg (nm)", oenv);
     }
     if (bMOI)
     {
@@ -380,7 +381,7 @@ int gmx_gyrate(int argc, char *argv[])
         gmx_rmpbc_done(gpbc);
     }
 
-    gmx_ffclose(out);
+    xvgrclose(out);
 
     if (bACF)
     {

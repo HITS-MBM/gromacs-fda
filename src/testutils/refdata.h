@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2011,2012,2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2011,2012,2013,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -46,7 +46,8 @@
 #include <iterator>
 #include <string>
 
-#include "gromacs/utility/common.h"
+#include "gromacs/utility/basedefinitions.h"
+#include "gromacs/utility/classhelpers.h"
 
 namespace gmx
 {
@@ -62,6 +63,8 @@ class FloatingPointTolerance;
  * Mode of operation for reference data handling.
  *
  * There should be no need to use this type outside the test utility module.
+ *
+ * \ingroup module_testutils
  */
 enum ReferenceDataMode
 {
@@ -90,34 +93,17 @@ enum ReferenceDataMode
 };
 
 /*! \libinternal \brief
- * Returns the global reference data mode.
- *
- * There should be no need to use this function outside the test utility module.
- */
-ReferenceDataMode getReferenceDataMode();
-/*! \libinternal \brief
- * Sets the global reference data mode.
- *
- * There should be no need to use this function outside the test utility module.
- */
-void setReferenceDataMode(ReferenceDataMode mode);
-/*! \libinternal \brief
- * Returns the directory where reference data files are stored.
- *
- * There should be no need to use this function outside the test utility module.
- */
-std::string getReferenceDataPath();
-/*! \libinternal \brief
  * Initializes reference data handling.
  *
  * Adds command-line options to \p options to set the reference data mode.
- * By default, ::erefdataCompare is used, but \c "--ref-data create" or
- * \c "--ref-data update" can be used to change it.
+ * By default, ::erefdataCompare is used, but ``--ref-data create`` or
+ * ``--ref-data update`` can be used to change it.
  *
  * This function is automatically called by initTestUtils().
+ *
+ * \ingroup module_testutils
  */
 void initReferenceData(Options *options);
-
 
 class TestReferenceChecker;
 
@@ -179,10 +165,11 @@ class TestReferenceData
         /*! \brief
          * Initializes the reference data in a specific mode.
          *
-         * This function is mainly useful for self-testing the reference data
+         * This function is only useful for self-testing the reference data
          * framework.  As such, it also puts the framework in a state where it
          * logs additional internal information for failures to help diagnosing
-         * problems in the framework.
+         * problems in the framework, and stores the reference data in a
+         * temporary directory instead of the source tree.
          * The default constructor should be used in tests utilizing this class.
          */
         explicit TestReferenceData(ReferenceDataMode mode);
@@ -315,6 +302,10 @@ class TestReferenceChecker
         void checkStringBlock(const std::string &value, const char *id);
         //! Check a single integer value.
         void checkInteger(int value, const char *id);
+        //! Check a single int64 value.
+        void checkInt64(gmx_int64_t value, const char *id);
+        //! Check a single uint64 value.
+        void checkUInt64(gmx_uint64_t value, const char *id);
         //! Check a single single-precision floating point value.
         void checkFloat(float value, const char *id);
         //! Check a single double-precision floating point value.
@@ -358,6 +349,16 @@ class TestReferenceChecker
         void checkValue(int value, const char *id)
         {
             checkInteger(value, id);
+        }
+        //! Check a single integer value.
+        void checkValue(gmx_int64_t value, const char *id)
+        {
+            checkInt64(value, id);
+        }
+        //! Check a single integer value.
+        void checkValue(gmx_uint64_t value, const char *id)
+        {
+            checkUInt64(value, id);
         }
         //! Check a single single-precision floating point value.
         void checkValue(float value, const char *id)

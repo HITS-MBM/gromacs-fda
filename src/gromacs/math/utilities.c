@@ -34,18 +34,22 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-#include "gromacs/math/utilities.h"
+#include "gmxpre.h"
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
+#include "utilities.h"
 
-#include <math.h>
+#include "config.h"
+
+#include <assert.h>
 #include <limits.h>
+#include <math.h>
+
 #ifdef HAVE__FINITE
 #include <float.h>
 #endif
-#include <assert.h>
+#ifndef GMX_NATIVE_WINDOWS
+#include <fenv.h>
+#endif
 
 int gmx_nint(real a)
 {
@@ -60,11 +64,11 @@ real cuberoot(real x)
 {
     if (x < 0)
     {
-        return (-pow(-x, 1.0/DIM));
+        return (-pow(-x, 1.0/3.0));
     }
     else
     {
-        return (pow(x, 1.0/DIM));
+        return (pow(x, 1.0/3.0));
     }
 }
 
@@ -173,6 +177,7 @@ static const double
 
 double gmx_erfd(double x)
 {
+#ifdef GMX_FLOAT_FORMAT_IEEE754
     gmx_int32_t hx, ix, i;
     double      R, S, P, Q, s, y, z, r;
 
@@ -185,9 +190,7 @@ double gmx_erfd(double x)
 
     conv.d = x;
 
-    /* In release-4-6 and later branches, only the test for
-     * GMX_IEEE754_BIG_ENDIAN_WORD_ORDER will be required. */
-#if defined(IEEE754_BIG_ENDIAN_WORD_ORDER) || defined(GMX_IEEE754_BIG_ENDIAN_WORD_ORDER)
+#ifdef GMX_IEEE754_BIG_ENDIAN_WORD_ORDER
     hx = conv.i[0];
 #else
     hx = conv.i[1];
@@ -263,9 +266,7 @@ double gmx_erfd(double x)
 
     conv.d = x;
 
-    /* In release-4-6 and later branches, only the test for
-     * GMX_IEEE754_BIG_ENDIAN_WORD_ORDER will be required. */
-#if defined(IEEE754_BIG_ENDIAN_WORD_ORDER) || defined(GMX_IEEE754_BIG_ENDIAN_WORD_ORDER)
+#ifdef GMX_IEEE754_BIG_ENDIAN_WORD_ORDER
     conv.i[1] = 0;
 #else
     conv.i[0] = 0;
@@ -282,11 +283,16 @@ double gmx_erfd(double x)
     {
         return r/x-one;
     }
+#else
+    /* No IEEE754 information. We need to trust that the OS provides erf(). */
+    return erf(x);
+#endif
 }
 
 
 double gmx_erfcd(double x)
 {
+#ifdef GMX_FLOAT_FORMAT_IEEE754
     gmx_int32_t hx, ix;
     double      R, S, P, Q, s, y, z, r;
 
@@ -299,9 +305,7 @@ double gmx_erfcd(double x)
 
     conv.d = x;
 
-    /* In release-4-6 and later branches, only the test for
-     * GMX_IEEE754_BIG_ENDIAN_WORD_ORDER will be required. */
-#if defined(IEEE754_BIG_ENDIAN_WORD_ORDER) || defined(GMX_IEEE754_BIG_ENDIAN_WORD_ORDER)
+#ifdef GMX_IEEE754_BIG_ENDIAN_WORD_ORDER
     hx = conv.i[0];
 #else
     hx = conv.i[1];
@@ -379,9 +383,7 @@ double gmx_erfcd(double x)
 
         conv.d = x;
 
-        /* In release-4-6 and later branches, only the test for
-         * GMX_IEEE754_BIG_ENDIAN_WORD_ORDER will be required. */
-#if defined(IEEE754_BIG_ENDIAN_WORD_ORDER) || defined(GMX_IEEE754_BIG_ENDIAN_WORD_ORDER)
+#ifdef GMX_IEEE754_BIG_ENDIAN_WORD_ORDER
         conv.i[1] = 0;
 #else
         conv.i[0] = 0;
@@ -411,6 +413,10 @@ double gmx_erfcd(double x)
             return two-tiny;
         }
     }
+#else
+    /* No IEEE754 information. We need to trust that the OS provides erfc(). */
+    return erfc(x);
+#endif
 }
 
 
@@ -723,9 +729,7 @@ float gmx_erfcf(float x)
 
 gmx_bool gmx_isfinite(real gmx_unused x)
 {
-    gmx_bool returnval = TRUE;
-    /* If no suitable function was found, assume the value is
-     * finite. */
+    gmx_bool returnval;
 
 #ifdef HAVE__FINITE
     returnval = _finite(x);
@@ -733,13 +737,16 @@ gmx_bool gmx_isfinite(real gmx_unused x)
     returnval = isfinite(x);
 #elif defined HAVE__ISFINITE
     returnval = _isfinite(x);
+#else
+    /* If no suitable function was found, assume the value is
+     * finite. */
+    returnval = TRUE;
 #endif
     return returnval;
 }
 
 gmx_bool gmx_isnan(real x)
 {
-    /* cppcheck-suppress duplicateExpression */
     return x != x;
 }
 
@@ -846,4 +853,36 @@ int gmx_greatest_common_divisor(int p, int q)
         p   = tmp;
     }
     return p;
+}
+
+int gmx_feenableexcept()
+{
+#ifdef HAVE_FEENABLEEXCEPT
+    return feenableexcept(FE_DIVBYZERO | FE_INVALID | FE_OVERFLOW);
+#elif (defined(__i386__) || defined(__x86_64__)) && defined(__APPLE__)
+    /* Author:  David N. Williams
+     * License:  Public Domain
+     *
+     * Might also work on non-Apple Unix. But should be tested
+     * before enabling.
+     */
+    unsigned int  excepts = FE_DIVBYZERO | FE_INVALID | FE_OVERFLOW;
+    static fenv_t fenv;
+    unsigned int  new_excepts = excepts & FE_ALL_EXCEPT,
+                  old_excepts; // previous masks
+
+    if (fegetenv (&fenv) )
+    {
+        return -1;
+    }
+    old_excepts = fenv.__control & FE_ALL_EXCEPT;
+
+    // unmask
+    fenv.__control &= ~new_excepts;
+    fenv.__mxcsr   &= ~(new_excepts << 7);
+
+    return ( fesetenv (&fenv) ? -1 : old_excepts );
+#else
+    return -1;
+#endif
 }

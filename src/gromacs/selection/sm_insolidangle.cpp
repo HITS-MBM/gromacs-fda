@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2009,2010,2011,2012,2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2009,2010,2011,2012,2013,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -112,24 +112,25 @@
  * \author Teemu Murtola <teemu.murtola@gmail.com>
  * \ingroup module_selection
  */
-#include <algorithm>
+#include "gmxpre.h"
 
 #include <math.h>
 
-#include "gromacs/legacyheaders/macros.h"
-#include "gromacs/legacyheaders/pbc.h"
-#include "gromacs/legacyheaders/physics.h"
-#include "gromacs/legacyheaders/vec.h"
+#include <algorithm>
 
+#include "gromacs/legacyheaders/macros.h"
+#include "gromacs/math/units.h"
 #include "gromacs/math/utilities.h"
+#include "gromacs/math/vec.h"
+#include "gromacs/pbcutil/pbc.h"
 #include "gromacs/selection/indexutil.h"
 #include "gromacs/selection/position.h"
 #include "gromacs/selection/selection.h"
-#include "gromacs/selection/selmethod.h"
 #include "gromacs/utility/exceptions.h"
 #include "gromacs/utility/smalloc.h"
 
 #include "selelem.h"
+#include "selmethod.h"
 
 using std::min;
 using std::max;
@@ -333,11 +334,11 @@ static gmx_ana_selparam_t smparams_insolidangle[] = {
 };
 
 /** Help text for the \p insolidangle selection method. */
-static const char *help_insolidangle[] = {
-    "SELECTING ATOMS IN A SOLID ANGLE[PAR]",
-
-    "[TT]insolidangle center POS span POS_EXPR [cutoff REAL][tt][PAR]",
-
+static const char *const help_insolidangle[] = {
+    "::",
+    "",
+    "  insolidangle center POS span POS_EXPR [cutoff REAL]",
+    "",
     "This keyword selects atoms that are within [TT]REAL[tt] degrees",
     "(default=5) of any position in [TT]POS_EXPR[tt] as seen from [TT]POS[tt]",
     "a position expression that evaluates to a single position), i.e., atoms",
@@ -364,6 +365,7 @@ gmx_ana_selmethod_t sm_insolidangle = {
     NULL,
     &evaluate_insolidangle,
     {"insolidangle center POS span POS_EXPR [cutoff REAL]",
+     "Selecting atoms in a solid angle",
      asize(help_insolidangle), help_insolidangle},
 };
 

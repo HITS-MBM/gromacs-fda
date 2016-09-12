@@ -35,11 +35,13 @@
  * the research papers on the package. Check out http://www.gromacs.org.
  */
 /* This file is completely threadsafe - keep it that way! */
+#include "gmxpre.h"
+
 #include "nrjac.h"
 
 #include <math.h>
 
-#include "gmx_fatal.h"
+#include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/smalloc.h"
 
 static gmx_inline

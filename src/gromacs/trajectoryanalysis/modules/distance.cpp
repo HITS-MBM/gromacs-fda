@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2010,2011,2012,2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2010,2011,2012,2013,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -39,20 +39,22 @@
  * \author Teemu Murtola <teemu.murtola@gmail.com>
  * \ingroup module_trajectoryanalysis
  */
+#include "gmxpre.h"
+
 #include "distance.h"
 
 #include <string>
-
-#include "gromacs/legacyheaders/pbc.h"
-#include "gromacs/legacyheaders/vec.h"
 
 #include "gromacs/analysisdata/analysisdata.h"
 #include "gromacs/analysisdata/modules/average.h"
 #include "gromacs/analysisdata/modules/histogram.h"
 #include "gromacs/analysisdata/modules/plot.h"
+#include "gromacs/fileio/trx.h"
+#include "gromacs/math/vec.h"
 #include "gromacs/options/basicoptions.h"
 #include "gromacs/options/filenameoption.h"
 #include "gromacs/options/options.h"
+#include "gromacs/pbcutil/pbc.h"
 #include "gromacs/selection/selection.h"
 #include "gromacs/selection/selectionoption.h"
 #include "gromacs/trajectoryanalysis/analysissettings.h"
@@ -147,7 +149,11 @@ Distance::initOptions(Options *options, TrajectoryAnalysisSettings * /*settings*
         "The location of the histogram is set with [TT]-len[tt] and",
         "[TT]-tol[tt]. Bin width is set with [TT]-binw[tt].",
         "[TT]-oallstat[tt] writes out the average and standard deviation for",
-        "each individual distance, calculated over the frames."
+        "each individual distance, calculated over the frames.[PAR]",
+        "Note that [THISMODULE] calculates distances between fixed pairs",
+        "(1-2, 3-4, etc.) within a single selection.  To calculate distances",
+        "between two selections, including minimum, maximum, and pairwise",
+        "distances, use [gmx-pairdist]."
     };
 
     options->setDescription(desc);
@@ -265,7 +271,7 @@ Distance::initAnalysis(const TrajectoryAnalysisSettings &settings,
     {
         AnalysisDataPlotModulePointer plotm(
                 new AnalysisDataPlotModule(settings.plotSettings()));
-        plotm->setFileName(fnAll_);
+        plotm->setFileName(fnXYZ_);
         plotm->setTitle("Distance");
         plotm->setXAxisIsTime();
         plotm->setYLabel("Distance (nm)");
@@ -367,9 +373,9 @@ Distance::writeOutput()
         printf("%s:\n", sel->name());
         printf("  Number of samples:  %d\n",
                summaryStatsModule_->sampleCount(index, 0));
-        printf("  Average distance:   %-6.3f nm\n",
+        printf("  Average distance:   %-8.5f nm\n",
                summaryStatsModule_->average(index, 0));
-        printf("  Standard deviation: %-6.3f nm\n",
+        printf("  Standard deviation: %-8.5f nm\n",
                summaryStatsModule_->standardDeviation(index, 0));
     }
 }

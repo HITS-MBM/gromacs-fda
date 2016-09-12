@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2012,2014, by the GROMACS development team, led by
+ * Copyright (c) 2012,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -34,21 +34,21 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
+#include "gmxpre.h"
 
+#include "toputil.h"
+
+#include <assert.h>
 #include <math.h>
 #include <string.h>
 
+#include "gromacs/gmxpreprocess/gpp_atomtype.h"
+#include "gromacs/gmxpreprocess/topdirs.h"
+#include "gromacs/legacyheaders/macros.h"
+#include "gromacs/topology/block.h"
+#include "gromacs/topology/symtab.h"
+#include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/smalloc.h"
-#include "sysstuff.h"
-#include "macros.h"
-#include "topdirs.h"
-#include "toputil.h"
-#include "symtab.h"
-#include "gmx_fatal.h"
-#include "gpp_atomtype.h"
 
 /* UTILITIES */
 
@@ -62,7 +62,7 @@ void set_p_string(t_param *p, const char *s)
         }
         else
         {
-            gmx_fatal(FARGS, "Increase MAXSLEN in include/grompp-impl.h to at least %d,"
+            gmx_fatal(FARGS, "Increase MAXSLEN in the grompp code to at least %d,"
                       " or shorten your definition of bonds like %s to at most %d",
                       strlen(s)+1, s, MAXSLEN-1);
         }
@@ -86,12 +86,7 @@ void pr_alloc (int extra, t_params *pr)
     {
         return;
     }
-    if ((pr->nr == 0) && (pr->param != NULL))
-    {
-        fprintf(stderr, "Warning: dangling pointer at %lx\n",
-                (unsigned long)pr->param);
-        pr->param = NULL;
-    }
+    assert(!((pr->nr == 0) && (pr->param != NULL)));
     if (pr->nr+extra > pr->maxnr)
     {
         pr->maxnr = max(1.2*pr->maxnr, pr->maxnr + extra);

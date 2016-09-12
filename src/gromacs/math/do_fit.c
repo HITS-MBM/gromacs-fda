@@ -34,16 +34,17 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
+#include "gmxpre.h"
+
 #include "do_fit.h"
 
-#include "gromacs/math/utilities.h"
-#include "sysstuff.h"
-#include "typedefs.h"
-#include "vec.h"
-#include "txtdump.h"
+#include <math.h>
+#include <stdio.h>
 
 #include "gromacs/linearalgebra/nrjac.h"
-#include "gmx_fatal.h"
+#include "gromacs/math/utilities.h"
+#include "gromacs/math/vec.h"
+#include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/smalloc.h"
 
 real calc_similar_ind(gmx_bool bRho, int nind, atom_id *index, real mass[],

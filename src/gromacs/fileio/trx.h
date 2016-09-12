@@ -43,15 +43,19 @@
 #ifndef GMX_FILEIO_TRX_H
 #define GMX_FILEIO_TRX_H
 
-#include "../legacyheaders/types/atoms.h"
+#include "gromacs/math/vectypes.h"
+#include "gromacs/utility/basedefinitions.h"
+#include "gromacs/utility/real.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+struct t_atoms;
+
 typedef struct gmxvmdplugin t_gmxvmdplugin;
 
-typedef struct trxframe
+typedef struct t_trxframe
 {
     int      flags;            /* flags for read_first/next_frame  */
     int      not_ok;           /* integrity flags                  */
@@ -76,7 +80,7 @@ typedef struct trxframe
     real            lambda;    /* free energy perturbation lambda  */
     int             fep_state; /* which fep state are we in? */
     gmx_bool        bAtoms;
-    t_atoms        *atoms;     /* atoms struct (natoms)            */
+    struct t_atoms *atoms;     /* atoms struct (natoms)            */
     gmx_bool        bPrec;
     real            prec;      /* precision of x, fraction of 1 nm */
     gmx_bool        bX;

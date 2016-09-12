@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2009,2010,2012, by the GROMACS development team, led by
+ * Copyright (c) 2009,2010,2012,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -65,6 +65,17 @@ extern struct gmx_ana_selmethod_t sm_keyword_pos;
 void
 _gmx_selelem_print_compare_info(FILE *fp, void *data);
 
+/*! \brief
+ * Returns whether the selection element is a default position keyword.
+ *
+ * \param[in] sel   Selection element to query.
+ * \returns   ``true`` if ``sel`` represents a position keyword evaluation that
+ *     uses the default (implicit) position keyword.
+ *
+ * This method only works before the selection has been compiled.
+ */
+bool
+_gmx_selelem_is_default_kwpos(const gmx::SelectionTreeElement &sel);
 /** Sets the position type for position keyword evaluation. */
 void
 _gmx_selelem_set_kwpos_type(gmx::SelectionTreeElement *sel, const char *type);
@@ -78,15 +89,28 @@ _gmx_selelem_set_kwstr_match_type(const gmx::SelectionTreeElementPointer &sel,
                                   gmx::SelectionStringMatchType           matchType);
 
 /** Does custom processing for parameters of the \c same selection method. */
-int
+void
 _gmx_selelem_custom_init_same(struct gmx_ana_selmethod_t                    **method,
                               const gmx::SelectionParserParameterListPointer &params,
                               void                                           *scanner);
 
-/** Initializes a selection element for evaluating a keyword in a given group. */
+/*! \brief
+ * Initializes a selection element for evaluating a keyword in a given group.
+ *
+ * \param[in]   method  Keyword selection method to evaluate.
+ * \param[in]   child   The group/positions to evaluate \p method in.
+ * \param[in]   scanner Scanner data structure.
+ * \returns     Pointer to the created selection element.
+ *
+ * Creates a \ref SEL_EXPRESSION selection element that evaluates the keyword
+ * method given by \p method in the group/positions given by \p child.
+ *
+ * \p child should be a selection tree that evaluates to \ref GROUP_VALUE or
+ * \ref POS_VALUE.
+ */
 gmx::SelectionTreeElementPointer
 _gmx_sel_init_keyword_evaluator(struct gmx_ana_selmethod_t              *method,
-                                const gmx::SelectionParserParameterList &params,
+                                const gmx::SelectionTreeElementPointer  &child,
                                 void                                    *scanner);
 
 #endif

@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -34,17 +34,16 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
+#include "gmxpre.h"
 
+#include "gromacs/legacyheaders/nrnb.h"
+
+#include <stdlib.h>
 #include <string.h>
-#include "types/commrec.h"
-#include "sysstuff.h"
-#include "names.h"
-#include "macros.h"
-#include "nrnb.h"
-#include "main.h"
+
+#include "gromacs/legacyheaders/macros.h"
+#include "gromacs/legacyheaders/names.h"
+#include "gromacs/legacyheaders/types/commrec.h"
 #include "gromacs/utility/smalloc.h"
 
 typedef struct {
@@ -89,9 +88,9 @@ static const t_nrnb_data nbdata[eNRNB] = {
 
     { "Pair Search distance check",      9 }, /* nbnxn pair dist. check */
     /* nbnxn kernel flops are based on inner-loops without exclusion checks.
-     * Plain Coulomb runs through the RF kernels, except with CUDA.
+     * Plain Coulomb runs through the RF kernels, except with GPUs.
      * invsqrt is counted as 6 flops: 1 for _mm_rsqt_ps + 5 for iteration.
-     * The flops are equal for plain-C, x86 SIMD and CUDA, except for:
+     * The flops are equal for plain-C, x86 SIMD and GPUs, except for:
      * - plain-C kernel uses one flop more for Coulomb-only (F) than listed
      * - x86 SIMD LJ geom-comb.rule kernels (fastest) use 2 more flops
      * - x86 SIMD LJ LB-comb.rule kernels (fast) use 3 (8 for F+E) more flops
@@ -438,10 +437,10 @@ void print_flop(FILE *out, t_nrnb *nrnb, double *nbfs, double *mflop)
 }
 
 void print_perf(FILE *out, double time_per_thread, double time_per_node,
-                gmx_int64_t nsteps, real delta_t,
+                gmx_int64_t nsteps, double delta_t,
                 double nbfs, double mflop)
 {
-    real wallclocktime;
+    double wallclocktime;
 
     fprintf(out, "\n");
 

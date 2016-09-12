@@ -1,7 +1,7 @@
 #
 # This file is part of the GROMACS molecular simulation package.
 #
-# Copyright (c) 2012,2013,2014, by the GROMACS development team, led by
+# Copyright (c) 2012,2013,2014,2015, by the GROMACS development team, led by
 # Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
 # and including many others, as listed in the AUTHORS file in the
 # top-level source directory and at http://www.gromacs.org.
@@ -40,6 +40,9 @@
 # Input: FFTW variable contains the FFTW component to build,
 #        either fftw or fftwf for double or single precision
 
+string(TOUPPER "${FFTW}" UPPERFFTW)
+string(TOLOWER "${FFTW}" LOWERFFTW)
+
 set(GMX_BUILD_OWN_FFTW_OPTIMIZATION_CONFIGURATION "" CACHE INTERNAL "Optimization flags for FFTW compilation")
 if(${CMAKE_CURRENT_BINARY_DIR} MATCHES ".*[[:space:]].*")
     message(FATAL_ERROR "An internal limitation of FFTW means GROMACS cannot build FFTW in a directory with whitespace in its name. Either use a system FFTW, build it yourself, or build GROMACS in a different location.")
@@ -55,10 +58,21 @@ if (CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND BUILD_SHARED_LIBS) # FFTW doesn
     set(GMX_BUILD_OWN_FFTW_SHARED_FLAG ${GMX_BUILD_OWN_FFTW_SHARED_FLAG} --with-pic)
 endif()
 
-# Testing shows FFTW configured with --enable-avx is never better than --enable-sse2, so we do the latter always.
-if(${GMX_SIMD} MATCHES "^(SSE|AVX)")
-    set(GMX_BUILD_OWN_FFTW_OPTIMIZATION_CONFIGURATION --enable-sse2 CACHE INTERNAL "Optimization flags for FFTW compilation")
+# Set library optimizations
+set(_fftw_simd_support_level "")
+if(${GMX_SIMD} MATCHES "^(SSE|AVX)" AND APPLE)
+    # OS X and --enable-avx causes compilation issues (fftw always picks gcc by default). It's
+    # not an important enough performance loss to bother warning the
+    # user about.
+    set(_fftw_simd_support_level "--enable-sse2")
+elseif(${GMX_SIMD} MATCHES "^(SSE)")
+    set(_fftw_simd_support_level "--enable-sse2")
+elseif(${GMX_SIMD} MATCHES "^(AVX)")
+    # Testing shows FFTW configured with --enable-sse2 --enable-avx is
+    # slightly faster on most architectures than --enable-sse2 alone
+    set(_fftw_simd_support_level --enable-sse2;--enable-avx)
 endif()
+set(GMX_BUILD_OWN_FFTW_OPTIMIZATION_CONFIGURATION ${_fftw_simd_support_level} CACHE INTERNAL "Optimization flags for FFTW compilation")
 
 # Allow cross-compiles
 if (TARGET_HOST)
@@ -66,35 +80,60 @@ if (TARGET_HOST)
 endif()
 
 # Machinery for running the external project
-set(EXTERNAL_FFTW_VERSION 3.3.3)
+set(EXTERNAL_FFTW_VERSION 3.3.4)
 # cmake make eats slashes //// -> //
-set(GMX_BUILD_OWN_FFTW_URL "http:////www.fftw.org/fftw-${EXTERNAL_FFTW_VERSION}.tar.gz" CACHE PATH "URL from where to download fftw, (use an absolute path when offline)")
-mark_as_advanced(GMX_BUILD_OWN_FFTW_URL)
-set(EXTERNAL_FFTW_MD5SUM 0a05ca9c7b3bfddc8278e7c40791a1c2)
-set (EXTERNAL_FFTW_BUILD_TARGET fftwBuild)
+set(GMX_BUILD_OWN_FFTW_URL
+    "http:////www.fftw.org/fftw-${EXTERNAL_FFTW_VERSION}.tar.gz" CACHE PATH
+    "URL from where to download fftw (use an absolute path when offline, adjust GMX_BUILD_OWN_FFTW_MD5 if downloading other version than ${EXTERNAL_FFTW_VERSION})")
+set(GMX_BUILD_OWN_FFTW_MD5 2edab8c06b24feeb3b82bbb3ebf3e7b3 CACHE STRING
+    "Expected MD5 hash for the file at GMX_BUILD_OWN_FFTW_URL")
+mark_as_advanced(GMX_BUILD_OWN_FFTW_URL GMX_BUILD_OWN_FFTW_MD5)
+
+# ExternalProject at least up to CMake 3.0 prints a confusing error message if
+# download fails when MD5 verification is enabled.  So we manage the download
+# ourselves so that MD5 sum is not verified there, and then pass a local file
+# as the URL to ExternalProject.  This way, ExternalProject still verifies the
+# MD5 sum with a proper message if that fails.
+set(url "${GMX_BUILD_OWN_FFTW_URL}")
+# Determine whether we are actually downloading (this matches the conditions in
+# ExternalProject).  ExternalProject works as expected if passed a local file.
+set(is_download TRUE)
+if (IS_DIRECTORY "${url}" OR "${url}" MATCHES "^file://" OR NOT "${url}" MATCHES "^[a-z]+://")
+    set(is_download FALSE)
+endif()
+if (is_download)
+    # For simplicity, don't try to extract the file name from the URL, but use
+    # a hard-coded value.
+    set(remote_url "${GMX_BUILD_OWN_FFTW_URL}")
+    set(local_path "${CMAKE_CURRENT_BINARY_DIR}/fftw.tar.gz")
+    set(url ${local_path})
+    # Write a script to do our own download step (mimics what ExternalProject
+    # would do, but without MD5 sum verification at this step).
+    set(download_script ${CMAKE_CURRENT_BINARY_DIR}/fftw-download.cmake)
+    configure_file(fftw-download.cmake.cmakein ${download_script} @ONLY)
+endif()
+
+# The actual build target.
+set(EXTERNAL_FFTW_BUILD_TARGET fftwBuild)
 include(ExternalProject)
-# TODO in master branch - show this warning only on the first run
-# by using gmx_check_if_changed_result from I21b791ab8e4f3 when
-# that becomes available
-message(WARNING "The GROMACS build will download FFTW ${EXTERNAL_FFTW_VERSION} as requested, but it will not know the file it receives is correct. If you now use\nmake\n GROMACS will build and link to FFTW anyway, but there is a possible security risk if you execute a GROMACS tool that calls this library. Instead, you can use\nmake ${EXTERNAL_FFTW_BUILD_TARGET}\n to do just the download and build of FFTW, and then run\nmd5sum src/contrib/fftw/${EXTERNAL_FFTW_BUILD_TARGET}-prefix/src/fftw-${EXTERNAL_FFTW_VERSION}.tar.gz\nto see if it matches ${EXTERNAL_FFTW_MD5SUM}. If so, everything is OK and you should use \nmake\n to proceed with the rest of the GROMACS build. Alternatively, you could stop using GMX_BUILD_OWN_FFTW, and instead follow the GROMACS installation instructions to build FFTW yourself.")
-# TODO if/when CMake fixes http://www.cmake.org/Bug/view.php?id=14330
-# (ie. at least version > 2.8.11.2), consider reverting to using an
-# md5sum check to avoid needing the above warning
-    ExternalProject_add(${EXTERNAL_FFTW_BUILD_TARGET}
-        URL "${GMX_BUILD_OWN_FFTW_URL}"
+ExternalProject_add(${EXTERNAL_FFTW_BUILD_TARGET}
+        URL "${url}" URL_MD5 ${GMX_BUILD_OWN_FFTW_MD5}
         CONFIGURE_COMMAND <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> --libdir=<INSTALL_DIR>/lib --disable-fortran
         ${GMX_BUILD_OWN_FFTW_SHARED_FLAG} ${GMX_BUILD_OWN_FFTW_OPTIMIZATION_CONFIGURATION}
         ${GMX_BUILD_OWN_FFTW_PREC}
         ${GMX_BUILD_OWN_FFTW_TARGET_HOST})
-externalproject_get_property(${EXTERNAL_FFTW_BUILD_TARGET} INSTALL_DIR)
+# Add a custom step to do our own download if that is necessary.
+if (is_download)
+    ExternalProject_add_step(${EXTERNAL_FFTW_BUILD_TARGET} pre-download
+            COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_BINARY_DIR}/fftw-download.cmake
+            DEPENDERS download)
+endif()
 
-string(TOUPPER "${FFTW}" UPPERFFTW)
-string(TOLOWER "${FFTW}" LOWERFFTW)
+ExternalProject_get_property(${EXTERNAL_FFTW_BUILD_TARGET} INSTALL_DIR)
+
 string(REGEX REPLACE "fftw" "fftw3" FFTW_LIBNAME ${LOWERFFTW})
-set(${UPPERFFTW}_LIBRARIES ${CMAKE_BINARY_PREFIX}/${INSTALL_DIR}/lib/lib${FFTW_LIBNAME}${CMAKE_STATIC_LIBRARY_SUFFIX})
-set(${UPPERFFTW}_INCLUDE_DIRS ${CMAKE_BINARY_PREFIX}/${INSTALL_DIR}/include PARENT_SCOPE)
-set(${UPPERFFTW}_FOUND TRUE PARENT_SCOPE)
-set(${UPPERFFTW}_HAVE_SIMD TRUE PARENT_SCOPE)
+set(${UPPERFFTW}_LIBRARIES ${INSTALL_DIR}/lib/lib${FFTW_LIBNAME}${CMAKE_STATIC_LIBRARY_SUFFIX})
+set(${UPPERFFTW}_INCLUDE_DIRS ${INSTALL_DIR}/include PARENT_SCOPE)
 
 add_library(gmxfftw STATIC IMPORTED GLOBAL)
 set_target_properties(gmxfftw PROPERTIES IMPORTED_LOCATION ${${UPPERFFTW}_LIBRARIES})

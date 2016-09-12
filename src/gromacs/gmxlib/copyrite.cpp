@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -34,44 +34,43 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-#include "copyrite.h"
+#include "gmxpre.h"
 
-#ifdef HAVE_CONFIG_H
+#include "gromacs/legacyheaders/copyrite.h"
+
 #include "config.h"
-#endif
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
+#include <algorithm>
+
 #ifdef HAVE_LIBMKL
 #include <mkl.h>
 #endif
-
 #ifdef HAVE_EXTRAE
- #include "extrae_user_events.h"
+#include <extrae_user_events.h>
 #endif
-
 #include <boost/version.hpp>
 
 /* This file is completely threadsafe - keep it that way! */
 
-#include "gromacs/legacyheaders/macros.h"
-#include "gromacs/legacyheaders/vec.h"
-
+#include "buildinfo.h"
 #include "gromacs/fft/fft.h"
-#include "gromacs/fileio/futil.h"
 #include "gromacs/fileio/strdb.h"
+#include "gromacs/legacyheaders/macros.h"
+#include "gromacs/math/vec.h"
 #include "gromacs/random/random.h"
 #include "gromacs/utility/baseversion.h"
 #include "gromacs/utility/cstringutil.h"
 #include "gromacs/utility/exceptions.h"
+#include "gromacs/utility/futil.h"
 #include "gromacs/utility/gmxassert.h"
 #include "gromacs/utility/programcontext.h"
 #include "gromacs/utility/smalloc.h"
-
-#include "buildinfo.h"
+#include "gromacs/utility/stringutil.h"
 
 static gmx_bool be_cool(void)
 {
@@ -163,6 +162,17 @@ void cool_quote(char *retstring, int retsize, int *cqnum)
     sfree(tmpstr);
 }
 
+static int centeringOffset(int width, int length)
+{
+    return std::max(width - length, 0) / 2;
+}
+
+static void printCentered(FILE *fp, int width, const char *text)
+{
+    const int offset = centeringOffset(width, std::strlen(text));
+    fprintf(fp, "%*s%s", offset, "", text);
+}
+
 static void printCopyright(FILE *fp)
 {
     static const char * const Contributors[] = {
@@ -176,7 +186,11 @@ static void printCopyright(FILE *fp)
         "Sebastian Fritsch",
         "Gerrit Groenhof",
         "Christoph Junghans",
+        "Anca Hamuraru",
+        "Vincent Hindriksen",
+        "Dimitrios Karkoulis",
         "Peter Kasson",
+        "Jiri Kraus",
         "Carsten Kutzner",
         "Per Larsson",
         "Justin A. Lemkul",
@@ -191,12 +205,13 @@ static void printCopyright(FILE *fp)
         "Michael Shirts",
         "Alfons Sijbers",
         "Peter Tieleman",
+        "Teemu Virolainen",
         "Christian Wennberg",
         "Maarten Wolf"
     };
     static const char * const CopyrightText[] = {
         "Copyright (c) 1991-2000, University of Groningen, The Netherlands.",
-        "Copyright (c) 2001-2014, The GROMACS development team at",
+        "Copyright (c) 2001-2015, The GROMACS development team at",
         "Uppsala University, Stockholm University and",
         "the Royal Institute of Technology, Sweden.",
         "check out http://www.gromacs.org for more information."
@@ -218,18 +233,27 @@ static void printCopyright(FILE *fp)
 #define NLICENSE (int)asize(LicenseText)
 #endif
 
-    fprintf(fp, "GROMACS is written by:\n");
+    printCentered(fp, 78, "GROMACS is written by:");
+    fprintf(fp, "\n");
     for (int i = 0; i < NCONTRIBUTORS; )
     {
         for (int j = 0; j < 4 && i < NCONTRIBUTORS; ++j, ++i)
         {
-            fprintf(fp, "%-18s ", Contributors[i]);
+            const int width = 18;
+            char      buf[30];
+            const int offset = centeringOffset(width, strlen(Contributors[i]));
+            GMX_RELEASE_ASSERT(strlen(Contributors[i]) + offset < asize(buf),
+                               "Formatting buffer is not long enough");
+            std::fill(buf, buf+width, ' ');
+            std::strcpy(buf+offset, Contributors[i]);
+            fprintf(fp, " %-*s", width, buf);
         }
         fprintf(fp, "\n");
     }
-    fprintf(fp, "and the project leaders:\n");
-    fprintf(fp, "Mark Abraham, Berk Hess, Erik Lindahl, and David van der Spoel\n");
+    printCentered(fp, 78, "and the project leaders:");
     fprintf(fp, "\n");
+    printCentered(fp, 78, "Mark Abraham, Berk Hess, Erik Lindahl, and David van der Spoel");
+    fprintf(fp, "\n\n");
     for (int i = 0; i < NCR; ++i)
     {
         fprintf(fp, "%s\n", CopyrightText[i]);
@@ -387,6 +411,11 @@ void please_cite(FILE *fp, const char *key)
           "Thermodynamics of liquids: standard molar entropies and heat capacities of common solvents from 2PT molecular dynamics",
           "Phys. Chem. Chem. Phys.",
           13, 2011, "169-181" },
+        { "Caleman2008a",
+          "C. Caleman and D. van der Spoel",
+          "Picosecond Melting of Ice by an Infrared Laser Pulse: A Simulation Study",
+          "Angew. Chem. Int. Ed",
+          47, 2008, "1417-1420" },
         { "Caleman2011b",
           "C. Caleman and P. J. van Maaren and M. Hong and J. S. Hub and L. T. da Costa and D. van der Spoel",
           "Force Field Benchmark of Organic Liquids: Density, Enthalpy of Vaporization, Heat Capacities, Surface Tension, Isothermal Compressibility, Volumetric Expansion Coefficient, and Dielectric Constant",
@@ -571,7 +600,17 @@ void please_cite(FILE *fp, const char *key)
           "N. Goga and A. J. Rzepiela and A. H. de Vries and S. J. Marrink and H. J. C. Berendsen",
           "Efficient Algorithms for Langevin and DPD Dynamics",
           "J. Chem. Theory Comput.",
-          8, 2012, "3637--3649"}
+          8, 2012, "3637--3649"},
+        { "Pronk2013",
+          "S. Pronk, S. Páll, R. Schulz, P. Larsson, P. Bjelkmar, R. Apostolov, M. R. Shirts, J. C. Smith, P. M. Kasson, D. van der Spoel, B. Hess, and E. Lindahl",
+          "GROMACS 4.5: a high-throughput and highly parallel open source molecular simulation toolkit",
+          "Bioinformatics",
+          29, 2013, "845-54"},
+        { "Pall2015",
+          "S. Páll, M. J. Abraham, C. Kutzner, B. Hess, E. Lindahl",
+          "Tackling Exascale Software Challenges in Molecular Dynamics Simulations with GROMACS",
+          "In S. Markidis & E. Laure (Eds.), Solving Software Challenges for Exascale",
+          8759, 2015, "3-27" }
     };
 #define NSTR (int)asize(citedb)
 
@@ -618,29 +657,37 @@ const char *GromacsVersion()
 
 const char *ShortProgram(void)
 {
+    const char *programName = NULL;
+
     try
     {
         // TODO: Use the display name once it doesn't break anything.
-        return gmx::getProgramContext().programName();
+        programName = gmx::getProgramContext().programName();
     }
     GMX_CATCH_ALL_AND_EXIT_WITH_FATAL_ERROR;
+
+    return programName;
 }
 
 const char *Program(void)
 {
+    const char *programName = NULL;
+
     try
     {
-        return gmx::getProgramContext().fullBinaryPath();
+        programName = gmx::getProgramContext().fullBinaryPath();
     }
     GMX_CATCH_ALL_AND_EXIT_WITH_FATAL_ERROR;
+
+    return programName;
 }
 
 
-extern void gmx_print_version_info_gpu(FILE *fp);
+extern void gmx_print_version_info_cuda_gpu(FILE *fp);
 
 static void gmx_print_version_info(FILE *fp)
 {
-    fprintf(fp, "Gromacs version:    %s\n", gmx_version());
+    fprintf(fp, "GROMACS version:    %s\n", gmx_version());
     const char *const git_hash = gmx_version_git_full_hash();
     if (git_hash[0] != '\0')
     {
@@ -667,7 +714,7 @@ static void gmx_print_version_info(FILE *fp)
     fprintf(fp, "MPI library:        none\n");
 #endif
 #ifdef GMX_OPENMP
-    fprintf(fp, "OpenMP support:     enabled\n");
+    fprintf(fp, "OpenMP support:     enabled (GMX_OPENMP_MAX_THREADS = %d)\n", GMX_OPENMP_MAX_THREADS);
 #else
     fprintf(fp, "OpenMP support:     disabled\n");
 #endif
@@ -676,16 +723,16 @@ static void gmx_print_version_info(FILE *fp)
 #else
     fprintf(fp, "GPU support:        disabled\n");
 #endif
+#if defined(GMX_GPU) && defined(GMX_USE_OPENCL)
+    fprintf(fp, "OpenCL support:     enabled\n");
+#else
+    fprintf(fp, "OpenCL support:     disabled\n");
+#endif
     /* A preprocessor trick to avoid duplicating logic from vec.h */
 #define gmx_stringify2(x) #x
 #define gmx_stringify(x) gmx_stringify2(x)
     fprintf(fp, "invsqrt routine:    %s\n", gmx_stringify(gmx_invsqrt(x)));
-#ifndef __MIC__
     fprintf(fp, "SIMD instructions:  %s\n", GMX_SIMD_STRING);
-#else
-    fprintf(fp, "SIMD instructions:  %s\n", "Intel MIC");
-#endif
-
     fprintf(fp, "FFT library:        %s\n", gmx_fft_get_version_info());
 #ifdef HAVE_RDTSCP
     fprintf(fp, "RDTSCP usage:       enabled\n");
@@ -739,8 +786,14 @@ static void gmx_print_version_info(FILE *fp)
     fprintf(fp, "Boost version:      %d.%d.%d%s\n", BOOST_VERSION / 100000,
             BOOST_VERSION / 100 % 1000, BOOST_VERSION % 100,
             bExternalBoost ? " (external)" : " (internal)");
-#ifdef GMX_GPU
-    gmx_print_version_info_gpu(fp);
+#if defined(GMX_GPU)
+#ifdef GMX_USE_OPENCL
+    fprintf(fp, "OpenCL include dir: %s\n", OPENCL_INCLUDE_DIR);
+    fprintf(fp, "OpenCL library:     %s\n", OPENCL_LIBRARY);
+    fprintf(fp, "OpenCL version:     %s\n", OPENCL_VERSION_STRING);
+#else
+    gmx_print_version_info_cuda_gpu(fp);
+#endif
 #endif
 }
 
@@ -786,38 +839,42 @@ void printBinaryInformation(FILE                            *fp,
     {
         fprintf(fp, "%sCreated by:%s\n", prefix, suffix);
     }
+    // TODO: It would be nice to know here whether we are really running a
+    // Gromacs binary or some other binary that is calling Gromacs; we
+    // could then print "%s is part of GROMACS" or some alternative text.
+    std::string title
+        = formatString(":-) GROMACS - %s, %s%s (-:", name, gmx_version(), precisionString);
+    const int   indent
+        = centeringOffset(78 - strlen(prefix) - strlen(suffix), title.length()) + 1;
+    fprintf(fp, "%s%*c%s%s\n", prefix, indent, ' ', title.c_str(), suffix);
+    fprintf(fp, "%s%s\n", prefix, suffix);
     if (settings.bCopyright_)
     {
         GMX_RELEASE_ASSERT(prefix[0] == '\0' && suffix[0] == '\0',
                            "Prefix/suffix not supported with copyright");
+        printCopyright(fp);
+        fprintf(fp, "\n");
         // This line is printed again after the copyright notice to make it
         // appear together with all the other information, so that it is not
         // necessary to read stuff above the copyright notice.
         // The line above the copyright notice puts the copyright notice is
         // context, though.
-        // TODO: It would be nice to know here whether we are really running a
-        // Gromacs binary or some other binary that is calling Gromacs; we
-        // could then print "%s is part of GROMACS" or some alternative text.
-        fprintf(fp, "%sGROMACS:    %s, %s%s%s\n", prefix, name,
+        fprintf(fp, "%sGROMACS:      %s, %s%s%s\n", prefix, name,
                 gmx_version(), precisionString, suffix);
-        fprintf(fp, "\n");
-        printCopyright(fp);
-        fprintf(fp, "\n");
     }
-    fprintf(fp, "%sGROMACS:      %s, %s%s%s\n", prefix, name,
-            gmx_version(), precisionString, suffix);
     const char *const binaryPath = programContext.fullBinaryPath();
-    if (binaryPath != NULL && binaryPath[0] != '\0')
+    if (!gmx::isNullOrEmpty(binaryPath))
     {
         fprintf(fp, "%sExecutable:   %s%s\n", prefix, binaryPath, suffix);
     }
-    const char *const libraryPath = programContext.defaultLibraryDataPath();
-    if (libraryPath != NULL && libraryPath[0] != '\0')
+    const gmx::InstallationPrefixInfo installPrefix = programContext.installationPrefix();
+    if (!gmx::isNullOrEmpty(installPrefix.path))
     {
-        fprintf(fp, "%sLibrary dir:  %s%s\n", prefix, libraryPath, suffix);
+        fprintf(fp, "%sData prefix:  %s%s%s\n", prefix, installPrefix.path,
+                installPrefix.bSourceLayout ? " (source tree)" : "", suffix);
     }
     const char *const commandLine = programContext.commandLine();
-    if (commandLine != NULL && commandLine[0] != '\0')
+    if (!gmx::isNullOrEmpty(commandLine))
     {
         fprintf(fp, "%sCommand line:%s\n%s  %s%s\n",
                 prefix, suffix, prefix, commandLine, suffix);

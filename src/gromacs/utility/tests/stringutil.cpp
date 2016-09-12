@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2012,2014, by the GROMACS development team, led by
+ * Copyright (c) 2012,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -43,13 +43,17 @@
  * \author Teemu Murtola <teemu.murtola@gmail.com>
  * \ingroup module_utility
  */
+#include "gmxpre.h"
+
+#include "gromacs/utility/stringutil.h"
+
 #include <string>
 #include <vector>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-#include "gromacs/utility/stringutil.h"
+#include "gromacs/utility/arrayref.h"
 
 #include "testutils/refdata.h"
 #include "testutils/stringtest.h"
@@ -139,22 +143,43 @@ TEST(FormatStringTest, HandlesLongStrings)
 }
 
 /********************************************************************
- * Tests for concatenateStrings()
+ * Tests for StringFormatter
  */
 
-//! Test fixture for gmx::concatenateStrings().
-typedef gmx::test::StringTestBase ConcatenateStringsTest;
-
-TEST_F(ConcatenateStringsTest, HandlesDifferentStringEndings)
+TEST(StringFormatterTest, HandlesBasicFormatting)
 {
-    static const char * const strings[] = {
-        "First string",
-        "Second string ",
-        "Third string\n",
-        "Fourth string",
-        ""
-    };
-    checkText(gmx::concatenateStrings(strings), "CombinedStrings");
+    int value = 103;
+    EXPECT_EQ("103", gmx::StringFormatter("%d") (value));
+    EXPECT_EQ("null", gmx::StringFormatter("null") (value));
+}
+
+/********************************************************************
+ * Tests for formatAndJoin
+ */
+
+TEST(formatAndJoinTest, Works)
+{
+    const char * const words[] = { "The", "quick", "brown", "fox" };
+    EXPECT_EQ("The       .quick     .brown     .fox       ",
+              gmx::formatAndJoin(gmx::ConstArrayRef<const char *>(words), ".",
+                                 gmx::StringFormatter("%-10s")));
+
+    const int values[] = { 0, 1, 4 };
+    EXPECT_EQ("0,1,4", gmx::formatAndJoin(gmx::ConstArrayRef<int>(values), ",",
+                                          gmx::StringFormatter("%d")));
+}
+
+/********************************************************************
+ * Tests for joinStrings
+ */
+
+TEST(JoinStringsTest, Works)
+{
+    const char * const               words[] = { "The", "quick", "brown", "fox" };
+    gmx::ConstArrayRef<const char *> refToWords(words);
+    EXPECT_EQ("The; quick; brown; fox", gmx::joinStrings(refToWords.begin(), refToWords.end(), "; "));
+    EXPECT_EQ("The-quick-brown-fox", gmx::joinStrings(refToWords, "-"));
+    EXPECT_EQ("The-quick-brown-fox", gmx::joinStrings(words, "-"));
 }
 
 /********************************************************************
@@ -213,6 +238,8 @@ TEST(ReplaceAllTest, HandlesPossibleRecursiveMatches)
 const char g_wrapText[] = "A quick brown fox jumps over the lazy dog";
 //! Test string for wrapping with embedded line breaks.
 const char g_wrapText2[] = "A quick brown fox jumps\nover the lazy dog";
+//! Test string for wrapping with embedded line breaks and an empty line.
+const char g_wrapText3[] = "A quick brown fox jumps\n\nover the lazy dog";
 //! Test string for wrapping with a long word.
 const char g_wrapTextLongWord[]
     = "A quick brown fox jumps awordthatoverflowsaline over the lazy dog";
@@ -304,6 +331,16 @@ TEST_F(TextLineWrapperTest, HandlesIndent)
     checkText(wrapper.wrapToString(g_wrapText2), "WrappedWithNoLimit");
     wrapper.settings().setLineLength(16);
     checkText(wrapper.wrapToString(g_wrapText2), "WrappedAt14");
+}
+
+TEST_F(TextLineWrapperTest, HandlesIndentWithEmptyLines)
+{
+    gmx::TextLineWrapper wrapper;
+    wrapper.settings().setIndent(2);
+
+    checkText(wrapper.wrapToString(g_wrapText3), "WrappedWithNoLimit");
+    wrapper.settings().setLineLength(16);
+    checkText(wrapper.wrapToString(g_wrapText3), "WrappedAt14");
 }
 
 TEST_F(TextLineWrapperTest, HandlesHangingIndent)

@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2012,2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2012,2013,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -36,9 +36,11 @@
 #ifndef _nbnxn_internal_h
 #define _nbnxn_internal_h
 
-#include "typedefs.h"
-#include "nbnxn_simd.h"
-#include "domdec.h"
+#include "gromacs/domdec/domdec.h"
+#include "gromacs/legacyheaders/typedefs.h"
+#include "gromacs/mdlib/nbnxn_pairlist.h"
+#include "gromacs/mdlib/nbnxn_simd.h"
+#include "gromacs/simd/simd.h"
 #include "gromacs/timing/cyclecounter.h"
 
 
@@ -97,6 +99,7 @@ typedef struct {
 typedef struct {
     rvec          c0;               /* The lower corner of the (local) grid        */
     rvec          c1;               /* The upper corner of the (local) grid        */
+    rvec          size;             /* c1 - c0                                     */
     real          atom_density;     /* The atom number density for the local grid  */
 
     gmx_bool      bSimple;          /* Is this grid simple or super/sub            */

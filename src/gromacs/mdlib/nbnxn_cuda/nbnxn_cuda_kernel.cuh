@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2012,2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2012,2013,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -33,17 +33,34 @@
  * the research papers on the package. Check out http://www.gromacs.org.
  */
 
+/*! \internal \file
+ *  \brief
+ *  CUDA non-bonded kernel used through preprocessor-based code generation
+ *  of multiple kernel flavors, see nbnxn_cuda_kernels.cuh.
+ *
+ *  NOTE: No include fence as it is meant to be included multiple times.
+ *
+ *  \author Szilárd Páll <pall.szilard@gmail.com>
+ *  \ingroup module_mdlib
+ */
+#include "config.h"
+
 #include "gromacs/math/utilities.h"
+#include "gromacs/pbcutil/ishift.h"
 /* Note that floating-point constants in CUDA code should be suffixed
  * with f (e.g. 0.5f), to stop the compiler producing intermediate
  * code that is in double precision.
  */
 
 #if __CUDA_ARCH__ >= 300
+/* Note: convenience macros, need to be undef-ed at the end of the file. */
 #define REDUCE_SHUFFLE
 /* On Kepler pre-loading i-atom types to shmem gives a few %,
    but on Fermi it does not */
 #define IATYPE_SHMEM
+#ifdef HAVE_CUDA_TEXOBJ_SUPPORT
+#define USE_TEXOBJ
+#endif
 #endif
 
 #if defined EL_EWALD_ANA || defined EL_EWALD_TAB
@@ -66,16 +83,35 @@
 #define LJ_EWALD
 #endif
 
+
 /*
    Kernel launch parameters:
     - #blocks   = #pair lists, blockId = pair list Id
-    - #threads  = CL_SIZE^2
-    - shmem     = CL_SIZE^2 * sizeof(float)
+    - #threads  = NTHREAD_Z * CL_SIZE^2
+    - shmem     = see nbnxn_cuda.cu:calc_shmem_required()
 
     Each thread calculates an i force-component taking one pair of i-j atoms.
  */
+
+/* Kernel launch bounds as function of NTHREAD_Z.
+ * - CC 3.5/5.2: NTHREAD_Z=1, (64, 16) bounds
+ * - CC 3.7:     NTHREAD_Z=2, (128, 16) bounds
+ *
+ * Note: convenience macros, need to be undef-ed at the end of the file.
+ */
+#if __CUDA_ARCH__ == 370
+#define NTHREAD_Z           (2)
+#define MIN_BLOCKS_PER_MP   (16)
+#else
+#define NTHREAD_Z           (1)
+#define MIN_BLOCKS_PER_MP   (16)
+#endif
+#define THREADS_PER_BLOCK   (CL_SIZE*CL_SIZE*NTHREAD_Z)
+
 #if __CUDA_ARCH__ >= 350
-__launch_bounds__(64, 16)
+__launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
+#else
+__launch_bounds__(THREADS_PER_BLOCK)
 #endif
 #ifdef PRUNE_NBL
 #ifdef CALC_ENERGIES
@@ -144,6 +180,11 @@ __global__ void NB_KERNEL_FUNC_NAME(nbnxn_kernel, _F_cuda)
     unsigned int tidxi  = threadIdx.x;
     unsigned int tidxj  = threadIdx.y;
     unsigned int tidx   = threadIdx.y * blockDim.x + threadIdx.x;
+#if NTHREAD_Z == 1
+    unsigned int tidxz  = 0;
+#else
+    unsigned int tidxz  = threadIdx.z;
+#endif
     unsigned int bidx   = blockIdx.x;
     unsigned int widx   = tidx / WARP_SIZE; /* warp index */
 
@@ -165,17 +206,17 @@ __global__ void NB_KERNEL_FUNC_NAME(nbnxn_kernel, _F_cuda)
 #endif
     unsigned int wexcl, imask, mask_ji;
     float4       xqbuf;
-    float3       xi, xj, rv, f_ij, fcj_buf, fshift_buf;
+    float3       xi, xj, rv, f_ij, fcj_buf;
     float3       fci_buf[NCL_PER_SUPERCL]; /* i force buffer */
     nbnxn_sci_t  nb_sci;
 
     /* shmem buffer for i x+q pre-loading */
     extern __shared__  float4 xqib[];
-    /* shmem buffer for cj, for both warps separately */
-    int *cjs     = (int *)(xqib + NCL_PER_SUPERCL * CL_SIZE);
+    /* shmem buffer for cj, for each warp separately */
+    int *cjs     = ((int *)(xqib + NCL_PER_SUPERCL * CL_SIZE)) + tidxz * 2 * NBNXN_GPU_JGROUP_SIZE;
 #ifdef IATYPE_SHMEM
     /* shmem buffer for i atom-type pre-loading */
-    int *atib = (int *)(cjs + 2 * NBNXN_GPU_JGROUP_SIZE);
+    int *atib    = ((int *)(xqib + NCL_PER_SUPERCL * CL_SIZE)) + NTHREAD_Z * 2 * NBNXN_GPU_JGROUP_SIZE;
 #endif
 
 #ifndef REDUCE_SHUFFLE
@@ -183,7 +224,7 @@ __global__ void NB_KERNEL_FUNC_NAME(nbnxn_kernel, _F_cuda)
 #ifdef IATYPE_SHMEM
     float *f_buf = (float *)(atib + NCL_PER_SUPERCL * CL_SIZE);
 #else
-    float *f_buf = (float *)(cjs + 2 * NBNXN_GPU_JGROUP_SIZE);
+    float *f_buf = (float *)(cjs + NTHREAD_Z * 2 * NBNXN_GPU_JGROUP_SIZE);
 #endif
 #endif
 
@@ -192,14 +233,17 @@ __global__ void NB_KERNEL_FUNC_NAME(nbnxn_kernel, _F_cuda)
     cij4_start  = nb_sci.cj4_ind_start; /* first ...*/
     cij4_end    = nb_sci.cj4_ind_end;   /* and last index of j clusters */
 
-    /* Pre-load i-atom x and q into shared memory */
-    ci = sci * NCL_PER_SUPERCL + tidxj;
-    ai = ci * CL_SIZE + tidxi;
-    xqib[tidxj * CL_SIZE + tidxi] = xq[ai] + shift_vec[nb_sci.shift];
+    if (tidxz == 0)
+    {
+        /* Pre-load i-atom x and q into shared memory */
+        ci = sci * NCL_PER_SUPERCL + tidxj;
+        ai = ci * CL_SIZE + tidxi;
+        xqib[tidxj * CL_SIZE + tidxi] = xq[ai] + shift_vec[nb_sci.shift];
 #ifdef IATYPE_SHMEM
-    /* Pre-load the i-atom types into shared memory */
-    atib[tidxj * CL_SIZE + tidxi] = atom_types[ai];
+        /* Pre-load the i-atom types into shared memory */
+        atib[tidxj * CL_SIZE + tidxi] = atom_types[ai];
 #endif
+    }
     __syncthreads();
 
     for (ci_offset = 0; ci_offset < NCL_PER_SUPERCL; ci_offset++)
@@ -241,12 +285,12 @@ __global__ void NB_KERNEL_FUNC_NAME(nbnxn_kernel, _F_cuda)
 
         /* divide the self term(s) equally over the j-threads, then multiply with the coefficients. */
 #ifdef LJ_EWALD
-        E_lj /= CL_SIZE;
+        E_lj /= CL_SIZE*NTHREAD_Z;
         E_lj *= 0.5f*ONE_SIXTH_F*lje_coeff6_6;
 #endif  /* LJ_EWALD */
 
 #if defined EL_EWALD_ANY || defined EL_RF || defined EL_CUTOFF
-        E_el /= CL_SIZE;
+        E_el /= CL_SIZE*NTHREAD_Z;
 #if defined EL_RF || defined EL_CUTOFF
         E_el *= -nbparam.epsfac*0.5f*c_rf;
 #else
@@ -264,10 +308,8 @@ __global__ void NB_KERNEL_FUNC_NAME(nbnxn_kernel, _F_cuda)
         bCalcFshift = false;
     }
 
-    fshift_buf = make_float3(0.0f);
-
     /* loop over the j clusters = seen by any of the atoms in the current super-cluster */
-    for (j4 = cij4_start; j4 < cij4_end; j4++)
+    for (j4 = cij4_start + tidxz; j4 < cij4_end; j4 += NTHREAD_Z)
     {
         wexcl_idx   = pl_cj4[j4].imei[widx].excl_ind;
         imask       = pl_cj4[j4].imei[widx].imask;
@@ -288,12 +330,15 @@ __global__ void NB_KERNEL_FUNC_NAME(nbnxn_kernel, _F_cuda)
                - on Kepler is much slower;
                - doesn't work on CUDA <v4.1
                Tested with nvcc 3.2 - 5.0.7 */
-#if !defined PRUNE_NBL && __CUDA_ARCH__ < 300 && CUDA_VERSION >= 4010
+#if !defined PRUNE_NBL && __CUDA_ARCH__ < 300 && GMX_CUDA_VERSION >= 4010
 #pragma unroll 4
 #endif
             for (jm = 0; jm < NBNXN_GPU_JGROUP_SIZE; jm++)
             {
-                if (imask & (supercl_interaction_mask << (jm * NCL_PER_SUPERCL)))
+                /* ((1U << NCL_PER_SUPERCL) - 1U) is the i-cluster interaction
+                 * mask for a super-cluster with all NCL_PER_SUPERCL bits set.
+                 */
+                if (imask & (((1U << NCL_PER_SUPERCL) - 1U) << (jm * NCL_PER_SUPERCL)))
                 {
                     mask_ji = (1U << (jm * NCL_PER_SUPERCL));
 
@@ -309,7 +354,7 @@ __global__ void NB_KERNEL_FUNC_NAME(nbnxn_kernel, _F_cuda)
                     fcj_buf = make_float3(0.0f);
 
                     /* The PME and RF kernels don't unroll with CUDA <v4.1. */
-#if !defined PRUNE_NBL && !(CUDA_VERSION < 4010 && defined EXCLUSION_FORCES)
+#if !defined PRUNE_NBL && !(GMX_CUDA_VERSION < 4010 && defined EXCLUSION_FORCES)
 #pragma unroll 8
 #endif
                     for (i = 0; i < NCL_PER_SUPERCL; i++)
@@ -505,6 +550,8 @@ __global__ void NB_KERNEL_FUNC_NAME(nbnxn_kernel, _F_cuda)
         }
     }
 
+    float fshift_buf = 0.0f;
+
     /* reduce i forces */
     for (ci_offset = 0; ci_offset < NCL_PER_SUPERCL; ci_offset++)
     {
@@ -525,17 +572,18 @@ __global__ void NB_KERNEL_FUNC_NAME(nbnxn_kernel, _F_cuda)
 #endif
     }
 
-    /* add up local shift forces into global mem */
+    /* add up local shift forces into global mem, tidxj indexes x,y,z */
 #ifdef REDUCE_SHUFFLE
-    if (bCalcFshift && (tidxj == 0 || tidxj == 4))
-#else
-    if (bCalcFshift && tidxj == 0)
-#endif
+    if (bCalcFshift && (tidxj & 3) < 3)
     {
-        atomicAdd(&atdat.fshift[nb_sci.shift].x, fshift_buf.x);
-        atomicAdd(&atdat.fshift[nb_sci.shift].y, fshift_buf.y);
-        atomicAdd(&atdat.fshift[nb_sci.shift].z, fshift_buf.z);
+        atomicAdd(&(atdat.fshift[nb_sci.shift].x) + (tidxj & ~4), fshift_buf);
     }
+#else
+    if (bCalcFshift && tidxj < 3)
+    {
+        atomicAdd(&(atdat.fshift[nb_sci.shift].x) + tidxj, fshift_buf);
+    }
+#endif
 
 #ifdef CALC_ENERGIES
 #ifdef REDUCE_SHUFFLE
@@ -549,6 +597,14 @@ __global__ void NB_KERNEL_FUNC_NAME(nbnxn_kernel, _F_cuda)
 #endif
 #endif
 }
+
+#undef REDUCE_SHUFFLE
+#undef IATYPE_SHMEM
+#undef USE_TEXOBJ
+
+#undef NTHREAD_Z
+#undef MIN_BLOCKS_PER_MP
+#undef THREADS_PER_BLOCK
 
 #undef EL_EWALD_ANY
 #undef EXCLUSION_FORCES

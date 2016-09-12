@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2009,2010,2012,2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2009,2010,2012,2013,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -32,15 +32,24 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
+#include "gmxpre.h"
 
-#include <algorithm>
+#include "fft5d.h"
 
+#include "config.h"
+
+#include <assert.h>
+#include <float.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include <algorithm>
+
+#include "gromacs/utility/fatalerror.h"
+#include "gromacs/utility/gmxmpi.h"
+#include "gromacs/utility/smalloc.h"
 
 #ifdef NOGMX
 #define GMX_PARALLEL_ENV_INITIALIZED 1
@@ -52,20 +61,12 @@
 #endif
 #endif
 
-#include "gromacs/utility/gmxmpi.h"
-
 #ifdef GMX_OPENMP
 /* TODO: Do we still need this? Are we still planning ot use fftw + OpenMP? */
 #define FFT5D_THREADS
 /* requires fftw compiled with openmp */
 /* #define FFT5D_FFTW_THREADS (now set by cmake) */
 #endif
-
-#include "fft5d.h"
-#include <float.h>
-#include <math.h>
-#include <assert.h>
-#include "gromacs/utility/smalloc.h"
 
 #ifndef __FLT_EPSILON__
 #define __FLT_EPSILON__ FLT_EPSILON
@@ -76,11 +77,9 @@
 FILE* debug = 0;
 #endif
 
-#include "gmx_fatal.h"
-
-
 #ifdef GMX_FFT_FFTW3
 #include "thread_mpi/mutex.h"
+
 #include "gromacs/utility/exceptions.h"
 /* none of the fftw3 calls, except execute(), are thread-safe, so
    we need to serialize them with this mutex. */
@@ -89,19 +88,18 @@ static tMPI::mutex big_fftw_mutex;
 #define FFTW_UNLOCK try { big_fftw_mutex.unlock(); } GMX_CATCH_ALL_AND_EXIT_WITH_FATAL_ERROR
 #endif /* GMX_FFT_FFTW3 */
 
+#ifdef GMX_MPI
 /* largest factor smaller than sqrt */
 static int lfactor(int z)
 {
-    int i;
-    for (i = static_cast<int>(sqrt(static_cast<double>(z)));; i--)
+    int i = static_cast<int>(sqrt(static_cast<double>(z)));
+    while (z%i != 0)
     {
-        if (z%i == 0)
-        {
-            return i;
-        }
+        i--;
     }
-    return 1;
+    return i;
 }
+#endif
 
 /* largest factor */
 static int l2factor(int z)
@@ -109,16 +107,17 @@ static int l2factor(int z)
     int i;
     if (z == 1)
     {
-        return 1;
+        i = 1;
     }
-    for (i = z/2;; i--)
+    else
     {
-        if (z%i == 0)
+        i = z/2;
+        while (z%i != 0)
         {
-            return i;
+            i--;
         }
     }
-    return 1;
+    return i;
 }
 
 /* largest prime factor: WARNING: slow recursion, only use for small numbers */
@@ -453,7 +452,14 @@ fft5d_plan fft5d_plan_3d(int NG, int MG, int KG, MPI_Comm comm[2], int flags, t_
         fprintf(debug, "Running on %d threads\n", nthreads);
     }
 
-#ifdef GMX_FFT_FFTW3                                                            /*if not FFTW - then we don't do a 3d plan but instead use only 1D plans */
+#ifdef GMX_FFT_FFTW3
+    /* Don't add more stuff here! We have already had at least one bug because we are reimplementing
+     * the low-level FFT interface instead of using the Gromacs FFT module. If we need more
+     * generic functionality it is far better to extend the interface so we can use it for
+     * all FFT libraries instead of writing FFTW-specific code here.
+     */
+
+    /*if not FFTW - then we don't do a 3d plan but instead use only 1D plans */
     /* It is possible to use the 3d plan with OMP threads - but in that case it is not allowed to be called from
      * within a parallel region. For now deactivated. If it should be supported it has to made sure that
      * that the execute of the 3d plan is in a master/serial block (since it contains it own parallel region)
@@ -466,10 +472,9 @@ fft5d_plan fft5d_plan_3d(int NG, int MG, int KG, MPI_Comm comm[2], int flags, t_
         int inNG = NG, outMG = MG, outKG = KG;
 
         FFTW_LOCK;
-        if (!(flags&FFT5D_NOMEASURE))
-        {
-            fftwflags |= FFTW_MEASURE;
-        }
+
+        fftwflags |= (flags & FFT5D_NOMEASURE) ? FFTW_ESTIMATE : FFTW_MEASURE;
+
         if (flags&FFT5D_REALCOMPLEX)
         {
             if (!(flags&FFT5D_BACKWARD))        /*input pointer is not complex*/
@@ -1006,7 +1011,7 @@ void fft5d_execute(fft5d_plan plan, int thread, fft5d_time times)
     s = 0;
 
     /*lin: x,y,z*/
-    if (plan->flags&FFT5D_DEBUG && thread == 0)
+    if ((plan->flags&FFT5D_DEBUG) && thread == 0)
     {
         print_localdata(lin, "%d %d: copy in lin\n", s, plan);
     }
@@ -1066,7 +1071,7 @@ void fft5d_execute(fft5d_plan plan, int thread, fft5d_time times)
             time_fft += MPI_Wtime()-time;
         }
 #endif
-        if (plan->flags&FFT5D_DEBUG && thread == 0)
+        if ((plan->flags&FFT5D_DEBUG) && thread == 0)
         {
             print_localdata(lout, "%d %d: FFT %d\n", s, plan);
         }
@@ -1187,7 +1192,7 @@ void fft5d_execute(fft5d_plan plan, int thread, fft5d_time times)
             time_local += MPI_Wtime()-time;
         }
 #endif
-        if (plan->flags&FFT5D_DEBUG && thread == 0)
+        if ((plan->flags&FFT5D_DEBUG) && thread == 0)
         {
             print_localdata(lin, "%d %d: tranposed %d\n", s+1, plan);
         }
@@ -1231,7 +1236,7 @@ void fft5d_execute(fft5d_plan plan, int thread, fft5d_time times)
     }
 #endif
 
-    if (plan->flags&FFT5D_DEBUG && thread == 0)
+    if ((plan->flags&FFT5D_DEBUG) && thread == 0)
     {
         print_localdata(lout, "%d %d: FFT %d\n", s, plan);
     }

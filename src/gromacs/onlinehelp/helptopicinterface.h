@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2012,2014, by the GROMACS development team, led by
+ * Copyright (c) 2012,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -32,7 +32,7 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-/*! \file
+/*! \libinternal \file
  * \brief
  * Declares gmx::HelpTopicInterface.
  *
@@ -43,28 +43,22 @@
 #ifndef GMX_ONLINEHELP_HELPTOPICINTERFACE_H
 #define GMX_ONLINEHELP_HELPTOPICINTERFACE_H
 
-#include "../utility/uniqueptr.h"
+#include "gromacs/utility/uniqueptr.h"
 
 namespace gmx
 {
 
 class HelpWriterContext;
 
-/*! \brief
+/*! \libinternal \brief
  * Provides a single online help topic.
  *
- * \if libapi
  * Implementations of these methods should not throw, except that writeHelp()
  * is allowed to throw on out-of-memory or I/O errors since those it cannot
  * avoid.
  *
  * Header helptopic.h contains classes that implement this interface and make
  * it simple to write concrete help topic classes.
- * \endif
- *
- * This class is in a public header, and exposed through HelpTopicPointer, but
- * it is not intended to be used outside the library.  To access a help topic
- * with public API methods, use HelpManager.
  *
  * \inlibraryapi
  * \ingroup module_onlinehelp

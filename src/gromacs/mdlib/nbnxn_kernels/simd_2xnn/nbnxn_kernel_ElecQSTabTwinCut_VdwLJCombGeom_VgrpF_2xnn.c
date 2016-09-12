@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2012,2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2012,2013,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -43,8 +43,12 @@
  * GMX_NBNXN_SIMD_2XNN, so that this file reduces to a stub
  * function definition when the kernel will never be called.
  */
+#include "gmxpre.h"
+
+#include "gromacs/mdlib/nbnxn_simd.h"
+
 #define GMX_SIMD_J_UNROLL_SIZE 2
-#include "nbnxn_kernel_simd_2xnn.h"
+#include "gromacs/mdlib/nbnxn_kernels/simd_2xnn/nbnxn_kernel_simd_2xnn.h"
 
 #define CALC_COUL_TAB
 #define VDW_CUTOFF_CHECK /* Use twin-range cut-off */
@@ -54,7 +58,7 @@
 #define ENERGY_GROUPS
 
 #ifdef GMX_NBNXN_SIMD_2XNN
-#include "nbnxn_kernel_simd_2xnn_common.h"
+#include "gromacs/mdlib/nbnxn_kernels/simd_2xnn/nbnxn_kernel_simd_2xnn_common.h"
 #endif /* GMX_NBNXN_SIMD_2XNN */
 
 #ifdef CALC_ENERGIES
@@ -77,7 +81,7 @@ nbnxn_kernel_ElecQSTabTwinCut_VdwLJCombGeom_VgrpF_2xnn(const nbnxn_pairlist_t   
                                                        real                      gmx_unused *fshift)
 #endif /* CALC_ENERGIES */
 #ifdef GMX_NBNXN_SIMD_2XNN
-#include "nbnxn_kernel_simd_2xnn_outer.h"
+#include "gromacs/mdlib/nbnxn_kernels/simd_2xnn/nbnxn_kernel_simd_2xnn_outer.h"
 #else /* GMX_NBNXN_SIMD_2XNN */
 {
 /* No need to call gmx_incons() here, because the only function

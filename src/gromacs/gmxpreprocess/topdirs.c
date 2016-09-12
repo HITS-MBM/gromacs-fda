@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -34,19 +34,17 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
+#include "gmxpre.h"
 
-#include <stdio.h>
-#include <stdarg.h>
-
-#include "sysstuff.h"
-#include "gromacs/utility/smalloc.h"
-#include "macros.h"
-#include "gromacs/utility/cstringutil.h"
-#include "gmx_fatal.h"
 #include "topdirs.h"
+
+#include <stdarg.h>
+#include <stdio.h>
+
+#include "gromacs/legacyheaders/macros.h"
+#include "gromacs/utility/cstringutil.h"
+#include "gromacs/utility/fatalerror.h"
+#include "gromacs/utility/smalloc.h"
 
 /* Must correspond to the directive enum in grompp-impl.h */
 static const char *directive_names[d_maxdir+1] = {
@@ -88,6 +86,7 @@ static const char *directive_names[d_maxdir+1] = {
     "orientation_restraints",
     "dihedral_restraints",
     "cmap",
+    "intermolecular_interactions",
     "invalid"
 };
 
@@ -398,6 +397,7 @@ void DS_Init(DirStack **DS)
         set_nec(&(necessary[d_orientation_restraints]), d_atoms, d_none);
         set_nec(&(necessary[d_dihedral_restraints]), d_atoms, d_none);
         set_nec(&(necessary[d_cmap]), d_atoms, d_none);
+        set_nec(&(necessary[d_intermolecular_interactions]), d_molecules, d_none);
 
         for (i = 0; (i < d_maxdir); i++)
         {

@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -34,32 +34,33 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
+#include "gmxpre.h"
 
-#include <math.h>
-#include "sysstuff.h"
-#include "typedefs.h"
-#include "gromacs/utility/smalloc.h"
-#include "sysstuff.h"
-#include <errno.h>
-#include "macros.h"
-#include "gromacs/utility/cstringutil.h"
 #include "confio.h"
-#include "vec.h"
-#include "symtab.h"
-#include "futil.h"
-#include "xdrf.h"
-#include "filenm.h"
-#include "pdbio.h"
-#include "tpxio.h"
-#include "trxio.h"
-#include "gmx_fatal.h"
-#include "copyrite.h"
-#include "pbc.h"
-#include "mtop_util.h"
-#include "gmxfio.h"
+
+#include <errno.h>
+#include <math.h>
+#include <stdio.h>
+
+#include "gromacs/fileio/filenm.h"
+#include "gromacs/fileio/gmxfio.h"
+#include "gromacs/fileio/pdbio.h"
+#include "gromacs/fileio/tpxio.h"
+#include "gromacs/fileio/trx.h"
+#include "gromacs/fileio/trxio.h"
+#include "gromacs/fileio/xdrf.h"
+#include "gromacs/legacyheaders/copyrite.h"
+#include "gromacs/legacyheaders/macros.h"
+#include "gromacs/legacyheaders/typedefs.h"
+#include "gromacs/math/vec.h"
+#include "gromacs/pbcutil/pbc.h"
+#include "gromacs/topology/mtop_util.h"
+#include "gromacs/topology/symtab.h"
+#include "gromacs/topology/topology.h"
+#include "gromacs/utility/cstringutil.h"
+#include "gromacs/utility/fatalerror.h"
+#include "gromacs/utility/futil.h"
+#include "gromacs/utility/smalloc.h"
 
 #define CHAR_SHIFT 24
 
@@ -254,7 +255,7 @@ int read_g96_conf(FILE *fp, const char *infile, t_trxframe *fr, char *line)
         if (fr->title == NULL)
         {
             fgets2(line, STRLEN, fp);
-            fr->title = strdup(line);
+            fr->title = gmx_strdup(line);
         }
         bEnd = FALSE;
         while (!bEnd && fgets2(line, STRLEN, fp))
@@ -922,6 +923,7 @@ static gmx_bool get_w_conf(FILE *in, const char *infile, char *title,
                            rvec x[], rvec *v, matrix box)
 {
     char       name[6];
+    char       resname[6], oldresname[6];
     char       line[STRLEN+1], *ptr;
     char       buf[256];
     double     x1, y1, z1, x2, y2, z2;
@@ -951,6 +953,9 @@ static gmx_bool get_w_conf(FILE *in, const char *infile, char *title,
     bFirst = TRUE;
 
     bVel = FALSE;
+
+    resname[0]     = '\0';
+    oldresname[0]  = '\0';
 
     /* just pray the arrays are big enough */
     for (i = 0; (i < natoms); i++)
@@ -999,9 +1004,9 @@ static gmx_bool get_w_conf(FILE *in, const char *infile, char *title,
         memcpy(name, line, 5);
         name[5] = '\0';
         sscanf(name, "%d", &resnr);
-        memcpy(name, line+5, 5);
-        name[5] = '\0';
-        if (resnr != oldres)
+        sscanf(line+5, "%5s", resname);
+
+        if (resnr != oldres || strncmp(resname, oldresname, sizeof(resname)))
         {
             oldres = resnr;
             newres++;
@@ -1011,7 +1016,7 @@ static gmx_bool get_w_conf(FILE *in, const char *infile, char *title,
                           infile, natoms);
             }
             atoms->atom[i].resind = newres;
-            t_atoms_set_resinfo(atoms, i, symtab, name, resnr, ' ', 0, ' ');
+            t_atoms_set_resinfo(atoms, i, symtab, resname, resnr, ' ', 0, ' ');
         }
         else
         {
@@ -1021,6 +1026,9 @@ static gmx_bool get_w_conf(FILE *in, const char *infile, char *title,
         /* atomname */
         memcpy(name, line+10, 5);
         atoms->atomname[i] = put_symtab(symtab, name);
+
+        /* Copy resname to oldresname after we are done with the sanity check above */
+        strncpy(oldresname, resname, sizeof(oldresname));
 
         /* eventueel controle atomnumber met i+1 */
 
@@ -1145,6 +1153,18 @@ static void read_whole_conf(const char *infile, char *title,
     gmx_fio_fclose(in);
 }
 
+static gmx_bool gmx_one_before_eof(FILE *fp)
+{
+    char     data[4];
+    gmx_bool beof;
+
+    if ((beof = fread(data, 1, 1, fp)) == 1)
+    {
+        gmx_fseek(fp, -1, SEEK_CUR);
+    }
+    return !beof;
+}
+
 gmx_bool gro_next_x_or_v(FILE *status, t_trxframe *fr)
 {
     t_atoms  atoms;
@@ -1153,7 +1173,7 @@ gmx_bool gro_next_x_or_v(FILE *status, t_trxframe *fr)
     double   tt;
     int      ndec = 0, i;
 
-    if (gmx_eof(status))
+    if (gmx_one_before_eof(status))
     {
         return FALSE;
     }
@@ -1470,8 +1490,6 @@ void write_sto_conf_indexed(const char *outfile, const char *title,
             gmx_fio_fclose(out);
             break;
         case efTPR:
-        case efTPB:
-        case efTPA:
             gmx_fatal(FARGS, "Sorry, can not write a topology to %s", outfile);
             break;
         default:
@@ -1525,8 +1543,6 @@ void write_sto_conf(const char *outfile, const char *title, t_atoms *atoms,
             gmx_fio_fclose(out);
             break;
         case efTPR:
-        case efTPB:
-        case efTPA:
             gmx_fatal(FARGS, "Sorry, can not write a topology to %s", outfile);
             break;
         default:
@@ -1598,8 +1614,6 @@ void get_stx_coordnum(const char *infile, int *natoms)
         case efESP:
             *natoms = get_espresso_coordnum(infile);
             break;
-        case efTPA:
-        case efTPB:
         case efTPR:
         {
             t_tpxheader tpx;
@@ -1668,8 +1682,6 @@ void read_stx_conf(const char *infile, char *title, t_atoms *atoms,
             read_espresso_conf(infile, atoms, x, v, box);
             break;
         case efTPR:
-        case efTPB:
-        case efTPA:
             snew(mtop, 1);
             i = read_tpx(infile, NULL, box, &natoms, x, v, NULL, mtop);
             if (ePBC)

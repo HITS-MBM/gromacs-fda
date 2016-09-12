@@ -1,7 +1,7 @@
 #
 # This file is part of the GROMACS molecular simulation package.
 #
-# Copyright (c) 2009,2010,2011,2012,2013,2014, by the GROMACS development team, led by
+# Copyright (c) 2009,2010,2011,2012,2013,2014,2015, by the GROMACS development team, led by
 # Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
 # and including many others, as listed in the AUTHORS file in the
 # top-level source directory and at http://www.gromacs.org.
@@ -38,14 +38,18 @@
 include(GetCompilerInfo.cmake)
 get_compiler_info(C BUILD_C_COMPILER BUILD_CFLAGS)
 get_compiler_info(CXX BUILD_CXX_COMPILER BUILD_CXXFLAGS)
-if(GMX_GPU)
+if(GMX_GPU AND NOT GMX_USE_OPENCL)
     get_cuda_compiler_info(CUDA_NVCC_COMPILER_INFO CUDA_NVCC_COMPILER_FLAGS)
 endif()
 
 configure_file(config.h.cmakein config.h)
+configure_file(gmxpre-config.h.cmakein gmxpre-config.h)
 configure_file(buildinfo.h.cmakein buildinfo.h ESCAPE_QUOTES)
 
 if (BUILD_TESTING)
+    if(NOT GMX_DEVELOPER_BUILD)
+        set(UNITTEST_TARGET_OPTIONS EXCLUDE_FROM_ALL)
+    endif()
     if (GMX_BUILD_UNITTESTS)
         add_subdirectory(external/gmock-1.7.0)
     endif()

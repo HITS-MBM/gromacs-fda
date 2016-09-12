@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2009,2010,2011,2012,2013, by the GROMACS development team, led by
+ * Copyright (c) 2009,2010,2011,2012,2013,2014, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -61,12 +61,17 @@
 #ifndef GMX_SELECTION_INDEXUTIL_H
 #define GMX_SELECTION_INDEXUTIL_H
 
+#include <cstdio>
+
 #include <string>
 
-#include "../legacyheaders/typedefs.h"
+#include "gromacs/legacyheaders/types/simple.h"
+#include "gromacs/topology/block.h"
+
+struct t_topology;
 
 /** Stores a set of index groups. */
-typedef struct gmx_ana_indexgrps_t gmx_ana_indexgrps_t;
+struct gmx_ana_indexgrps_t;
 
 /*! \brief
  * Specifies the type of index partition or index mapping in several contexts.
@@ -85,7 +90,7 @@ typedef enum
 /*! \brief
  * Stores a single index group.
  */
-typedef struct gmx_ana_index_t
+struct gmx_ana_index_t
 {
     /** Number of atoms. */
     int                 isize;
@@ -93,12 +98,12 @@ typedef struct gmx_ana_index_t
     atom_id            *index;
     /** Number of items allocated for \p index. */
     int                 nalloc_index;
-} gmx_ana_index_t;
+};
 
 /*! \brief
  * Data structure for calculating index group mappings.
  */
-typedef struct gmx_ana_indexmap_t
+struct gmx_ana_indexmap_t
 {
     /** Type of the mapping. */
     e_index_t           type;
@@ -117,10 +122,10 @@ typedef struct gmx_ana_indexmap_t
     /*! \brief
      * Current mapped IDs.
      *
-     * This array provides an arbitrary mapping from the current index group
-     * to the original index group. Instead of a zero-based mapping, the
-     * values from the \p orgid array are used. That is,
-     * \c mapid[i]=orgid[refid[i]].
+     * This array provides IDs for the current index group.  Instead of a
+     * zero-based mapping that \p refid provides, the values from the \p orgid
+     * array are used, thus allowing the mapping to be customized.
+     * In other words, `mapid[i] = orgid[refid[i]]`.
      * If \p bMaskOnly is provided to gmx_ana_indexmap_update(), this array
      * equals \p orgid.
      */
@@ -134,17 +139,18 @@ typedef struct gmx_ana_indexmap_t
     t_blocka            mapb;
 
     /*! \brief
-     * Arbitrary ID numbers for the blocks.
+     * Customizable ID numbers for the original blocks.
      *
-     * This array has \p b.nr elements, each defining an ID number for a
-     * block in \p b.
+     * This array has \p b.nr elements, each defining an original ID number for
+     * a block in \p b (i.e., in the original group passed to
+     * gmx_ana_indexmap_init()).
      * These are initialized in gmx_ana_indexmap_init() based on the type:
      *  - \ref INDEX_ATOM : the atom indices
-     *  - \ref INDEX_RES :  the residue numbers
-     *  - \ref INDEX_MOL :  the molecule numbers
+     *  - \ref INDEX_RES :  the residue indices
+     *  - \ref INDEX_MOL :  the molecule indices
      *
      * All the above numbers are zero-based.
-     * After gmx_ana_indexmap_init(), the user is free to change these values
+     * After gmx_ana_indexmap_init(), the caller is free to change these values
      * if the above are not appropriate.
      * The mapped values can be read through \p mapid.
      */
@@ -168,7 +174,7 @@ typedef struct gmx_ana_indexmap_t
      * actually static.
      */
     bool                bStatic;
-} gmx_ana_indexmap_t;
+};
 
 
 /*! \name Functions for handling gmx_ana_indexgrps_t
@@ -231,9 +237,27 @@ gmx_ana_index_copy(gmx_ana_index_t *dest, gmx_ana_index_t *src, bool bAlloc);
 void
 gmx_ana_index_dump(FILE *fp, gmx_ana_index_t *g, int maxn);
 
+/*! \brief
+ * Returns maximum atom index that appears in an index group.
+ *
+ * \param[in]  g      Index group to query.
+ * \returns    Largest atom index that appears in \p g, or zero if \p g is empty.
+ */
+int
+gmx_ana_index_get_max_index(gmx_ana_index_t *g);
 /** Checks whether an index group is sorted. */
 bool
 gmx_ana_index_check_sorted(gmx_ana_index_t *g);
+/*! \brief
+ * Checks whether an index group has atoms from a defined range.
+ *
+ * \param[in]  g      Index group to check.
+ * \param[in]  natoms Largest atom number allowed.
+ * \returns    true if all atoms in the index group are in the
+ *     range 0 to \p natoms (i.e., no atoms over \p natoms are referenced).
+ */
+bool
+gmx_ana_index_check_range(gmx_ana_index_t *g, int natoms);
 /*@}*/
 
 /*! \name Functions for set operations on gmx_ana_index_t
@@ -301,6 +325,33 @@ gmx_ana_indexmap_reserve(gmx_ana_indexmap_t *m, int nr, int isize);
 void
 gmx_ana_indexmap_init(gmx_ana_indexmap_t *m, gmx_ana_index_t *g,
                       t_topology *top, e_index_t type);
+/*! \brief
+ * Initializes `orgid` entries based on topology grouping.
+ *
+ * \param[in,out] m     Mapping structure to use/initialize.
+ * \param[in]     top   Topology structure
+ *     (can be NULL if not required for \p type).
+ * \param[in]     type  Type of groups to use.
+ * \returns  The number of groups of type \p type that were present in \p m.
+ * \throws   InconsistentInputError if the blocks in \p m do not have a unique
+ *     group (e.g., contain atoms from multiple residues with `type == INDEX_RES`).
+ *
+ * By default, the gmx_ana_indexmap_t::orgid fields are initialized to
+ * atom/residue/molecule indices from the topology (see documentation for the
+ * struct for more details).
+ * This function can be used to set the field to a zero-based group index
+ * instead.  The first block will always get `orgid[0] = 0`, and all following
+ * blocks that belong to the same residue/molecule (\p type) will get the same
+ * index.  Each time a block does not belong to the same group, it will get the
+ * next available number.
+ * If `type == INDEX_ATOM`, the `orgid` field is initialized as 0, 1, ...,
+ * independent of whether the blocks are single atoms or not.
+ *
+ * Strong exception safety guarantee.
+ */
+int
+gmx_ana_indexmap_init_orgid_group(gmx_ana_indexmap_t *m, t_topology *top,
+                                  e_index_t type);
 /** Sets an index group mapping to be static. */
 void
 gmx_ana_indexmap_set_static(gmx_ana_indexmap_t *m, t_blocka *b);

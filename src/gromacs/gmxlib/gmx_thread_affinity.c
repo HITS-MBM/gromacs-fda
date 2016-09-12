@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2012,2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2012,2013,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -32,32 +32,36 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
-#if defined(HAVE_SCHED_H) && defined(HAVE_SCHED_GETAFFINITY)
-#define _GNU_SOURCE
-#include <sched.h>
-#include <sys/syscall.h>
-#endif
-#include <string.h>
-#include <errno.h>
+#include "gmxpre.h"
+
+#include "gromacs/legacyheaders/gmx_thread_affinity.h"
+
+#include "config.h"
+
 #include <assert.h>
+#include <errno.h>
 #include <stdio.h>
+#include <string.h>
+
+#ifdef HAVE_SCHED_AFFINITY
+#  include <sched.h>
+#  include <sys/syscall.h>
+#endif
 
 #include "thread_mpi/threads.h"
 
-#include "typedefs.h"
-#include "types/commrec.h"
-#include "types/hw_info.h"
-#include "copyrite.h"
-#include "gmx_cpuid.h"
-#include "gmx_omp_nthreads.h"
-#include "md_logging.h"
-#include "gmx_thread_affinity.h"
-
-#include "gmx_fatal.h"
+#include "gromacs/legacyheaders/copyrite.h"
+#include "gromacs/legacyheaders/gmx_cpuid.h"
+#include "gromacs/legacyheaders/gmx_omp_nthreads.h"
+#include "gromacs/legacyheaders/md_logging.h"
+#include "gromacs/legacyheaders/typedefs.h"
+#include "gromacs/legacyheaders/types/commrec.h"
+#include "gromacs/legacyheaders/types/hw_info.h"
+#include "gromacs/utility/basenetwork.h"
+#include "gromacs/utility/cstringutil.h"
+#include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/gmxomp.h"
+#include "gromacs/utility/smalloc.h"
 
 static int
 get_thread_affinity_layout(FILE *fplog,
@@ -96,7 +100,7 @@ get_thread_affinity_layout(FILE *fplog,
         {
             /* We don't know anything about the hardware, don't pin */
             md_print_warn(cr, fplog,
-                          "NOTE: We don't know how many logical cores we have, will not pin threads");
+                          "NOTE: No information on available cores, thread pinning disabled.");
 
             return -1;
         }
@@ -106,7 +110,7 @@ get_thread_affinity_layout(FILE *fplog,
     {
         /* We are oversubscribing, don't pin */
         md_print_warn(NULL, fplog,
-                      "WARNING: Oversubscribing the CPU, will not pin threads");
+                      "NOTE: Oversubscribing the CPU, will not pin threads");
 
         return -1;
     }
@@ -115,8 +119,7 @@ get_thread_affinity_layout(FILE *fplog,
     {
         /* We are oversubscribing, don't pin */
         md_print_warn(NULL, fplog,
-                      "WARNING: The requested pin offset is too large for the available logical cores,\n"
-                      "         will not pin threads");
+                      "WARNING: Requested offset too large for available cores, thread pinning disabled.");
 
         return -1;
     }
@@ -154,8 +157,7 @@ get_thread_affinity_layout(FILE *fplog,
         {
             /* We are oversubscribing, don't pin */
             md_print_warn(NULL, fplog,
-                          "WARNING: The requested pinning stride is too large for the available logical cores,\n"
-                          "         will not pin threads");
+                          "WARNING: Requested stride too large for available cores, thread pinning disabled.");
 
             return -1;
         }
@@ -203,14 +205,12 @@ gmx_set_thread_affinity(FILE                *fplog,
      * want to support. */
     if (tMPI_Thread_setaffinity_support() != TMPI_SETAFFINITY_SUPPORT_YES)
     {
-        /* we know Mac OS doesn't support setting thread affinity, so there's
+        /* we know Mac OS & BlueGene do not support setting thread affinity, so there's
            no point in warning the user in that case. In any other case
            the user might be able to do something about it. */
-#ifndef __APPLE__
+#if !defined(__APPLE__) && !defined(__bg__)
         md_print_warn(NULL, fplog,
-                      "Can not set thread affinities on the current platform. On NUMA systems this\n"
-                      "can cause performance degradation. If you think your platform should support\n"
-                      "setting affinities, contact the GROMACS developers.");
+                      "NOTE: Cannot set thread affinities on the current platform.");
 #endif  /* __APPLE__ */
         return;
     }
@@ -355,9 +355,8 @@ gmx_set_thread_affinity(FILE                *fplog,
             }
 
             md_print_warn(NULL, fplog,
-                          "WARNING: %sAffinity setting %sfailed.\n"
-                          "         This can cause performance degradation! If you think your setting are\n"
-                          "         correct, contact the GROMACS developers.",
+                          "NOTE: %sAffinity setting %sfailed. This can cause performance degradation.\n"
+                          "      If you think your settings are correct, ask on the gmx-users list.",
                           sbuf1, sbuf2);
         }
     }
@@ -369,18 +368,56 @@ gmx_set_thread_affinity(FILE                *fplog,
  * Note that this will only work on Linux as we use a GNU feature.
  */
 void
-gmx_check_thread_affinity_set(FILE            gmx_unused *fplog,
-                              const t_commrec gmx_unused *cr,
-                              gmx_hw_opt_t    gmx_unused *hw_opt,
-                              int             gmx_unused  nthreads_hw_avail,
-                              gmx_bool        gmx_unused  bAfterOpenmpInit)
+gmx_check_thread_affinity_set(FILE            *fplog,
+                              const t_commrec *cr,
+                              gmx_hw_opt_t    *hw_opt,
+                              int  gmx_unused  nthreads_hw_avail,
+                              gmx_bool         bAfterOpenmpInit)
 {
-#ifdef HAVE_SCHED_GETAFFINITY
+#ifdef HAVE_SCHED_AFFINITY
     cpu_set_t mask_current;
     int       i, ret, cpu_count, cpu_set;
     gmx_bool  bAllSet;
+#endif
+#ifdef GMX_LIB_MPI
+    gmx_bool  bAllSet_All;
+#endif
 
     assert(hw_opt);
+    if (!bAfterOpenmpInit)
+    {
+        /* Check for externally set OpenMP affinity and turn off internal
+         * pinning if any is found. We need to do this check early to tell
+         * thread-MPI whether it should do pinning when spawning threads.
+         * TODO: the above no longer holds, we should move these checks later
+         */
+        if (hw_opt->thread_affinity != threadaffOFF)
+        {
+            char *message;
+            if (!gmx_omp_check_thread_affinity(&message))
+            {
+                /* TODO: with -pin auto we should only warn when using all cores */
+                md_print_warn(cr, fplog, "%s", message);
+                sfree(message);
+                hw_opt->thread_affinity = threadaffOFF;
+            }
+        }
+
+        /* With thread-MPI this is needed as pinning might get turned off,
+         * which needs to be known before starting thread-MPI.
+         * With thread-MPI hw_opt is processed here on the master rank
+         * and passed to the other ranks later, so we only do this on master.
+         */
+        if (!SIMMASTER(cr))
+        {
+            return;
+        }
+#ifndef GMX_THREAD_MPI
+        return;
+#endif
+    }
+
+#ifdef HAVE_SCHED_AFFINITY
     if (hw_opt->thread_affinity == threadaffOFF)
     {
         /* internal affinity setting is off, don't bother checking process affinity */
@@ -418,6 +455,11 @@ gmx_check_thread_affinity_set(FILE            gmx_unused *fplog,
     {
         bAllSet = bAllSet && (CPU_ISSET(i, &mask_current) != 0);
     }
+
+#ifdef GMX_LIB_MPI
+    MPI_Allreduce(&bAllSet, &bAllSet_All, 1, MPI_INT, MPI_LAND, MPI_COMM_WORLD);
+    bAllSet = bAllSet_All;
+#endif
 
     if (!bAllSet)
     {
@@ -459,5 +501,5 @@ gmx_check_thread_affinity_set(FILE            gmx_unused *fplog,
             fprintf(debug, "Default affinity mask found\n");
         }
     }
-#endif /* HAVE_SCHED_GETAFFINITY */
+#endif /* HAVE_SCHED_AFFINITY */
 }

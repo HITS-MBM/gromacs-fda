@@ -1,7 +1,7 @@
 #
 # This file is part of the GROMACS molecular simulation package.
 #
-# Copyright (c) 2014, by the GROMACS development team, led by
+# Copyright (c) 2014,2015, by the GROMACS development team, led by
 # Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
 # and including many others, as listed in the AUTHORS file in the
 # top-level source directory and at http://www.gromacs.org.
@@ -42,15 +42,48 @@
 #  VARIABLE will be set to true if libxml2 support is present
 
 include(CheckLibraryExists)
+include(CheckIncludeFiles)
 include(gmxOptionUtilities)
 function(GMX_TEST_LIBXML2 VARIABLE)
-    if(LIBXML2_FOUND)
-        gmx_check_if_changed(_do_libxml2_recompile LIBXML2_INCLUDE_DIR LIBXML2_LIBRARIES)
-        if(_do_libxml2_recompile)
-            unset(LIBXML2_COMPILES_OK CACHE)
+    if(NOT LIBXML2_FOUND)
+        set(${VARIABLE} OFF PARENT_SCOPE)
+	return()
+    endif()
+
+    if(HAVE_ZLIB)
+        set(LIBXML2_LIBRARIES "${LIBXML2_LIBRARIES};${ZLIB_LIBRARIES}" PARENT_SCOPE) #not needed for dynamic but does not hurt
+    endif()
+
+    string(TOUPPER "${CMAKE_BUILD_TYPE}" _cmake_build_type)
+    if(${_cmake_build_type} STREQUAL "MSAN")
+        # Linking MSan-enabled libxml2 and zlib in a way that can be
+        # tested with try_compile setup is tricky, but someone doing
+        # an MSan build can take care of themselves (for now, at
+        # least).
+        set(${VARIABLE} ON PARENT_SCOPE)
+        return()
+    endif()
+
+    gmx_check_if_changed(_do_libxml2_recompile LIBXML2_INCLUDE_DIR LIBXML2_LIBRARIES)
+    if(_do_libxml2_recompile)
+        unset(LIBXML2_LINKS_OK CACHE)
+    endif()
+    check_library_exists("${LIBXML2_LIBRARIES}" "xmlTextWriterEndAttribute" "" LIBXML2_LINKS_OK)
+    if(LIBXML2_LINKS_OK)
+        #check that xml headers can be included
+        set(CMAKE_REQUIRED_INCLUDES "${LIBXML2_INCLUDE_DIR}")
+	check_include_files("libxml/parser.h" LIBXML2_INCL_OK)
+	if(NOT LIBXML2_INCL_OK)
+            #xml headers depend on iconv.h. Test whether adding its path fixes the problem
+            find_path(ICONV_INCLUDE_DIR iconv.h)
+            if(ICONV_INCLUDE_DIR)
+                set(CMAKE_REQUIRED_INCLUDES "${LIBXML2_INCLUDE_DIR};${ICONV_INCLUDE_DIR}")
+		unset(LIBXML2_INCL_OK CACHE)
+		check_include_files("libxml/parser.h" LIBXML2_INCL_OK)
+		set(LIBXML2_INCLUDE_DIR "${LIBXML2_INCLUDE_DIR};${ICONV_INCLUDE_DIR}" CACHE PATH "Libxml2 include path" FORCE)
+            endif()
         endif()
-        check_library_exists("${LIBXML2_LIBRARIES}" "xmlTextWriterEndAttribute" "" LIBXML2_LINKS_OK)
-        set(${VARIABLE} ${LIBXML2_LINKS_OK} PARENT_SCOPE)
+	set(${VARIABLE} ${LIBXML2_INCL_OK} PARENT_SCOPE)
     else()
         set(${VARIABLE} OFF PARENT_SCOPE)
     endif()

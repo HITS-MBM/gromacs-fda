@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2012,2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2012,2013,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -35,7 +35,11 @@
 #ifndef _nbnxn_kernel_simd_utils_h_
 #define _nbnxn_kernel_simd_utils_h_
 
+#include "config.h"
+
 #include "gromacs/legacyheaders/types/simple.h"
+#include "gromacs/mdlib/nbnxn_simd.h"
+#include "gromacs/simd/simd.h"
 
 /*! \brief Provides hardware-specific utility routines for the SIMD kernels.
  *
@@ -63,11 +67,11 @@ prepare_table_load_buffer(const int gmx_unused *array)
     return NULL;
 }
 
-#include "nbnxn_kernel_simd_utils_ref.h"
+#include "gromacs/mdlib/nbnxn_kernels/nbnxn_kernel_simd_utils_ref.h"
 
 #else /* GMX_SIMD_REFERENCE */
 
-#if defined  GMX_TARGET_X86 && !defined __MIC__
+#if defined  GMX_TARGET_X86 && !defined GMX_SIMD_X86_MIC
 /* Include x86 SSE2 compatible SIMD functions */
 
 /* Set the stride for the lookup of the two LJ parameters from their
@@ -94,21 +98,21 @@ prepare_table_load_buffer(int gmx_unused *array)
 
 #ifdef GMX_DOUBLE
 #if GMX_SIMD_REAL_WIDTH == 2
-#include "nbnxn_kernel_simd_utils_x86_128d.h"
+#include "gromacs/mdlib/nbnxn_kernels/nbnxn_kernel_simd_utils_x86_128d.h"
 #else
-#include "nbnxn_kernel_simd_utils_x86_256d.h"
+#include "gromacs/mdlib/nbnxn_kernels/nbnxn_kernel_simd_utils_x86_256d.h"
 #endif
 #else /* GMX_DOUBLE */
 /* In single precision aligned FDV0 table loads are optimal */
 #define TAB_FDV0
 #if GMX_SIMD_REAL_WIDTH == 4
-#include "nbnxn_kernel_simd_utils_x86_128s.h"
+#include "gromacs/mdlib/nbnxn_kernels/nbnxn_kernel_simd_utils_x86_128s.h"
 #else
-#include "nbnxn_kernel_simd_utils_x86_256s.h"
+#include "gromacs/mdlib/nbnxn_kernels/nbnxn_kernel_simd_utils_x86_256s.h"
 #endif
 #endif /* GMX_DOUBLE */
 
-#else  /* GMX_TARGET_X86 && !__MIC__ */
+#else  /* GMX_TARGET_X86 && !GMX_SIMD_X86_MIC */
 
 #if GMX_SIMD_REAL_WIDTH > 4
 /* For width>4 we use unaligned loads. And thus we can use the minimal stride */
@@ -123,14 +127,14 @@ static const int nbfp_stride = GMX_SIMD_REAL_WIDTH;
 #endif
 
 #ifdef GMX_SIMD_IBM_QPX
-#include "nbnxn_kernel_simd_utils_ibm_qpx.h"
+#include "gromacs/mdlib/nbnxn_kernels/nbnxn_kernel_simd_utils_ibm_qpx.h"
 #endif /* GMX_SIMD_IBM_QPX */
 
-#ifdef __MIC__
-#include "nbnxn_kernel_simd_utils_x86_mic.h"
+#ifdef GMX_SIMD_X86_MIC
+#include "gromacs/mdlib/nbnxn_kernels/nbnxn_kernel_simd_utils_x86_mic.h"
 #endif
 
-#endif /* GMX_TARGET_X86 && !__MIC__ */
+#endif /* GMX_TARGET_X86 && !GMX_SIMD_X86_MIC */
 
 #endif /* GMX_SIMD_REFERENCE */
 

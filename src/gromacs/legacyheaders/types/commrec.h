@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -37,9 +37,13 @@
 #ifndef _commrec_h
 #define _commrec_h
 
-#include "../../utility/gmxmpi.h"
-#include "../typedefs.h"
-#include "idef.h"
+#include <stddef.h>
+
+#include "gromacs/legacyheaders/types/commrec_fwd.h" // IWYU pragma: export
+#include "gromacs/math/vectypes.h"
+#include "gromacs/utility/basedefinitions.h"
+#include "gromacs/utility/gmxmpi.h"
+#include "gromacs/utility/real.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -157,7 +161,6 @@ struct gmx_domdec_t {
     ivec     nc;
     int      ndim;
     ivec     dim; /* indexed by 0 to ndim */
-    gmx_bool bGridJump;
 
     /* PBC from dim 0 to npbcdim */
     int npbcdim;
@@ -269,12 +272,12 @@ struct t_commrec {
     gmx_nodecomm_t nc;
 
     /* For domain decomposition */
-    gmx_domdec_t *dd;
+    struct gmx_domdec_t *dd;
 
     /* The duties of this node, see the defines above */
-    int             duty;
+    int                    duty;
 
-    gmx_multisim_t *ms;
+    struct gmx_multisim_t *ms;
 
     /* these buffers are used as destination buffers if MPI_IN_PLACE isn't
        supported.*/

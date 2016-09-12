@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2012, by the GROMACS development team, led by
+ * Copyright (c) 2012,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -34,8 +34,7 @@
  */
 /*! \libinternal \file
  * \brief
- * Declares helper classes and functions for implementing
- * gmx::HelpTopicInterface.
+ * Declares helper classes for implementing gmx::HelpTopicInterface.
  *
  * \author Teemu Murtola <teemu.murtola@gmail.com>
  * \inlibraryapi
@@ -44,42 +43,21 @@
 #ifndef GMX_ONLINEHELP_HELPTOPIC_H
 #define GMX_ONLINEHELP_HELPTOPIC_H
 
-#include "../utility/common.h"
-#include "../utility/stringutil.h"
-#include "../utility/uniqueptr.h"
-
-#include "helptopicinterface.h"
+#include "gromacs/onlinehelp/helptopicinterface.h"
+#include "gromacs/utility/classhelpers.h"
+#include "gromacs/utility/stringutil.h"
+#include "gromacs/utility/uniqueptr.h"
 
 namespace gmx
 {
-
-/*! \cond libapi */
-/*! \libinternal \brief
- * Helper for writing simple help text.
- *
- * \param[in] context Context for writing the help.
- * \param[in] topic   Topic to write the help for (used for title).
- * \param[in] text    Text to write for the topic.
- * \throws    std::bad_alloc if out of memory.
- * \throws    FileIOError on any I/O error.
- *
- * Formats basic help by writing a title (obtained from \p topic), followed by
- * \p text with markup substituted and lines properly wrapped.
- *
- * \inlibraryapi
- */
-void writeBasicHelpTopic(const HelpWriterContext  &context,
-                         const HelpTopicInterface &topic,
-                         const std::string        &text);
-//! \endcond
 
 /*! \libinternal \brief
  * Abstract base class for help topics that have simple text and no subtopics.
  *
  * This class implements subtopic-related methods from HelpTopicInterface such
  * that there are no subtopics.  writeHelp() is also implemented such that it
- * uses writeBasicHelpTopic() to write out the text returned by a new virtual
- * method helpText().
+ * uses HelpTopicContext::writeTextBlock() to write out the text returned by a
+ * new virtual method helpText().
  *
  * \see SimpleHelpTopic
  *
@@ -115,8 +93,9 @@ class AbstractSimpleHelpTopic : public HelpTopicInterface
  * public methods for adding subtopics (as HelpTopicInterface objects).
  * Subtopic-related methods from HelpTopicInterface are implemented to access
  * the internal container.  writeHelp() is also implemented such that it
- * uses writeBasicHelpTopic() to write out the text returned by a new virtual
- * method helpText(), and a list of subtopics is written after the actual text.
+ * uses HelpTopicContext::writeTextBlock() to write out the text returned by a
+ * new virtual method helpText(), and a list of subtopics is written after the
+ * actual text.
  *
  * \see CompositeHelpTopic
  *
@@ -256,7 +235,7 @@ class SimpleHelpTopic : public AbstractSimpleHelpTopic
     protected:
         virtual std::string helpText() const
         {
-            return concatenateStrings(HelpText::text);
+            return joinStrings(HelpText::text, "\n");
         }
 };
 
@@ -289,7 +268,7 @@ class CompositeHelpTopic : public AbstractCompositeHelpTopic
     protected:
         virtual std::string helpText() const
         {
-            return concatenateStrings(HelpText::text);
+            return joinStrings(HelpText::text, "\n");
         }
 };
 

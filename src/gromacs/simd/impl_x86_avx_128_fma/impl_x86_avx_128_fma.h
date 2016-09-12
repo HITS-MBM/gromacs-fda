@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2014, by the GROMACS development team, led by
+ * Copyright (c) 2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -36,7 +36,10 @@
 #ifndef GMX_SIMD_IMPL_X86_AVX_128_FMA_H
 #define GMX_SIMD_IMPL_X86_AVX_128_FMA_H
 
+#include "config.h"
+
 #include <math.h>
+
 #include <immintrin.h>
 #include <x86intrin.h>
 
@@ -56,28 +59,28 @@
 #define GMX_SIMD4_HAVE_DOUBLE  /* We can use 256-bit operations for this */
 
 /* SINGLE */
-#undef  gmx_simd_fmadd_ps
-#define gmx_simd_fmadd_ps           _mm_macc_ps
-#undef  gmx_simd_fmsub_ps
-#define gmx_simd_fmsub_ps(a, b, c)    _mm_msub_ps
-#undef  gmx_simd_fnmadd_ps
-#define gmx_simd_fnmadd_ps(a, b, c)   _mm_nmacc_ps
-#undef  gmx_simd_fnmsub_ps
-#define gmx_simd_fnmsub_ps(a, b, c)   _mm_nmsub_ps
+#undef  gmx_simd_fmadd_f
+#define gmx_simd_fmadd_f                 _mm_macc_ps
+#undef  gmx_simd_fmsub_f
+#define gmx_simd_fmsub_f                 _mm_msub_ps
+#undef  gmx_simd_fnmadd_f
+#define gmx_simd_fnmadd_f                _mm_nmacc_ps
+#undef  gmx_simd_fnmsub_f
+#define gmx_simd_fnmsub_f                _mm_nmsub_ps
 #undef  gmx_simd_fraction_f
-#define gmx_simd_fraction_f         _mm_frcz_ps
+#define gmx_simd_fraction_f              _mm_frcz_ps
 
 /* DOUBLE */
-#undef  gmx_simd_fmadd_pd
-#define gmx_simd_fmadd_pd            _mm_macc_pd
-#undef  gmx_simd_fmsub_pd
-#define gmx_simd_fmsub_pd(a, b, c)     _mm_msub_pd
-#undef  gmx_simd_fnmadd_pd
-#define gmx_simd_fnmadd_pd(a, b, c)    _mm_nmacc_pd
-#undef  gmx_simd_fnmsub_pd
-#define gmx_simd_fnmsub_pd(a, b, c)    _mm_nmsub_pd
+#undef  gmx_simd_fmadd_d
+#define gmx_simd_fmadd_d                 _mm_macc_pd
+#undef  gmx_simd_fmsub_d
+#define gmx_simd_fmsub_d                 _mm_msub_pd
+#undef  gmx_simd_fnmadd_d
+#define gmx_simd_fnmadd_d                _mm_nmacc_pd
+#undef  gmx_simd_fnmsub_d
+#define gmx_simd_fnmsub_d                _mm_nmsub_pd
 #undef  gmx_simd_fraction_d
-#define gmx_simd_fraction_d          _mm_frcz_pd
+#define gmx_simd_fraction_d              _mm_frcz_pd
 
 /* Even if the _main_ SIMD implementation for this architecture file corresponds
  * to 128-bit AVX (since it will be faster), the 256-bit operations will always
@@ -104,8 +107,8 @@
 #define gmx_simd4_or_d                   _mm256_or_pd
 #define gmx_simd4_xor_d                  _mm256_xor_pd
 #define gmx_simd4_rsqrt_d(x)             _mm256_cvtps_pd(_mm_rsqrt_ps(_mm256_cvtpd_ps(x)))
-#define gmx_simd4_fabs_d(x)              _mm256_andnot_pd(_mm256_set1_pd(-0.0), x)
-#define gmx_simd4_fneg_d(x)              _mm256_xor_pd(x, _mm256_set1_pd(-0.0))
+#define gmx_simd4_fabs_d(x)              _mm256_andnot_pd(_mm256_set1_pd(GMX_DOUBLE_NEGZERO), x)
+#define gmx_simd4_fneg_d(x)              _mm256_xor_pd(x, _mm256_set1_pd(GMX_DOUBLE_NEGZERO))
 #define gmx_simd4_max_d                  _mm256_max_pd
 #define gmx_simd4_min_d                  _mm256_min_pd
 #define gmx_simd4_round_d(x)             _mm256_round_pd(x, _MM_FROUND_NINT)
@@ -127,7 +130,7 @@
 #define gmx_simd4_cvt_f2d                _mm256_cvtps_pd
 #define gmx_simd4_cvt_d2f                _mm256_cvtpd_ps
 
-static gmx_inline double
+static gmx_inline double gmx_simdcall
 gmx_simd4_reduce_d_avx_128_fma(__m256d a)
 {
     double  f;
@@ -140,7 +143,7 @@ gmx_simd4_reduce_d_avx_128_fma(__m256d a)
     return f;
 }
 
-static gmx_inline double
+static gmx_inline double gmx_simdcall
 gmx_simd4_dotproduct3_d_avx_128_fma(__m256d a, __m256d b)
 {
     double  d;

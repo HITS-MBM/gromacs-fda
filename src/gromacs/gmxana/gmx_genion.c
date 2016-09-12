@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -34,32 +34,28 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
+#include "gmxpre.h"
 
 #include <ctype.h>
+#include <stdlib.h>
 #include <string.h>
 
-#include "gromacs/utility/cstringutil.h"
-#include "gromacs/utility/smalloc.h"
-#include "sysstuff.h"
-#include "gromacs/fileio/confio.h"
 #include "gromacs/commandline/pargs.h"
-#include "pbc.h"
-#include "force.h"
-#include "gmx_fatal.h"
-#include "gromacs/fileio/futil.h"
-#include "gromacs/math/utilities.h"
-#include "macros.h"
-#include "vec.h"
+#include "gromacs/fileio/confio.h"
 #include "gromacs/fileio/tpxio.h"
-#include "mdrun.h"
-#include "main.h"
+#include "gromacs/gmxana/gmx_ana.h"
+#include "gromacs/legacyheaders/force.h"
+#include "gromacs/legacyheaders/macros.h"
+#include "gromacs/legacyheaders/mdrun.h"
+#include "gromacs/math/utilities.h"
+#include "gromacs/math/vec.h"
+#include "gromacs/pbcutil/pbc.h"
 #include "gromacs/random/random.h"
-#include "index.h"
-#include "mtop_util.h"
-#include "gmx_ana.h"
+#include "gromacs/topology/index.h"
+#include "gromacs/utility/cstringutil.h"
+#include "gromacs/utility/fatalerror.h"
+#include "gromacs/utility/futil.h"
+#include "gromacs/utility/smalloc.h"
 
 static void insert_ion(int nsa, int *nwater,
                        gmx_bool bSet[], int repl[], atom_id index[],
@@ -126,7 +122,7 @@ static char *aname(const char *mname)
     char *str;
     int   i;
 
-    str = strdup(mname);
+    str = gmx_strdup(mname);
     i   = strlen(str)-1;
     while (i > 1 && (isdigit(str[i]) || (str[i] == '+') || (str[i] == '-')))
     {
@@ -180,14 +176,14 @@ void sort_ions(int nsa, int nw, int repl[], atom_id index[],
         if (np)
         {
             snew(pptr, 1);
-            pptr[0] = strdup(p_name);
+            pptr[0] = gmx_strdup(p_name);
             snew(paptr, 1);
             paptr[0] = aname(p_name);
         }
         if (nn)
         {
             snew(nptr, 1);
-            nptr[0] = strdup(n_name);
+            nptr[0] = gmx_strdup(n_name);
             snew(naptr, 1);
             naptr[0] = aname(n_name);
         }
@@ -238,15 +234,17 @@ void sort_ions(int nsa, int nw, int repl[], atom_id index[],
 static void update_topol(const char *topinout, int p_num, int n_num,
                          const char *p_name, const char *n_name, char *grpname)
 {
-#define TEMP_FILENM "temp.top"
     FILE    *fpin, *fpout;
     char     buf[STRLEN], buf2[STRLEN], *temp, **mol_line = NULL;
     int      line, i, nsol, nmol_line, sol_line, nsol_last;
     gmx_bool bMolecules;
+    char     temporary_filename[STRLEN];
 
     printf("\nProcessing topology\n");
     fpin  = gmx_ffopen(topinout, "r");
-    fpout = gmx_ffopen(TEMP_FILENM, "w");
+    strncpy(temporary_filename, "temp.topXXXXXX", STRLEN);
+    gmx_tmpnam(temporary_filename);
+    fpout = gmx_ffopen(temporary_filename, "w");
 
     line       = 0;
     bMolecules = FALSE;
@@ -294,7 +292,7 @@ static void update_topol(const char *topinout, int p_num, int n_num,
             }
             /* Store this molecules section line */
             srenew(mol_line, nmol_line+1);
-            mol_line[nmol_line] = strdup(buf);
+            mol_line[nmol_line] = gmx_strdup(buf);
             nmol_line++;
         }
     }
@@ -342,8 +340,7 @@ static void update_topol(const char *topinout, int p_num, int n_num,
     /* use gmx_ffopen to generate backup of topinout */
     fpout = gmx_ffopen(topinout, "w");
     gmx_ffclose(fpout);
-    rename(TEMP_FILENM, topinout);
-#undef TEMP_FILENM
+    rename(temporary_filename, topinout);
 }
 
 int gmx_genion(int argc, char *argv[])
@@ -382,7 +379,7 @@ int gmx_genion(int argc, char *argv[])
         { "-rmin",  FALSE, etREAL, {&rmin},  "Minimum distance between ions" },
         { "-seed",  FALSE, etINT,  {&seed},  "Seed for random number generator" },
         { "-conc",  FALSE, etREAL, {&conc},
-          "Specify salt concentration (mol/liter). This will add sufficient ions to reach up to the specified concentration as computed from the volume of the cell in the input [TT].tpr[tt] file. Overrides the [TT]-np[tt] and [TT]-nn[tt] options." },
+          "Specify salt concentration (mol/liter). This will add sufficient ions to reach up to the specified concentration as computed from the volume of the cell in the input [REF].tpr[ref] file. Overrides the [TT]-np[tt] and [TT]-nn[tt] options." },
         { "-neutral", FALSE, etBOOL, {&bNeutral}, "This option will add enough ions to neutralize the system. These ions are added on top of those specified with [TT]-np[tt]/[TT]-nn[tt] or [TT]-conc[tt]. "}
     };
     t_topology         top;
@@ -399,14 +396,14 @@ int gmx_genion(int argc, char *argv[])
     output_env_t       oenv;
     gmx_rng_t          rng;
     t_filenm           fnm[] = {
-        { efTPX, NULL,  NULL,      ffREAD  },
+        { efTPR, NULL,  NULL,      ffREAD  },
         { efNDX, NULL,  NULL,      ffOPTRD },
         { efSTO, "-o",  NULL,      ffWRITE },
         { efTOP, "-p",  "topol",   ffOPTRW }
     };
 #define NFILE asize(fnm)
 
-    if (!parse_common_args(&argc, argv, PCA_BE_NICE, NFILE, fnm, asize(pa), pa,
+    if (!parse_common_args(&argc, argv, 0, NFILE, fnm, asize(pa), pa,
                            asize(desc), desc, asize(bugs), bugs, &oenv))
     {
         return 0;
@@ -424,7 +421,7 @@ int gmx_genion(int argc, char *argv[])
     }
 
     /* Read atom positions and charges */
-    read_tps_conf(ftp2fn(efTPX, NFILE, fnm), title, &top, &ePBC, &x, &v, box, FALSE);
+    read_tps_conf(ftp2fn(efTPR, NFILE, fnm), title, &top, &ePBC, &x, &v, box, FALSE);
     atoms = top.atoms;
 
     /* Compute total charge */

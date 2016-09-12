@@ -34,16 +34,17 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
+#include "gmxpre.h"
+
 #include "eigensolver.h"
 
-#include "gromacs/legacyheaders/types/simple.h"
-#include "gromacs/legacyheaders/gmx_fatal.h"
-
 #include "gromacs/linearalgebra/sparsematrix.h"
+#include "gromacs/utility/fatalerror.h"
+#include "gromacs/utility/real.h"
 #include "gromacs/utility/smalloc.h"
 
-#include "gmx_lapack.h"
 #include "gmx_arpack.h"
+#include "gmx_lapack.h"
 
 void
 eigensolver(real *   a,

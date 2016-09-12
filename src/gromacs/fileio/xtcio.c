@@ -34,19 +34,18 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
+#include "gmxpre.h"
+
+#include "xtcio.h"
 
 #include <string.h>
-#include "typedefs.h"
-#include "xdrf.h"
-#include "gmxfio.h"
-#include "xtcio.h"
+
+#include "gromacs/fileio/gmxfio.h"
+#include "gromacs/fileio/xdrf.h"
+#include "gromacs/math/vec.h"
+#include "gromacs/utility/fatalerror.h"
+#include "gromacs/utility/futil.h"
 #include "gromacs/utility/smalloc.h"
-#include "vec.h"
-#include "futil.h"
-#include "gmx_fatal.h"
 
 #define XTC_MAGIC 1995
 

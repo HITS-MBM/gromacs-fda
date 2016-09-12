@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -34,29 +34,33 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
-#include <math.h>
-#include <string.h>
-#include "gromacs/commandline/pargs.h"
-#include "sysstuff.h"
-#include "typedefs.h"
-#include "gromacs/utility/smalloc.h"
-#include "macros.h"
-#include "gmx_fatal.h"
-#include "vec.h"
-#include "copyrite.h"
-#include "gromacs/fileio/futil.h"
-#include "readinp.h"
-#include "txtdump.h"
-#include "gstat.h"
-#include "gromacs/statistics/statistics.h"
-#include "xvgr.h"
-#include "gmx_ana.h"
-#include "geminate.h"
+#include "gmxpre.h"
 
+#include <math.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "gromacs/commandline/pargs.h"
+#include "gromacs/correlationfunctions/autocorr.h"
+#include "gromacs/correlationfunctions/expfit.h"
+#include "gromacs/correlationfunctions/integrate.h"
+#include "gromacs/fileio/xvgr.h"
+#include "gromacs/gmxana/geminate.h"
+#include "gromacs/gmxana/gmx_ana.h"
+#include "gromacs/gmxana/gstat.h"
+#include "gromacs/legacyheaders/copyrite.h"
+#include "gromacs/legacyheaders/macros.h"
+#include "gromacs/legacyheaders/readinp.h"
+#include "gromacs/legacyheaders/txtdump.h"
+#include "gromacs/legacyheaders/typedefs.h"
+#include "gromacs/legacyheaders/viewit.h"
 #include "gromacs/linearalgebra/matrix.h"
+#include "gromacs/math/vec.h"
+#include "gromacs/statistics/statistics.h"
+#include "gromacs/utility/fatalerror.h"
+#include "gromacs/utility/futil.h"
+#include "gromacs/utility/smalloc.h"
+#include "gromacs/utility/snprintf.h"
 
 /* must correspond to char *avbar_opt[] declared in main() */
 enum {
@@ -86,7 +90,7 @@ static void power_fit(int n, int nset, real **val, real *t)
         fprintf(stdout, "First time is not larger than 0, using index number as time for power fit\n");
         for (i = 0; i < n; i++)
         {
-            x[i] = log(i+1);
+            x[i] = gmx_log1p(i);
         }
     }
 
@@ -153,7 +157,7 @@ static void plot_coscont(const char *ccfile, int n, int nset, real **val,
     }
     fprintf(stdout, "\n");
 
-    gmx_ffclose(fp);
+    xvgrclose(fp);
 }
 
 static void regression_analysis(int n, gmx_bool bXYdy,
@@ -293,7 +297,7 @@ void histogram(const char *distfile, real binwidth, int n, int nset, real **val,
             fprintf(fp, "%s\n", output_env_get_print_xvgr_codes(oenv) ? "&" : "");
         }
     }
-    gmx_ffclose(fp);
+    xvgrclose(fp);
 }
 
 static int real_comp(const void *a, const void *b)
@@ -391,9 +395,21 @@ static void average(const char *avfile, int avbar_opt,
     }
 }
 
-static real anal_ee_inf(real *parm, real T)
+/*! \brief Compute final error estimate.
+ *
+ * See Eqn A17, Hess, JCP 116 (2002) 209-217 for details.
+ */
+static real optimal_error_estimate(double sigma, double fitparm[], real tTotal)
 {
-    return sqrt(parm[1]*2*parm[0]/T+parm[3]*2*parm[2]/T);
+    double ss = fitparm[1]*fitparm[0]+(1-fitparm[1])*fitparm[2];
+    if ((tTotal <= 0) || (ss <= 0))
+    {
+        fprintf(stderr, "Problem in error estimate: T = %g, ss = %g\n",
+                tTotal, ss);
+        return 0;
+    }
+
+    return sigma*sqrt(2*ss/tTotal);
 }
 
 static void estimate_error(const char *eefile, int nb_min, int resol, int n,
@@ -408,7 +424,7 @@ static void estimate_error(const char *eefile, int nb_min, int resol, int n,
     double   blav, var;
     char   **leg;
     real    *tbs, *ybs, rtmp, dens, *fitsig, twooe, tau1_est, tau_sig;
-    real     fitparm[4];
+    double   fitparm[3];
     real     ee, a, tau1, tau2;
 
     if (n < 4)
@@ -550,8 +566,8 @@ static void estimate_error(const char *eefile, int nb_min, int resol, int n,
                  */
                 fitparm[2] = sqrt(tau1_est*(n-1)*dt);
                 do_lmfit(nbs, ybs, fitsig, 0, tbs, 0, dt*n, oenv,
-                         bDebugMode(), effnERREST, fitparm, 0);
-                fitparm[3] = 1-fitparm[1];
+                         bDebugMode(), effnERREST, fitparm, 0,
+                         NULL);
             }
             if (bSingleExpFit || fitparm[0] < 0 || fitparm[2] < 0 || fitparm[1] < 0
                 || (fitparm[1] > 1 && !bAllowNegLTCorr) || fitparm[2] > (n-1)*dt)
@@ -570,7 +586,7 @@ static void estimate_error(const char *eefile, int nb_min, int resol, int n,
                         fprintf(stdout, "a fitted parameter is negative\n");
                     }
                     fprintf(stdout, "invalid fit:  e.e. %g  a %g  tau1 %g  tau2 %g\n",
-                            sig[s]*anal_ee_inf(fitparm, n*dt),
+                            optimal_error_estimate(sig[s], fitparm, n*dt),
                             fitparm[1], fitparm[0], fitparm[2]);
                     /* Do a fit with tau2 fixed at the total time.
                      * One could also choose any other large value for tau2.
@@ -578,10 +594,9 @@ static void estimate_error(const char *eefile, int nb_min, int resol, int n,
                     fitparm[0] = tau1_est;
                     fitparm[1] = 0.95;
                     fitparm[2] = (n-1)*dt;
-                    fprintf(stderr, "Will fix tau2 at the total time: %g\n", fitparm[2]);
+                    fprintf(stdout, "Will fix tau2 at the total time: %g\n", fitparm[2]);
                     do_lmfit(nbs, ybs, fitsig, 0, tbs, 0, dt*n, oenv, bDebugMode(),
-                             effnERREST, fitparm, 4);
-                    fitparm[3] = 1-fitparm[1];
+                             effnERREST, fitparm, 4, NULL);
                 }
                 if (bSingleExpFit || fitparm[0] < 0 || fitparm[1] < 0
                     || (fitparm[1] > 1 && !bAllowNegLTCorr))
@@ -590,7 +605,7 @@ static void estimate_error(const char *eefile, int nb_min, int resol, int n,
                     {
                         fprintf(stdout, "a fitted parameter is negative\n");
                         fprintf(stdout, "invalid fit:  e.e. %g  a %g  tau1 %g  tau2 %g\n",
-                                sig[s]*anal_ee_inf(fitparm, n*dt),
+                                optimal_error_estimate(sig[s], fitparm, n*dt),
                                 fitparm[1], fitparm[0], fitparm[2]);
                     }
                     /* Do a single exponential fit */
@@ -599,11 +614,10 @@ static void estimate_error(const char *eefile, int nb_min, int resol, int n,
                     fitparm[1] = 1.0;
                     fitparm[2] = 0.0;
                     do_lmfit(nbs, ybs, fitsig, 0, tbs, 0, dt*n, oenv, bDebugMode(),
-                             effnERREST, fitparm, 6);
-                    fitparm[3] = 1-fitparm[1];
+                             effnERREST, fitparm, 6, NULL);
                 }
             }
-            ee   = sig[s]*anal_ee_inf(fitparm, n*dt);
+            ee   = optimal_error_estimate(sig[s], fitparm, n*dt);
             a    = fitparm[1];
             tau1 = fitparm[0];
             tau2 = fitparm[2];
@@ -613,12 +627,14 @@ static void estimate_error(const char *eefile, int nb_min, int resol, int n,
         if (output_env_get_xvg_format(oenv) == exvgXMGR)
         {
             fprintf(fp, "@ legend string %d \"av %f\"\n", 2*s, av[s]);
-            fprintf(fp, "@ legend string %d \"ee %6g\"\n", 2*s+1, sig[s]*anal_ee_inf(fitparm, n*dt));
+            fprintf(fp, "@ legend string %d \"ee %6g\"\n", 2*s+1,
+                    optimal_error_estimate(sig[s], fitparm, n*dt));
         }
         else if (output_env_get_xvg_format(oenv) == exvgXMGRACE)
         {
             fprintf(fp, "@ s%d legend \"av %f\"\n", 2*s, av[s]);
-            fprintf(fp, "@ s%d legend \"ee %6g\"\n", 2*s+1, sig[s]*anal_ee_inf(fitparm, n*dt));
+            fprintf(fp, "@ s%d legend \"ee %6g\"\n", 2*s+1,
+                    optimal_error_estimate(sig[s], fitparm, n*dt));
         }
         for (i = 0; i < nbs; i++)
         {
@@ -628,8 +644,9 @@ static void estimate_error(const char *eefile, int nb_min, int resol, int n,
 
         if (bFitAc)
         {
-            int   fitlen;
-            real *ac, acint, ac_fit[4];
+            int    fitlen;
+            real  *ac, acint;
+            double ac_fit[4];
 
             snew(ac, n);
             for (i = 0; i < n; i++)
@@ -668,11 +685,11 @@ static void estimate_error(const char *eefile, int nb_min, int resol, int n,
             ac_fit[1] = 0.95;
             ac_fit[2] = 10*acint;
             do_lmfit(n/nb_min, ac, fitsig, dt, 0, 0, fitlen*dt, oenv,
-                     bDebugMode(), effnEXP3, ac_fit, 0);
+                     bDebugMode(), effnEXPEXP, ac_fit, 0, NULL);
             ac_fit[3] = 1 - ac_fit[1];
 
             fprintf(stdout, "Set %3d:  ac erest %g  a %g  tau1 %g  tau2 %g\n",
-                    s+1, sig[s]*anal_ee_inf(ac_fit, n*dt),
+                    s+1, optimal_error_estimate(sig[s], ac_fit, n*dt),
                     ac_fit[1], ac_fit[0], ac_fit[2]);
 
             fprintf(fp, "%s\n", output_env_get_print_xvgr_codes(oenv) ? "&" : "");
@@ -692,12 +709,11 @@ static void estimate_error(const char *eefile, int nb_min, int resol, int n,
     sfree(fitsig);
     sfree(ybs);
     sfree(tbs);
-    gmx_ffclose(fp);
+    xvgrclose(fp);
 }
 
 static void luzar_correl(int nn, real *time, int nset, real **val, real temp,
-                         gmx_bool bError, real fit_start, real smooth_tail_start,
-                         const output_env_t oenv)
+                         gmx_bool bError, real fit_start)
 {
     const real tol = 1e-8;
     real      *kt;
@@ -725,13 +741,13 @@ static void luzar_correl(int nn, real *time, int nset, real **val, real temp,
             fprintf(debug, "RMS difference in derivatives is %g\n", sqrt(d2/nn));
         }
         analyse_corr(nn, time, val[0], val[2], kt, NULL, NULL, NULL, fit_start,
-                     temp, smooth_tail_start, oenv);
+                     temp);
         sfree(kt);
     }
     else if (nset == 6)
     {
         analyse_corr(nn, time, val[0], val[2], val[4],
-                     val[1], val[3], val[5], fit_start, temp, smooth_tail_start, oenv);
+                     val[1], val[3], val[5], fit_start, temp);
     }
     else
     {
@@ -785,16 +801,18 @@ static void filter(real flen, int n, int nset, real **val, real dt)
 
 static void do_fit(FILE *out, int n, gmx_bool bYdy,
                    int ny, real *x0, real **val,
-                   int npargs, t_pargs *ppa, const output_env_t oenv)
+                   int npargs, t_pargs *ppa, const output_env_t oenv,
+                   const char *fn_fitted)
 {
-    real *c1 = NULL, *sig = NULL, *fitparm;
-    real  tendfit, tbeginfit;
-    int   i, efitfn, nparm;
+    real   *c1 = NULL, *sig = NULL;
+    double *fitparm;
+    real    tendfit, tbeginfit;
+    int     i, efitfn, nparm;
 
     efitfn = get_acffitfn();
-    nparm  = nfp_ffn[efitfn];
+    nparm  = effnNparams(efitfn);
     fprintf(out, "Will fit to the following function:\n");
-    fprintf(out, "%s\n", longs_ffn[efitfn]);
+    fprintf(out, "%s\n", effnDescription(efitfn));
     c1 = val[n];
     if (bYdy)
     {
@@ -833,7 +851,7 @@ static void do_fit(FILE *out, int n, gmx_bool bYdy,
             fitparm[0] = 0.5;
             fitparm[1] = c1[0];
             break;
-        case effnEXP3:
+        case effnEXPEXP:
             fitparm[0] = 1.0;
             fitparm[1] = 0.5*c1[0];
             fitparm[2] = 10.0;
@@ -872,7 +890,8 @@ static void do_fit(FILE *out, int n, gmx_bool bYdy,
         fprintf(out, "a%-2d = %12.5e\n", i+1, fitparm[i]);
     }
     if (do_lmfit(ny, c1, sig, 0, x0, tbeginfit, tendfit,
-                 oenv, bDebugMode(), efitfn, fitparm, 0))
+                 oenv, bDebugMode(), efitfn, fitparm, 0,
+                 fn_fitted) > 0)
     {
         for (i = 0; (i < nparm); i++)
         {
@@ -936,6 +955,7 @@ static void do_ballistic(const char *balFile, int nData,
         }
         sfree(ctd);
         sfree(td);
+        xvgrclose(fp);
     }
     else
     {
@@ -997,6 +1017,51 @@ static void do_geminate(const char *gemFile, int nData,
     sfree(ctd);
     sfree(ctdGem);
     sfree(td);
+    xvgrclose(fp);
+}
+
+static void print_fitted_function(const char   *fitfile,
+                                  const char   *fn_fitted,
+                                  gmx_bool      bXYdy,
+                                  int           nset,
+                                  int           n,
+                                  real         *t,
+                                  real        **val,
+                                  int           npargs,
+                                  t_pargs      *ppa,
+                                  output_env_t  oenv)
+{
+    FILE *out_fit = gmx_ffopen(fitfile, "w");
+    if (bXYdy && nset >= 2)
+    {
+        do_fit(out_fit, 0, TRUE, n, t, val, npargs, ppa, oenv,
+               fn_fitted);
+    }
+    else
+    {
+        char *buf2 = NULL;
+        int   s, buflen = 0;
+        if (NULL != fn_fitted)
+        {
+            buflen = strlen(fn_fitted)+32;
+            snew(buf2, buflen);
+            strncpy(buf2, fn_fitted, buflen);
+            buf2[strlen(buf2)-4] = '\0';
+        }
+        for (s = 0; s < nset; s++)
+        {
+            char *buf = NULL;
+            if (NULL != fn_fitted)
+            {
+                snew(buf, buflen);
+                snprintf(buf, n, "%s_%d.xvg", buf2, s);
+            }
+            do_fit(out_fit, s, FALSE, n, t, val, npargs, ppa, oenv, buf);
+            sfree(buf);
+        }
+        sfree(buf2);
+    }
+    gmx_ffclose(out_fit);
 }
 
 int gmx_analyze(int argc, char *argv[])
@@ -1025,8 +1090,10 @@ int gmx_analyze(int argc, char *argv[])
         "much shorter than the time scale of the autocorrelation.[PAR]",
 
         "Option [TT]-cc[tt] plots the resemblance of set i with a cosine of",
-        "i/2 periods. The formula is:[BR]"
-        "[MATH]2 ([INT][FROM]0[from][TO]T[to][int] y(t) [COS]i [GRK]pi[grk] t[cos] dt)^2 / [INT][FROM]0[from][TO]T[to][int] y^2(t) dt[math][BR]",
+        "i/2 periods. The formula is::",
+        "",
+        "  [MATH]2 ([INT][FROM]0[from][TO]T[to][int] y(t) [COS]i [GRK]pi[grk] t[cos] dt)^2 / [INT][FROM]0[from][TO]T[to][int] y^2(t) dt[math]",
+        "",
         "This is useful for principal components obtained from covariance",
         "analysis, since the principal components of random diffusion are",
         "pure cosines.[PAR]",
@@ -1050,9 +1117,11 @@ int gmx_analyze(int argc, char *argv[])
         "These errors are plotted as a function of the block size.",
         "Also an analytical block average curve is plotted, assuming",
         "that the autocorrelation is a sum of two exponentials.",
-        "The analytical curve for the block average is:[BR]",
-        "[MATH]f(t) = [GRK]sigma[grk][TT]*[tt][SQRT]2/T (  [GRK]alpha[grk]   ([GRK]tau[grk][SUB]1[sub] (([EXP]-t/[GRK]tau[grk][SUB]1[sub][exp] - 1) [GRK]tau[grk][SUB]1[sub]/t + 1)) +[BR]",
-        "                       (1-[GRK]alpha[grk]) ([GRK]tau[grk][SUB]2[sub] (([EXP]-t/[GRK]tau[grk][SUB]2[sub][exp] - 1) [GRK]tau[grk][SUB]2[sub]/t + 1)))[sqrt][math],[BR]"
+        "The analytical curve for the block average is::",
+        "",
+        "  [MATH]f(t) = [GRK]sigma[grk][TT]*[tt][SQRT]2/T (  [GRK]alpha[grk]   ([GRK]tau[grk][SUB]1[sub] (([EXP]-t/[GRK]tau[grk][SUB]1[sub][exp] - 1) [GRK]tau[grk][SUB]1[sub]/t + 1)) +",
+        "                         (1-[GRK]alpha[grk]) ([GRK]tau[grk][SUB]2[sub] (([EXP]-t/[GRK]tau[grk][SUB]2[sub][exp] - 1) [GRK]tau[grk][SUB]2[sub]/t + 1)))[sqrt][math],",
+        "",
         "where T is the total time.",
         "[GRK]alpha[grk], [GRK]tau[grk][SUB]1[sub] and [GRK]tau[grk][SUB]2[sub] are obtained by fitting f^2(t) to error^2.",
         "When the actual block average is very close to the analytical curve,",
@@ -1090,14 +1159,20 @@ int gmx_analyze(int argc, char *argv[])
 
         "Option [TT]-luzar[tt] performs a Luzar & Chandler kinetics analysis",
         "on output from [gmx-hbond]. The input file can be taken directly",
-        "from [TT]gmx hbond -ac[tt], and then the same result should be produced."
+        "from [TT]gmx hbond -ac[tt], and then the same result should be produced.[PAR]",
+        "Option [TT]-fitfn[tt] performs curve fitting to a number of different",
+        "curves that make sense in the context of molecular dynamics, mainly",
+        "exponential curves. More information is in the manual. To check the output",
+        "of the fitting procedure the option [TT]-fitted[tt] will print both the",
+        "original data and the fitted function to a new data file. The fitting",
+        "parameters are stored as comment in the output file."
     };
     static real        tb         = -1, te = -1, frac = 0.5, filtlen = 0, binwidth = 0.1, aver_start = 0;
     static gmx_bool    bHaveT     = TRUE, bDer = FALSE, bSubAv = TRUE, bAverCorr = FALSE, bXYdy = FALSE;
     static gmx_bool    bEESEF     = FALSE, bEENLC = FALSE, bEeFitAc = FALSE, bPower = FALSE;
     static gmx_bool    bIntegrate = FALSE, bRegression = FALSE, bLuzar = FALSE, bLuzarError = FALSE;
     static int         nsets_in   = 1, d = 1, nb_min = 4, resol = 10, nBalExp = 4, nFitPoints = 100;
-    static real        temp       = 298.15, fit_start = 1, fit_end = 60, smooth_tail_start = -1, balTime = 0.2, diffusion = 5e-5, rcut = 0.35;
+    static real        temp       = 298.15, fit_start = 1, fit_end = 60, balTime = 0.2, diffusion = 5e-5, rcut = 0.35;
 
     /* must correspond to enum avbar* declared at beginning of file */
     static const char *avbar_opt[avbarNR+1] = {
@@ -1140,8 +1215,6 @@ int gmx_analyze(int argc, char *argv[])
           "Time (ps) from which to start fitting the correlation functions in order to obtain the forward and backward rate constants for HB breaking and formation" },
         { "-fitend", FALSE, etREAL, {&fit_end},
           "Time (ps) where to stop fitting the correlation functions in order to obtain the forward and backward rate constants for HB breaking and formation. Only with [TT]-gem[tt]" },
-        { "-smooth", FALSE, etREAL, {&smooth_tail_start},
-          "If this value is >= 0, the tail of the ACF will be smoothed by fitting it to an exponential function: [MATH]y = A [EXP]-x/[GRK]tau[grk][exp][math]" },
         { "-nbmin",   FALSE, etINT, {&nb_min},
           "HIDDENMinimum number of blocks for block averaging" },
         { "-resol", FALSE, etINT, {&resol},
@@ -1192,6 +1265,7 @@ int gmx_analyze(int argc, char *argv[])
         { efXVG, "-av",   "average",  ffOPTWR  },
         { efXVG, "-ee",   "errest",   ffOPTWR  },
         { efXVG, "-bal",  "ballisitc", ffOPTWR  },
+        { efXVG, "-fitted", "fitted", ffOPTWR },
 /*     { efXVG, "-gem",  "geminate", ffOPTWR  }, */
         { efLOG, "-g",    "fitlog",   ffOPTWR  }
     };
@@ -1272,19 +1346,12 @@ int gmx_analyze(int argc, char *argv[])
 
     if (fitfile != NULL)
     {
-        out_fit = gmx_ffopen(fitfile, "w");
-        if (bXYdy && nset >= 2)
-        {
-            do_fit(out_fit, 0, TRUE, n, t, val, npargs, ppa, oenv);
-        }
-        else
-        {
-            for (s = 0; s < nset; s++)
-            {
-                do_fit(out_fit, s, FALSE, n, t, val, npargs, ppa, oenv);
-            }
-        }
-        gmx_ffclose(out_fit);
+        print_fitted_function(fitfile,
+                              opt2fn_null("-fitted", NFILE, fnm),
+                              bXYdy, nset,
+                              n, t, val,
+                              npargs, ppa,
+                              oenv);
     }
 
     printf("                                      std. dev.    relative deviation of\n");
@@ -1362,7 +1429,7 @@ int gmx_analyze(int argc, char *argv[])
                 fprintf(out, "%s\n", output_env_get_print_xvgr_codes(oenv) ? "&" : "");
             }
         }
-        gmx_ffclose(out);
+        xvgrclose(out);
         fprintf(stderr, "\r%d, time=%g\n", j-1, (j-1)*dt);
     }
     if (ccfile)
@@ -1418,7 +1485,7 @@ int gmx_analyze(int argc, char *argv[])
 
     if (bLuzar)
     {
-        luzar_correl(n, t, nset, val, temp, bXYdy, fit_start, smooth_tail_start, oenv);
+        luzar_correl(n, t, nset, val, temp, bXYdy, fit_start);
     }
 
     view_all(oenv, NFILE, fnm);

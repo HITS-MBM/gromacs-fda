@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2012,2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2012,2013,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -39,7 +39,11 @@
  * \author Teemu Murtola <teemu.murtola@gmail.com>
  * \ingroup module_utility
  */
+#include "gmxpre.h"
+
 #include "file.h"
+
+#include "config.h"
 
 #include <cerrno>
 #include <cstdio>
@@ -49,9 +53,8 @@
 #include <string>
 #include <vector>
 
-#include "config.h"
-
 #include <sys/stat.h>
+
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #endif
@@ -106,6 +109,25 @@ File::Impl::~Impl()
     }
 }
 
+// static
+FILE *File::openRawHandle(const char *filename, const char *mode)
+{
+    FILE *fp = fopen(filename, mode);
+    if (fp == NULL)
+    {
+        GMX_THROW_WITH_ERRNO(
+                FileIOError(formatString("Could not open file '%s'", filename)),
+                "fopen", errno);
+    }
+    return fp;
+}
+
+// static
+FILE *File::openRawHandle(const std::string &filename, const char *mode)
+{
+    return openRawHandle(filename.c_str(), mode);
+}
+
 File::File(const char *filename, const char *mode)
     : impl_(new Impl(NULL, true))
 {
@@ -116,6 +138,12 @@ File::File(const std::string &filename, const char *mode)
     : impl_(new Impl(NULL, true))
 {
     open(filename, mode);
+}
+
+File::File(const FileInitializer &initializer)
+    : impl_(new Impl(NULL, true))
+{
+    open(initializer.filename_, initializer.mode_);
 }
 
 File::File(FILE *fp, bool bClose)
@@ -132,13 +160,7 @@ void File::open(const char *filename, const char *mode)
     GMX_RELEASE_ASSERT(impl_->fp_ == NULL,
                        "Attempted to open the same file object twice");
     // TODO: Port all necessary functionality from gmx_ffopen() here.
-    impl_->fp_ = fopen(filename, mode);
-    if (impl_->fp_ == NULL)
-    {
-        GMX_THROW_WITH_ERRNO(
-                FileIOError(formatString("Could not open file '%s'", filename)),
-                "fopen", errno);
-    }
+    impl_->fp_ = openRawHandle(filename, mode);
 }
 
 void File::open(const std::string &filename, const char *mode)
@@ -374,6 +396,7 @@ void File::writeFileFromString(const std::string &filename,
 {
     File file(filename, "w");
     file.writeString(text);
+    file.close();
 }
 
 } // namespace gmx

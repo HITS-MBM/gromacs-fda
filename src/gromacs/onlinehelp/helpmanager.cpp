@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2012, by the GROMACS development team, led by
+ * Copyright (c) 2012,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -39,12 +39,15 @@
  * \author Teemu Murtola <teemu.murtola@gmail.com>
  * \ingroup module_onlinehelp
  */
+#include "gmxpre.h"
+
 #include "helpmanager.h"
 
 #include <string>
 #include <vector>
 
 #include "gromacs/onlinehelp/helptopicinterface.h"
+#include "gromacs/onlinehelp/helpwritercontext.h"
 #include "gromacs/utility/exceptions.h"
 #include "gromacs/utility/stringutil.h"
 
@@ -158,7 +161,10 @@ void HelpManager::enterTopic(const std::string &name)
 void HelpManager::writeCurrentTopic() const
 {
     const HelpTopicInterface &topic = impl_->currentTopic();
-    topic.writeHelp(impl_->rootContext_);
+    const char               *title = topic.title();
+    HelpWriterContext         context(impl_->rootContext_);
+    context.enterSubSection(title != NULL ? title : "");
+    topic.writeHelp(context);
 }
 
 } // namespace gmx

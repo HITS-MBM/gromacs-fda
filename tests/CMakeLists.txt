@@ -1,7 +1,7 @@
 #
 # This file is part of the GROMACS molecular simulation package.
 #
-# Copyright (c) 2012,2013,2014, by the GROMACS development team, led by
+# Copyright (c) 2012,2013,2014,2015, by the GROMACS development team, led by
 # Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
 # and including many others, as listed in the AUTHORS file in the
 # top-level source directory and at http://www.gromacs.org.
@@ -38,15 +38,14 @@ option(REGRESSIONTEST_DOWNLOAD
     "Automatically download regressiontests. Tests can be run with ctest." OFF)
 
 if(REGRESSIONTEST_DOWNLOAD)
-    if("${PROJECT_VERSION}" MATCHES "-dev")
-      set(REGRESSIONTEST_URL http://gerrit.gromacs.org/snapshot/${REGRESSIONTEST_BRANCH})
-      set(REGRESSIONTEST_PATH "${CMAKE_CURRENT_BINARY_DIR}/regressiontests"
-           CACHE PATH "Path to auto-downloaded regressiontests" FORCE)
+    if (NOT SOURCE_IS_SOURCE_DISTRIBUTION)
+        set(REGRESSIONTEST_URL http://gerrit.gromacs.org/snapshot/${REGRESSIONTEST_BRANCH})
+        # REGRESSIONTEST_PATH for dev trees is set later based on the dirname found in the tar
     else()
         set(REGRESSIONTEST_URL http://gerrit.gromacs.org/download/regressiontests-${REGRESSIONTEST_VERSION}.tar.gz)
         set(REGRESSIONTEST_PATH
-           "${CMAKE_CURRENT_BINARY_DIR}/regressiontests-${REGRESSIONTEST_VERSION}"
-           CACHE PATH "Path to auto-downloaded regressiontests" FORCE)
+            "${CMAKE_CURRENT_BINARY_DIR}/regressiontests-${REGRESSIONTEST_VERSION}"
+            CACHE PATH "Path to auto-downloaded regressiontests" FORCE)
     endif()
     set(REGRESSIONTEST_FILE "${CMAKE_CURRENT_BINARY_DIR}/regressiontests.tgz")
     message("Downloading: ${REGRESSIONTEST_URL}")
@@ -59,6 +58,24 @@ if(REGRESSIONTEST_DOWNLOAD)
 status_code: ${status_code}
 status_string: ${status_string}
 log: ${log}")
+    endif()
+    if (SOURCE_IS_SOURCE_DISTRIBUTION)
+        file(MD5 ${REGRESSIONTEST_FILE} COMPUTED_MD5SUM)
+        if(NOT ${REGRESSIONTEST_MD5SUM} STREQUAL ${COMPUTED_MD5SUM})
+            message(FATAL_ERROR "Download of regressiontests failed. Expected MD5 of ${REGRESSIONTEST_MD5SUM} but download has ${COMPUTED_MD5SUM}")
+        endif()
+    else()
+        # Extract the REGRESSIONTEST_PATH from the tar when using dev tree.
+        execute_process(COMMAND ${CMAKE_COMMAND} -E tar tf "${REGRESSIONTEST_FILE}"
+                RESULT_VARIABLE _tar_tf_res
+                OUTPUT_VARIABLE _tar_tf_out)
+        if (${_tar_tf_res} EQUAL 0)
+            string(REGEX REPLACE "/\n.*$" "" _regressiontest_dir "${_tar_tf_out}")
+            set(REGRESSIONTEST_PATH "${CMAKE_CURRENT_BINARY_DIR}/${_regressiontest_dir}"
+                CACHE PATH "Path to auto-downloaded regressiontests" FORCE)
+        else()
+            message(FATAL_ERROR "Failed to list the contents of the downloaded tarball: ${REGRESSIONTEST_FILE}")
+        endif()
     endif()
 
     file(REMOVE_RECURSE "${REGRESSIONTEST_PATH}") #delete potential prior folder
@@ -89,14 +106,14 @@ if(REGRESSIONTEST_PATH)
 
     # gmxtests target builds all binaries required for running gmxtest
     add_custom_target(gmxtests DEPENDS gmx)
-    add_dependencies(check gmxtests)
+    add_dependencies(run-ctest gmxtests)
 
     if(GMX_DOUBLE)
         list(APPEND ARGS -double)
     endif()
-    if(GMX_LIB_MPI AND NOT MPIEXEC) #autodetection failed or CC=mpicc was used
+    if(GMX_LIB_MPI AND NOT MPIEXEC) # find_program failed
         message(WARNING
-            "Please set MPIEXEC. Otherwise mpirun is assumed for runnings tests.")
+            "Please set MPIEXEC. Otherwise mpirun is assumed for running tests.")
     endif()
     if(GMX_LIB_MPI)
         set(GMX_TEST_NUMBER_PROCS 8 CACHE STRING "Number of processors used for testing")

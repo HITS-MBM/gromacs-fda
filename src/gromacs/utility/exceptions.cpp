@@ -39,11 +39,11 @@
  * \author Teemu Murtola <teemu.murtola@gmail.com>
  * \ingroup module_utility
  */
+#include "gmxpre.h"
+
 #include "exceptions.h"
 
-#ifdef HAVE_CONFIG_H
 #include "config.h"
-#endif
 
 #include <cstring>
 
@@ -51,13 +51,12 @@
 #include <stdexcept>
 #include <typeinfo>
 
-#include <boost/exception/get_error_info.hpp>
 #include <boost/shared_ptr.hpp>
+#include <boost/exception/get_error_info.hpp>
 
 #include "thread_mpi/system_error.h"
 
-#include "gromacs/legacyheaders/network.h"
-
+#include "gromacs/utility/basenetwork.h"
 #include "gromacs/utility/errorcodes.h"
 #include "gromacs/utility/gmxassert.h"
 #include "gromacs/utility/stringutil.h"
@@ -177,11 +176,15 @@ GromacsException::GromacsException(const ExceptionInitializer &details)
 const char *GromacsException::what() const throw()
 {
     const ErrorMessage *msg = boost::get_error_info<errinfo_message>(*this);
-    while (msg != NULL && msg->isContext())
+    if (msg == NULL)
+    {
+        return "No reason provided";
+    }
+    while (msg->isContext())
     {
         msg = &msg->child();
     }
-    return msg != NULL ? msg->text().c_str() : "No reason provided";
+    return msg->text().c_str();
 }
 
 void GromacsException::prependContext(const std::string &context)
@@ -378,6 +381,7 @@ void formatExceptionMessageInternal(MessageWriterInterface *writer,
         //                           funcPtr != NULL ? *funcPtr : "");
         // }
 
+        bool                bAnythingWritten = false;
         // TODO: Remove duplicate context if present in multiple nested exceptions.
         const ErrorMessage *msg = boost::get_error_info<errinfo_message>(*boostEx);
         if (msg != NULL)
@@ -391,11 +395,13 @@ void formatExceptionMessageInternal(MessageWriterInterface *writer,
             if (msg != NULL && !msg->text().empty())
             {
                 writer->writeLine(msg->text().c_str(), indent*2);
+                bAnythingWritten = true;
             }
         }
         else
         {
             writer->writeLine(ex.what(), indent*2);
+            bAnythingWritten = true;
         }
 
         const int *errorNumber
@@ -407,6 +413,7 @@ void formatExceptionMessageInternal(MessageWriterInterface *writer,
             writer->writeErrNoInfo(*errorNumber,
                                    funcName != NULL ? *funcName : NULL,
                                    (indent+1)*2);
+            bAnythingWritten = true;
         }
 
         // TODO: Treat also boost::nested_exception (not currently used, though)
@@ -424,7 +431,8 @@ void formatExceptionMessageInternal(MessageWriterInterface *writer,
                 }
                 catch (const std::exception &nestedEx)
                 {
-                    formatExceptionMessageInternal(writer, nestedEx, indent + 1);
+                    const int newIndent = indent + (bAnythingWritten ? 1 : 0);
+                    formatExceptionMessageInternal(writer, nestedEx, newIndent);
                 }
             }
         }
@@ -517,7 +525,7 @@ int processExceptionAtExit(const std::exception & /*ex*/)
 #ifdef GMX_LIB_MPI
     // TODO: Consider moving the output done in gmx_abort() into the message
     // printing routine above, so that this could become a simple MPI_Abort().
-    gmx_abort(gmx_node_rank(), gmx_node_num(), returnCode);
+    gmx_abort(returnCode);
 #endif
     return returnCode;
 }

@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -34,39 +34,37 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
+#include "gmxpre.h"
+
 #include "trxio.h"
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
+#include "config.h"
 
 #include <assert.h>
 #include <math.h>
 
-#include "sysstuff.h"
-#include "typedefs.h"
-#ifdef GMX_USE_PLUGINS
-#include "vmdio.h"
-#endif
-#include "gromacs/utility/smalloc.h"
-#include "pbc.h"
-#include "gmxfio.h"
-#include "trxio.h"
-#include "tpxio.h"
-#include "trnio.h"
-#include "tngio.h"
-#include "tngio_for_tools.h"
-#include "names.h"
-#include "vec.h"
-#include "futil.h"
-#include "xtcio.h"
-#include "pdbio.h"
-#include "confio.h"
-#include "checkpoint.h"
-#include "xdrf.h"
-
+#include "gromacs/fileio/confio.h"
+#include "gromacs/fileio/gmxfio.h"
+#include "gromacs/fileio/pdbio.h"
 #include "gromacs/fileio/timecontrol.h"
-#include "gromacs/legacyheaders/gmx_fatal.h"
+#include "gromacs/fileio/tngio.h"
+#include "gromacs/fileio/tngio_for_tools.h"
+#include "gromacs/fileio/tpxio.h"
+#include "gromacs/fileio/trnio.h"
+#include "gromacs/fileio/trx.h"
+#include "gromacs/fileio/xdrf.h"
+#include "gromacs/fileio/xtcio.h"
+#include "gromacs/legacyheaders/checkpoint.h"
+#include "gromacs/legacyheaders/names.h"
+#include "gromacs/math/vec.h"
+#include "gromacs/topology/atoms.h"
+#include "gromacs/utility/fatalerror.h"
+#include "gromacs/utility/futil.h"
+#include "gromacs/utility/smalloc.h"
+
+#ifdef GMX_USE_PLUGINS
+#include "gromacs/fileio/vmdio.h"
+#endif
 
 /* defines for frame counter output */
 #define SKIP1   10
@@ -80,7 +78,7 @@ struct t_trxstatus
     int                     nxframe;
     t_fileio               *fio;
     tng_trajectory_t        tng;
-    int                     NATOMS;
+    int                     natoms;
     double                  DT, BOX[3];
     gmx_bool                bReadBox;
     char                   *persistent_line; /* Persistent line for reading g96 trajectories */
@@ -240,7 +238,7 @@ float trx_get_time_of_final_frame(t_trxstatus *status)
         lasttime =
             xdr_xtc_get_last_frame_time(gmx_fio_getfp(stfio),
                                         gmx_fio_getxdr(stfio),
-                                        status->xframe->natoms, &bOK);
+                                        status->natoms, &bOK);
         if (!bOK)
         {
             gmx_fatal(FARGS, "Error reading last frame. Maybe seek not supported." );
@@ -339,7 +337,6 @@ int write_trxframe_indexed(t_trxstatus *status, t_trxframe *fr, int nind,
 
     switch (ftp)
     {
-        case efTRJ:
         case efTRR:
         case efTNG:
             break;
@@ -354,7 +351,6 @@ int write_trxframe_indexed(t_trxstatus *status, t_trxframe *fr, int nind,
 
     switch (ftp)
     {
-        case efTRJ:
         case efTRR:
         case efTNG:
             if (fr->bV)
@@ -396,7 +392,6 @@ int write_trxframe_indexed(t_trxstatus *status, t_trxframe *fr, int nind,
         case efXTC:
             write_xtc(status->fio, nind, fr->step, fr->time, fr->box, xout, prec);
             break;
-        case efTRJ:
         case efTRR:
             fwrite_trn(status->fio, nframes_read(status),
                        fr->time, fr->step, fr->box, nind, xout, vout, fout);
@@ -434,8 +429,6 @@ int write_trxframe_indexed(t_trxstatus *status, t_trxframe *fr, int nind,
 
     switch (ftp)
     {
-        case efTRN:
-        case efTRJ:
         case efTRR:
         case efTNG:
             if (vout)
@@ -535,7 +528,6 @@ int write_trxframe(t_trxstatus *status, t_trxframe *fr, gmx_conect gc)
 
     switch (gmx_fio_getftp(status->fio))
     {
-        case efTRJ:
         case efTRR:
             break;
         default:
@@ -552,7 +544,6 @@ int write_trxframe(t_trxstatus *status, t_trxframe *fr, gmx_conect gc)
         case efXTC:
             write_xtc(status->fio, fr->natoms, fr->step, fr->time, fr->box, fr->x, prec);
             break;
-        case efTRJ:
         case efTRR:
             fwrite_trn(status->fio, fr->step, fr->time, fr->lambda, fr->box, fr->natoms,
                        fr->bX ? fr->x : NULL, fr->bV ? fr->v : NULL, fr->bF ? fr->f : NULL);
@@ -815,7 +806,6 @@ gmx_bool read_next_frame(const output_env_t oenv, t_trxstatus *status, t_trxfram
         }
         switch (ftp)
         {
-            case efTRJ:
             case efTRR:
                 bRet = gmx_next_frame(status, fr);
                 break;
@@ -949,7 +939,6 @@ int read_first_frame(const output_env_t oenv, t_trxstatus **status,
     }
     switch (ftp)
     {
-        case efTRJ:
         case efTRR:
             break;
         case efCPT:
@@ -1065,6 +1054,11 @@ int read_first_frame(const output_env_t oenv, t_trxstatus **status,
         }
     }
     fr->t0 = fr->time;
+
+    /* We need the number of atoms for random-access XTC searching, even when
+     * we don't have access to the actual frame data.
+     */
+    (*status)->natoms = fr->natoms;
 
     return (fr->natoms > 0);
 }

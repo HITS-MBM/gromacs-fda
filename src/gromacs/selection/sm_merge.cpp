@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2009,2010,2011,2012,2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2009,2010,2011,2012,2013,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -39,14 +39,16 @@
  * \author Teemu Murtola <teemu.murtola@gmail.com>
  * \ingroup module_selection
  */
-#include "gromacs/legacyheaders/macros.h"
-#include "gromacs/legacyheaders/vec.h"
+#include "gmxpre.h"
 
+#include "gromacs/legacyheaders/macros.h"
+#include "gromacs/math/vec.h"
 #include "gromacs/selection/position.h"
-#include "gromacs/selection/selmethod.h"
-#include "gromacs/utility/common.h"
+#include "gromacs/utility/basedefinitions.h"
 #include "gromacs/utility/exceptions.h"
 #include "gromacs/utility/smalloc.h"
+
+#include "selmethod.h"
 
 /*! \internal \brief
  * Data structure for the merging selection modifiers.
@@ -118,14 +120,16 @@ static gmx_ana_selparam_t smparams_merge[] = {
     {"stride",   {INT_VALUE,  1, {NULL}}, NULL, SPAR_OPTIONAL},
 };
 
-/** Help text for the merging selection modifiers. */
-static const char *help_merge[] = {
-    "MERGING SELECTIONS[PAR]",
-
-    "[TT]POSEXPR merge POSEXPR [stride INT][tt][BR]",
-    "[TT]POSEXPR merge POSEXPR [merge POSEXPR ...][tt][BR]",
-    "[TT]POSEXPR plus POSEXPR [plus POSEXPR ...][tt][PAR]",
-
+//! Help title for the merging selection modifiers.
+static const char        helptitle_merge[] = "Merging selections";
+//! Help text for the merging selection modifiers.
+static const char *const help_merge[] = {
+    "::",
+    "",
+    "  POSEXPR merge POSEXPR [stride INT]",
+    "  POSEXPR merge POSEXPR [merge POSEXPR ...]",
+    "  POSEXPR plus POSEXPR [plus POSEXPR ...]",
+    "",
     "Basic selection keywords can only create selections where each atom",
     "occurs at most once. The [TT]merge[tt] and [TT]plus[tt] selection",
     "keywords can be used to work around this limitation. Both create",
@@ -156,7 +160,7 @@ gmx_ana_selmethod_t sm_merge = {
     NULL,
     NULL,
     &evaluate_merge,
-    {"merge POSEXPR", asize(help_merge), help_merge},
+    {"merge POSEXPR", helptitle_merge, asize(help_merge), help_merge},
 };
 
 /** Selection method data for the \p plus modifier. */
@@ -171,7 +175,7 @@ gmx_ana_selmethod_t sm_plus = {
     NULL,
     NULL,
     &evaluate_plus,
-    {"plus POSEXPR", asize(help_merge), help_merge},
+    {"plus POSEXPR", helptitle_merge, asize(help_merge), help_merge},
 };
 
 /*!

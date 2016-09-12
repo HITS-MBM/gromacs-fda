@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -35,30 +35,26 @@
  * the research papers on the package. Check out http://www.gromacs.org.
  */
 /* This file is completely threadsafe - keep it that way! */
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
+#include "gmxpre.h"
+
+#include "gen_ad.h"
 
 #include <ctype.h>
 #include <math.h>
+#include <stdlib.h>
 #include <string.h>
 
-#include "sysstuff.h"
-#include "macros.h"
-#include "gromacs/utility/smalloc.h"
-#include "gromacs/utility/cstringutil.h"
 #include "gromacs/fileio/confio.h"
-#include "vec.h"
-#include "pbc.h"
-#include "toputil.h"
-#include "topio.h"
-#include "gpp_nextnb.h"
-#include "symtab.h"
-#include "macros.h"
-#include "gmx_fatal.h"
-#include "pgutil.h"
-#include "resall.h"
-#include "gen_ad.h"
+#include "gromacs/gmxpreprocess/gpp_nextnb.h"
+#include "gromacs/gmxpreprocess/pgutil.h"
+#include "gromacs/gmxpreprocess/resall.h"
+#include "gromacs/gmxpreprocess/topio.h"
+#include "gromacs/gmxpreprocess/toputil.h"
+#include "gromacs/legacyheaders/macros.h"
+#include "gromacs/math/vec.h"
+#include "gromacs/utility/cstringutil.h"
+#include "gromacs/utility/fatalerror.h"
+#include "gromacs/utility/smalloc.h"
 
 #define DIHEDRAL_WAS_SET_IN_RTP 0
 static gmx_bool was_dihedral_set_in_rtp(t_param *dih)
@@ -210,7 +206,7 @@ static void rm2par(t_param p[], int *np, peq eq)
             {
                 fprintf(debug,
                         "Something VERY strange is going on in rm2par (gen_ad.c)\n"
-                        "a[0] %u a[1] %u a[2] %u a[3] %u\n",
+                        "a[0] %d a[1] %d a[2] %d a[3] %d\n",
                         p[i].a[0], p[i].a[1], p[i].a[2], p[i].a[3]);
             }
             strcpy(p[i].s, "");
@@ -1042,102 +1038,105 @@ void gen_pad(t_nextnb *nnb, t_atoms *atoms, t_restp rtp[],
         }
     }
 
-    /* The above approach is great in that we double-check that e.g. an angle
-     * really corresponds to three atoms connected by bonds, but this is not
-     * generally true. Go through the angle and dihedral hackblocks to add
-     * entries that we have not yet marked as matched when going through bonds.
-     */
-    for (i = 0; i < atoms->nres; i++)
+    if (hb)
     {
-        /* Add remaining angles from hackblock */
-        hbang = &hb[i].rb[ebtsANGLES];
-        for (j = 0; j < hbang->nb; j++)
+        /* The above approach is great in that we double-check that e.g. an angle
+         * really corresponds to three atoms connected by bonds, but this is not
+         * generally true. Go through the angle and dihedral hackblocks to add
+         * entries that we have not yet marked as matched when going through bonds.
+         */
+        for (i = 0; i < atoms->nres; i++)
         {
-            if (hbang->b[j].match == TRUE)
+            /* Add remaining angles from hackblock */
+            hbang = &hb[i].rb[ebtsANGLES];
+            for (j = 0; j < hbang->nb; j++)
             {
-                /* We already used this entry, continue to the next */
-                continue;
-            }
-            /* Hm - entry not used, let's see if we can find all atoms */
-            if (nang == maxang)
-            {
-                maxang += ninc;
-                srenew(ang, maxang);
-            }
-            bFound = TRUE;
-            for (k = 0; k < 3 && bFound; k++)
-            {
-                p   = hbang->b[j].a[k];
-                res = i;
-                if (p[0] == '-')
+                if (hbang->b[j].match == TRUE)
                 {
-                    p++;
-                    res--;
+                    /* We already used this entry, continue to the next */
+                    continue;
                 }
-                else if (p[0] == '+')
+                /* Hm - entry not used, let's see if we can find all atoms */
+                if (nang == maxang)
                 {
-                    p++;
-                    res++;
+                    maxang += ninc;
+                    srenew(ang, maxang);
                 }
-                ang[nang].a[k] = search_res_atom(p, res, atoms, "angle", TRUE);
-                bFound         = (ang[nang].a[k] != NO_ATID);
-            }
-            ang[nang].C0 = NOTSET;
-            ang[nang].C1 = NOTSET;
+                bFound = TRUE;
+                for (k = 0; k < 3 && bFound; k++)
+                {
+                    p   = hbang->b[j].a[k];
+                    res = i;
+                    if (p[0] == '-')
+                    {
+                        p++;
+                        res--;
+                    }
+                    else if (p[0] == '+')
+                    {
+                        p++;
+                        res++;
+                    }
+                    ang[nang].a[k] = search_res_atom(p, res, atoms, "angle", TRUE);
+                    bFound         = (ang[nang].a[k] != NO_ATID);
+                }
+                ang[nang].C0 = NOTSET;
+                ang[nang].C1 = NOTSET;
 
-            if (bFound)
-            {
-                set_p_string(&(ang[nang]), hbang->b[j].s);
-                hbang->b[j].match = TRUE;
-                /* Incrementing nang means we save this angle */
-                nang++;
-            }
-        }
-
-        /* Add remaining dihedrals from hackblock */
-        hbdih = &hb[i].rb[ebtsPDIHS];
-        for (j = 0; j < hbdih->nb; j++)
-        {
-            if (hbdih->b[j].match == TRUE)
-            {
-                /* We already used this entry, continue to the next */
-                continue;
-            }
-            /* Hm - entry not used, let's see if we can find all atoms */
-            if (ndih == maxdih)
-            {
-                maxdih += ninc;
-                srenew(dih, maxdih);
-            }
-            bFound = TRUE;
-            for (k = 0; k < 4 && bFound; k++)
-            {
-                p   = hbdih->b[j].a[k];
-                res = i;
-                if (p[0] == '-')
+                if (bFound)
                 {
-                    p++;
-                    res--;
+                    set_p_string(&(ang[nang]), hbang->b[j].s);
+                    hbang->b[j].match = TRUE;
+                    /* Incrementing nang means we save this angle */
+                    nang++;
                 }
-                else if (p[0] == '+')
-                {
-                    p++;
-                    res++;
-                }
-                dih[ndih].a[k] = search_res_atom(p, res, atoms, "dihedral", TRUE);
-                bFound         = (dih[ndih].a[k] != NO_ATID);
-            }
-            for (m = 0; m < MAXFORCEPARAM; m++)
-            {
-                dih[ndih].c[m] = NOTSET;
             }
 
-            if (bFound)
+            /* Add remaining dihedrals from hackblock */
+            hbdih = &hb[i].rb[ebtsPDIHS];
+            for (j = 0; j < hbdih->nb; j++)
             {
-                set_p_string(&(dih[ndih]), hbdih->b[j].s);
-                hbdih->b[j].match = TRUE;
-                /* Incrementing ndih means we save this dihedral */
-                ndih++;
+                if (hbdih->b[j].match == TRUE)
+                {
+                    /* We already used this entry, continue to the next */
+                    continue;
+                }
+                /* Hm - entry not used, let's see if we can find all atoms */
+                if (ndih == maxdih)
+                {
+                    maxdih += ninc;
+                    srenew(dih, maxdih);
+                }
+                bFound = TRUE;
+                for (k = 0; k < 4 && bFound; k++)
+                {
+                    p   = hbdih->b[j].a[k];
+                    res = i;
+                    if (p[0] == '-')
+                    {
+                        p++;
+                        res--;
+                    }
+                    else if (p[0] == '+')
+                    {
+                        p++;
+                        res++;
+                    }
+                    dih[ndih].a[k] = search_res_atom(p, res, atoms, "dihedral", TRUE);
+                    bFound         = (dih[ndih].a[k] != NO_ATID);
+                }
+                for (m = 0; m < MAXFORCEPARAM; m++)
+                {
+                    dih[ndih].c[m] = NOTSET;
+                }
+
+                if (bFound)
+                {
+                    set_p_string(&(dih[ndih]), hbdih->b[j].s);
+                    hbdih->b[j].match = TRUE;
+                    /* Incrementing ndih means we save this dihedral */
+                    ndih++;
+                }
             }
         }
     }

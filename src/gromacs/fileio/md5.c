@@ -36,9 +36,9 @@
  * the use of GMX_INTEGER_BIG_ENDIAN, and the renaming of the
  * functions md5_init, md5_append and md5_finish to have a gmx_ prefix
  * (to avoid name clashes). */
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
+#include "gmxpre.h"
+
+#include "config.h"
 
 #ifdef GMX_INTEGER_BIG_ENDIAN
 #define ARCH_IS_BIG_ENDIAN 1
@@ -99,6 +99,7 @@
  */
 
 #include "md5.h"
+
 #include <string.h>
 
 #undef BYTE_ORDER   /* 1 = big-endian, -1 = little-endian, 0 = unknown */
@@ -188,7 +189,6 @@ md5_process(md5_state_t *pms, const md5_byte_t *data /*[64]*/)
 #else
     /* Define storage for little-endian or both types of CPUs. */
     md5_word_t        xbuf[16];
-    /* cppcheck-suppress unassignedVariable */
     const md5_word_t *X;
 #endif
 

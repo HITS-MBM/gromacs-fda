@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014, 2015 by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -32,47 +32,48 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
+#include "gmxpre.h"
+
 #include "tngio.h"
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
-
-#ifdef HAVE_UNISTD_H
-#include <unistd.h>
-#endif
+#include "config.h"
 
 #ifdef GMX_USE_TNG
 #include "tng/tng_io.h"
 #endif
 
+#include "gromacs/fileio/gmxfio.h"
 #include "gromacs/legacyheaders/copyrite.h"
-#include "gromacs/legacyheaders/gmx_fatal.h"
-#include "gromacs/legacyheaders/main.h"
-#include "gromacs/legacyheaders/physics.h"
+#include "gromacs/legacyheaders/types/ifunc.h"
+#include "gromacs/math/units.h"
 #include "gromacs/math/utilities.h"
-#include "gromacs/utility/common.h"
+#include "gromacs/topology/topology.h"
+#include "gromacs/utility/basedefinitions.h"
+#include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/gmxassert.h"
 #include "gromacs/utility/programcontext.h"
-#include "gmxfio.h"
+#include "gromacs/utility/sysinfo.h"
 
 static const char *modeToVerb(char mode)
 {
+    const char *p;
     switch (mode)
     {
         case 'r':
-            return "reading";
+            p = "reading";
             break;
         case 'w':
-            return "writing";
+            p = "writing";
             break;
         case 'a':
-            return "appending";
+            p = "appending";
             break;
         default:
             gmx_fatal(FARGS, "Invalid file opening mode %c", mode);
-            return "";
+            p = "";
+            break;
     }
+    return p;
 }
 
 void gmx_tng_open(const char       *filename,
@@ -85,10 +86,7 @@ void gmx_tng_open(const char       *filename,
      */
     if (mode == 'w')
     {
-#ifndef GMX_FAHCORE
-        /* only make backups for normal gromacs */
         make_backup(filename);
-#endif
     }
 
     /* tng must not be pointing at already allocated memory.
@@ -108,22 +106,16 @@ void gmx_tng_open(const char       *filename,
 
     if (mode == 'w' || mode == 'a')
     {
-        /* FIXME in TNG: When adding data to the header, subsequent blocks might get
-         * overwritten. This could be solved by moving the first trajectory
-         * frame set(s) to the end of the file. Could that cause other problems,
-         * e.g. when continuing a simulation? */
         char hostname[256];
         gmx_gethostname(hostname, 256);
         if (mode == 'w')
         {
             tng_first_computer_name_set(*tng, hostname);
         }
-/* TODO: This should be implemented when the above fixme is done (adding data to
- * the header). */
-//         else
-//         {
-//             tng_last_computer_name_set(*tng, hostname);
-//         }
+        else
+        {
+            tng_last_computer_name_set(*tng, hostname);
+        }
 
         char        programInfo[256];
         const char *precisionString = "";
@@ -137,27 +129,24 @@ void gmx_tng_open(const char       *filename,
         {
             tng_first_program_name_set(*tng, programInfo);
         }
-/* TODO: This should be implemented when the above fixme is done (adding data to
- * the header). */
-//         else
-//         {
-//             tng_last_program_name_set(*tng, programInfo);
-//         }
-
-#ifdef HAVE_UNISTD_H
-        char username[256];
-        getlogin_r(username, 256);
-        if (mode == 'w')
+        else
         {
-            tng_first_user_name_set(*tng, username);
+            tng_last_program_name_set(*tng, programInfo);
         }
-/* TODO: This should be implemented when the above fixme is done (adding data to
- * the header). */
-//         else
-//         {
-//             tng_last_user_name_set(*tng, username);
-//         }
-#endif
+
+        char username[256];
+        if (!gmx_getusername(username, 256))
+        {
+            if (mode == 'w')
+            {
+                tng_first_user_name_set(*tng, username);
+            }
+            else
+            {
+                tng_last_user_name_set(*tng, username);
+                tng_file_headers_write(*tng, TNG_USE_HASH);
+            }
+        }
     }
 #else
     gmx_file("GROMACS was compiled without TNG support, cannot handle this file type");

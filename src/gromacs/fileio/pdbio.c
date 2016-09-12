@@ -34,29 +34,29 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
+#include "gmxpre.h"
+
+#include "pdbio.h"
 
 #include <ctype.h>
+#include <stdlib.h>
 #include <string.h>
 
-#include "sysstuff.h"
+#include "gromacs/fileio/gmxfio.h"
+#include "gromacs/legacyheaders/copyrite.h"
+#include "gromacs/legacyheaders/typedefs.h"
+#include "gromacs/legacyheaders/types/ifunc.h"
+#include "gromacs/math/units.h"
+#include "gromacs/math/vec.h"
+#include "gromacs/pbcutil/pbc.h"
+#include "gromacs/topology/atomprop.h"
+#include "gromacs/topology/residuetypes.h"
+#include "gromacs/topology/symtab.h"
+#include "gromacs/topology/topology.h"
 #include "gromacs/utility/cstringutil.h"
-#include "vec.h"
+#include "gromacs/utility/fatalerror.h"
+#include "gromacs/utility/futil.h"
 #include "gromacs/utility/smalloc.h"
-#include "typedefs.h"
-#include "symtab.h"
-#include "pdbio.h"
-#include "vec.h"
-#include "copyrite.h"
-#include "futil.h"
-#include "atomprop.h"
-#include "physics.h"
-#include "pbc.h"
-#include "gmxfio.h"
-
-#include "gromacs/legacyheaders/gmx_fatal.h"
 
 typedef struct {
     int ai, aj;
@@ -274,7 +274,7 @@ void write_pdbfile_indexed(FILE *out, const char *title,
     int               nlongname = 0;
     int               chainnum, lastchainnum;
     int               lastresind, lastchainresind;
-    gmx_residuetype_t rt;
+    gmx_residuetype_t*rt;
     const char       *p_restype;
     const char       *p_lastrestype;
 
@@ -392,7 +392,7 @@ void write_pdbfile_indexed(FILE *out, const char *title,
 
         if (atoms->pdbinfo && atoms->pdbinfo[i].bAnisotropic)
         {
-            fprintf(out, "ANISOU%5u  %-4.4s%4.4s%c%4d%c %7d%7d%7d%7d%7d%7d\n",
+            fprintf(out, "ANISOU%5d  %-4.4s%4.4s%c%4d%c %7d%7d%7d%7d%7d%7d\n",
                     (i+1)%100000, nm, resnm, ch, resnr,
                     (resic == '\0') ? ' ' : resic,
                     atoms->pdbinfo[i].uij[0], atoms->pdbinfo[i].uij[1],

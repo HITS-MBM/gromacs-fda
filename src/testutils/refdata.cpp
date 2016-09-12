@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2011,2012,2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2011,2012,2013,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -39,6 +39,8 @@
  * \author Teemu Murtola <teemu.murtola@gmail.com>
  * \ingroup module_testutils
  */
+#include "gmxpre.h"
+
 #include "refdata.h"
 
 #include <cstdio>
@@ -51,11 +53,11 @@
 #include <libxml/parser.h>
 #include <libxml/xmlmemory.h>
 
-#include "gromacs/fileio/path.h"
 #include "gromacs/options/basicoptions.h"
 #include "gromacs/options/options.h"
 #include "gromacs/utility/exceptions.h"
 #include "gromacs/utility/gmxassert.h"
+#include "gromacs/utility/path.h"
 #include "gromacs/utility/stringutil.h"
 
 #include "testutils/testasserts.h"
@@ -82,27 +84,18 @@ class TestReferenceDataEnvironment : public ::testing::Environment
 // TODO: Make this a real enum; requires solving a TODO in StringOption.
 int g_referenceDataMode = gmx::test::erefdataCompare;
 
+//! Returns the global reference data mode.
+gmx::test::ReferenceDataMode getReferenceDataMode()
+{
+    return static_cast<gmx::test::ReferenceDataMode>(g_referenceDataMode);
+}
+
 } // namespace
 
 namespace gmx
 {
 namespace test
 {
-
-ReferenceDataMode getReferenceDataMode()
-{
-    return static_cast<ReferenceDataMode>(g_referenceDataMode);
-}
-
-void setReferenceDataMode(ReferenceDataMode mode)
-{
-    g_referenceDataMode = mode;
-}
-
-std::string getReferenceDataPath()
-{
-    return TestFileManager::getInputFilePath("refdata");
-}
 
 void initReferenceData(Options *options)
 {
@@ -175,9 +168,12 @@ const xmlChar * const TestReferenceData::Impl::cRootNodeName =
 TestReferenceData::Impl::Impl(ReferenceDataMode mode, bool bSelfTestMode)
     : refDoc_(NULL), bWrite_(false), bSelfTestMode_(bSelfTestMode), bInUse_(false)
 {
-    std::string dirname  = getReferenceDataPath();
-    std::string filename = TestFileManager::getTestSpecificFileName(".xml");
-    fullFilename_ = Path::join(dirname, filename);
+    const std::string dirname =
+        bSelfTestMode
+        ? TestFileManager::getGlobalOutputTempDirectory()
+        : TestFileManager::getInputDataDirectory();
+    const std::string filename = TestFileManager::getTestSpecificFileName(".xml");
+    fullFilename_ = Path::join(dirname, "refdata", filename);
 
     bWrite_ = true;
     if (mode != erefdataUpdateAll)
@@ -230,7 +226,7 @@ TestReferenceData::Impl::~Impl()
 {
     if (bWrite_ && bInUse_ && refDoc_ != NULL)
     {
-        std::string dirname = getReferenceDataPath();
+        std::string dirname = Path::getParentPath(fullFilename_);
         if (!Directory::exists(dirname))
         {
             if (Directory::create(dirname) != 0)
@@ -268,6 +264,10 @@ class TestReferenceChecker::Impl
         static const xmlChar * const cStringNodeName;
         //! String constant for naming XML elements for integer values.
         static const xmlChar * const cIntegerNodeName;
+        //! String constant for naming XML elements for int64 values.
+        static const xmlChar * const cInt64NodeName;
+        //! String constant for naming XML elements for unsigned int64 values.
+        static const xmlChar * const cUInt64NodeName;
         //! String constant for naming XML elements for floating-point values.
         static const xmlChar * const cRealNodeName;
         //! String constant for naming XML attribute for value identifiers.
@@ -416,6 +416,10 @@ const xmlChar * const TestReferenceChecker::Impl::cStringNodeName =
     (const xmlChar *)"String";
 const xmlChar * const TestReferenceChecker::Impl::cIntegerNodeName  =
     (const xmlChar *)"Int";
+const xmlChar * const TestReferenceChecker::Impl::cInt64NodeName  =
+    (const xmlChar *)"Int64";
+const xmlChar * const TestReferenceChecker::Impl::cUInt64NodeName  =
+    (const xmlChar *)"UInt64";
 const xmlChar * const TestReferenceChecker::Impl::cRealNodeName =
     (const xmlChar *)"Real";
 const xmlChar * const TestReferenceChecker::Impl::cIdAttrName =
@@ -861,6 +865,39 @@ void TestReferenceChecker::checkInteger(int value, const char *id)
     }
 }
 
+void TestReferenceChecker::checkInt64(gmx_int64_t value, const char *id)
+{
+    if (impl_->shouldIgnore())
+    {
+        return;
+    }
+    SCOPED_TRACE(impl_->traceString(id));
+    bool        bFound      = false;
+    std::string strValue    = formatString("%" GMX_PRId64, value);
+    std::string refStrValue =
+        impl_->processItem(Impl::cInt64NodeName, id, strValue, &bFound);
+    if (bFound)
+    {
+        EXPECT_EQ(refStrValue, strValue);
+    }
+}
+
+void TestReferenceChecker::checkUInt64(gmx_uint64_t value, const char *id)
+{
+    if (impl_->shouldIgnore())
+    {
+        return;
+    }
+    SCOPED_TRACE(impl_->traceString(id));
+    bool        bFound      = false;
+    std::string strValue    = formatString("%" GMX_PRIu64, value);
+    std::string refStrValue =
+        impl_->processItem(Impl::cUInt64NodeName, id, strValue, &bFound);
+    if (bFound)
+    {
+        EXPECT_EQ(refStrValue, strValue);
+    }
+}
 
 void TestReferenceChecker::checkDouble(double value, const char *id)
 {

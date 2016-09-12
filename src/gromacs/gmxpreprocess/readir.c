@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -34,35 +34,34 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
+#include "gmxpre.h"
+
+#include "readir.h"
 
 #include <ctype.h>
-#include <stdlib.h>
 #include <limits.h>
-#include "sysstuff.h"
-#include "gromacs/utility/smalloc.h"
-#include "typedefs.h"
-#include "physics.h"
-#include "names.h"
-#include "gmx_fatal.h"
-#include "macros.h"
-#include "index.h"
-#include "symtab.h"
+#include <stdlib.h>
+
+#include "gromacs/gmxpreprocess/toputil.h"
+#include "gromacs/legacyheaders/chargegroup.h"
+#include "gromacs/legacyheaders/inputrec.h"
+#include "gromacs/legacyheaders/macros.h"
+#include "gromacs/legacyheaders/names.h"
+#include "gromacs/legacyheaders/network.h"
+#include "gromacs/legacyheaders/readinp.h"
+#include "gromacs/legacyheaders/typedefs.h"
+#include "gromacs/legacyheaders/warninp.h"
+#include "gromacs/math/units.h"
+#include "gromacs/math/vec.h"
+#include "gromacs/mdlib/calc_verletbuf.h"
+#include "gromacs/pbcutil/pbc.h"
+#include "gromacs/topology/block.h"
+#include "gromacs/topology/index.h"
+#include "gromacs/topology/mtop_util.h"
+#include "gromacs/topology/symtab.h"
 #include "gromacs/utility/cstringutil.h"
-#include "readinp.h"
-#include "warninp.h"
-#include "readir.h"
-#include "toputil.h"
-#include "index.h"
-#include "network.h"
-#include "vec.h"
-#include "pbc.h"
-#include "mtop_util.h"
-#include "chargegroup.h"
-#include "inputrec.h"
-#include "calc_verletbuf.h"
+#include "gromacs/utility/fatalerror.h"
+#include "gromacs/utility/smalloc.h"
 
 #define MAXPTR 254
 #define NOGID  255
@@ -160,7 +159,7 @@ static void GetSimTemps(int ntemps, t_simtemp *simtemp, double *temperature_lamb
         }
         else if (simtemp->eSimTempScale == esimtempEXPONENTIAL)
         {
-            simtemp->temperatures[i] = simtemp->simtemp_low + (simtemp->simtemp_high-simtemp->simtemp_low)*((exp(temperature_lambdas[i])-1)/(exp(1.0)-1));
+            simtemp->temperatures[i] = simtemp->simtemp_low + (simtemp->simtemp_high-simtemp->simtemp_low)*(gmx_expm1(temperature_lambdas[i])/gmx_expm1(1.0));
         }
         else
         {
@@ -270,6 +269,8 @@ void check_ir(const char *mdparin, t_inputrec *ir, t_gromppopts *opts,
     {
         warning_error(wi, "rlist should be >= 0");
     }
+    sprintf(err_buf, "nstlist can not be smaller than 0. (If you were trying to use the heuristic neighbour-list update scheme for efficient buffering for improved energy conservation, please use the Verlet cut-off scheme instead.)");
+    CHECK(ir->nstlist < 0);
 
     process_interaction_modifier(ir, &ir->coulomb_modifier);
     process_interaction_modifier(ir, &ir->vdw_modifier);
@@ -277,7 +278,7 @@ void check_ir(const char *mdparin, t_inputrec *ir, t_gromppopts *opts,
     if (ir->cutoff_scheme == ecutsGROUP)
     {
         warning_note(wi,
-                     "The group cutoff scheme is deprecated in Gromacs 5.0 and will be removed in a future "
+                     "The group cutoff scheme is deprecated since GROMACS 5.0 and will be removed in a future "
                      "release when all interaction forms are supported for the verlet scheme. The verlet "
                      "scheme already scales better, and it is compatible with GPUs and other accelerators.");
 
@@ -306,9 +307,9 @@ void check_ir(const char *mdparin, t_inputrec *ir, t_gromppopts *opts,
         {
             warning_error(wi, "rlistlong can not be shorter than rlist");
         }
-        if (IR_TWINRANGE(*ir) && ir->nstlist <= 0)
+        if (IR_TWINRANGE(*ir) && ir->nstlist == 0)
         {
-            warning_error(wi, "Can not have nstlist<=0 with twin-range interactions");
+            warning_error(wi, "Can not have nstlist == 0 with twin-range interactions");
         }
     }
 
@@ -368,6 +369,11 @@ void check_ir(const char *mdparin, t_inputrec *ir, t_gromppopts *opts,
         {
             sprintf(warn_buf, "coulomb_modifier=%s is not supported with the Verlet cut-off scheme", eintmod_names[ir->coulomb_modifier]);
             warning_error(wi, warn_buf);
+        }
+
+        if (ir->implicit_solvent != eisNO)
+        {
+            warning_error(wi, "Implicit solvent is not (yet) supported with the with Verlet lists.");
         }
 
         if (ir->nstlist <= 0)
@@ -451,7 +457,7 @@ void check_ir(const char *mdparin, t_inputrec *ir, t_gromppopts *opts,
         warning_error(wi, "nstcalclr must be a positive number (divisor of nstcalclr), or -1 to follow nstlist.");
     }
 
-    if (EEL_PME(ir->coulombtype) && ir->rcoulomb > ir->rvdw && ir->nstcalclr > 1)
+    if (EEL_PME(ir->coulombtype) && ir->rcoulomb > ir->rlist && ir->nstcalclr > 1)
     {
         warning_error(wi, "When used with PME, the long-range component of twin-range interactions must be updated every step (nstcalclr)");
     }
@@ -524,7 +530,7 @@ void check_ir(const char *mdparin, t_inputrec *ir, t_gromppopts *opts,
         }
         if (IR_TWINRANGE(*ir))
         {
-            check_nst("nstlist", ir->nstlist,
+            check_nst("nstcalclr", ir->nstcalclr,
                       "nstcalcenergy", &ir->nstcalcenergy, wi);
             if (ir->epc != epcNO)
             {
@@ -575,6 +581,8 @@ void check_ir(const char *mdparin, t_inputrec *ir, t_gromppopts *opts,
         CHECK(ir->nstlist <= 0);
         sprintf(err_buf, "TPI does not work with full electrostatics other than PME");
         CHECK(EEL_FULL(ir->coulombtype) && !EEL_PME(ir->coulombtype));
+        sprintf(err_buf, "TPI does not work (yet) with the Verlet cut-off scheme");
+        CHECK(ir->cutoff_scheme == ecutsVERLET);
     }
 
     /* SHAKE / LINCS */
@@ -649,7 +657,7 @@ void check_ir(const char *mdparin, t_inputrec *ir, t_gromppopts *opts,
         sprintf(err_buf, "Can't use postive delta-lambda (%g) with expanded ensemble simulations", fep->delta_lambda);
         CHECK(fep->delta_lambda > 0 && (ir->efep == efepEXPANDED));
 
-        sprintf(err_buf, "Can only use expanded ensemble with md-vv for now; should be supported for other integrators in 5.0");
+        sprintf(err_buf, "Can only use expanded ensemble with md-vv (for now)");
         CHECK(!(EI_VV(ir->eI)) && (ir->efep == efepEXPANDED));
 
         sprintf(err_buf, "Free-energy not implemented for Ewald");
@@ -747,6 +755,19 @@ void check_ir(const char *mdparin, t_inputrec *ir, t_gromppopts *opts,
             {
                 sprintf(err_buf, "%s[%d] must be between 0 and 1", efpt_names[i], j);
                 CHECK((fep->all_lambda[i][j] < 0) || (fep->all_lambda[i][j] > 1));
+            }
+        }
+
+        if (IR_TWINRANGE(*ir))
+        {
+            sprintf(err_buf, "nstdhdl must be divisible by nstcalclr");
+            CHECK(ir->fepvals->nstdhdl > 0 &&
+                  ir->fepvals->nstdhdl % ir->nstcalclr != 0);
+
+            if (ir->efep == efepEXPANDED)
+            {
+                sprintf(err_buf, "nstexpanded must be divisible by nstcalclr");
+                CHECK(ir->expandedvals->nstexpanded % ir->nstcalclr != 0);
             }
         }
     }
@@ -873,10 +894,6 @@ void check_ir(const char *mdparin, t_inputrec *ir, t_gromppopts *opts,
               (ir->ePBC     != epbcNONE) ||
               (ir->rcoulomb != 0.0)      || (ir->rvdw != 0.0));
 
-        if (ir->nstlist < 0)
-        {
-            warning_error(wi, "Can not have heuristic neighborlist updates without cut-off");
-        }
         if (ir->nstlist > 0)
         {
             warning_note(wi, "Simulating without cut-offs can be (slightly) faster with nstlist=0, nstype=simple and only one MPI rank");
@@ -908,7 +925,7 @@ void check_ir(const char *mdparin, t_inputrec *ir, t_gromppopts *opts,
             CHECK(ir->bPeriodicMols);
             if (ir->ePBC != epbcNONE)
             {
-                warning(wi, "Removing the rotation around the center of mass in a periodic system (this is not a problem when you have only one molecule).");
+                warning(wi, "Removing the rotation around the center of mass in a periodic system, this can lead to artifacts. Only use this on a single (cluster of) molecules. This cluster should not cross periodic boundaries.");
             }
         }
     }
@@ -1003,7 +1020,7 @@ void check_ir(const char *mdparin, t_inputrec *ir, t_gromppopts *opts,
         sprintf(err_buf, "tau-p must be > 0 instead of %g\n", ir->tau_p);
         CHECK(ir->tau_p <= 0);
 
-        if (ir->tau_p/dt_pcoupl < pcouple_min_integration_steps(ir->epc))
+        if (ir->tau_p/dt_pcoupl < pcouple_min_integration_steps(ir->epc) - 10*GMX_REAL_EPS)
         {
             sprintf(warn_buf, "For proper integration of the %s barostat, tau-p (%g) should be at least %d times larger than nstpcouple*dt (%g)",
                     EPCOUPLTYPE(ir->epc), ir->tau_p, pcouple_min_integration_steps(ir->epc), dt_pcoupl);
@@ -1074,6 +1091,14 @@ void check_ir(const char *mdparin, t_inputrec *ir, t_gromppopts *opts,
         warning(wi, warn_buf);
         ir->epsilon_rf = ir->epsilon_r;
         ir->epsilon_r  = 1.0;
+    }
+
+    if (ir->epsilon_r == 0)
+    {
+        sprintf(err_buf,
+                "It is pointless to use long-range or Generalized Born electrostatics with infinite relative permittivity."
+                "Since you are effectively turning of electrostatics, a plain cutoff will be much faster.");
+        CHECK(EEL_FULL(ir->coulombtype) || ir->implicit_solvent == eisGBSA);
     }
 
     if (getenv("GMX_DO_GALACTIC_DYNAMICS") == NULL)
@@ -1219,6 +1244,28 @@ void check_ir(const char *mdparin, t_inputrec *ir, t_gromppopts *opts,
         sprintf(err_buf, "wall-ewald-zfac should be >= 2");
         CHECK(ir->wall_ewald_zfac < 2);
     }
+    if ((ir->ewald_geometry == eewg3DC) && (ir->ePBC != epbcXY) &&
+        EEL_FULL(ir->coulombtype))
+    {
+        sprintf(warn_buf, "With %s and ewald_geometry = %s you should use pbc = %s",
+                eel_names[ir->coulombtype], eewg_names[eewg3DC], epbc_names[epbcXY]);
+        warning(wi, warn_buf);
+    }
+    if ((ir->epsilon_surface != 0) && EEL_FULL(ir->coulombtype))
+    {
+        if (ir->cutoff_scheme == ecutsVERLET)
+        {
+            sprintf(warn_buf, "Since molecules/charge groups are broken using the Verlet scheme, you can not use a dipole correction to the %s electrostatics.",
+                    eel_names[ir->coulombtype]);
+            warning(wi, warn_buf);
+        }
+        else
+        {
+            sprintf(warn_buf, "Dipole corrections to %s electrostatics only work if all charge groups that can cross PBC boundaries are dipoles. If this is not the case set epsilon_surface to 0",
+                    eel_names[ir->coulombtype]);
+            warning_note(wi, warn_buf);
+        }
+    }
 
     if (ir_vdw_switched(ir))
     {
@@ -1256,8 +1303,7 @@ nd %s",
     if (ir->cutoff_scheme == ecutsGROUP)
     {
         if (((ir->coulomb_modifier != eintmodNONE && ir->rcoulomb == ir->rlist) ||
-             (ir->vdw_modifier != eintmodNONE && ir->rvdw == ir->rlist)) &&
-            ir->nstlist != 1)
+             (ir->vdw_modifier != eintmodNONE && ir->rvdw == ir->rlist)))
         {
             warning_note(wi, "With exact cut-offs, rlist should be "
                          "larger than rcoulomb and rvdw, so that there "
@@ -1283,14 +1329,6 @@ nd %s",
     {
         warning_note(wi, "You have selected user tables with dispersion correction, the dispersion will be corrected to -C6/r^6 beyond rvdw_switch (the tabulated interaction between rvdw_switch and rvdw will not be double counted). Make sure that you really want dispersion correction to -C6/r^6.");
     }
-
-    if (ir->nstlist == -1)
-    {
-        sprintf(err_buf, "With nstlist=-1 rvdw and rcoulomb should be smaller than rlist to account for diffusion and possibly charge-group radii");
-        CHECK(ir->rvdw >= ir->rlist || ir->rcoulomb >= ir->rlist);
-    }
-    sprintf(err_buf, "nstlist can not be smaller than -1");
-    CHECK(ir->nstlist < -1);
 
     if (ir->eI == eiLBFGS && (ir->coulombtype == eelCUT || ir->vdwtype == evdwCUT)
         && ir->rvdw != 0)
@@ -1329,11 +1367,9 @@ nd %s",
     /* IMPLICIT SOLVENT */
     if (ir->coulombtype == eelGB_NOTUSED)
     {
-        ir->coulombtype      = eelCUT;
-        ir->implicit_solvent = eisGBSA;
-        fprintf(stderr, "Note: Old option for generalized born electrostatics given:\n"
-                "Changing coulombtype from \"generalized-born\" to \"cut-off\" and instead\n"
-                "setting implicit-solvent value to \"GBSA\" in input section.\n");
+        sprintf(warn_buf, "Invalid option %s for coulombtype",
+                eel_names[ir->coulombtype]);
+        warning_error(wi, warn_buf);
     }
 
     if (ir->sa_algorithm == esaSTILL)
@@ -1422,7 +1458,7 @@ int str_nelem(const char *str, int maxptr, char *ptr[])
     int   np = 0;
     char *copy0, *copy;
 
-    copy0 = strdup(str);
+    copy0 = gmx_strdup(str);
     copy  = copy0;
     ltrim(copy);
     while (*copy != '\0')
@@ -1678,7 +1714,7 @@ static void do_wall_params(t_inputrec *ir,
         }
         for (i = 0; i < ir->nwall; i++)
         {
-            opts->wall_atomtype[i] = strdup(names[i]);
+            opts->wall_atomtype[i] = gmx_strdup(names[i]);
         }
 
         if (ir->wall_type == ewt93 || ir->wall_type == ewt104)
@@ -1760,6 +1796,18 @@ void read_expandedparams(int *ninp_p, t_inpfile **inp_p,
     *inp_p    = inp;
 
     return;
+}
+
+/*! \brief Return whether an end state with the given coupling-lambda
+ * value describes fully-interacting VDW.
+ *
+ * \param[in]  couple_lambda_value  Enumeration ecouplam value describing the end state
+ * \return                          Whether VDW is on (i.e. the user chose vdw or vdw-q in the .mdp file)
+ */
+static gmx_bool couple_lambda_has_vdw_on(int couple_lambda_value)
+{
+    return (couple_lambda_value == ecouplamVDW ||
+            couple_lambda_value == ecouplamVDWQ);
 }
 
 void get_ir(const char *mdparin, const char *mdparout,
@@ -2069,12 +2117,11 @@ void get_ir(const char *mdparin, const char *mdparout,
 
     /* COM pulling */
     CCTYPE("COM PULLING");
-    CTYPE("Pull type: no, umbrella, constraint or constant-force");
-    EETYPE("pull",          ir->ePull, epull_names);
-    if (ir->ePull != epullNO)
+    EETYPE("pull",          ir->bPull, yesno_names);
+    if (ir->bPull)
     {
         snew(ir->pull, 1);
-        is->pull_grp = read_pullparams(&ninp, &inp, ir->pull, &opts->pull_start, wi);
+        is->pull_grp = read_pullparams(&ninp, &inp, ir->pull, wi);
     }
 
     /* Enforced rotation */
@@ -2182,6 +2229,9 @@ void get_ir(const char *mdparin, const char *mdparout,
     CTYPE ("Format is number of terms (int) and for all terms an amplitude (real)");
     CTYPE ("and a phase angle (real)");
     STYPE ("E-x",     is->efield_x,   NULL);
+    CTYPE ("Time dependent (pulsed) electric field. Format is omega, time for pulse");
+    CTYPE ("peak, and sigma (width) for pulse. Sigma = 0 removes pulse, leaving");
+    CTYPE ("the field to be a cosine function.");
     STYPE ("E-xt",    is->efield_xt,  NULL);
     STYPE ("E-y",     is->efield_y,   NULL);
     STYPE ("E-yt",    is->efield_yt,  NULL);
@@ -2341,7 +2391,7 @@ void get_ir(const char *mdparin, const char *mdparout,
     {
         if (ir->efep != efepNO)
         {
-            opts->couple_moltype = strdup(is->couple_moltype);
+            opts->couple_moltype = gmx_strdup(is->couple_moltype);
             if (opts->couple_lam0 == opts->couple_lam1)
             {
                 warning(wi, "The lambda=0 and lambda=1 states for coupling are identical");
@@ -2396,6 +2446,22 @@ void get_ir(const char *mdparin, const char *mdparout,
         if (ir->bSimTemp) /* done after fep params */
         {
             do_simtemp_params(ir);
+        }
+
+        /* Because sc-coul (=FALSE by default) only acts on the lambda state
+         * setup and not on the old way of specifying the free-energy setup,
+         * we should check for using soft-core when not needed, since that
+         * can complicate the sampling significantly.
+         * Note that we only check for the automated coupling setup.
+         * If the (advanced) user does FEP through manual topology changes,
+         * this check will not be triggered.
+         */
+        if (ir->efep != efepNO && ir->fepvals->n_lambda == 0 &&
+            ir->fepvals->sc_alpha != 0 &&
+            (couple_lambda_has_vdw_on(opts->couple_lam0) &&
+             couple_lambda_has_vdw_on(opts->couple_lam1)))
+        {
+            warning(wi, "You are using soft-core interactions while the Van der Waals interactions are not decoupled (note that the sc-coul option is only active when using lambda states). Although this will not lead to errors, you will need much more sampling than without soft-core interactions. Consider using sc-alpha=0.");
         }
     }
     else
@@ -2503,6 +2569,9 @@ static int search_QMstring(const char *s, int ng, const char *gn[])
 } /* search_QMstring */
 
 /* We would like gn to be const as well, but C doesn't allow this */
+/* TODO this is utility functionality (search for the index of a
+   string in a collection), so should be refactored and located more
+   centrally. */
 int search_string(const char *s, int ng, char *gn[])
 {
     int i;
@@ -2672,7 +2741,7 @@ static void calc_nrdf(gmx_mtop_t *mtop, t_inputrec *ir, char **gnames)
 {
     t_grpopts              *opts;
     gmx_groups_t           *groups;
-    t_pull                 *pull;
+    pull_params_t          *pull;
     int                     natoms, ai, aj, i, j, d, g, imin, jmin;
     t_iatom                *ia;
     int                    *nrdf2, *na_vcm, na_tot;
@@ -2808,7 +2877,7 @@ static void calc_nrdf(gmx_mtop_t *mtop, t_inputrec *ir, char **gnames)
         }
     }
 
-    if (ir->ePull == epullCONSTRAINT)
+    if (ir->bPull)
     {
         /* Correct nrdf for the COM constraints.
          * We correct using the TC and VCM group of the first atom
@@ -2820,6 +2889,11 @@ static void calc_nrdf(gmx_mtop_t *mtop, t_inputrec *ir, char **gnames)
 
         for (i = 0; i < pull->ncoord; i++)
         {
+            if (pull->coord[i].eType != epullCONSTRAINT)
+            {
+                continue;
+            }
+
             imin = 1;
 
             for (j = 0; j < 2; j++)
@@ -2933,7 +3007,7 @@ static void decode_cos(char *s, t_cosines *cosine)
     double  a, phi;
     int     i;
 
-    t = strdup(s);
+    t = gmx_strdup(s);
     trim(t);
 
     cosine->n   = 0;
@@ -3114,7 +3188,7 @@ static void make_swap_groups(
 
 void make_IMD_group(t_IMD *IMDgroup, char *IMDgname, t_blocka *grps, char **gnames)
 {
-    int      ig = -1, i;
+    int      ig, i;
 
 
     ig            = search_string(IMDgname, grps->nr, gnames);
@@ -3280,7 +3354,7 @@ void do_index(const char* mdparin, const char *ndx,
         nstcmin = tcouple_min_integration_steps(ir->etc);
         if (nstcmin > 1)
         {
-            if (tau_min/(ir->delta_t*ir->nsttcouple) < nstcmin)
+            if (tau_min/(ir->delta_t*ir->nsttcouple) < nstcmin - 10*GMX_REAL_EPS)
             {
                 sprintf(warn_buf, "For proper integration of the %s thermostat, tau-t (%g) should be at least %d times larger than nsttcouple*dt (%g)",
                         ETCOUPLTYPE(ir->etc),
@@ -3445,7 +3519,7 @@ void do_index(const char* mdparin, const char *ndx,
         }
     }
 
-    if (ir->ePull != epullNO)
+    if (ir->bPull)
     {
         make_pull_groups(ir->pull, is->pull_grp, grps, gnames);
 
@@ -3821,7 +3895,15 @@ static gmx_bool absolute_reference(t_inputrec *ir, gmx_mtop_t *sys,
                         case efbposresSPHERE:
                             AbsRef[XX] = AbsRef[YY] = AbsRef[ZZ] = 1;
                             break;
+                        case efbposresCYLINDERX:
+                            AbsRef[YY] = AbsRef[ZZ] = 1;
+                            break;
+                        case efbposresCYLINDERY:
+                            AbsRef[XX] = AbsRef[ZZ] = 1;
+                            break;
                         case efbposresCYLINDER:
+                        /* efbposres is a synonym for efbposresCYLINDERZ for backwards compatibility */
+                        case efbposresCYLINDERZ:
                             AbsRef[XX] = AbsRef[YY] = 1;
                             break;
                         case efbposresX: /* d=XX */
@@ -4195,45 +4277,42 @@ void triple_check(const char *mdparin, t_inputrec *ir, gmx_mtop_t *sys,
         gmx_fatal(FARGS, "Soft-core interactions are only supported with VdW repulsion power 12");
     }
 
-    if (ir->ePull != epullNO)
+    if (ir->bPull)
     {
-        gmx_bool bPullAbsoluteRef;
+        gmx_bool bWarned;
 
-        bPullAbsoluteRef = FALSE;
-        for (i = 0; i < ir->pull->ncoord; i++)
+        bWarned = FALSE;
+        for (i = 0; i < ir->pull->ncoord && !bWarned; i++)
         {
-            bPullAbsoluteRef = bPullAbsoluteRef ||
-                ir->pull->coord[i].group[0] == 0 ||
-                ir->pull->coord[i].group[1] == 0;
-        }
-        if (bPullAbsoluteRef)
-        {
-            absolute_reference(ir, sys, FALSE, AbsRef);
-            for (m = 0; m < DIM; m++)
+            if (ir->pull->coord[i].group[0] == 0 ||
+                ir->pull->coord[i].group[1] == 0)
             {
-                if (ir->pull->dim[m] && !AbsRef[m])
+                absolute_reference(ir, sys, FALSE, AbsRef);
+                for (m = 0; m < DIM; m++)
                 {
-                    warning(wi, "You are using an absolute reference for pulling, but the rest of the system does not have an absolute reference. This will lead to artifacts.");
-                    break;
+                    if (ir->pull->coord[i].dim[m] && !AbsRef[m])
+                    {
+                        warning(wi, "You are using an absolute reference for pulling, but the rest of the system does not have an absolute reference. This will lead to artifacts.");
+                        bWarned = TRUE;
+                        break;
+                    }
                 }
             }
         }
 
-        if (ir->pull->eGeom == epullgDIRPBC)
+        for (i = 0; i < 3; i++)
         {
-            for (i = 0; i < 3; i++)
+            for (m = 0; m <= i; m++)
             {
-                for (m = 0; m <= i; m++)
+                if ((ir->epc != epcNO && ir->compress[i][m] != 0) ||
+                    ir->deform[i][m] != 0)
                 {
-                    if ((ir->epc != epcNO && ir->compress[i][m] != 0) ||
-                        ir->deform[i][m] != 0)
+                    for (c = 0; c < ir->pull->ncoord; c++)
                     {
-                        for (c = 0; c < ir->pull->ncoord; c++)
+                        if (ir->pull->coord[c].eGeom == epullgDIRPBC &&
+                            ir->pull->coord[c].vec[m] != 0)
                         {
-                            if (ir->pull->coord[c].vec[m] != 0)
-                            {
-                                gmx_fatal(FARGS, "Can not have dynamic box while using pull geometry '%s' (dim %c)", EPULLGEOM(ir->pull->eGeom), 'x'+m);
-                            }
+                            gmx_fatal(FARGS, "Can not have dynamic box while using pull geometry '%s' (dim %c)", EPULLGEOM(ir->pull->coord[c].eGeom), 'x'+m);
                         }
                     }
                 }
@@ -4244,7 +4323,10 @@ void triple_check(const char *mdparin, t_inputrec *ir, gmx_mtop_t *sys,
     check_disre(sys);
 }
 
-void double_check(t_inputrec *ir, matrix box, gmx_bool bConstr, warninp_t wi)
+void double_check(t_inputrec *ir, matrix box,
+                  gmx_bool bHasNormalConstraints,
+                  gmx_bool bHasAnyConstraints,
+                  warninp_t wi)
 {
     real        min_size;
     gmx_bool    bTWIN;
@@ -4257,7 +4339,7 @@ void double_check(t_inputrec *ir, matrix box, gmx_bool bConstr, warninp_t wi)
         warning_error(wi, ptr);
     }
 
-    if (bConstr && ir->eConstrAlg == econtSHAKE)
+    if (bHasNormalConstraints && ir->eConstrAlg == econtSHAKE)
     {
         if (ir->shake_tol <= 0.0)
         {
@@ -4280,7 +4362,7 @@ void double_check(t_inputrec *ir, matrix box, gmx_bool bConstr, warninp_t wi)
         }
     }
 
-    if ( (ir->eConstrAlg == econtLINCS) && bConstr)
+    if ( (ir->eConstrAlg == econtLINCS) && bHasNormalConstraints)
     {
         /* If we have Lincs constraints: */
         if (ir->eI == eiMD && ir->etc == etcNO &&
@@ -4301,9 +4383,9 @@ void double_check(t_inputrec *ir, matrix box, gmx_bool bConstr, warninp_t wi)
         }
     }
 
-    if (bConstr && ir->epc == epcMTTK)
+    if (bHasAnyConstraints && ir->epc == epcMTTK)
     {
-        warning_note(wi, "MTTK with constraints is deprecated, and will be removed in GROMACS 5.1");
+        warning_error(wi, "Constraints are not implemented with MTTK pressure control.");
     }
 
     if (ir->LincsWarnAngle > 90.0)

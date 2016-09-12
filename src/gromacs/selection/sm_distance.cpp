@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2009,2010,2011,2012,2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2009,2010,2011,2012,2013,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -42,14 +42,15 @@
  * \author Teemu Murtola <teemu.murtola@gmail.com>
  * \ingroup module_selection
  */
-#include "gromacs/legacyheaders/macros.h"
-#include "gromacs/legacyheaders/pbc.h"
-#include "gromacs/legacyheaders/vec.h"
+#include "gmxpre.h"
 
+#include "gromacs/legacyheaders/macros.h"
+#include "gromacs/math/vec.h"
 #include "gromacs/selection/nbsearch.h"
 #include "gromacs/selection/position.h"
-#include "gromacs/selection/selmethod.h"
 #include "gromacs/utility/exceptions.h"
+
+#include "selmethod.h"
 
 /*! \internal
  * \brief
@@ -152,14 +153,16 @@ static gmx_ana_selparam_t smparams_within[] = {
     {"of", {POS_VALUE,  -1, {NULL}}, NULL, SPAR_DYNAMIC | SPAR_VARNUM},
 };
 
-/** Help text for the distance selection methods. */
-static const char *help_distance[] = {
-    "DISTANCE-BASED SELECTION KEYWORDS[PAR]",
-
-    "[TT]distance from POS [cutoff REAL][tt][BR]",
-    "[TT]mindistance from POS_EXPR [cutoff REAL][tt][BR]",
-    "[TT]within REAL of POS_EXPR[tt][PAR]",
-
+//! Help title for distance selection methods.
+static const char        helptitle_distance[] = "Selecting based on distance";
+//! Help text for distance selection methods.
+static const char *const help_distance[] = {
+    "::",
+    "",
+    "  distance from POS [cutoff REAL]",
+    "  mindistance from POS_EXPR [cutoff REAL]",
+    "  within REAL of POS_EXPR",
+    "",
     "[TT]distance[tt] and [TT]mindistance[tt] calculate the distance from the",
     "given position(s), the only difference being in that [TT]distance[tt]",
     "only accepts a single position, while any number of positions can be",
@@ -185,7 +188,8 @@ gmx_ana_selmethod_t sm_distance = {
     &init_frame_common,
     NULL,
     &evaluate_distance,
-    {"distance from POS [cutoff REAL]", asize(help_distance), help_distance},
+    {"distance from POS [cutoff REAL]",
+     helptitle_distance, asize(help_distance), help_distance},
 };
 
 /** Selection method data for the \p distance method. */
@@ -200,7 +204,8 @@ gmx_ana_selmethod_t sm_mindistance = {
     &init_frame_common,
     NULL,
     &evaluate_distance,
-    {"mindistance from POS_EXPR [cutoff REAL]", asize(help_distance), help_distance},
+    {"mindistance from POS_EXPR [cutoff REAL]",
+     helptitle_distance, asize(help_distance), help_distance},
 };
 
 /** Selection method data for the \p within method. */
@@ -215,7 +220,8 @@ gmx_ana_selmethod_t sm_within = {
     &init_frame_common,
     NULL,
     &evaluate_within,
-    {"within REAL of POS_EXPR", asize(help_distance), help_distance},
+    {"within REAL of POS_EXPR",
+     helptitle_distance, asize(help_distance), help_distance},
 };
 
 static void *
@@ -230,7 +236,7 @@ init_data_common(int /* npar */, gmx_ana_selparam_t *param)
 static void
 init_common(t_topology * /* top */, int /* npar */, gmx_ana_selparam_t *param, void *data)
 {
-    t_methoddata_distance *d = (t_methoddata_distance *)data;
+    t_methoddata_distance *d = static_cast<t_methoddata_distance *>(data);
 
     if ((param[0].flags & SPAR_SET) && d->cutoff <= 0)
     {
@@ -254,7 +260,7 @@ free_data_common(void *data)
 static void
 init_frame_common(t_topology * /* top */, t_trxframe * /* fr */, t_pbc *pbc, void *data)
 {
-    t_methoddata_distance *d = (t_methoddata_distance *)data;
+    t_methoddata_distance *d = static_cast<t_methoddata_distance *>(data);
 
     d->nbsearch.reset();
     gmx::AnalysisNeighborhoodPositions pos(d->p.x, d->p.count());
@@ -272,16 +278,12 @@ static void
 evaluate_distance(t_topology * /* top */, t_trxframe * /* fr */, t_pbc * /* pbc */,
                   gmx_ana_pos_t *pos, gmx_ana_selvalue_t *out, void *data)
 {
-    t_methoddata_distance *d = (t_methoddata_distance *)data;
+    t_methoddata_distance *d = static_cast<t_methoddata_distance *>(data);
 
-    out->nr = pos->m.mapb.nra;
-    for (int b = 0; b < pos->count(); ++b)
+    out->nr = pos->count();
+    for (int i = 0; i < pos->count(); ++i)
     {
-        real dist = d->nbsearch.minimumDistance(pos->x[b]);
-        for (int i = pos->m.mapb.index[b]; i < pos->m.mapb.index[b+1]; ++i)
-        {
-            out->u.r[i] = dist;
-        }
+        out->u.r[i] = d->nbsearch.minimumDistance(pos->x[i]);
     }
 }
 
@@ -296,7 +298,7 @@ static void
 evaluate_within(t_topology * /* top */, t_trxframe * /* fr */, t_pbc * /* pbc */,
                 gmx_ana_pos_t *pos, gmx_ana_selvalue_t *out, void *data)
 {
-    t_methoddata_distance *d = (t_methoddata_distance *)data;
+    t_methoddata_distance *d = static_cast<t_methoddata_distance *>(data);
 
     out->u.g->isize = 0;
     for (int b = 0; b < pos->count(); ++b)

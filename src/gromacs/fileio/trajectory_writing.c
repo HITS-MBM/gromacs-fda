@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -32,21 +32,19 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
+#include "gmxpre.h"
 
-#include "typedefs.h"
-#include "gromacs/utility/smalloc.h"
-#include "sysstuff.h"
-#include "vec.h"
-#include "sim_util.h"
-#include "mdrun.h"
-#include "confio.h"
 #include "trajectory_writing.h"
-#include "mdoutf.h"
 
+#include "gromacs/fileio/confio.h"
+#include "gromacs/fileio/mdoutf.h"
+#include "gromacs/legacyheaders/mdrun.h"
+#include "gromacs/legacyheaders/sim_util.h"
+#include "gromacs/legacyheaders/typedefs.h"
+#include "gromacs/legacyheaders/types/commrec.h"
+#include "gromacs/math/vec.h"
 #include "gromacs/timing/wallcycle.h"
+#include "gromacs/utility/smalloc.h"
 
 void
 do_md_trajectory_writing(FILE           *fplog,
@@ -66,7 +64,6 @@ do_md_trajectory_writing(FILE           *fplog,
                          gmx_ekindata_t *ekind,
                          rvec           *f,
                          rvec           *f_global,
-                         gmx_wallcycle_t wcycle,
                          int            *nchkpt,
                          gmx_bool        bCPT,
                          gmx_bool        bRerunMD,
@@ -76,6 +73,7 @@ do_md_trajectory_writing(FILE           *fplog,
                          )
 {
     int   mdof_flags;
+    rvec *x_for_confout = NULL;
 
     mdof_flags = 0;
     if (do_per_step(step, ir->nstxout))
@@ -100,14 +98,12 @@ do_md_trajectory_writing(FILE           *fplog,
     }
     ;
 
-#if defined(GMX_FAHCORE) || defined(GMX_WRITELASTSTEP)
+#if defined(GMX_FAHCORE)
     if (bLastStep)
     {
         /* Enforce writing positions and velocities at end of run */
         mdof_flags |= (MDOF_X | MDOF_V);
     }
-#endif
-#ifdef GMX_FAHCORE
     if (MASTER(cr))
     {
         fcReportProgress( ir->nsteps, step );
@@ -126,7 +122,7 @@ do_md_trajectory_writing(FILE           *fplog,
 
     if (mdof_flags != 0)
     {
-        wallcycle_start(wcycle, ewcTRAJ);
+        wallcycle_start(mdoutf_get_wcycle(outf), ewcTRAJ);
         if (bCPT)
         {
             if (MASTER(cr))
@@ -148,13 +144,31 @@ do_md_trajectory_writing(FILE           *fplog,
         if (bCPT)
         {
             (*nchkpt)++;
-            bCPT = FALSE;
         }
         debug_gmx();
         if (bLastStep && step_rel == ir->nsteps &&
             bDoConfOut && MASTER(cr) &&
             !bRerunMD)
         {
+            if (fr->bMolPBC && state->x == state_global->x)
+            {
+                /* This (single-rank) run needs to allocate a
+                   temporary array of size natoms so that any
+                   periodicity removal for mdrun -confout does not
+                   perturb the update and thus the final .edr
+                   output. This makes .cpt restarts look binary
+                   identical, and makes .edr restarts binary
+                   identical. */
+                snew(x_for_confout, state_global->natoms);
+                copy_rvecn(state_global->x, x_for_confout, 0, state_global->natoms);
+            }
+            else
+            {
+                /* With DD, or no bMolPBC, it doesn't matter if
+                   we change state_global->x */
+                x_for_confout = state_global->x;
+            }
+
             /* x and v have been collected in mdoutf_write_to_trajectory_files,
              * because a checkpoint file will always be written
              * at the last step.
@@ -163,14 +177,18 @@ do_md_trajectory_writing(FILE           *fplog,
             if (fr->bMolPBC)
             {
                 /* Make molecules whole only for confout writing */
-                do_pbc_mtop(fplog, ir->ePBC, state->box, top_global, state_global->x);
+                do_pbc_mtop(fplog, ir->ePBC, state->box, top_global, x_for_confout);
             }
             write_sto_conf_mtop(ftp2fn(efSTO, nfile, fnm),
                                 *top_global->name, top_global,
-                                state_global->x, state_global->v,
+                                x_for_confout, state_global->v,
                                 ir->ePBC, state->box);
+            if (fr->bMolPBC && state->x == state_global->x)
+            {
+                sfree(x_for_confout);
+            }
             debug_gmx();
         }
-        wallcycle_stop(wcycle, ewcTRAJ);
+        wallcycle_stop(mdoutf_get_wcycle(outf), ewcTRAJ);
     }
 }

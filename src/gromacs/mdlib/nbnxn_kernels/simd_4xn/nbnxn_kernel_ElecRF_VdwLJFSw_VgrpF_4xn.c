@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2012,2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2012,2013,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -43,8 +43,12 @@
  * GMX_NBNXN_SIMD_4XN, so that this file reduces to a stub
  * function definition when the kernel will never be called.
  */
+#include "gmxpre.h"
+
+#include "gromacs/mdlib/nbnxn_simd.h"
+
 #define GMX_SIMD_J_UNROLL_SIZE 1
-#include "nbnxn_kernel_simd_4xn.h"
+#include "gromacs/mdlib/nbnxn_kernels/simd_4xn/nbnxn_kernel_simd_4xn.h"
 
 #define CALC_COUL_RF
 #define LJ_FORCE_SWITCH
@@ -53,7 +57,7 @@
 #define ENERGY_GROUPS
 
 #ifdef GMX_NBNXN_SIMD_4XN
-#include "nbnxn_kernel_simd_4xn_common.h"
+#include "gromacs/mdlib/nbnxn_kernels/simd_4xn/nbnxn_kernel_simd_4xn_common.h"
 #endif /* GMX_NBNXN_SIMD_4XN */
 
 #ifdef CALC_ENERGIES
@@ -76,7 +80,7 @@ nbnxn_kernel_ElecRF_VdwLJFSw_VgrpF_4xn(const nbnxn_pairlist_t    gmx_unused *nbl
                                        real                      gmx_unused *fshift)
 #endif /* CALC_ENERGIES */
 #ifdef GMX_NBNXN_SIMD_4XN
-#include "nbnxn_kernel_simd_4xn_outer.h"
+#include "gromacs/mdlib/nbnxn_kernels/simd_4xn/nbnxn_kernel_simd_4xn_outer.h"
 #else /* GMX_NBNXN_SIMD_4XN */
 {
 /* No need to call gmx_incons() here, because the only function

@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2012,2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2012,2013,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -39,9 +39,11 @@
  * \author Teemu Murtola <teemu.murtola@gmail.com>
  * \ingroup module_trajectoryanalysis
  */
-#include <gtest/gtest.h>
+#include "gmxpre.h"
 
 #include "gromacs/trajectoryanalysis/modules/angle.h"
+
+#include <gtest/gtest.h>
 
 #include "testutils/cmdlinetest.h"
 
@@ -190,7 +192,7 @@ TEST_F(AngleModuleTest, HandlesOneVsMultipleVectorGroupsAngles)
         "angle",
         "-g1", "vector",
         "-group1",
-        "resname RV1 and name A1 A2",
+        "resname RV2 and name A1 A2",
         "resname RV3 RV4 and name A1 A2",
         "-g2", "plane",
         "-group2",

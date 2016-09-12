@@ -34,15 +34,13 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
+#include "gmxpre.h"
 
 #include "fitahx.h"
-#include "vec.h"
 
 #include "gromacs/math/do_fit.h"
-#include "gromacs/legacyheaders/gmx_fatal.h"
+#include "gromacs/math/vec.h"
+#include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/smalloc.h"
 
 static void my_calc_xcm(int nbb, atom_id bbind[], rvec x[], rvec xcm)

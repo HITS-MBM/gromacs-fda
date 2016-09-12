@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2009,2010,2011,2012,2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2009,2010,2011,2012,2013,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -39,6 +39,8 @@
  * \author Teemu Murtola <teemu.murtola@gmail.com>
  * \ingroup module_trajectoryanalysis
  */
+#include "gmxpre.h"
+
 #include "select.h"
 
 #include <cstdio>
@@ -56,17 +58,19 @@
 #include "gromacs/analysisdata/modules/lifetime.h"
 #include "gromacs/analysisdata/modules/plot.h"
 #include "gromacs/fileio/gmxfio.h"
+#include "gromacs/fileio/trx.h"
 #include "gromacs/fileio/trxio.h"
 #include "gromacs/options/basicoptions.h"
 #include "gromacs/options/filenameoption.h"
 #include "gromacs/options/options.h"
 #include "gromacs/selection/selection.h"
 #include "gromacs/selection/selectionoption.h"
+#include "gromacs/topology/topology.h"
 #include "gromacs/trajectoryanalysis/analysissettings.h"
 #include "gromacs/utility/arrayref.h"
 #include "gromacs/utility/exceptions.h"
 #include "gromacs/utility/gmxassert.h"
-#include "gromacs/utility/scoped_ptr_sfree.h"
+#include "gromacs/utility/scoped_cptr.h"
 #include "gromacs/utility/smalloc.h"
 #include "gromacs/utility/stringutil.h"
 
@@ -330,6 +334,8 @@ Select::initOptions(Options *options, TrajectoryAnalysisSettings * /*settings*/)
         "It can be used for some simple analyses, or the output can",
         "be combined with output from other programs and/or external",
         "analysis programs to calculate more complex things.",
+        "For detailed help on the selection syntax, please use",
+        "[TT]gmx help selections[tt].[PAR]",
         "Any combination of the output options is possible, but note",
         "that [TT]-om[tt] only operates on the first selection.",
         "Also note that if you provide no output options, no output is",
@@ -648,11 +654,11 @@ Select::writeOutput()
     {
         GMX_RELEASE_ASSERT(top_->hasTopology(),
                            "Topology should have been loaded or an error given earlier");
-        t_atoms          atoms;
+        t_atoms            atoms;
         atoms = top_->topology()->atoms;
-        t_pdbinfo       *pdbinfo;
+        t_pdbinfo         *pdbinfo;
         snew(pdbinfo, atoms.nr);
-        scoped_ptr_sfree pdbinfoGuard(pdbinfo);
+        scoped_guard_sfree pdbinfoGuard(pdbinfo);
         if (atoms.pdbinfo != NULL)
         {
             std::memcpy(pdbinfo, atoms.pdbinfo, atoms.nr*sizeof(*pdbinfo));

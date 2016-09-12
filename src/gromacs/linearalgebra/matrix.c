@@ -34,17 +34,15 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
+#include "gmxpre.h"
+
 #include "matrix.h"
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
+#include "config.h"
 
 #include <stdio.h>
 
-#include "gromacs/legacyheaders/gmx_fatal.h"
-#include "gromacs/legacyheaders/vec.h"
-
+#include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/smalloc.h"
 
 #include "gmx_lapack.h"
@@ -239,7 +237,7 @@ double multi_regression(FILE *fp, int nrow, double *y, int ncol,
         {
             ax += a0[i]*a[j][i];
         }
-        chi2 += sqr(y[j]-ax);
+        chi2 += (y[j] - ax) * (y[j] - ax);
     }
 
     sfree(atx);

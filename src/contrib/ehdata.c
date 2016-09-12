@@ -41,11 +41,10 @@
 #include "typedefs.h"
 #include "gromacs/utility/smalloc.h"
 #include "macros.h"
-#include "gmx_fatal.h"
+#include "gromacs/utility/fatalerror.h"
 #include "random.h"
 #include "gromacs/fileio/strdb.h"
-#include "gromacs/fileio/futil.h"
-#include "physics.h"
+#include "gromacs/utility/futil.h"
 #include "ehdata.h"
 
 typedef struct {

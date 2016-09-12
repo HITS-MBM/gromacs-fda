@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2012,2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2012,2013,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -36,11 +36,15 @@
 #ifndef _nbnxn_search_h
 #define _nbnxn_search_h
 
-#include "typedefs.h"
+#include "gromacs/legacyheaders/typedefs.h"
+#include "gromacs/mdlib/nbnxn_pairlist.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/* Returns the i-cluster size for kernel of type nb_kernel_type */
+int nbnxn_kernel_to_ci_size(int nb_kernel_type);
 
 /* Returns the j-cluster size for kernel of type nb_kernel_type */
 int nbnxn_kernel_to_cj_size(int nb_kernel_type);
@@ -65,7 +69,7 @@ void nbnxn_init_search(nbnxn_search_t    * nbs_ptr,
 /* Put the atoms on the pair search grid.
  * Only atoms a0 to a1 in x are put on the grid.
  * The atom_density is used to determine the grid size.
- * When atom_density=-1, the density is determined from a1-a0 and the corners.
+ * When atom_density<=0, the density is determined from a1-a0 and the corners.
  * With domain decomposition part of the n particles might have migrated,
  * but have not been removed yet. This count is given by nmoved.
  * When move[i] < 0 particle i has migrated and will not be put on the grid.

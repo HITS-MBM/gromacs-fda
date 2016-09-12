@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -40,35 +40,40 @@
  *
  *  \author Jochen Hub <jhub@gwdg.de>
  */
+#include "gmxpre.h"
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
+#include "config.h"
 
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include <algorithm>
 #include <sstream>
 
 #include "gromacs/commandline/pargs.h"
-#include "typedefs.h"
-#include "gromacs/utility/smalloc.h"
-#include "vec.h"
-#include "copyrite.h"
 #include "gromacs/fileio/tpxio.h"
-#include "names.h"
+#include "gromacs/fileio/xvgr.h"
+#include "gromacs/gmxana/gmx_ana.h"
+#include "gromacs/legacyheaders/copyrite.h"
+#include "gromacs/legacyheaders/macros.h"
+#include "gromacs/legacyheaders/names.h"
+#include "gromacs/legacyheaders/typedefs.h"
+#include "gromacs/math/vec.h"
 #include "gromacs/random/random.h"
-#include "gmx_ana.h"
-#include "macros.h"
 #include "gromacs/utility/cstringutil.h"
-#include "xvgr.h"
-
-#include "gmx_fatal.h"
+#include "gromacs/utility/fatalerror.h"
+#include "gromacs/utility/gmxomp.h"
+#include "gromacs/utility/smalloc.h"
 
 //! longest file names allowed in input files
 #define WHAM_MAXFILELEN 2048
+
+/*! \brief
+ * x-axis legend for output files
+ */
+static const char *xlabel = "\\xx\\f{} (nm)";
 
 /*! \brief
  * enum for energy units
@@ -116,11 +121,13 @@ typedef struct
      * \name Using umbrella pull code since gromacs 4.x
      */
     /*!\{*/
-    int      npullcrds;     //!< nr of pull coordinates in tpr file
+    int      npullcrds_tot; //!< nr of pull coordinates in tpr file
+    int      npullcrds;     //!< nr of umbrella pull coordinates for reading
     int      pull_geometry; //!< such as distance, direction
     ivec     pull_dim;      //!< pull dimension with geometry distance
     int      pull_ndim;     //!< nr of pull_dim != 0
     gmx_bool bPrintRef;     //!< Coordinates of reference groups written to pullx.xvg ?
+    gmx_bool bPrintComp;    //!< Components of pull distance written to pullx.xvg ?
     real    *k;             //!< force constants in tpr file
     real    *init_dist;     //!< reference displacements
     real    *umbInitDist;   //!< reference displacement in umbrella direction
@@ -873,7 +880,6 @@ void setup_acc_wham(double *profile, t_UmbrellaWindow * window, int nWindows,
                 else
                 {
                     U = tabulated_pot(distance, opt);            /* Use tabulated potential     */
-
                 }
                 contrib1                 = profile[k]*exp(-U/(8.314e-3*opt->Temperature));
                 contrib2                 = window[i].N[j]*exp(-U/(8.314e-3*opt->Temperature) + window[i].z[j]);
@@ -915,53 +921,62 @@ void setup_acc_wham(double *profile, t_UmbrellaWindow * window, int nWindows,
 void calc_profile(double *profile, t_UmbrellaWindow * window, int nWindows,
                   t_UmbrellaOptions *opt, gmx_bool bExact)
 {
-    int    i, k, j;
-    double num, ztot_half, ztot, distance, min = opt->min, dz = opt->dz;
-    double denom, U = 0, temp = 0, invg;
+    double ztot_half, ztot, min = opt->min, dz = opt->dz;
 
     ztot      = opt->max-opt->min;
     ztot_half = ztot/2;
 
-    for (i = 0; i < opt->bins; ++i)
+#pragma omp parallel
     {
-        num = denom = 0.;
-        for (j = 0; j < nWindows; ++j)
+        int nthreads  = gmx_omp_get_max_threads();
+        int thread_id = gmx_omp_get_thread_num();
+        int i;
+        int i0        = thread_id*opt->bins/nthreads;
+        int i1        = std::min(opt->bins, ((thread_id+1)*opt->bins)/nthreads);
+
+        for (i = i0; i < i1; ++i)
         {
-            for (k = 0; k < window[j].nPull; ++k)
+            int    j, k;
+            double num, denom, invg, temp = 0, distance, U = 0;
+            num = denom = 0.;
+            for (j = 0; j < nWindows; ++j)
             {
-                invg = 1.0/window[j].g[k] * window[j].bsWeight[k];
-                temp = (1.0*i+0.5)*dz+min;
-                num += invg*window[j].Histo[k][i];
+                for (k = 0; k < window[j].nPull; ++k)
+                {
+                    invg = 1.0/window[j].g[k] * window[j].bsWeight[k];
+                    temp = (1.0*i+0.5)*dz+min;
+                    num += invg*window[j].Histo[k][i];
 
-                if (!(bExact || window[j].bContrib[k][i]))
-                {
-                    continue;
-                }
-                distance = temp - window[j].pos[k];   /* distance to umbrella center */
-                if (opt->bCycl)
-                {                                     /* in cyclic wham:             */
-                    if (distance > ztot_half)         /*    |distance| < ztot_half   */
+                    if (!(bExact || window[j].bContrib[k][i]))
                     {
-                        distance -= ztot;
+                        continue;
                     }
-                    else if (distance < -ztot_half)
-                    {
-                        distance += ztot;
+                    distance = temp - window[j].pos[k];   /* distance to umbrella center */
+                    if (opt->bCycl)
+                    {                                     /* in cyclic wham:             */
+                        if (distance > ztot_half)         /*    |distance| < ztot_half   */
+                        {
+                            distance -= ztot;
+                        }
+                        else if (distance < -ztot_half)
+                        {
+                            distance += ztot;
+                        }
                     }
-                }
 
-                if (!opt->bTab)
-                {
-                    U = 0.5*window[j].k[k]*sqr(distance);       /* harmonic potential assumed. */
+                    if (!opt->bTab)
+                    {
+                        U = 0.5*window[j].k[k]*sqr(distance);       /* harmonic potential assumed. */
+                    }
+                    else
+                    {
+                        U = tabulated_pot(distance, opt);            /* Use tabulated potential     */
+                    }
+                    denom += invg*window[j].N[k]*exp(-U/(8.314e-3*opt->Temperature) + window[j].z[k]);
                 }
-                else
-                {
-                    U = tabulated_pot(distance, opt);            /* Use tabulated potential     */
-                }
-                denom += invg*window[j].N[k]*exp(-U/(8.314e-3*opt->Temperature) + window[j].z[k]);
             }
+            profile[i] = num/denom;
         }
-        profile[i] = num/denom;
     }
 }
 
@@ -969,67 +984,90 @@ void calc_profile(double *profile, t_UmbrellaWindow * window, int nWindows,
 double calc_z(double * profile, t_UmbrellaWindow * window, int nWindows,
               t_UmbrellaOptions *opt, gmx_bool bExact)
 {
-    int    i, j, k;
-    double U   = 0, min = opt->min, dz = opt->dz, temp, ztot_half, distance, ztot;
-    double MAX = -1e20, total = 0;
+    double min     = opt->min, dz = opt->dz, ztot_half, ztot;
+    double maxglob = -1e20;
 
     ztot      = opt->max-opt->min;
     ztot_half = ztot/2;
 
-    for (i = 0; i < nWindows; ++i)
+#pragma omp parallel
     {
-        for (j = 0; j < window[i].nPull; ++j)
-        {
-            total = 0;
-            for (k = 0; k < window[i].nBin; ++k)
-            {
-                if (!(bExact || window[i].bContrib[j][k]))
-                {
-                    continue;
-                }
-                temp     = (1.0*k+0.5)*dz+min;
-                distance = temp - window[i].pos[j];   /* distance to umbrella center */
-                if (opt->bCycl)
-                {                                     /* in cyclic wham:             */
-                    if (distance > ztot_half)         /*    |distance| < ztot_half   */
-                    {
-                        distance -= ztot;
-                    }
-                    else if (distance < -ztot_half)
-                    {
-                        distance += ztot;
-                    }
-                }
+        int    nthreads  = gmx_omp_get_max_threads();
+        int    thread_id = gmx_omp_get_thread_num();
+        int    i;
+        int    i0        = thread_id*nWindows/nthreads;
+        int    i1        = std::min(nWindows, ((thread_id+1)*nWindows)/nthreads);
+        double maxloc    = -1e20;
 
-                if (!opt->bTab)
+        for (i = i0; i < i1; ++i)
+        {
+            double total     = 0, temp, distance, U = 0;
+            int    j, k;
+
+            for (j = 0; j < window[i].nPull; ++j)
+            {
+                total = 0;
+                for (k = 0; k < window[i].nBin; ++k)
                 {
-                    U = 0.5*window[i].k[j]*sqr(distance);       /* harmonic potential assumed. */
+                    if (!(bExact || window[i].bContrib[j][k]))
+                    {
+                        continue;
+                    }
+                    temp     = (1.0*k+0.5)*dz+min;
+                    distance = temp - window[i].pos[j];   /* distance to umbrella center */
+                    if (opt->bCycl)
+                    {                                     /* in cyclic wham:             */
+                        if (distance > ztot_half)         /*    |distance| < ztot_half   */
+                        {
+                            distance -= ztot;
+                        }
+                        else if (distance < -ztot_half)
+                        {
+                            distance += ztot;
+                        }
+                    }
+
+                    if (!opt->bTab)
+                    {
+                        U = 0.5*window[i].k[j]*sqr(distance);       /* harmonic potential assumed. */
+                    }
+                    else
+                    {
+                        U = tabulated_pot(distance, opt);            /* Use tabulated potential     */
+                    }
+                    total += profile[k]*exp(-U/(8.314e-3*opt->Temperature));
+                }
+                /* Avoid floating point exception if window is far outside min and max */
+                if (total != 0.0)
+                {
+                    total = -log(total);
                 }
                 else
                 {
-                    U = tabulated_pot(distance, opt);            /* Use tabulated potential     */
-
+                    total = 1000.0;
                 }
-                total += profile[k]*exp(-U/(8.314e-3*opt->Temperature));
+                temp = fabs(total - window[i].z[j]);
+                if (temp > maxloc)
+                {
+                    maxloc = temp;
+                }
+                window[i].z[j] = total;
             }
-            /* Avoid floating point exception if window is far outside min and max */
-            if (total != 0.0)
+        }
+        /* Now get maximum maxloc from the threads and put in maxglob */
+        if (maxloc > maxglob)
+        {
+#pragma omp critical
             {
-                total = -log(total);
+                if (maxloc > maxglob)
+                {
+                    maxglob = maxloc;
+                }
             }
-            else
-            {
-                total = 1000.0;
-            }
-            temp = fabs(total - window[i].z[j]);
-            if (temp > MAX)
-            {
-                MAX = temp;
-            }
-            window[i].z[j] = total;
         }
     }
-    return MAX;
+
+    return maxglob;
 }
 
 //! Make PMF symmetric around 0 (useful e.g. for membranes)
@@ -1209,7 +1247,7 @@ void calc_cumulatives(t_UmbrellaWindow *window, int nWindows,
         snew(fn, strlen(fnhist)+10);
         snew(buf, strlen(fnhist)+10);
         sprintf(fn, "%s_cumul.xvg", strncpy(buf, fnhist, strlen(fnhist)-4));
-        fp = xvgropen(fn, "CDFs of umbrella windows", "z", "CDF", opt->oenv);
+        fp = xvgropen(fn, "CDFs of umbrella windows", xlabel, "CDF", opt->oenv);
     }
 
     nbin = opt->bins;
@@ -1250,7 +1288,7 @@ void calc_cumulatives(t_UmbrellaWindow *window, int nWindows,
             fprintf(fp, "\n");
         }
         printf("Wrote cumulative distribution functions to %s\n", fn);
-        gmx_ffclose(fp);
+        xvgrclose(fp);
         sfree(fn);
         sfree(buf);
     }
@@ -1455,11 +1493,11 @@ void print_histograms(const char *fnhist, t_UmbrellaWindow * window, int nWindow
     }
     else
     {
-        fn = strdup(fnhist);
+        fn = gmx_strdup(fnhist);
         strcpy(title, "Umbrella histograms");
     }
 
-    fp   = xvgropen(fn, title, "z", "count", opt->oenv);
+    fp   = xvgropen(fn, title, xlabel, "count", opt->oenv);
     bins = opt->bins;
 
     /* Write histograms */
@@ -1476,7 +1514,7 @@ void print_histograms(const char *fnhist, t_UmbrellaWindow * window, int nWindow
         fprintf(fp, "\n");
     }
 
-    gmx_ffclose(fp);
+    xvgrclose(fp);
     printf("Wrote %s\n", fn);
     if (bs_index >= 0)
     {
@@ -1632,7 +1670,7 @@ void do_bootstrapping(const char *fnres, const char* fnprof, const char *fnhist,
     }
 
     /* do bootstrapping */
-    fp = xvgropen(fnprof, "Boot strap profiles", "z", ylabel, opt->oenv);
+    fp = xvgropen(fnprof, "Boot strap profiles", xlabel, ylabel, opt->oenv);
     for (ib = 0; ib < opt->nBootStrap; ib++)
     {
         printf("  *******************************************\n"
@@ -1720,10 +1758,10 @@ void do_bootstrapping(const char *fnres, const char* fnprof, const char *fnhist,
         }
         fprintf(fp, "%s\n", output_env_get_print_xvgr_codes(opt->oenv) ? "&" : "");
     }
-    gmx_ffclose(fp);
+    xvgrclose(fp);
 
     /* write average and stddev */
-    fp = xvgropen(fnres, "Average and stddev from bootstrapping", "z", ylabel, opt->oenv);
+    fp = xvgropen(fnres, "Average and stddev from bootstrapping", xlabel, ylabel, opt->oenv);
     if (output_env_get_print_xvgr_codes(opt->oenv))
     {
         fprintf(fp, "@TYPE xydy\n");
@@ -1736,7 +1774,7 @@ void do_bootstrapping(const char *fnres, const char* fnprof, const char *fnhist,
         stddev             = (tmp >= 0.) ? sqrt(tmp) : 0.; /* Catch rouding errors */
         fprintf(fp, "%e\t%e\t%e\n", (i+0.5)*opt->dz+opt->min, bsProfiles_av [i], stddev);
     }
-    gmx_ffclose(fp);
+    xvgrclose(fp);
     printf("Wrote boot strap result to %s\n", fnres);
 }
 
@@ -1998,24 +2036,70 @@ void read_tpr_header(const char *fn, t_UmbrellaHeader* header, t_UmbrellaOptions
     /* printf("Reading %s \n",fn); */
     read_tpx_state(fn, &ir, &state, NULL, NULL);
 
-    if (ir.ePull != epullUMBRELLA)
+    if (!ir.bPull)
     {
-        gmx_fatal(FARGS, "This is not a tpr of an umbrella simulation. Found pull type \"%s\" "
-                  " (ir.ePull = %d)\n", epull_names[ir.ePull], ir.ePull);
+        gmx_fatal(FARGS, "This is not a tpr with COM pulling");
     }
 
     /* nr of pull groups */
-    ncrd = ir.pull->ncoord;
-    if (ncrd < 1)
+    ncrd = 0;
+    for (i = 0; i < ir.pull->ncoord; i++)
     {
-        gmx_fatal(FARGS, "This is not a tpr of umbrella simulation. Found only %d pull coordinates\n", ncrd);
+        if (ir.pull->coord[i].eType == epullUMBRELLA)
+        {
+            int m;
+
+            if (ncrd == 0)
+            {
+                header->pull_geometry = ir.pull->coord[i].eGeom;
+                copy_ivec(ir.pull->coord[i].dim, header->pull_dim);
+            }
+
+            if (ncrd != i)
+            {
+                /* TODO: remove this restriction */
+                gmx_fatal(FARGS, "Currently tpr files where a non-umbrella pull coordinate is followed by an umbrella pull coordinate are not supported");
+            }
+
+            for (m = 0; m < DIM; m++)
+            {
+                if (ir.pull->coord[i].eGeom != header->pull_geometry)
+                {
+                    /* TODO: remove the restriction */
+                    gmx_fatal(FARGS, "Currently all umbrella pull coordinates should use the same geometry");
+                }
+
+                if (ir.pull->coord[i].dim[m] != header->pull_dim[m])
+                {
+                    /* TODO: remove the restriction */
+                    gmx_fatal(FARGS, "Currently all umbrella pull coordinates should operate on the same dimensions");
+                }
+            }
+
+            ncrd++;
+        }
     }
 
-    header->npullcrds     = ir.pull->ncoord;
-    header->pull_geometry = ir.pull->eGeom;
-    header->bPrintRef     = ir.pull->bPrintRef;
-    copy_ivec(ir.pull->dim, header->pull_dim);
-    header->pull_ndim = header->pull_dim[0]+header->pull_dim[1]+header->pull_dim[2];
+    if (ncrd < 1)
+    {
+        gmx_fatal(FARGS, "This is not a tpr of umbrella simulation. Found only %d umbrella pull coordinates\n", ncrd);
+    }
+
+    header->npullcrds_tot = ir.pull->ncoord;
+    header->npullcrds     = ncrd;
+    header->bPrintRef     = ir.pull->bPrintCOM1;
+    if (ir.pull->bPrintCOM2)
+    {
+        gmx_fatal(FARGS, "Reading pull output with printing of the COM of group 2 is currently not supported");
+    }
+    if (ir.pull->bPrintRefValue)
+    {
+        gmx_fatal(FARGS, "Reading pull output with printing of the reference value of the coordinates is currently not supported");
+    }
+    header->bPrintComp    = ir.pull->bPrintComp;
+    header->pull_ndim     = header->pull_dim[0]+header->pull_dim[1]+header->pull_dim[2];
+    /* We should add a struct for each pull coord with all pull coord data
+       instead of allocating many arrays for each property */
     snew(header->k, ncrd);
     snew(header->init_dist, ncrd);
     snew(header->umbInitDist, ncrd);
@@ -2116,7 +2200,11 @@ void read_pull_xf(const char *fn, const char *fntpr, t_UmbrellaHeader * header,
      *    bPrintRef == FALSE: for each pull coordinate: no   reference columns, but ndim dx columns
      */
 
-    nColPerCrd = opt->bPullx ? header->pull_ndim : 1;
+    nColPerCrd = 1;
+    if (opt->bPullx && header->bPrintComp)
+    {
+        nColPerCrd += header->pull_ndim;
+    }
     quantity   = opt->bPullx ? "position" : "force";
 
     if (opt->bPullx && header->bPrintRef)
@@ -2156,17 +2244,28 @@ void read_pull_xf(const char *fn, const char *fntpr, t_UmbrellaHeader * header,
         printf("Reading pull %s file with pull geometry %s and %d pull dimensions\n",
                bHaveForce ? "force" : "position", epullg_names[header->pull_geometry],
                header->pull_ndim);
+        /* Since this tool code has not updated yet to allow difference pull
+         * dimensions per pull coordinate, we can't easily check the exact
+         * number of expected columns, so we only check what we expect for
+         * the pull coordinates selected for the WHAM analysis.
+         */
         printf("Expecting these columns in pull file:\n"
                "\t%d reference columns for each individual pull coordinate\n"
                "\t%d data columns for each pull coordinate\n", nColRefEachCrd, nColPerCrd);
-        printf("With %d pull groups, expect %d columns (including the time column)\n", header->npullcrds, nColExpect);
+        printf("With %d pull groups, expect %s%d columns (including the time column)\n",
+               header->npullcrds,
+               header->npullcrds < header->npullcrds_tot ? "at least " : "",
+               nColExpect);
         bFirst = FALSE;
     }
-    if (ny != nColExpect)
+    if (ny < nColExpect ||
+        (header->npullcrds == header->npullcrds_tot && ny > nColExpect))
     {
-        gmx_fatal(FARGS, "Found %d pull coodinates in %s,\n but %d data columns in %s (expected %d)\n"
+        gmx_fatal(FARGS, "Using %d pull coodinates from %s,\n but found %d data columns in %s (expected %s%d)\n"
                   "\nMaybe you confused options -ix and -if ?\n",
-                  header->npullcrds, fntpr, ny-1, fn, nColExpect-1);
+                  header->npullcrds, fntpr, ny-1, fn,
+                  header->npullcrds < header->npullcrds_tot ? "at least " : "",
+                  nColExpect-1);
     }
 
     if (opt->verbose)
@@ -2320,20 +2419,10 @@ void read_pull_xf(const char *fn, const char *fntpr, t_UmbrellaHeader * header,
                 else
                 {
                     /* pick the right column from:
-                     * time ref1[ndim] coord1[ndim] ref2[ndim] coord2[ndim] ...
+                     * time ref1[ndim] coord1[1(ndim)] ref2[ndim] coord2[1(ndim)] ...
                      */
                     column = 1 +  nColRefEachCrd + g*(nColRefEachCrd+nColPerCrd);
-                    switch (header->pull_geometry)
-                    {
-                        case epullgDIST:
-                            pos = dist_ndim(y + column, header->pull_ndim, i);
-                            break;
-                        case epullgCYL:
-                            pos = y[column][i];
-                            break;
-                        default:
-                            gmx_fatal(FARGS, "Bad error, this error should have been catched before. Ups.\n");
-                    }
+                    pos    = y[column][i];
                 }
 
                 /* printf("crd %d dpos %f poseq %f pos %f \n",g,dpos,poseq,pos); */
@@ -2711,11 +2800,11 @@ void calcIntegratedAutocorrelationTimes(t_UmbrellaWindow *window, int nwins,
     printf(" done\n");
     if (fpcorr)
     {
-        gmx_ffclose(fpcorr);
+        xvgrclose(fpcorr);
     }
 
     /* plot IACT along reaction coordinate */
-    fp = xvgropen(fn, "Integrated autocorrelation times", "z", "IACT [ps]", opt->oenv);
+    fp = xvgropen(fn, "Integrated autocorrelation times", xlabel, "IACT [ps]", opt->oenv);
     if (output_env_get_print_xvgr_codes(opt->oenv))
     {
         fprintf(fp, "@    s0 symbol 1\n@    s0 symbol size 0.5\n@    s0 line linestyle 0\n");
@@ -2757,7 +2846,7 @@ void calcIntegratedAutocorrelationTimes(t_UmbrellaWindow *window, int nwins,
             }
         }
     }
-    gmx_ffclose(fp);
+    xvgrclose(fp);
     printf("Wrote %s\n", fn);
 }
 
@@ -2955,7 +3044,7 @@ void guessPotByIntegration(t_UmbrellaWindow *window, int nWindows, t_UmbrellaOpt
                     nHist++;
                     fAv += window[i].forceAv[ig];
                 }
-                /* at the same time, rememer closest histogram */
+                /* at the same time, remember closest histogram */
                 if (dist < distmin)
                 {
                     winmin   = i;
@@ -2991,12 +3080,12 @@ void guessPotByIntegration(t_UmbrellaWindow *window, int nWindows, t_UmbrellaOpt
     }
     if (opt->verbose)
     {
-        fp = xvgropen("pmfintegrated.xvg", "PMF from force integration", "z", "PMF [kJ/mol]", opt->oenv);
+        fp = xvgropen("pmfintegrated.xvg", "PMF from force integration", xlabel, "PMF (kJ/mol)", opt->oenv);
         for (j = 0; j < opt->bins; ++j)
         {
             fprintf(fp, "%g  %g\n", (j+0.5)*dz+opt->min, pot[j]);
         }
-        gmx_ffclose(fp);
+        xvgrclose(fp);
         printf("verbose mode: wrote %s with PMF from interated forces\n", "pmfintegrated.xvg");
     }
 
@@ -3125,59 +3214,77 @@ int gmx_wham(int argc, char *argv[])
         "[THISMODULE] is an analysis program that implements the Weighted",
         "Histogram Analysis Method (WHAM). It is intended to analyze",
         "output files generated by umbrella sampling simulations to ",
-        "compute a potential of mean force (PMF). [PAR] ",
-        "At present, three input modes are supported.[BR]",
-        "[TT]*[tt] With option [TT]-it[tt], the user provides a file which contains the",
-        " file names of the umbrella simulation run-input files ([TT].tpr[tt] files),",
-        " AND, with option [TT]-ix[tt], a file which contains file names of",
-        " the pullx [TT]mdrun[tt] output files. The [TT].tpr[tt] and pullx files must",
-        " be in corresponding order, i.e. the first [TT].tpr[tt] created the",
-        " first pullx, etc.[BR]",
-        "[TT]*[tt] Same as the previous input mode, except that the the user",
-        " provides the pull force output file names ([TT]pullf.xvg[tt]) with option [TT]-if[tt].",
-        " From the pull force the position in the umbrella potential is",
-        " computed. This does not work with tabulated umbrella potentials.[BR]"
-        "[TT]*[tt] With option [TT]-ip[tt], the user provides file names of (gzipped) [TT].pdo[tt] files, i.e.",
-        " the GROMACS 3.3 umbrella output files. If you have some unusual"
-        " reaction coordinate you may also generate your own [TT].pdo[tt] files and",
-        " feed them with the [TT]-ip[tt] option into to [THISMODULE]. The [TT].pdo[tt] file header",
-        " must be similar to the following:[PAR]",
-        "[TT]# UMBRELLA      3.0[BR]",
-        "# Component selection: 0 0 1[BR]",
-        "# nSkip 1[BR]",
-        "# Ref. Group 'TestAtom'[BR]",
-        "# Nr. of pull groups 2[BR]",
-        "# Group 1 'GR1'  Umb. Pos. 5.0 Umb. Cons. 1000.0[BR]",
-        "# Group 2 'GR2'  Umb. Pos. 2.0 Umb. Cons. 500.0[BR]",
-        "#####[tt][PAR]",
-        "The number of pull groups, umbrella positions, force constants, and names ",
-        "may (of course) differ. Following the header, a time column and ",
-        "a data column for each pull group follows (i.e. the displacement",
-        "with respect to the umbrella center). Up to four pull groups are possible ",
-        "per [TT].pdo[tt] file at present.[PAR]",
+        "compute a potential of mean force (PMF).[PAR]",
+        "",
+        "[THISMODULE] is currently not fully up to date. It only supports pull setups",
+        "where the first pull coordinate(s) is/are umbrella pull coordinates",
+        "and, if multiple coordinates need to be analyzed, all used the same",
+        "geometry and dimensions. In most cases this is not an issue.[PAR]",
+        "",
+        "At present, three input modes are supported.",
+        "",
+        "* With option [TT]-it[tt], the user provides a file which contains the",
+        "  file names of the umbrella simulation run-input files ([REF].tpr[ref] files),",
+        "  AND, with option [TT]-ix[tt], a file which contains file names of",
+        "  the pullx [TT]mdrun[tt] output files. The [REF].tpr[ref] and pullx files must",
+        "  be in corresponding order, i.e. the first [REF].tpr[ref] created the",
+        "  first pullx, etc.",
+        "* Same as the previous input mode, except that the the user",
+        "  provides the pull force output file names ([TT]pullf.xvg[tt]) with option [TT]-if[tt].",
+        "  From the pull force the position in the umbrella potential is",
+        "  computed. This does not work with tabulated umbrella potentials.",
+        "* With option [TT]-ip[tt], the user provides file names of (gzipped) [REF].pdo[ref] files, i.e.",
+        "  the GROMACS 3.3 umbrella output files. If you have some unusual"
+        "  reaction coordinate you may also generate your own [REF].pdo[ref] files and",
+        "  feed them with the [TT]-ip[tt] option into to [THISMODULE]. The [REF].pdo[ref] file header",
+        "  must be similar to the following::",
+        "",
+        "    # UMBRELLA      3.0",
+        "    # Component selection: 0 0 1",
+        "    # nSkip 1",
+        "    # Ref. Group 'TestAtom'",
+        "    # Nr. of pull groups 2",
+        "    # Group 1 'GR1'  Umb. Pos. 5.0 Umb. Cons. 1000.0",
+        "    # Group 2 'GR2'  Umb. Pos. 2.0 Umb. Cons. 500.0",
+        "    #####",
+        "",
+        "  The number of pull groups, umbrella positions, force constants, and names ",
+        "  may (of course) differ. Following the header, a time column and ",
+        "  a data column for each pull group follows (i.e. the displacement",
+        "  with respect to the umbrella center). Up to four pull groups are possible ",
+        "  per [REF].pdo[ref] file at present.",
+        "",
         "By default, all pull groups found in all pullx/pullf files are used in WHAM. If only ",
         "some of the pull groups should be used, a pull group selection file (option [TT]-is[tt]) can ",
         "be provided. The selection file must contain one line for each tpr file in tpr-files.dat.",
         "Each of these lines must contain one digit (0 or 1) for each pull group in the tpr file. ",
         "Here, 1 indicates that the pull group is used in WHAM, and 0 means it is omitted. Example:",
         "If you have three tpr files, each containing 4 pull groups, but only pull group 1 and 2 should be ",
-        "used, groupsel.dat looks like this:[BR]",
-        "1 1 0 0[BR]",
-        "1 1 0 0[BR]",
-        "1 1 0 0[PAR]",
-        "By default, the output files are[BR]",
-        "  [TT]-o[tt]      PMF output file[BR]",
-        "  [TT]-hist[tt]   Histograms output file[BR]",
+        "used, groupsel.dat looks like this::",
+        "",
+        "    1 1 0 0",
+        "    1 1 0 0",
+        "    1 1 0 0",
+        "",
+        "By default, the output files are",
+        "",
+        "* [TT]-o[tt]      PMF output file",
+        "* [TT]-hist[tt]   Histograms output file",
+        "",
         "Always check whether the histograms sufficiently overlap.[PAR]",
         "The umbrella potential is assumed to be harmonic and the force constants are ",
-        "read from the [TT].tpr[tt] or [TT].pdo[tt] files. If a non-harmonic umbrella force was applied ",
-        "a tabulated potential can be provided with [TT]-tab[tt].[PAR]",
-        "WHAM OPTIONS[BR]------------[BR]",
-        "  [TT]-bins[tt]   Number of bins used in analysis[BR]",
-        "  [TT]-temp[tt]   Temperature in the simulations[BR]",
-        "  [TT]-tol[tt]    Stop iteration if profile (probability) changed less than tolerance[BR]",
-        "  [TT]-auto[tt]   Automatic determination of boundaries[BR]",
-        "  [TT]-min,-max[tt]   Boundaries of the profile [BR]",
+        "read from the [REF].tpr[ref] or [REF].pdo[ref] files. If a non-harmonic umbrella force was applied ",
+        "a tabulated potential can be provided with [TT]-tab[tt].",
+        "",
+        "WHAM options",
+        "^^^^^^^^^^^^",
+        "",
+        "* [TT]-bins[tt]   Number of bins used in analysis",
+        "* [TT]-temp[tt]   Temperature in the simulations",
+        "* [TT]-tol[tt]    Stop iteration if profile (probability) changed less than tolerance",
+        "* [TT]-auto[tt]   Automatic determination of boundaries",
+        "* [TT]-min,-max[tt]   Boundaries of the profile",
+        "",
         "The data points that are used to compute the profile",
         "can be restricted with options [TT]-b[tt], [TT]-e[tt], and [TT]-dt[tt]. ",
         "Adjust [TT]-b[tt] to ensure sufficient equilibration in each ",
@@ -3193,8 +3300,16 @@ int gmx_wham(int argc, char *argv[])
         "periodicity of the system and generate a periodic PMF. The first and the last bin of the",
         "reaction coordinate will assumed be be neighbors.[PAR]",
         "Option [TT]-sym[tt] symmetrizes the profile around z=0 before output, ",
-        "which may be useful for, e.g. membranes.[PAR]",
-        "AUTOCORRELATIONS[BR]----------------[BR]",
+        "which may be useful for, e.g. membranes.",
+        "",
+        "Parallelization",
+        "^^^^^^^^^^^^^^^",
+        "",
+        "If available, the number of OpenMP threads used by g_wham is controlled with [TT]-nt[tt].",
+        "",
+        "Autocorrelations",
+        "^^^^^^^^^^^^^^^^",
+        "",
         "With [TT]-ac[tt], [THISMODULE] estimates the integrated autocorrelation ",
         "time (IACT) [GRK]tau[grk] for each umbrella window and weights the respective ",
         "window with 1/[1+2*[GRK]tau[grk]/dt]. The IACTs are written ",
@@ -3209,43 +3324,50 @@ int gmx_wham(int argc, char *argv[])
         "less robust) method such as fitting to a double exponential, you can ",
         "compute the IACTs with [gmx-analyze] and provide them to [THISMODULE] with the file ",
         "[TT]iact-in.dat[tt] (option [TT]-iiact[tt]), which should contain one line per ",
-        "input file ([TT].pdo[tt] or pullx/f file) and one column per pull group in the respective file.[PAR]",
-        "ERROR ANALYSIS[BR]--------------[BR]",
+        "input file ([REF].pdo[ref] or pullx/f file) and one column per pull group in the respective file.",
+        "",
+        "Error analysis",
+        "^^^^^^^^^^^^^^",
+        "",
         "Statistical errors may be estimated with bootstrap analysis. Use it with care, ",
         "otherwise the statistical error may be substantially underestimated. ",
         "More background and examples for the bootstrap technique can be found in ",
-        "Hub, de Groot and Van der Spoel, JCTC (2010) 6: 3713-3720.[BR]",
+        "Hub, de Groot and Van der Spoel, JCTC (2010) 6: 3713-3720.",
         "[TT]-nBootstrap[tt] defines the number of bootstraps (use, e.g., 100). ",
         "Four bootstrapping methods are supported and ",
-        "selected with [TT]-bs-method[tt].[BR]",
-        "  (1) [TT]b-hist[tt]   Default: complete histograms are considered as independent ",
-        "data points, and the bootstrap is carried out by assigning random weights to the ",
-        "histograms (\"Bayesian bootstrap\"). Note that each point along the reaction coordinate",
-        "must be covered by multiple independent histograms (e.g. 10 histograms), otherwise the ",
-        "statistical error is underestimated.[BR]",
-        "  (2) [TT]hist[tt]    Complete histograms are considered as independent data points. ",
-        "For each bootstrap, N histograms are randomly chosen from the N given histograms ",
-        "(allowing duplication, i.e. sampling with replacement).",
-        "To avoid gaps without data along the reaction coordinate blocks of histograms ",
-        "([TT]-histbs-block[tt]) may be defined. In that case, the given histograms are ",
-        "divided into blocks and only histograms within each block are mixed. Note that ",
-        "the histograms within each block must be representative for all possible histograms, ",
-        "otherwise the statistical error is underestimated.[BR]",
-        "  (3) [TT]traj[tt]  The given histograms are used to generate new random trajectories,",
-        "such that the generated data points are distributed according the given histograms ",
-        "and properly autocorrelated. The autocorrelation time (ACT) for each window must be ",
-        "known, so use [TT]-ac[tt] or provide the ACT with [TT]-iiact[tt]. If the ACT of all ",
-        "windows are identical (and known), you can also provide them with [TT]-bs-tau[tt]. ",
-        "Note that this method may severely underestimate the error in case of limited sampling, ",
-        "that is if individual histograms do not represent the complete phase space at ",
-        "the respective positions.[BR]",
-        "  (4) [TT]traj-gauss[tt]  The same as method [TT]traj[tt], but the trajectories are ",
-        "not bootstrapped from the umbrella histograms but from Gaussians with the average ",
-        "and width of the umbrella histograms. That method yields similar error estimates ",
-        "like method [TT]traj[tt].[PAR]"
-        "Bootstrapping output:[BR]",
-        "  [TT]-bsres[tt]   Average profile and standard deviations[BR]",
-        "  [TT]-bsprof[tt]  All bootstrapping profiles[BR]",
+        "selected with [TT]-bs-method[tt].",
+        "",
+        "* [TT]b-hist[tt]   Default: complete histograms are considered as independent ",
+        "  data points, and the bootstrap is carried out by assigning random weights to the ",
+        "  histograms (\"Bayesian bootstrap\"). Note that each point along the reaction coordinate",
+        "  must be covered by multiple independent histograms (e.g. 10 histograms), otherwise the ",
+        "  statistical error is underestimated.",
+        "* [TT]hist[tt]    Complete histograms are considered as independent data points. ",
+        "  For each bootstrap, N histograms are randomly chosen from the N given histograms ",
+        "  (allowing duplication, i.e. sampling with replacement).",
+        "  To avoid gaps without data along the reaction coordinate blocks of histograms ",
+        "  ([TT]-histbs-block[tt]) may be defined. In that case, the given histograms are ",
+        "  divided into blocks and only histograms within each block are mixed. Note that ",
+        "  the histograms within each block must be representative for all possible histograms, ",
+        "  otherwise the statistical error is underestimated.",
+        "* [TT]traj[tt]  The given histograms are used to generate new random trajectories,",
+        "  such that the generated data points are distributed according the given histograms ",
+        "  and properly autocorrelated. The autocorrelation time (ACT) for each window must be ",
+        "  known, so use [TT]-ac[tt] or provide the ACT with [TT]-iiact[tt]. If the ACT of all ",
+        "  windows are identical (and known), you can also provide them with [TT]-bs-tau[tt]. ",
+        "  Note that this method may severely underestimate the error in case of limited sampling, ",
+        "  that is if individual histograms do not represent the complete phase space at ",
+        "  the respective positions.",
+        "* [TT]traj-gauss[tt]  The same as method [TT]traj[tt], but the trajectories are ",
+        "  not bootstrapped from the umbrella histograms but from Gaussians with the average ",
+        "  and width of the umbrella histograms. That method yields similar error estimates ",
+        "  like method [TT]traj[tt].",
+        "",
+        "Bootstrapping output:",
+        "",
+        "* [TT]-bsres[tt]   Average profile and standard deviations",
+        "* [TT]-bsprof[tt]  All bootstrapping profiles",
+        "",
         "With [TT]-vbs[tt] (verbose bootstrapping), the histograms of each bootstrap are written, ",
         "and, with bootstrap method [TT]traj[tt], the cumulative distribution functions of ",
         "the histograms."
@@ -3254,10 +3376,14 @@ int gmx_wham(int argc, char *argv[])
     const char              *en_unit[]       = {NULL, "kJ", "kCal", "kT", NULL};
     const char              *en_unit_label[] = {"", "E (kJ mol\\S-1\\N)", "E (kcal mol\\S-1\\N)", "E (kT)", NULL};
     const char              *en_bsMethod[]   = { NULL, "b-hist", "hist", "traj", "traj-gauss", NULL };
-
     static t_UmbrellaOptions opt;
+    static int               nthreads = -1;
 
     t_pargs                  pa[] = {
+#ifdef GMX_OPENMP
+        { "-nt", FALSE, etINT, {&nthreads},
+          "Number of threads used by g_wham (if -1, all threads will be used or what is specified by the environment variable OMP_NUM_THREADS)"},
+#endif
         { "-min", FALSE, etREAL, {&opt.min},
           "Minimum coordinate in profile"},
         { "-max", FALSE, etREAL, {&opt.max},
@@ -3381,7 +3507,7 @@ int gmx_wham(int argc, char *argv[])
     opt.stepchange            = 100;
     opt.stepUpdateContrib     = 100;
 
-    if (!parse_common_args(&argc, argv, PCA_BE_NICE,
+    if (!parse_common_args(&argc, argv, 0,
                            NFILE, fnm, asize(pa), pa, asize(desc), desc, 0, NULL, &opt.oenv))
     {
         return 0;
@@ -3456,6 +3582,20 @@ int gmx_wham(int argc, char *argv[])
                   "(option -iiact) or define all ACTs with -bs-tau for bootstrapping\n. Not Both.");
     }
 
+    /* Set # of OpenMP threads */
+    if (nthreads > 0)
+    {
+        gmx_omp_set_num_threads(nthreads);
+    }
+    else
+    {
+        nthreads = gmx_omp_get_max_threads();
+    }
+    if (nthreads > 1)
+    {
+        printf("\nNote: Will use %d OpenMP threads.\n\n", nthreads);
+    }
+
     /* Reading gmx4 pull output and tpr files */
     if (opt.bTpr || opt.bPullf || opt.bPullx)
     {
@@ -3502,7 +3642,7 @@ int gmx_wham(int argc, char *argv[])
 
     /* write histograms */
     histout = xvgropen(opt2fn("-hist", NFILE, fnm), "Umbrella histograms",
-                       "z", "count", opt.oenv);
+                       xlabel, "count", opt.oenv);
     for (l = 0; l < opt.bins; ++l)
     {
         fprintf(histout, "%e\t", (double)(l+0.5)/opt.bins*(opt.max-opt.min)+opt.min);
@@ -3515,7 +3655,7 @@ int gmx_wham(int argc, char *argv[])
         }
         fprintf(histout, "\n");
     }
-    gmx_ffclose(histout);
+    xvgrclose(histout);
     printf("Wrote %s\n", opt2fn("-hist", NFILE, fnm));
     if (opt.bHistOnly)
     {
@@ -3611,12 +3751,12 @@ int gmx_wham(int argc, char *argv[])
     }
 
     /* write profile or density of states */
-    profout = xvgropen(opt2fn("-o", NFILE, fnm), title, "z", ylabel, opt.oenv);
+    profout = xvgropen(opt2fn("-o", NFILE, fnm), title, xlabel, ylabel, opt.oenv);
     for (i = 0; i < opt.bins; ++i)
     {
         fprintf(profout, "%e\t%e\n", (double)(i+0.5)/opt.bins*(opt.max-opt.min)+opt.min, profile[i]);
     }
-    gmx_ffclose(profout);
+    xvgrclose(profout);
     printf("Wrote %s\n", opt2fn("-o", NFILE, fnm));
 
     /* Bootstrap Method */

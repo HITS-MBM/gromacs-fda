@@ -1,7 +1,7 @@
 #
 # This file is part of the GROMACS molecular simulation package.
 #
-# Copyright (c) 2012,2013, by the GROMACS development team, led by
+# Copyright (c) 2012,2013,2014,2015, by the GROMACS development team, led by
 # Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
 # and including many others, as listed in the AUTHORS file in the
 # top-level source directory and at http://www.gromacs.org.
@@ -37,10 +37,10 @@
 macro(gmx_test_compiler_problems)
 
     # Warn if C and C++ compilers do not match
-    if(NOT "${CMAKE_C_COMPILER_ID}" STREQUAL "${CMAKE_CXX_COMPILER_ID}")
+    if(NOT CMAKE_C_COMPILER_ID STREQUAL CMAKE_CXX_COMPILER_ID)
         message(WARNING "The ids of the C and C++ compilers do not match (${CMAKE_C_COMPILER_ID} and ${CMAKE_CXX_COMPILER_ID}, respectively). Mixing different C/C++ compilers can cause problems.")
     endif()
-    if(NOT "${CMAKE_C_COMPILER_VERSION}" STREQUAL "${CMAKE_CXX_COMPILER_VERSION}")
+    if(NOT CMAKE_C_COMPILER_VERSION STREQUAL CMAKE_CXX_COMPILER_VERSION)
         message(WARNING "The versions of the C and C++ compilers do not match (${CMAKE_C_COMPILER_VERSION} and ${CMAKE_CXX_COMPILER_VERSION}, respectively). Mixing different C/C++ compilers can cause problems.")
     endif()
 
@@ -69,15 +69,31 @@ macro(gmx_test_compiler_problems)
     # (see: http://llvm.org/bugs/show_bug.cgi?id=15040).
     # We can work around this by not using the integrated assembler (except on OS X
     # which has an outdated assembler that does not support AVX instructions).
-    if (${CMAKE_C_COMPILER_ID} MATCHES "Clang" AND CMAKE_C_COMPILER_VERSION VERSION_LESS "3.3")
+    if (CMAKE_C_COMPILER_ID MATCHES "Clang" AND CMAKE_C_COMPILER_VERSION VERSION_LESS "3.3")
         set(GMX_USE_CLANG_C_FMA_BUG_WORKAROUND TRUE)
     endif()
-    if (${CMAKE_CXX_COMPILER_ID} MATCHES "Clang" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS "3.3")
+    if (CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS "3.3")
         set(GMX_USE_CLANG_CXX_FMA_BUG_WORKAROUND TRUE)
     endif()
 
     if (CMAKE_C_COMPILER_ID STREQUAL "PGI")
-        message(WARNING "All tested PGI compiler versions (up to 12.9.0) generate binaries which produce incorrect results, or even fail to  compile Gromacs. Highly recommended to use a different compiler. If you choose to use PGI, make sure to run the regressiontests.")
+        message(WARNING "Currently tested PGI compiler versions (up to 15.7) generate binaries that do not pass all regression test, and the generated binaries are significantly slower than with GCC, ICC or Clang. For now we do not recommend PGI beyond development testing - make sure to run the regressiontests.")
+    endif()
+
+    if(CMAKE_COMPILER_IS_GNUCC AND
+            (CMAKE_C_COMPILER_VERSION VERSION_LESS "4.9.0" OR CMAKE_SIZEOF_VOID_P EQUAL 8)
+            AND (WIN32 OR CYGWIN)
+            AND GMX_SIMD MATCHES "AVX" AND NOT GMX_SIMD STREQUAL AVX_128_FMA)
+        message(WARNING "GCC on Windows (GCC older than 4.9 or any version when compiling for 64bit) with AVX (other than AVX_128_FMA) crashes. Choose a different GMX_SIMD or a different compiler.") # GCC bug 49001, 54412.
+    endif()
+
+    if(CMAKE_C_COMPILER_ID MATCHES "Clang" AND WIN32)
+        if(CMAKE_VERSION VERSION_LESS 3.0.0)
+            message(WARNING "Clang on Windows requires cmake 3.0.0")
+        endif()
+        if(CMAKE_C_COMPILER_VERSION VERSION_LESS 3.5.0)
+            message(WARNING "Clang on Windows requires clang 3.5.0")
+        endif()
     endif()
 
     if(CMAKE_C_COMPILER_ID MATCHES "Intel" AND CMAKE_C_COMPILER_VERSION VERSION_LESS "12.0.0")

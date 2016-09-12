@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2009,2010,2011,2012,2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2009,2010,2011,2012,2013,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -39,13 +39,16 @@
  * \author Teemu Murtola <teemu.murtola@gmail.com>
  * \ingroup module_selection
  */
+#include "gmxpre.h"
+
 #include <cctype>
 
 #include "gromacs/legacyheaders/macros.h"
-
 #include "gromacs/selection/position.h"
-#include "gromacs/selection/selmethod.h"
+#include "gromacs/topology/topology.h"
 #include "gromacs/utility/exceptions.h"
+
+#include "selmethod.h"
 
 /** Evaluates the \p all selection keyword. */
 static void
@@ -168,14 +171,19 @@ static void
 evaluate_z(t_topology *top, t_trxframe *fr, t_pbc *pbc,
            gmx_ana_pos_t *pos, gmx_ana_selvalue_t *out, void *data);
 
-/** Help text for atom name selection keywords. */
-static const char *help_atomname[] = {
-    "ATOM NAME SELECTION KEYWORDS[PAR]",
-
-    "[TT]name[tt] [TT]pdbname[tt] [TT]atomname[tt] [TT]pdbatomname[tt][PAR]",
-
+//! Help title for atom name selection keywords.
+static const char        helptitle_atomname[] = "Selecting atoms by name";
+//! Help text for atom name selection keywords.
+static const char *const help_atomname[] = {
+    "::",
+    "",
+    "  name",
+    "  pdbname",
+    "  atomname",
+    "  pdbatomname",
+    "",
     "These keywords select atoms by name. [TT]name[tt] selects atoms using",
-    "the Gromacs atom naming convention.",
+    "the GROMACS atom naming convention.",
     "For input formats other than PDB, the atom names are matched exactly",
     "as they appear in the input file. For PDB files, 4 character atom names",
     "that start with a digit are matched after moving the digit to the end",
@@ -284,7 +292,7 @@ gmx_ana_selmethod_t sm_atomname = {
     NULL,
     &evaluate_atomname,
     NULL,
-    {NULL, asize(help_atomname), help_atomname}
+    {NULL, helptitle_atomname, asize(help_atomname), help_atomname}
 };
 
 /** Selection method data for \p pdbatomname selection keyword. */
@@ -299,7 +307,7 @@ gmx_ana_selmethod_t sm_pdbatomname = {
     NULL,
     &evaluate_pdbatomname,
     NULL,
-    {NULL, asize(help_atomname), help_atomname}
+    {NULL, helptitle_atomname, asize(help_atomname), help_atomname}
 };
 
 /** Selection method data for \p atomtype selection keyword. */
@@ -841,8 +849,7 @@ evaluate_betafactor(t_topology *top, t_trxframe * /* fr */, t_pbc * /* pbc */,
  * Internal utility function for position keyword evaluation.
  *
  * \param[out] out  Output array.
- * \param[in]  pos  Position data to use instead of atomic coordinates
- *   (can be NULL).
+ * \param[in]  pos  Position data to use instead of atomic coordinates.
  * \param[in]  d    Coordinate index to evaluate (\p XX, \p YY or \p ZZ).
  *
  * This function is used internally by evaluate_x(), evaluate_y() and
@@ -851,13 +858,9 @@ evaluate_betafactor(t_topology *top, t_trxframe * /* fr */, t_pbc * /* pbc */,
 static void
 evaluate_coord(real out[], gmx_ana_pos_t *pos, int d)
 {
-    for (int b = 0; b < pos->count(); ++b)
+    for (int i = 0; i < pos->count(); ++i)
     {
-        const real v = pos->x[b][d];
-        for (int i = pos->m.mapb.index[b]; i < pos->m.mapb.index[b+1]; ++i)
-        {
-            out[i] = v;
-        }
+        out[i] = pos->x[i][d];
     }
     // TODO: Make this more efficient by directly extracting the coordinates
     // from the frame coordinates for atomic positions instead of going through
@@ -868,13 +871,13 @@ evaluate_coord(real out[], gmx_ana_pos_t *pos, int d)
  * See sel_updatefunc_pos() for description of the parameters.
  * \p data is not used.
  *
- * Returns the \p x coordinate for each atom in \p out->u.r.
+ * Returns the \p x coordinate for each position in \p out->u.r.
  */
 static void
 evaluate_x(t_topology * /*top*/, t_trxframe * /*fr*/, t_pbc * /*pbc*/,
            gmx_ana_pos_t *pos, gmx_ana_selvalue_t *out, void * /*data*/)
 {
-    out->nr = pos->m.mapb.nra;
+    out->nr = pos->count();
     evaluate_coord(out->u.r, pos, XX);
 }
 
@@ -882,13 +885,13 @@ evaluate_x(t_topology * /*top*/, t_trxframe * /*fr*/, t_pbc * /*pbc*/,
  * See sel_updatefunc() for description of the parameters.
  * \p data is not used.
  *
- * Returns the \p y coordinate for each atom in \p out->u.r.
+ * Returns the \p y coordinate for each position in \p out->u.r.
  */
 static void
 evaluate_y(t_topology * /*top*/, t_trxframe * /*fr*/, t_pbc * /*pbc*/,
            gmx_ana_pos_t *pos, gmx_ana_selvalue_t *out, void * /*data*/)
 {
-    out->nr = pos->m.mapb.nra;
+    out->nr = pos->count();
     evaluate_coord(out->u.r, pos, YY);
 }
 
@@ -896,12 +899,12 @@ evaluate_y(t_topology * /*top*/, t_trxframe * /*fr*/, t_pbc * /*pbc*/,
  * See sel_updatefunc() for description of the parameters.
  * \p data is not used.
  *
- * Returns the \p z coordinate for each atom in \p out->u.r.
+ * Returns the \p z coordinate for each position in \p out->u.r.
  */
 static void
 evaluate_z(t_topology * /*top*/, t_trxframe * /*fr*/, t_pbc * /*pbc*/,
            gmx_ana_pos_t *pos, gmx_ana_selvalue_t *out, void * /*data*/)
 {
-    out->nr = pos->m.mapb.nra;
+    out->nr = pos->count();
     evaluate_coord(out->u.r, pos, ZZ);
 }

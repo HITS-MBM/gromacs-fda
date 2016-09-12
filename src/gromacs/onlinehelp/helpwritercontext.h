@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2012,2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2012,2013,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -46,7 +46,7 @@
 #include <string>
 #include <vector>
 
-#include "../utility/common.h"
+#include "gromacs/utility/classhelpers.h"
 
 namespace gmx
 {
@@ -59,8 +59,7 @@ class TextLineWrapperSettings;
 enum HelpOutputFormat
 {
     eHelpOutputFormat_Console,  //!< Plain text directly on the console.
-    eHelpOutputFormat_Man,      //!< Man page.
-    eHelpOutputFormat_Html,     //!< Html output for online manual.
+    eHelpOutputFormat_Rst,      //!< reStructuredText for online manual and man pages.
     eHelpOutputFormat_Other,    //!< Used for extensions in other modules.
     eHelpOutputFormat_NR        //!< Used for the number of output formats.
 };
@@ -124,9 +123,7 @@ class HelpLinks
  *
  * The state of a context object (excluding the fact that the output file is
  * written to) does not change after initial construction of the object.
- * Copying creates a context object that shares state with the source.
- *
- * TODO: This class will need additional work as part of Redmine issue #969.
+ * Copying creates a context objects that share state with the source.
  *
  * \inlibraryapi
  * \ingroup module_onlinehelp
@@ -188,6 +185,28 @@ class HelpWriterContext
         File &outputFile() const;
 
         /*! \brief
+         * Creates a subsection in the output help.
+         *
+         * \param[in] title  Title for the subsection.
+         * \throws    std::bad_alloc if out of memory.
+         * \throws    FileIOError on any I/O error.
+         *
+         * Writes \p title using writeTitle() and makes any further
+         * writeTitle() calls write headings one level deeper.
+         *
+         * Typical use for writing a subsection is to create a copy of the
+         * context for the parent section, and then call enterSubSection() on
+         * the copy.
+         * The whole subsection should be written out using the returned
+         * context before calling any further methods in the parent context.
+         *
+         * This method is only necessary if the subsection will contain further
+         * subsections.  If there is only one level of subsections, it is
+         * possible to use writeTitle() directly.
+         */
+        void enterSubSection(const std::string &title);
+
+        /*! \brief
          * Substitutes markup used in help text and wraps lines.
          *
          * \param[in] settings Line wrapper settings.
@@ -244,12 +263,16 @@ class HelpWriterContext
          * Writes an entry for a single option into the output.
          *
          * \param[in] name  Name of the option.
-         * \param[in] args  Placeholder for values and other information about
-         *     the option (placed after \p name).
+         * \param[in] value        Placeholder for option value.
+         * \param[in] defaultValue Default value for the option.
+         * \param[in] info         Additional (brief) info/attributes for the
+         *      option.
          * \param[in] description  Full description of the option.
          */
-        void writeOptionItem(const std::string &name, const std::string &args,
-                             const std::string &description) const;
+        void writeOptionItem(
+            const std::string &name, const std::string &value,
+            const std::string &defaultValue, const std::string &info,
+            const std::string &description) const;
         /*! \brief
          * Finishes writing a list of options.
          *

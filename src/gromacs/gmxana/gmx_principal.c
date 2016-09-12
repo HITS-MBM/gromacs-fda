@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -34,31 +34,26 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
+#include "gmxpre.h"
 
 #include <math.h>
 #include <string.h>
 
 #include "gromacs/commandline/pargs.h"
-#include "sysstuff.h"
-#include "typedefs.h"
-#include "gromacs/utility/smalloc.h"
-#include "macros.h"
-#include "vec.h"
-#include "pbc.h"
-#include "gromacs/fileio/futil.h"
-#include "index.h"
-#include "mshift.h"
-#include "xvgr.h"
-#include "princ.h"
-#include "rmpbc.h"
-#include "txtdump.h"
 #include "gromacs/fileio/tpxio.h"
 #include "gromacs/fileio/trxio.h"
-#include "gstat.h"
-#include "gmx_ana.h"
+#include "gromacs/fileio/xvgr.h"
+#include "gromacs/gmxana/gmx_ana.h"
+#include "gromacs/gmxana/gstat.h"
+#include "gromacs/gmxana/princ.h"
+#include "gromacs/legacyheaders/macros.h"
+#include "gromacs/legacyheaders/txtdump.h"
+#include "gromacs/legacyheaders/typedefs.h"
+#include "gromacs/math/vec.h"
+#include "gromacs/pbcutil/rmpbc.h"
+#include "gromacs/topology/index.h"
+#include "gromacs/utility/futil.h"
+#include "gromacs/utility/smalloc.h"
 
 
 void
@@ -79,8 +74,8 @@ int gmx_principal(int argc, char *argv[])
 {
     const char     *desc[] = {
         "[THISMODULE] calculates the three principal axes of inertia for a group",
-        "of atoms. NOTE: Old versions of Gromacs wrote the output data in a",
-        "strange transposed way. As of Gromacs-5.0, the output file paxis1.dat",
+        "of atoms. NOTE: Old versions of GROMACS wrote the output data in a",
+        "strange transposed way. As of GROMACS 5.0, the output file paxis1.dat",
         "contains the x/y/z components of the first (major) principal axis for",
         "each frame, and similarly for the middle and minor axes in paxis2.dat",
         "and paxis3.dat."
@@ -122,7 +117,7 @@ int gmx_principal(int argc, char *argv[])
 #define NFILE asize(fnm)
 
     if (!parse_common_args(&argc, argv,
-                           PCA_CAN_TIME | PCA_TIME_UNIT | PCA_CAN_VIEW | PCA_BE_NICE,
+                           PCA_CAN_TIME | PCA_TIME_UNIT | PCA_CAN_VIEW,
                            NFILE, fnm, asize(pa), pa, asize(desc), desc, 0, NULL, &oenv))
     {
         return 0;

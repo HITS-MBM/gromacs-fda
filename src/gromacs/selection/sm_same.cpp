@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2009,2010,2011,2012,2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2009,2010,2011,2012,2013,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -39,17 +39,18 @@
  * \author Teemu Murtola <teemu.murtola@gmail.com>
  * \ingroup module_selection
  */
+#include "gmxpre.h"
+
 #include <stdlib.h>
 
 #include "gromacs/legacyheaders/macros.h"
-
-#include "gromacs/selection/selmethod.h"
 #include "gromacs/utility/exceptions.h"
 #include "gromacs/utility/smalloc.h"
 
 #include "keywords.h"
 #include "parsetree.h"
 #include "selelem.h"
+#include "selmethod.h"
 
 /*! \internal
  * \brief
@@ -169,10 +170,11 @@ static gmx_ana_selparam_t smparams_same_str[] = {
 };
 
 /** Help text for the \p same selection method. */
-static const char *help_same[] = {
-    "EXTENDING SELECTIONS[PAR]",
-
-    "[TT]same KEYWORD as ATOM_EXPR[tt][PAR]",
+static const char *const help_same[] = {
+    "::",
+    "",
+    "  same KEYWORD as ATOM_EXPR",
+    "",
 
     "The keyword [TT]same[tt] can be used to select all atoms for which",
     "the given [TT]KEYWORD[tt] matches any of the atoms in [TT]ATOM_EXPR[tt].",
@@ -191,7 +193,8 @@ gmx_ana_selmethod_t sm_same = {
     &init_frame_same_int,
     &evaluate_same_int,
     NULL,
-    {"same KEYWORD as ATOM_EXPR", asize(help_same), help_same},
+    {"same KEYWORD as ATOM_EXPR",
+     "Extending selections", asize(help_same), help_same},
 };
 
 /*! \brief
@@ -212,7 +215,7 @@ static gmx_ana_selmethod_t sm_same_str = {
     &init_frame_same_str,
     &evaluate_same_str,
     NULL,
-    {"same KEYWORD as ATOM_EXPR", asize(help_same), help_same},
+    {NULL, NULL, 0, NULL},
 };
 
 static void *
@@ -230,12 +233,11 @@ init_data_same(int /* npar */, gmx_ana_selparam_t *param)
  * \param[in,out] method  The method to initialize.
  * \param[in,out] params  Pointer to the first parameter.
  * \param[in]     scanner Scanner data structure.
- * \returns       0 on success, a non-zero error code on error.
  *
- * If \p *method is not a \c same method, this function returns zero
+ * If \p *method is not a \c same method, this function returns
  * immediately.
  */
-int
+void
 _gmx_selelem_custom_init_same(gmx_ana_selmethod_t                           **method,
                               const gmx::SelectionParserParameterListPointer &params,
                               void                                           *scanner)
@@ -244,15 +246,14 @@ _gmx_selelem_custom_init_same(gmx_ana_selmethod_t                           **me
     /* Do nothing if this is not a same method. */
     if (!*method || (*method)->name != sm_same.name || params->empty())
     {
-        return 0;
+        return;
     }
 
     const gmx::SelectionParserValueList &kwvalues = params->front().values();
     if (kwvalues.size() != 1 || !kwvalues.front().hasExpressionValue()
         || kwvalues.front().expr->type != SEL_EXPRESSION)
     {
-        _gmx_selparser_error(scanner, "'same' should be followed by a single keyword");
-        return -1;
+        GMX_THROW(gmx::InvalidInputError("'same' should be followed by a single keyword"));
     }
     gmx_ana_selmethod_t *kwmethod = kwvalues.front().expr->u.expr.method;
     if (kwmethod->type == STR_VALUE)
@@ -264,27 +265,22 @@ _gmx_selelem_custom_init_same(gmx_ana_selmethod_t                           **me
     gmx::SelectionParserParameterList::iterator asparam = ++params->begin();
     if (asparam != params->end() && asparam->name() == sm_same.param[1].name)
     {
-        gmx::SelectionParserParameterList    kwparams;
-        gmx::SelectionParserValueListPointer values(
-                new gmx::SelectionParserValueList(asparam->values()));
-        kwparams.push_back(
-                gmx::SelectionParserParameter::create(NULL, move(values)));
-
+        const gmx::SelectionParserValueList &asvalues = asparam->values();
+        if (asvalues.size() != 1 || !asvalues.front().hasExpressionValue())
+        {
+            // TODO: Think about providing more informative context.
+            GMX_THROW(gmx::InvalidInputError("'same ... as' should be followed by a single expression"));
+        }
+        const gmx::SelectionTreeElementPointer &child = asvalues.front().expr;
         /* Create a second keyword evaluation element for the keyword given as
          * the first parameter, evaluating the keyword in the group given by the
          * second parameter. */
         gmx::SelectionTreeElementPointer kwelem
-            = _gmx_sel_init_keyword_evaluator(kwmethod, kwparams, scanner);
-        // FIXME: Use exceptions.
-        if (!kwelem)
-        {
-            return -1;
-        }
+            = _gmx_sel_init_keyword_evaluator(kwmethod, child, scanner);
         /* Replace the second parameter with one with a value from \p kwelem. */
         std::string pname = asparam->name();
         *asparam = gmx::SelectionParserParameter::createFromExpression(pname, kwelem);
     }
-    return 0;
 }
 
 static void
@@ -343,6 +339,10 @@ init_frame_same_int(t_topology * /* top */, t_trxframe * /* fr */, t_pbc * /* pb
 
     /* Collapse adjacent values, and check whether the array is sorted. */
     d->bSorted = true;
+    if (d->nas == 0)
+    {
+        return;
+    }
     for (i = 1, j = 0; i < d->nas; ++i)
     {
         if (d->as.i[i] != d->as.i[j])
@@ -469,6 +469,10 @@ init_frame_same_str(t_topology * /* top */, t_trxframe * /* fr */, t_pbc * /* pb
      * For strings, it's unlikely that the values would be sorted originally,
      * so set bSorted always to false. */
     d->bSorted        = false;
+    if (d->nas == 0)
+    {
+        return;
+    }
     d->as_s_sorted[0] = d->as.s[0];
     for (i = 1, j = 0; i < d->nas; ++i)
     {

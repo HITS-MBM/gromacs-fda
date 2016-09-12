@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2008, The GROMACS development team.
- * Copyright (c) 2012,2014, by the GROMACS development team, led by
+ * Copyright (c) 2012,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -34,20 +34,18 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
+#include "gmxpre.h"
+
+#include "gromacs/legacyheaders/perf_est.h"
 
 #include <math.h>
 
-#include "perf_est.h"
-#include "physics.h"
-#include "vec.h"
-#include "mtop_util.h"
-#include "types/commrec.h"
-#include "nbnxn_search.h"
-#include "nbnxn_consts.h"
-
+#include "gromacs/legacyheaders/types/commrec.h"
+#include "gromacs/math/vec.h"
+#include "gromacs/mdlib/nbnxn_consts.h"
+#include "gromacs/mdlib/nbnxn_search.h"
+#include "gromacs/topology/topology.h"
+#include "gromacs/utility/fatalerror.h"
 
 /* Computational cost of bonded, non-bonded and PME calculations.
  * This will be machine dependent.
@@ -101,6 +99,9 @@ int n_bonded_dx(gmx_mtop_t *mtop, gmx_bool bExcl)
      */
     ndx      = 0;
     ndx_excl = 0;
+#if defined _ICC && __ICC == 1400 || defined __ICL && __ICL == 1400
+#pragma novector /* Work-around for incorrect vectorization */
+#endif
     for (mb = 0; mb < mtop->nmolblock; mb++)
     {
         molt = &mtop->moltype[mtop->molblock[mb].type];
@@ -177,6 +178,7 @@ static void pp_group_load(gmx_mtop_t *mtop, t_inputrec *ir, matrix box,
     nq                = 0;
     nlj               = 0;
     *bChargePerturbed = FALSE;
+    *bTypePerturbed   = FALSE;
     for (mb = 0; mb < mtop->nmolblock; mb++)
     {
         molt = &mtop->moltype[mtop->molblock[mb].type];
@@ -291,6 +293,7 @@ static void pp_verlet_load(gmx_mtop_t *mtop, t_inputrec *ir, matrix box,
     nqlj              = 0;
     nq                = 0;
     *bChargePerturbed = FALSE;
+    *bTypePerturbed   = FALSE;
     for (mb = 0; mb < mtop->nmolblock; mb++)
     {
         molt = &mtop->moltype[mtop->molblock[mb].type];
