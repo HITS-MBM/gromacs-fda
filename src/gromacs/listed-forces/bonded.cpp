@@ -71,8 +71,8 @@
 #include "pairs.h"
 #include "restcbt.h"
 
-#include "pf_interactions.h"
-#include "pf_array.h"
+#include "gromacs/legacyheaders/pf_interactions.h"
+#include "gromacs/legacyheaders/pf_array.h"
 
 
 #if defined(GMX_SIMD_X86_AVX_256) || defined(GMX_SIMD_X86_AVX2_256)
