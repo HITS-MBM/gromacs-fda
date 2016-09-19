@@ -42,6 +42,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "gromacs/legacyheaders/pf_interactions.h"
 #include "gromacs/legacyheaders/types/enums.h"
 #include "gromacs/legacyheaders/types/ifunc.h"
 #include "gromacs/legacyheaders/types/inputrec.h"

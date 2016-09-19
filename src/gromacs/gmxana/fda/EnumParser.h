@@ -8,9 +8,10 @@
 #ifndef ENUMPARSER_H_
 #define ENUMPARSER_H_
 
-#include "gromacs/legacyheaders/gmx_fatal.h"
 #include <map>
 #include <string>
+
+#include "gromacs/utility/fatalerror.h"
 
 namespace fda_analysis {
 

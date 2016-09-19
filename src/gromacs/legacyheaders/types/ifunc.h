@@ -39,6 +39,7 @@
 #ifndef _ifunc_h
 #define _ifunc_h
 
+#include "gromacs/legacyheaders/pf_array.h"
 #include "gromacs/legacyheaders/types/fcdata.h"
 #include "gromacs/legacyheaders/types/mdatom.h"
 #include "gromacs/topology/idef.h"

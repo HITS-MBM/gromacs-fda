@@ -6,7 +6,7 @@
  */
 
 #include "Helpers.h"
-#include "gromacs/legacyheaders/gmx_fatal.h"
+#include "gromacs/utility/fatalerror.h"
 #include <cctype>
 #include <iostream>
 #include <fstream>

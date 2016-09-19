@@ -8,10 +8,14 @@
 #ifndef GRAPH_H_
 #define GRAPH_H_
 
-#include "gromacs/legacyheaders/types/topology.h"
-#include "Node.h"
+#include <stddef.h>
 #include <iostream>
+#include <string>
 #include <vector>
+
+#include "gromacs/legacyheaders/types/simple.h"
+#include "gromacs/math/vectypes.h"
+#include "Node.h"
 
 namespace fda_analysis {
 

@@ -8,9 +8,13 @@
 #ifndef PF_EXCLUSIONS_H_
 #define PF_EXCLUSIONS_H_
 
-#include "gromacs/legacyheaders/types/topology.h"
-#include "gromacs/legacyheaders/pf_interactions.h"
 #include "gromacs/fileio/filenm.h"
+#include "gromacs/legacyheaders/types/inputrec.h"
+#include "gromacs/utility/cstringutil.h"
+
+struct gmx_groups_t;
+struct gmx_mtop_t;
+struct t_blocka;
 
 #define PF_GROUP_IDX_FDA1  0
 #define PF_GROUP_IDX_FDA2  1
