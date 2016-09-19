@@ -1067,7 +1067,7 @@ real thole_pol(int nbonds,
 
 void pf_atom_add_angle(t_pf_global *pf_global, int ai, int aj, int ak, rvec f_i, rvec f_j, rvec f_k)
 {
-	rvec uf_i, uf_j, uf_k, f_j_i, f_j_k, f_i_k, f_k_i;
+	rvec uf_i, uf_j, uf_k, f_j_i, f_j_k, f_i_k;
 	//rvec wf, urik, rik;
 	real nf_j_i, nf_j_k;
 	//fprintf(stderr, "i=%d, j=%d, k=%d\n", ai+1, aj+1, ak+1);
@@ -1800,13 +1800,12 @@ void pf_atom_add_dihedral(t_pf_global *pf_global,
 			              rvec f_i, rvec f_j, rvec f_k, rvec f_l)
 {
     rvec f_mj, f_mk;
-    rvec f_ipl, f_jpk, f_jpk_i, f_jpk_l, f_j_ipl, f_k_ipl, f_jpk_ipl;
-    rvec f_j_i, f_k_i, f_j_l, f_k_l, f_j_k, f_k_j, f_i_l, f_l_i;
+    rvec f_ipl, f_jpk, f_jpk_i, f_jpk_l, f_j_ipl, f_jpk_ipl;
+    rvec f_j_i, f_k_i, f_j_l, f_k_l, f_j_k, f_l_i;
     rvec f_jpk_c_f_j, f_jpk_c_f_k;
     rvec uf_jpk, uf_j, uf_k;
     real cos_a, sin_a, cos_b, sin_b, sinacosbpsinbcosa;
     real nf_ipl, nf_jpk, nf_j, nf_k, nf_j_i, nf_j_l, nf_k_i, nf_k_l, nf_jpkxnf_j, nf_jpkxnf_k, nf_jpk_i, nf_jpk_l;
-    rvec f_w;
 
     /* below computation can sometimes return before finishing to avoid division with very small numbers;
      * this situation can occur f.e. when all f_i, f_j, f_k and f_l are (almost) zero;
@@ -2608,12 +2607,13 @@ static real low_angres(int nbonds,
                        const rvec x[], rvec f[], rvec fshift[],
                        const t_pbc *pbc, const t_graph *g,
                        real lambda, real *dvdlambda,
-                       gmx_bool bZAxis)
+                       gmx_bool bZAxis, t_pf_global *pf_global)
 {
     int  i, m, type, ai, aj, ak, al;
     int  t1, t2;
     real phi, cos_phi, cos_phi2, vid, vtot, dVdphi;
     rvec r_ij, r_kl, f_i, f_k = {0, 0, 0};
+    rvec n_f_i, n_f_k = {0, 0, 0};
     real st, sth, nrij2, nrkl2, c, cij, ckl;
 
     ivec dt;
@@ -2626,12 +2626,12 @@ static real low_angres(int nbonds,
         type = forceatoms[i++];
         ai   = forceatoms[i++];
         aj   = forceatoms[i++];
-        t1   = pbc_rvec_sub(pbc, x[aj], x[ai], r_ij);       /*  3		*/
+        t1   = pbc_rvec_sub(pbc, x[aj], x[ai], r_ij);       /*  3               */
         if (!bZAxis)
         {
             ak   = forceatoms[i++];
             al   = forceatoms[i++];
-            t2   = pbc_rvec_sub(pbc, x[al], x[ak], r_kl);  /*  3		*/
+            t2   = pbc_rvec_sub(pbc, x[al], x[ak], r_kl);  /*  3                */
         }
         else
         {
