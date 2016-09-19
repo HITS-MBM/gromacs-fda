@@ -1,6 +1,3 @@
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
 #include <algorithm>
 #include <cmath>
 #include <fstream>
@@ -8,26 +5,27 @@
 #include <iomanip>
 #include <string>
 #include <sstream>
+#include <stddef.h>
 #include <vector>
-#include "fda/Graph.h"
-#include "fda/Helpers.h"
+
+#include "gmx_ana.h"
 #include "gromacs/commandline/pargs.h"
-#include "sysstuff.h"
-#include "typedefs.h"
 #include "gromacs/utility/smalloc.h"
-#include "macros.h"
-#include "vec.h"
-#include "gromacs/fileio/futil.h"
-#include "index.h"
-#include "xvgr.h"
-#include "rmpbc.h"
 #include "gromacs/fileio/tpxio.h"
 #include "gromacs/fileio/trxio.h"
-#include "physics.h"
-#include "gmx_ana.h"
-#include "gromacs/legacyheaders/gmx_fatal.h"
 #include "gromacs/utility/cstringutil.h"
 #include "gromacs/fileio/matio.h"
+#include "gromacs/fileio/filenm.h"
+#include "gromacs/legacyheaders/macros.h"
+#include "gromacs/legacyheaders/types/oenv.h"
+#include "gromacs/utility/fatalerror.h"
+#include "gromacs/utility/real.h"
+#include "fda/Graph.h"
+#include "fda/Helpers.h"
+
+#ifdef HAVE_CONFIG_H
+  #include <config.h>
+#endif
 
 using namespace fda_analysis;
 
@@ -53,7 +51,7 @@ int gmx_fda_get_stress(int argc, char *argv[])
 
 #define NFILE asize(fnm)
 
-    if (!parse_common_args(&argc, argv, PCA_BE_NICE,
+    if (!parse_common_args(&argc, argv, PCA_CAN_TIME,
         NFILE, fnm, asize(pa), pa, asize(desc), desc, 0, NULL, &oenv)) return 0;
 
     size_t nbFrames = getNumberOfFrames(opt2fn("-ipf", NFILE, fnm));

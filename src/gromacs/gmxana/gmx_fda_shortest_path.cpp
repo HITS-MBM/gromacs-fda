@@ -1,32 +1,35 @@
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
 #include <cmath>
+#include <cstdio>
+#include <cstdlib>
 #include <fstream>
 #include <iostream>
-#include <iomanip>
 #include <string>
-#include <sstream>
 #include <vector>
+
 #include "fda/BoostGraph.h"
+#include "fda/EnumParser.h"
+#include "fda/FrameType.h"
 #include "fda/Helpers.h"
 #include "fda/PDB.h"
 #include "gromacs/commandline/pargs.h"
-#include "sysstuff.h"
-#include "typedefs.h"
-#include "gromacs/utility/smalloc.h"
-#include "macros.h"
-#include "vec.h"
-#include "gromacs/fileio/futil.h"
-#include "index.h"
-#include "xvgr.h"
-#include "rmpbc.h"
+#include "gromacs/fileio/filenm.h"
+#include "gromacs/fileio/pdbio.h"
 #include "gromacs/fileio/tpxio.h"
 #include "gromacs/fileio/trxio.h"
-#include "physics.h"
-#include "gmx_ana.h"
-#include "gromacs/legacyheaders/gmx_fatal.h"
-#include "gromacs/utility/cstringutil.h"
+#include "gromacs/legacyheaders/macros.h"
+#include "gromacs/legacyheaders/types/oenv.h"
+#include "gromacs/legacyheaders/types/simple.h"
+#include "gromacs/math/vectypes.h"
+#include "gromacs/topology/index.h"
+#include "gromacs/topology/topology.h"
+#include "gromacs/utility/basedefinitions.h"
+#include "gromacs/utility/fatalerror.h"
+#include "gromacs/utility/futil.h"
+#include "gromacs/utility/real.h"
+
+#ifdef HAVE_CONFIG_H
+  #include <config.h>
+#endif
 
 using namespace fda_analysis;
 
@@ -76,7 +79,7 @@ int gmx_fda_shortest_path(int argc, char *argv[])
 
 #define NFILE asize(fnm)
 
-    if (!parse_common_args(&argc, argv, PCA_BE_NICE,
+    if (!parse_common_args(&argc, argv, PCA_CAN_TIME,
         NFILE, fnm, asize(pa), pa, asize(desc), desc, 0, NULL, &oenv)) return 0;
 
     if (opt2bSet("-ipf-diff", NFILE, fnm) and (fn2ftp(opt2fn("-ipf-diff", NFILE, fnm)) != fn2ftp(opt2fn("-ipf", NFILE, fnm))))
