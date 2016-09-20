@@ -6,8 +6,8 @@
  */
 
 #include "gromacs/fileio/filenm.h"
-#include "gromacs/legacyheaders/gmx_fatal.h"
-#include "gromacs/legacyheaders/index.h"
+#include "gromacs/utility/fatalerror.h"
+#include "gromacs/topology/index.h"
 #include "gromacs/legacyheaders/macros.h"
 #include "gromacs/legacyheaders/readinp.h"
 #include "gromacs/legacyheaders/pf_utils.h"

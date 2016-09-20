@@ -33,8 +33,8 @@
  * the research papers on the package. Check out http://www.gromacs.org.
  */
 
-#include "pf_array.h"
-#include "pf_interactions.h"
+#include "gromacs/legacyheaders/pf_interactions.h"
+#include "gromacs/legacyheaders/types/pf_array.h"
 
 #define UNROLLI    NBNXN_CPU_CLUSTER_I_SIZE
 #define UNROLLJ    NBNXN_CPU_CLUSTER_I_SIZE

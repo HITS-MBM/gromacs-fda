@@ -34,21 +34,19 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-#include "gmxpre.h"
-
-#include "nb_generic.h"
 
 #include <math.h>
 
+#include "gmxpre.h"
+#include "nb_generic.h"
 #include "gromacs/gmxlib/nonbonded/nb_kernel.h"
 #include "gromacs/legacyheaders/nonbonded.h"
 #include "gromacs/legacyheaders/nrnb.h"
 #include "gromacs/legacyheaders/typedefs.h"
+#include "gromacs/legacyheaders/types/pf_array.h"
 #include "gromacs/legacyheaders/types/simple.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/utility/fatalerror.h"
-
-#include "pf_array.h"
 
 void
 gmx_nb_generic_kernel(t_nblist *                nlist,

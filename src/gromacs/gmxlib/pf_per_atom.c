@@ -4,15 +4,18 @@
  * Copyright Bogdan Costescu 2011-2013
  */
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
+#include <math.h>
+#include "gromacs/legacyheaders/pf_array.h"
+#include "gromacs/legacyheaders/pf_per_atom.h"
+#include "gromacs/legacyheaders/types/pf_array_summed.h"
+#include "gromacs/math/vectypes.h"
+#include "gromacs/utility/basedefinitions.h"
+#include "gromacs/utility/fatalerror.h"
+#include "gromacs/utility/real.h"
 
-#include <stdio.h>
-#include "types/pf_per_atom.h"
-#include "types/pf_array.h"
-#include "vec.h"
-#include "gromacs/utility/smalloc.h"
+#ifdef HAVE_CONFIG_H
+  #include <config.h>
+#endif
 
 void pf_per_atom_real_set(t_pf_per_atom_real *per_atom_real, real val) {
   atom_id i;

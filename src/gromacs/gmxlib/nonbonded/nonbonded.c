@@ -55,8 +55,10 @@
 #include "gromacs/legacyheaders/names.h"
 #include "gromacs/legacyheaders/nrnb.h"
 #include "gromacs/legacyheaders/ns.h"
+#include "gromacs/legacyheaders/pf_interactions.h"
 #include "gromacs/legacyheaders/txtdump.h"
 #include "gromacs/legacyheaders/typedefs.h"
+#include "gromacs/legacyheaders/types/pf_array.h"
 #include "gromacs/listed-forces/bonded.h"
 #include "gromacs/math/utilities.h"
 #include "gromacs/math/vec.h"
@@ -66,9 +68,6 @@
 #include "gromacs/utility/cstringutil.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/smalloc.h"
-
-#include "pf_interactions.h"
-#include "pf_array.h"
 
 /* Different default (c) and SIMD instructions interaction-specific kernels */
 #include "gromacs/gmxlib/nonbonded/nb_kernel_c/nb_kernel_c.h"

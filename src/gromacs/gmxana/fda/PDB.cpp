@@ -6,7 +6,7 @@
  */
 
 #include "PDB.h"
-#include "gromacs/legacyheaders/gmx_fatal.h"
+#include "gromacs/utility/fatalerror.h"
 #include "Index.h"
 #include <algorithm>
 #include <iomanip>

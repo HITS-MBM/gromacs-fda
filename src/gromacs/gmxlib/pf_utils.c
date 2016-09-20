@@ -4,26 +4,30 @@
  * Copyright Bogdan Costescu 2010-2012
  */
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
+#include <stdio.h>
 
-#include <string.h>
-#include "types/simple.h"
-#include "macros.h"
-#include "pf_interactions.h"
-#include "pf_array.h"
-#include "pf_per_atom.h"
-#include "pf_utils.h"
-#include "gmx_fatal.h"
-#include "gromacs/utility/smalloc.h"
-#include "typedefs.h"
-#include "index.h"
-#include "readinp.h"
-#include "gromacs/fileio/filenm.h"
+#include "gromacs/legacyheaders/pf_array.h"
+#include "gromacs/legacyheaders/pf_array_detailed.h"
+#include "gromacs/legacyheaders/pf_array_scalar.h"
+#include "gromacs/legacyheaders/pf_array_summed.h"
+#include "gromacs/legacyheaders/pf_interactions.h"
+#include "gromacs/legacyheaders/pf_utils.h"
+#include "gromacs/legacyheaders/readinp.h"
+#include "gromacs/legacyheaders/types/pf_array_scalar.h"
+#include "gromacs/legacyheaders/types/pf_array_summed.h"
+#include "gromacs/legacyheaders/warninp.h"
+#include "gromacs/math/vectypes.h"
+#include "gromacs/topology/atoms.h"
+#include "gromacs/topology/block.h"
+#include "gromacs/topology/topology.h"
+#include "gromacs/utility/basedefinitions.h"
 #include "gromacs/utility/cstringutil.h"
-#include "mtop_util.h"
-#include "vec.h"
+#include "gromacs/utility/fatalerror.h"
+#include "gromacs/utility/real.h"
+
+#ifdef HAVE_CONFIG_H
+  #include <config.h>
+#endif
 
 /* strings below should not contain capital letters, as they are compared against a tolower() of user provided input */
 /* this can't be turned into a simple const char * array as the ones below because the PF_INTER_* values are not defined in enum */

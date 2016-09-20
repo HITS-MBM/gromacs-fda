@@ -14,7 +14,7 @@
 #include <sstream>
 #include "BoostGraph.h"
 #include "Index.h"
-#include "gromacs/legacyheaders/gmx_fatal.h"
+#include "gromacs/utility/fatalerror.h"
 
 namespace fda_analysis {
 

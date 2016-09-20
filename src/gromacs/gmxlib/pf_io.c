@@ -4,22 +4,24 @@
  * Copyright Bogdan Costescu 2011-2013
  */
 
+#include "gromacs/legacyheaders/pf_array_detailed.h"
+#include "gromacs/legacyheaders/pf_array_summed.h"
+#include "gromacs/legacyheaders/pf_interactions.h"
+#include "gromacs/legacyheaders/types/pf_array.h"
+#include "gromacs/legacyheaders/types/pf_array_detailed.h"
+#include "gromacs/legacyheaders/types/pf_array_scalar.h"
+#include "gromacs/legacyheaders/types/pf_array_summed.h"
+#include "gromacs/math/vectypes.h"
+#include "gromacs/topology/atoms.h"
+#include "gromacs/topology/topology.h"
+#include "gromacs/utility/basedefinitions.h"
+#include "gromacs/utility/fatalerror.h"
+#include "gromacs/utility/futil.h"
+#include "gromacs/utility/real.h"
+
 #ifdef HAVE_CONFIG_H
-#include <config.h>
+  #include <config.h>
 #endif
-
-#include <stdio.h>
-#include "types/simple.h"
-#include "gromacs/fileio/gmxfio.h"
-#include "gmx_fatal.h"
-#include "gromacs/utility/smalloc.h"
-#include "typedefs.h"
-#include "vec.h"
-
-#include "pf_interactions.h"
-#include "pf_array.h"
-#include "pf_per_atom.h"
-#include "pf_utils.h"
 
 static inline void pf_write_space_separated_int_array(FILE *f, int *x, int len) {
   int i;
@@ -473,30 +475,26 @@ void pf_open(t_pf_global *pf_global)
   if (!pf_global->bInitialized) return;
 
   if (pf_file_out_PF_or_PS(pf_global->AtomBased)) {
-    if (!make_backup(pf_global->ofn_atoms))
-      fprintf(stderr, "Could not make backup for file %s.\n", pf_global->ofn_atoms);
+    make_backup(pf_global->ofn_atoms);
     pf_global->of_atoms = gmx_fio_fopen(pf_global->ofn_atoms, "w+");
     if (pf_in_compatibility_mode(pf_global->AtomBased))
       pf_write_compat_header(pf_global->atoms, pf_global->of_atoms, 1, pf_global->syslen_atoms, pf_global->atoms->len, pf_global->groupname);
   }
 
   if (pf_file_out_PF_or_PS(pf_global->ResidueBased)) {
-    if (!make_backup(pf_global->ofn_residues))
-      fprintf(stderr, "Could not make backup for file %s.\n", pf_global->ofn_residues);
+    make_backup(pf_global->ofn_residues);
     pf_global->of_residues = gmx_fio_fopen(pf_global->ofn_residues, "w+");
     if (pf_in_compatibility_mode(pf_global->ResidueBased))
       pf_write_compat_header(pf_global->residues, pf_global->of_residues, 1, pf_global->syslen_residues, pf_global->residues->len, pf_global->groupname);
   }
 
   if (pf_file_out_VS(pf_global->AtomBased)) {
-    if (!make_backup(pf_global->ofn_atoms))
-      fprintf(stderr, "Could not make backup for file %s.\n", pf_global->ofn_atoms);
+    make_backup(pf_global->ofn_atoms);
     pf_global->of_atoms = gmx_fio_fopen(pf_global->ofn_atoms, "w+");
   }
 
   if (pf_file_out_VS(pf_global->ResidueBased)) {
-    if (!make_backup(pf_global->ofn_residues))
-      fprintf(stderr, "Could not make backup for file %s.\n", pf_global->ofn_residues);
+    make_backup(pf_global->ofn_residues);
     pf_global->of_atoms = gmx_fio_fopen(pf_global->ofn_atoms, "w+");
   }
 }

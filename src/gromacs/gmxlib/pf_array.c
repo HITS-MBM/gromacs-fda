@@ -4,17 +4,17 @@
  * Copyright Bogdan Costescu 2010-2012
  */
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
+#include "gromacs/legacyheaders/pf_array_detailed.h"
+#include "gromacs/legacyheaders/pf_array_summed.h"
+#include "gromacs/legacyheaders/pf_interactions.h"
+#include "gromacs/legacyheaders/types/pf_array.h"
+#include "gromacs/math/vectypes.h"
+#include "gromacs/utility/basedefinitions.h"
+#include "gromacs/utility/real.h"
 
-#include "types/simple.h"
-#include "pf_interactions.h"
-#include "pf_array.h"
-#include "gmx_fatal.h"
-#include "gromacs/utility/smalloc.h"
-#include "typedefs.h"
-#include "vec.h"
+#ifdef HAVE_CONFIG_H
+  #include <config.h>
+#endif
 
 static const real HALF    =  0.5;
 static const real THIRD   =  1.0 / 3.0;

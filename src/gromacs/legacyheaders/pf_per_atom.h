@@ -4,6 +4,13 @@
  * Copyright Bogdan Costescu 2011-2013
  */
 
+#include <stdio.h>
+#include "types/pf_per_atom.h"
+#include "types/pf_array_summed.h"
+#include "gromacs/math/vectypes.h"
+#include "gromacs/utility/basedefinitions.h"
+#include "gromacs/utility/real.h"
+
 void pf_per_atom_real_set(t_pf_per_atom_real *per_atom_real, real val);
 void pf_per_atom_real_init(t_pf_per_atom_real **per_atom_real, atom_id len, real val);
 void pf_per_atom_real_int_set(t_pf_per_atom_real_int *per_atom_real_int, real val_real, int val_int);

@@ -7,8 +7,9 @@
 #ifndef pf_utils_h
 #define pf_utils_h
 
-#include "types/pf_array.h"
 #include "gromacs/fileio/filenm.h"
+#include "gromacs/topology/topology.h"
+#include "types/pf_array.h"
 
 t_pf_atom_id_list *pf_atom_id_list_alloc(int len);
 void pf_atom_id_list_free(t_pf_atom_id_list *p);

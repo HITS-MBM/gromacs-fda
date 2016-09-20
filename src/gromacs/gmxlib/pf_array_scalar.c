@@ -4,15 +4,16 @@
  * Copyright Bogdan Costescu 2010-2012
  */
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
-
-#include "types/simple.h"
-#include "pf_array_scalar.h"
-#include "gmx_fatal.h"
+#include <stddef.h>
+#include "gromacs/legacyheaders/types/pf_array.h"
+#include "gromacs/legacyheaders/types/pf_array_scalar.h"
+#include "gromacs/utility/fatalerror.h"
+#include "gromacs/utility/real.h"
 #include "gromacs/utility/smalloc.h"
-#include "vec.h"
+
+#ifdef HAVE_CONFIG_H
+  #include <config.h>
+#endif
 
 /* test for allocated to avoid creating a special function to just free arrays
  *
