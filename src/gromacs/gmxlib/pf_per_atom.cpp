@@ -4,14 +4,16 @@
  * Copyright Bogdan Costescu 2011-2013
  */
 
-#include <math.h>
+#include <cmath>
 #include "gromacs/legacyheaders/pf_array.h"
 #include "gromacs/legacyheaders/pf_per_atom.h"
 #include "gromacs/legacyheaders/types/pf_array_summed.h"
+#include "gromacs/math/vec.h"
 #include "gromacs/math/vectypes.h"
 #include "gromacs/utility/basedefinitions.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/real.h"
+#include "gromacs/utility/smalloc.h"
 
 #ifdef HAVE_CONFIG_H
   #include <config.h>

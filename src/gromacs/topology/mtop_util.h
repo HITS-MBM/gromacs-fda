@@ -53,6 +53,8 @@ struct t_block;
 struct t_ilist;
 struct t_topology;
 
+int gmx_mtop_maxresnr(const struct gmx_mtop_t *mtop, int maxres_renum);
+
 /* Should be called after generating or reading mtop,
  * to set some compute intesive variables to avoid
  * N^2 operations later on.

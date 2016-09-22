@@ -4,13 +4,17 @@
  * Copyright Bogdan Costescu 2011-2013
  */
 
+#include "gromacs/fileio/gmxfio.h"
 #include "gromacs/legacyheaders/pf_array_detailed.h"
 #include "gromacs/legacyheaders/pf_array_summed.h"
 #include "gromacs/legacyheaders/pf_interactions.h"
+#include "gromacs/legacyheaders/pf_per_atom.h"
+#include "gromacs/legacyheaders/pf_utils.h"
 #include "gromacs/legacyheaders/types/pf_array.h"
 #include "gromacs/legacyheaders/types/pf_array_detailed.h"
 #include "gromacs/legacyheaders/types/pf_array_scalar.h"
 #include "gromacs/legacyheaders/types/pf_array_summed.h"
+#include "gromacs/math/vec.h"
 #include "gromacs/math/vectypes.h"
 #include "gromacs/topology/atoms.h"
 #include "gromacs/topology/topology.h"
@@ -18,6 +22,7 @@
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/futil.h"
 #include "gromacs/utility/real.h"
+#include "gromacs/utility/smalloc.h"
 
 #ifdef HAVE_CONFIG_H
   #include <config.h>

@@ -4,26 +4,31 @@
  * Copyright Bogdan Costescu 2010-2012
  */
 
-#include <stdio.h>
-
+#include <cstdio>
+#include "gromacs/legacyheaders/macros.h"
 #include "gromacs/legacyheaders/pf_array.h"
 #include "gromacs/legacyheaders/pf_array_detailed.h"
 #include "gromacs/legacyheaders/pf_array_scalar.h"
 #include "gromacs/legacyheaders/pf_array_summed.h"
 #include "gromacs/legacyheaders/pf_interactions.h"
+#include "gromacs/legacyheaders/pf_per_atom.h"
 #include "gromacs/legacyheaders/pf_utils.h"
 #include "gromacs/legacyheaders/readinp.h"
 #include "gromacs/legacyheaders/types/pf_array_scalar.h"
 #include "gromacs/legacyheaders/types/pf_array_summed.h"
 #include "gromacs/legacyheaders/warninp.h"
+#include "gromacs/math/vec.h"
 #include "gromacs/math/vectypes.h"
 #include "gromacs/topology/atoms.h"
 #include "gromacs/topology/block.h"
+#include "gromacs/topology/index.h"
+#include "gromacs/topology/mtop_util.h"
 #include "gromacs/topology/topology.h"
 #include "gromacs/utility/basedefinitions.h"
 #include "gromacs/utility/cstringutil.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/real.h"
+#include "gromacs/utility/smalloc.h"
 
 #ifdef HAVE_CONFIG_H
   #include <config.h>
