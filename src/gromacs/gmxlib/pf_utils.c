@@ -4,7 +4,7 @@
  * Copyright Bogdan Costescu 2010-2012
  */
 
-#include <cstdio>
+#include <stdio.h>
 #include "gromacs/legacyheaders/macros.h"
 #include "gromacs/legacyheaders/pf_array.h"
 #include "gromacs/legacyheaders/pf_array_detailed.h"

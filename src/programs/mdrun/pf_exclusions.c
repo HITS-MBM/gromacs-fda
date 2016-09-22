@@ -5,19 +5,21 @@
  *      Author: Bernd Doser, HITS gGmbH
  */
 
+#include <stdbool.h>
+#include <stdio.h>
+#include <string.h>
+#include <limits.h>
 #include "gromacs/fileio/filenm.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/topology/index.h"
 #include "gromacs/legacyheaders/macros.h"
 #include "gromacs/legacyheaders/readinp.h"
 #include "gromacs/legacyheaders/pf_utils.h"
+#include "gromacs/legacyheaders/pf_interactions.h"
 #include "gromacs/legacyheaders/warninp.h"
 #include "gromacs/utility/cstringutil.h"
 #include "gromacs/utility/smalloc.h"
 #include "pf_exclusions.h"
-#include <stdbool.h>
-#include <stdio.h>
-#include <string.h>
 
 void pf_global_data_init(int nfile, const t_filenm fnm[])
 {

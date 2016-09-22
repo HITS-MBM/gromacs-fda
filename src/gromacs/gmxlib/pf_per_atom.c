@@ -4,7 +4,7 @@
  * Copyright Bogdan Costescu 2011-2013
  */
 
-#include <cmath>
+#include <math.h>
 #include "gromacs/legacyheaders/pf_array.h"
 #include "gromacs/legacyheaders/pf_per_atom.h"
 #include "gromacs/legacyheaders/types/pf_array_summed.h"

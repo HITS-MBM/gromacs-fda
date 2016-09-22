@@ -65,6 +65,8 @@
 #include "gromacs/legacyheaders/network.h"
 #include "gromacs/legacyheaders/nrnb.h"
 #include "gromacs/legacyheaders/ns.h"
+#include "gromacs/legacyheaders/pf_utils.h"
+#include "gromacs/legacyheaders/pf_io.h"
 #include "gromacs/legacyheaders/shellfc.h"
 #include "gromacs/legacyheaders/sighandler.h"
 #include "gromacs/legacyheaders/sim_util.h"
@@ -115,9 +117,6 @@
 #include "deform.h"
 #include "membed.h"
 #include "repl_ex.h"
-
-#include "pf_utils.h"
-#include "pf_io.h"
 
 #ifdef GMX_FAHCORE
 #include "corewrap.h"

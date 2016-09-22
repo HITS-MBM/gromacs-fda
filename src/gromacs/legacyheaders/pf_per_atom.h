@@ -4,7 +4,7 @@
  * Copyright Bogdan Costescu 2011-2013
  */
 
-#include <cstdio>
+#include <stdio.h>
 #include "types/pf_per_atom.h"
 #include "types/pf_array_summed.h"
 #include "gromacs/math/vectypes.h"
