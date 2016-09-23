@@ -4,6 +4,9 @@
  * Copyright Bogdan Costescu 2011-2013
  */
 
+#ifndef pf_per_atom_h
+#define pf_per_atom_h
+
 #include <stdio.h>
 #include "types/pf_per_atom.h"
 #include "types/pf_array_summed.h"
@@ -23,3 +26,5 @@ void pf_per_atom_minmax(t_pf_per_atom_real *per_atom_real, t_pf_atom_summed *ato
 
 void pf_write_atom_virial_sum(FILE *f, tensor *atom_vir, int natoms);
 void pf_write_atom_virial_sum_von_mises(FILE *f, tensor *atom_vir, int natoms);
+
+#endif  /* pf_per_atom_h */
