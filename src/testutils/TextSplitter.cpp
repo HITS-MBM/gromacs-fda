@@ -5,9 +5,9 @@
  *      Author: Bernd Doser, HITS gGmbH
  */
 
-#include "TextSplitter.h"
-#include "gmx_fatal.h"
 #include <fstream>
+#include "TextSplitter.h"
+#include "gromacs/utility/fatalerror.h"
 
 TextSplitter::TextSplitter(std::string const& filename, bool ignoreComments)
 {
