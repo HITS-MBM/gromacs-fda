@@ -1,13 +1,13 @@
 /*
- * fda.cpp
+ * FDATest.cpp
  *
  *  Created on: Sep 1, 2014
  *      Author: Bernd Doser, HITS gGmbH
  */
 
 #include "gromacs/options/filenameoption.h"
-#include "gromacs/fileio/futil.h"
-#include "gromacs/fileio/path.h"
+#include "gromacs/utility/futil.h"
+#include "gromacs/utility/path.h"
 #include "gromacs/gmxpreprocess/grompp.h"
 #include "programs/mdrun/mdrun_main.h"
 #include "testutils/cmdlinetest.h"

@@ -11,6 +11,7 @@
 #include "fda/FrameType.h"
 #include "fda/Helpers.h"
 #include "fda/PDB.h"
+#include "gmx_ana.h"
 #include "gromacs/commandline/pargs.h"
 #include "gromacs/fileio/filenm.h"
 #include "gromacs/fileio/pdbio.h"

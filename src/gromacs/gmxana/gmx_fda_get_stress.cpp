@@ -5,9 +5,11 @@
 #include <iomanip>
 #include <string>
 #include <sstream>
-#include <stddef.h>
+#include <cstddef>
 #include <vector>
 
+#include "fda/Graph.h"
+#include "fda/Helpers.h"
 #include "gmx_ana.h"
 #include "gromacs/commandline/pargs.h"
 #include "gromacs/utility/smalloc.h"
@@ -20,8 +22,6 @@
 #include "gromacs/legacyheaders/types/oenv.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/real.h"
-#include "fda/Graph.h"
-#include "fda/Helpers.h"
 
 #ifdef HAVE_CONFIG_H
   #include <config.h>

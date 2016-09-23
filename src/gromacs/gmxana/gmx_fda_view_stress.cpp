@@ -10,6 +10,7 @@
 #include "fda/Helpers.h"
 #include "fda/ParticleType.h"
 #include "fda/StressType.h"
+#include "gmx_ana.h"
 #include "gromacs/commandline/pargs.h"
 #include "gromacs/fileio/filenm.h"
 #include "gromacs/fileio/matio.h"

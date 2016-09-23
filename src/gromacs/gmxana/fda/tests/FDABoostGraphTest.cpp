@@ -5,9 +5,10 @@
  *      Author: Bernd Doser, HITS gGmbH
  */
 
+#include <gtest/gtest.h>
+
 #include "testutils/EqualArrays.h"
 #include "gromacs/gmxana/fda/BoostGraph.h"
-#include <gtest/gtest.h>
 
 using namespace fda_analysis;
 
