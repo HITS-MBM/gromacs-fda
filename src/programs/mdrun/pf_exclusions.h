@@ -53,6 +53,10 @@ typedef struct {
 //! For the future both global object should be merged.
 t_pf_global_data pf_global_data;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 //! Initialization of global data
 void pf_global_data_init(int nfile, const t_filenm fnm[]);
 
@@ -71,5 +75,9 @@ void pf_print_exclusion_table(int* egp_flags, int dim);
 
 //! Main routine for FDA exclusions
 void pf_modify_energy_group_exclusions(gmx_mtop_t *mtop, t_inputrec *inputrec);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* PF_EXCLUSIONS_H_ */

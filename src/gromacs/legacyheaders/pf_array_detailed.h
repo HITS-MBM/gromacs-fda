@@ -9,6 +9,10 @@
 
 #include "types/pf_array_detailed.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 static inline void pf_interaction_array_detailed_init(t_pf_interaction_array_detailed *a);
 void pf_interactions_detailed_init(t_pf_interactions_detailed *interactions);
 void pf_atom_detailed_init(t_pf_atom_detailed *atom);
@@ -18,5 +22,9 @@ void pf_interaction_array_detailed_append(t_pf_interaction_array_detailed *ia, a
 void pf_atom_detailed_add(t_pf_atom_detailed *atom, atom_id jjnr, int type, rvec force);
 void pf_atom_detailed_merge(t_pf_atom_detailed *dst, t_pf_atom_detailed *src);
 void pf_atom_detailed_real_divide(t_pf_atom_detailed *atom, real divisor);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif  /* pf_array_detailed_h */

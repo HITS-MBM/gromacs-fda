@@ -14,6 +14,10 @@
 #include "gromacs/utility/basedefinitions.h"
 #include "gromacs/utility/real.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void pf_per_atom_real_set(t_pf_per_atom_real *per_atom_real, real val);
 void pf_per_atom_real_init(t_pf_per_atom_real **per_atom_real, atom_id len, real val);
 void pf_per_atom_real_int_set(t_pf_per_atom_real_int *per_atom_real_int, real val_real, int val_int);
@@ -26,5 +30,9 @@ void pf_per_atom_minmax(t_pf_per_atom_real *per_atom_real, t_pf_atom_summed *ato
 
 void pf_write_atom_virial_sum(FILE *f, tensor *atom_vir, int natoms);
 void pf_write_atom_virial_sum_von_mises(FILE *f, tensor *atom_vir, int natoms);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif  /* pf_per_atom_h */
