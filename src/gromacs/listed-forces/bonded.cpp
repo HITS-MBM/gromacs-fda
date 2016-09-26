@@ -55,6 +55,8 @@
 
 #include <algorithm>
 
+#include "gromacs/legacyheaders/pf_interactions.h"
+#include "gromacs/legacyheaders/pf_array.h"
 #include "gromacs/math/utilities.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/pbcutil/ishift.h"
@@ -71,8 +73,6 @@
 #include "pairs.h"
 #include "restcbt.h"
 
-#include "gromacs/legacyheaders/pf_interactions.h"
-#include "gromacs/legacyheaders/pf_array.h"
 
 
 #if defined(GMX_SIMD_X86_AVX_256) || defined(GMX_SIMD_X86_AVX2_256)

@@ -47,6 +47,8 @@
 
 #include <cmath>
 
+#include "gromacs/legacyheaders/pf_interactions.h"
+#include "gromacs/legacyheaders/pf_array.h"
 #include "gromacs/legacyheaders/types/group.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/pbcutil/ishift.h"
@@ -357,6 +359,8 @@ do_pairs(int ftype, int nbonds,
     real             qqB, c6B, c12B, sigma2_def, sigma2_min;
     const real       oneThird = 1.0 / 3.0;
 
+    t_pf_global      *pf_global = fr->pf_global;
+
     switch (ftype)
     {
         case F_LJ14:
@@ -498,6 +502,9 @@ do_pairs(int ftype, int nbonds,
         /* Add the forces */
         rvec_inc(f[ai], dx);
         rvec_dec(f[aj], dx);
+
+        if (pf_global->bInitialized)
+            pf_atom_add_bonded(pf_global, ai, aj, PF_INTER_NB14, dx);
 
         if (g)
         {
