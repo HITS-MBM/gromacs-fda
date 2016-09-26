@@ -215,7 +215,7 @@ endif()
 # release that is going to be made from this branch.
 set(GMX_VERSION_MAJOR 5)
 set(GMX_VERSION_MINOR 1)
-set(GMX_VERSION_PATCH 3)
+set(GMX_VERSION_PATCH 4)
 # The suffix, on the other hand, is used mainly for betas and release
 # candidates, where it signifies the most recent such release from
 # this branch; it will be empty before the first such release, as well
@@ -232,7 +232,7 @@ set(GMX_VERSION_SUFFIX "")
 # code being able to dynamically link with a version of libgromacs
 # that might not work.
 set(LIBRARY_SOVERSION_MAJOR 1)
-set(LIBRARY_SOVERSION_MINOR 3)
+set(LIBRARY_SOVERSION_MINOR 4)
 set(LIBRARY_VERSION ${LIBRARY_SOVERSION_MAJOR}.${LIBRARY_SOVERSION_MINOR}.0)
 
 #####################################################################
@@ -256,7 +256,7 @@ set(REGRESSIONTEST_BRANCH "refs/heads/master")
 # each release. It's hard to test because it is only used for
 # REGRESSIONTEST_DOWNLOAD, which doesn't work until that tarball has
 # been placed on the server.
-set(REGRESSIONTEST_MD5SUM "880a3db63b9524e4ff6ab2da3ef6b3ec" CACHE INTERNAL "MD5 sum of the regressiontests tarball")
+set(REGRESSIONTEST_MD5SUM "8902358ab19343f17997d1bf85f8e69c" CACHE INTERNAL "MD5 sum of the regressiontests tarball")
 
 math(EXPR GMX_VERSION_NUMERIC
      "${GMX_VERSION_MAJOR}*10000 + ${GMX_VERSION_MINOR}*100 + ${GMX_VERSION_PATCH}")
