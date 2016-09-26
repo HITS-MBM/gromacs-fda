@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2009,2010,2011,2012,2013,2014,2015, by the GROMACS development team, led by
+ * Copyright (c) 2009,2010,2011,2012,2013,2014,2015,2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -1427,6 +1427,8 @@ static void make_sure_it_runs(char *mdrun_cmd_line, int length, FILE *fp,
     remove_if_exists(opt2fn("-be", nfile, fnm));
     remove_if_exists(opt2fn("-bcpo", nfile, fnm));
     remove_if_exists(opt2fn("-bg", nfile, fnm));
+    remove_if_exists(opt2fn("-bo", nfile, fnm));
+    remove_if_exists(opt2fn("-bx", nfile, fnm));
 
     sfree(command);
     sfree(msg    );
@@ -1953,7 +1955,8 @@ static void create_command_line_snippets(
         t_filenm  fnm[],
         char     *cmd_args_bench[],  /* command line arguments for benchmark runs */
         char     *cmd_args_launch[], /* command line arguments for simulation run */
-        char      extra_args[])      /* Add this to the end of the command line */
+        char      extra_args[],      /* Add this to the end of the command line */
+        char     *deffnm)            /* Default file names, or NULL if not set */
 {
     int         i;
     char       *opt;
@@ -1978,6 +1981,11 @@ static void create_command_line_snippets(
         add_to_string(cmd_args_bench, strbuf);
     }
     /* These switches take effect only at launch time */
+    if (deffnm)
+    {
+        sprintf(strbuf, "-deffnm %s ", deffnm);
+        add_to_string(cmd_args_launch, strbuf);
+    }
     if (FALSE == bAppendFiles)
     {
         add_to_string(cmd_args_launch, "-noappend ");
@@ -2214,6 +2222,7 @@ int gmx_tune_pme(int argc, char *argv[])
     char           *ExtraArgs      = NULL;
     char          **tpr_names      = NULL;
     const char     *simulation_tpr = NULL;
+    char           *deffnm         = NULL;
     int             best_npme, best_tpr;
     int             sim_part = 1; /* For benchmarks with checkpoint files */
     char            bbuf[STRLEN];
@@ -2303,7 +2312,7 @@ int gmx_tune_pme(int argc, char *argv[])
     int             nthreads = 1;
 
     const char     *procstring[] =
-    { NULL, "-np", "-n", "none", NULL };
+    { NULL, "np", "n", "none", NULL };
     const char     *npmevalues_opt[] =
     { NULL, "auto", "all", "subset", NULL };
 
@@ -2324,7 +2333,7 @@ int gmx_tune_pme(int argc, char *argv[])
         { "-np",       FALSE, etINT,  {&nnodes},
           "Number of ranks to run the tests on (must be > 2 for separate PME ranks)" },
         { "-npstring", FALSE, etENUM, {procstring},
-          "Specify the number of ranks to [TT]$MPIRUN[tt] using this string"},
+          "Name of the [TT]$MPIRUN[tt] option that specifies the number of ranks to use ('np', or 'n'; use 'none' if there is no such option)" },
         { "-ntmpi",    FALSE, etINT,  {&nthreads},
           "Number of MPI-threads to run the tests on (turns MPI & mpirun off)"},
         { "-r",        FALSE, etINT,  {&repeats},
@@ -2370,6 +2379,8 @@ int gmx_tune_pme(int argc, char *argv[])
           "Append to previous output files when continuing from checkpoint instead of adding the simulation part number to all file names (for launch only)" },
         { "-cpnum",    FALSE, etBOOL, {&bKeepAndNumCPT},
           "Keep and number checkpoint files (launch only)" },
+        { "-deffnm",   FALSE, etSTR,  {&deffnm},
+          "Set the default filenames (launch only)" },
         { "-resethway", FALSE, etBOOL, {&bResetCountersHalfWay},
           "HIDDENReset the cycle counters after half the number of steps or halfway [TT]-maxh[tt] (launch only)" }
     };
@@ -2428,7 +2439,7 @@ int gmx_tune_pme(int argc, char *argv[])
          * mpirun command. */
         if (strcmp(procstring[0], "none") != 0)
         {
-            sprintf(bbuf, " %s %d ", procstring[0], nnodes);
+            sprintf(bbuf, " -%s %d ", procstring[0], nnodes);
         }
         else
         {
@@ -2439,7 +2450,7 @@ int gmx_tune_pme(int argc, char *argv[])
     cmd_np = bbuf;
 
     create_command_line_snippets(bAppendFiles, bKeepAndNumCPT, bResetCountersHalfWay, presteps,
-                                 NFILE, fnm, &cmd_args_bench, &cmd_args_launch, ExtraArgs);
+                                 NFILE, fnm, &cmd_args_bench, &cmd_args_launch, ExtraArgs, deffnm);
 
     /* Prepare to use checkpoint file if requested */
     sim_part = 1;
@@ -2529,7 +2540,7 @@ int gmx_tune_pme(int argc, char *argv[])
         fprintf(fp, "The mpirun command is   : %s\n", cmd_mpirun);
         if (strcmp(procstring[0], "none") != 0)
         {
-            fprintf(fp, "Passing # of ranks via  : %s\n", procstring[0]);
+            fprintf(fp, "Passing # of ranks via  : -%s\n", procstring[0]);
         }
         else
         {

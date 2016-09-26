@@ -1,7 +1,7 @@
 %
 % This file is part of the GROMACS molecular simulation package.
 %
-% Copyright (c) 2013,2014,2015, by the GROMACS development team, led by
+% Copyright (c) 2013,2014,2015,2016, by the GROMACS development team, led by
 % Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
 % and including many others, as listed in the AUTHORS file in the
 % top-level source directory and at http://www.gromacs.org.
@@ -303,7 +303,7 @@ $r_{max}$ (see \figref{rdfex}C).
 
 \begin{figure}
 \centerline{
-{\includegraphics[width=7cm,angle=270]{plots/rdf}}}
+{\includegraphics[width=7cm]{plots/rdf}}}
 \caption[Definition of slices in {\tt gmx rdf}.]{Definition of slices
 in {\tt gmx rdf}: A. $g_{AB}(r)$. B. $g_{AB}(r,\theta)$. The slices are
 colored gray. C. Normalization $\langle\rho_B\rangle_{local}$. D. Normalization
@@ -731,7 +731,7 @@ provide the radius of gyration around the coordinate axis (or, optionally, princ
 by only summing the radii components orthogonal to each axis, for instance
 \beq
 R_{g,x} ~=~ \left({\frac{\sum_i \left( r_{i,y}^2 + r_{i,z}^2 \right) m_i}{\sum_i m_i}}\right)^{\half}
-\label{eqn:rg}
+\label{eqn:rgaxis}
 \eeq
 
 Sometimes it is interesting to plot the {\em distance} between two atoms,
