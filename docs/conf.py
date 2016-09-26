@@ -1,7 +1,7 @@
 #
 # This file is part of the GROMACS molecular simulation package.
 #
-# Copyright (c) 2015, by the GROMACS development team, led by
+# Copyright (c) 2015,2016, by the GROMACS development team, led by
 # Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
 # and including many others, as listed in the AUTHORS file in the
 # top-level source directory and at http://www.gromacs.org.
@@ -46,8 +46,9 @@
 # All configuration values have a default; values that are commented out
 # serve to show the default.
 
-import sys
+import datetime
 import os
+import sys
 
 execfile('conf-vars.py')
 sys.path.append(gmx_sphinx_extension_path)
@@ -67,7 +68,7 @@ sys.path.append(gmx_sphinx_extension_path)
 # ones.
 extensions = [
     'sphinx.ext.graphviz',
-    'sphinx.ext.pngmath',
+    'sphinx.ext.imgmath',
     'sphinx.ext.ifconfig',
     'gmxsphinx'
 ]
@@ -86,7 +87,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'GROMACS'
-copyright = u'2015, GROMACS development team'
+copyright = str(datetime.datetime.now().year) + u', GROMACS development team'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -145,7 +146,8 @@ rst_epilog += """
 .. |Gromacs| replace:: GROMACS
 .. _gmx-manual: manual-{gmx_version_string}.pdf
 .. _gmx-manual-parent-dir: ../manual-{gmx_version_string}.pdf
-.. |gmx-source-package| replace:: ftp://ftp.gromacs.org/pub/gromacs/gromacs-{gmx_version_string}.tar.gz
+.. |gmx-source-package-ftp| replace:: As ftp ftp://ftp.gromacs.org/pub/gromacs/gromacs-{gmx_version_string}.tar.gz
+.. |gmx-source-package-http| replace:: As http http://ftp.gromacs.org/pub/gromacs/gromacs-{gmx_version_string}.tar.gz
 .. |gmx-regressiontests-package| replace:: http://gerrit.gromacs.org/download/regressiontests-{regressiontest_version}.tar.gz
 .. _up-to-date installation instructions: http://www.gromacs.org/Documentation/Installation_Instructions
 .. _CUDA: http://www.nvidia.com/object/cuda_home_new.html
@@ -174,7 +176,7 @@ rst_epilog += """
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
-html_theme = 'default'
+html_theme = gmx_sphinx_theme
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the

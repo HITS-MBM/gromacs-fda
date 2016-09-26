@@ -1079,10 +1079,10 @@ push_cmaptype(directive d, t_params bt[], int nral, gpp_atomtype_t at,
               t_bond_atomtype bat, char *line,
               warninp_t wi)
 {
-    const char  *formal = "%s%s%s%s%s%s%s%s";
+    const char  *formal = "%s%s%s%s%s%s%s%s%n";
 
     int          i, j, ft, ftype, nn, nrfp, nrfpA, nrfpB;
-    int          start;
+    int          start, nchar_consumed;
     int          nxcmap, nycmap, ncmap, read_cmap, sl, nct;
     char         s[20], alc[MAXATOMLIST+2][20];
     t_param      p;
@@ -1093,24 +1093,16 @@ push_cmaptype(directive d, t_params bt[], int nral, gpp_atomtype_t at,
     read_cmap = 0;
     start     = 0;
 
-    if ((nn = sscanf(line, formal, alc[0], alc[1], alc[2], alc[3], alc[4], alc[5], alc[6], alc[7])) != nral+3)
+    assert(nral == 5);
+
+    /* Here we can only check for < 8 */
+    if ((nn = sscanf(line, formal, alc[0], alc[1], alc[2], alc[3], alc[4], alc[5], alc[6], alc[7], &nchar_consumed)) < nral+3)
     {
         sprintf(errbuf, "Incorrect number of atomtypes for cmap (%d instead of 5)", nn-1);
         warning_error(wi, errbuf);
         return;
     }
-
-    /* Compute an offset for each line where the cmap parameters start
-     * ie. where the atom types and grid spacing information ends
-     */
-    for (i = 0; i < nn; i++)
-    {
-        start += (int)strlen(alc[i]);
-    }
-
-    /* There are nn-1 spaces between the atom types and the grid spacing info in the cmap.itp file */
-    /* start is the position on the line where we start to read the actual cmap grid data from the itp file */
-    start = start + nn -1;
+    start += nchar_consumed;
 
     ft     = strtol(alc[nral], NULL, 10);
     nxcmap = strtol(alc[nral+1], NULL, 10);
@@ -1585,13 +1577,37 @@ static gmx_bool default_cmap_params(t_params bondtype[],
     return bFound;
 }
 
+/* Returns the number of exact atom type matches, i.e. non wild-card matches,
+ * returns -1 when there are no matches at all.
+ */
+static int natom_match(t_param *pi,
+                       int type_i, int type_j, int type_k, int type_l,
+                       const gpp_atomtype_t atype)
+{
+    if ((pi->AI == -1 || get_atomtype_batype(type_i, atype) == pi->AI) &&
+        (pi->AJ == -1 || get_atomtype_batype(type_j, atype) == pi->AJ) &&
+        (pi->AK == -1 || get_atomtype_batype(type_k, atype) == pi->AK) &&
+        (pi->AL == -1 || get_atomtype_batype(type_l, atype) == pi->AL))
+    {
+        return
+            (pi->AI == -1 ? 0 : 1) +
+            (pi->AJ == -1 ? 0 : 1) +
+            (pi->AK == -1 ? 0 : 1) +
+            (pi->AL == -1 ? 0 : 1);
+    }
+    else
+    {
+        return -1;
+    }
+}
+
 static gmx_bool default_params(int ftype, t_params bt[],
                                t_atoms *at, gpp_atomtype_t atype,
                                t_param *p, gmx_bool bB,
                                t_param **param_def,
                                int *nparam_def)
 {
-    int          i, j, nparam_found;
+    int          nparam_found;
     gmx_bool     bFound, bSame;
     t_param     *pi    = NULL;
     t_param     *pj    = NULL;
@@ -1606,55 +1622,54 @@ static gmx_bool default_params(int ftype, t_params bt[],
     }
 
 
-    /* We allow wildcards now. The first type (with or without wildcards) that
-     * fits is used, so you should probably put the wildcarded bondtypes
-     * at the end of each section.
-     */
     bFound       = FALSE;
     nparam_found = 0;
-    /* OPLS uses 1000s of dihedraltypes, so in order to speed up the scanning we have a
-     * special case for this. Check for B state outside loop to speed it up.
-     */
     if (ftype == F_PDIHS || ftype == F_RBDIHS || ftype == F_IDIHS || ftype == F_PIDIHS)
     {
-        if (bB)
-        {
-            for (i = 0; ((i < nr) && !bFound); i++)
-            {
-                pi     = &(bt[ftype].param[i]);
-                bFound =
-                    (
-                        ((pi->AI == -1) || (get_atomtype_batype(at->atom[p->AI].typeB, atype) == pi->AI)) &&
-                        ((pi->AJ == -1) || (get_atomtype_batype(at->atom[p->AJ].typeB, atype) == pi->AJ)) &&
-                        ((pi->AK == -1) || (get_atomtype_batype(at->atom[p->AK].typeB, atype) == pi->AK)) &&
-                        ((pi->AL == -1) || (get_atomtype_batype(at->atom[p->AL].typeB, atype) == pi->AL))
-                    );
-            }
-        }
-        else
-        {
-            /* State A */
-            for (i = 0; ((i < nr) && !bFound); i++)
-            {
-                pi     = &(bt[ftype].param[i]);
-                bFound =
-                    (
-                        ((pi->AI == -1) || (get_atomtype_batype(at->atom[p->AI].type, atype) == pi->AI)) &&
-                        ((pi->AJ == -1) || (get_atomtype_batype(at->atom[p->AJ].type, atype) == pi->AJ)) &&
-                        ((pi->AK == -1) || (get_atomtype_batype(at->atom[p->AK].type, atype) == pi->AK)) &&
-                        ((pi->AL == -1) || (get_atomtype_batype(at->atom[p->AL].type, atype) == pi->AL))
-                    );
-            }
-        }
-        /* Find additional matches for this dihedral - necessary for ftype==9 which is used e.g. for charmm.
-         * The rules in that case is that additional matches HAVE to be on adjacent lines!
+        int nmatch_max = -1;
+        int i          = -1;
+        int t;
+
+        /* For dihedrals we allow wildcards. We choose the first type
+         * that has the most real matches, i.e. non-wildcard matches.
          */
+        for (t = 0; ((t < nr) && nmatch_max < 4); t++)
+        {
+            int      nmatch;
+            t_param *pt;
+
+            pt = &(bt[ftype].param[t]);
+            if (bB)
+            {
+                nmatch = natom_match(pt, at->atom[p->AI].typeB, at->atom[p->AJ].typeB, at->atom[p->AK].typeB, at->atom[p->AL].typeB, atype);
+            }
+            else
+            {
+                nmatch = natom_match(pt, at->atom[p->AI].type, at->atom[p->AJ].type, at->atom[p->AK].type, at->atom[p->AL].type, atype);
+            }
+            if (nmatch > nmatch_max)
+            {
+                nmatch_max = nmatch;
+                i          = t;
+                bFound     = TRUE;
+            }
+        }
+
         if (bFound == TRUE)
         {
+            int j;
+
+            pi    = &(bt[ftype].param[i]);
             nparam_found++;
+
+            /* Find additional matches for this dihedral - necessary
+             * for ftype==9.
+             * The rule in that case is that additional matches
+             * HAVE to be on adjacent lines!
+             */
             bSame = TRUE;
             /* Continue from current i value */
-            for (j = i+1; j < nr && bSame; j += 2)
+            for (j = i + 2; j < nr && bSame; j += 2)
             {
                 pj    = &(bt[ftype].param[j]);
                 bSame = (pi->AI == pj->AI && pi->AJ == pj->AJ && pi->AK == pj->AK && pi->AL == pj->AL);
@@ -1668,6 +1683,8 @@ static gmx_bool default_params(int ftype, t_params bt[],
     }
     else   /* Not a dihedral */
     {
+        int i, j;
+
         for (i = 0; ((i < nr) && !bFound); i++)
         {
             pi = &(bt[ftype].param[i]);
