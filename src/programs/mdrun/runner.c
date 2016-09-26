@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2011,2012,2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2011,2012,2013,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -315,22 +315,22 @@ static int get_tmpi_omp_thread_division(const gmx_hw_info_t *hwinfo,
          * two CPUs with HT, so we need a limit<16; thus we use 12.
          * A reasonable limit for Intel Sandy and Ivy bridge,
          * not knowing the topology, is 16 threads.
+         * Below we check for Intel and AVX, which for now includes
+         * Sandy/Ivy Bridge, Has/Broadwell. By checking for AVX instead of
+         * model numbers we ensure also future Intel CPUs are covered.
          */
         const int nthreads_omp_always_faster             =  4;
         const int nthreads_omp_always_faster_Nehalem     = 12;
-        const int nthreads_omp_always_faster_SandyBridge = 16;
-        const int first_model_Nehalem                    = 0x1A;
-        const int first_model_SandyBridge                = 0x2A;
-        gmx_bool  bIntel_Family6;
+        const int nthreads_omp_always_faster_Intel_AVX   = 16;
+        gmx_bool  bIntelAVX;
 
-        bIntel_Family6 =
+        bIntelAVX =
             (gmx_cpuid_vendor(hwinfo->cpuid_info) == GMX_CPUID_VENDOR_INTEL &&
-             gmx_cpuid_family(hwinfo->cpuid_info) == 6);
+             gmx_cpuid_feature(hwinfo->cpuid_info, GMX_CPUID_FEATURE_X86_AVX));
 
         if (nthreads_tot <= nthreads_omp_always_faster ||
-            (bIntel_Family6 &&
-             ((gmx_cpuid_model(hwinfo->cpuid_info) >= nthreads_omp_always_faster_Nehalem && nthreads_tot <= nthreads_omp_always_faster_Nehalem) ||
-              (gmx_cpuid_model(hwinfo->cpuid_info) >= nthreads_omp_always_faster_SandyBridge && nthreads_tot <= nthreads_omp_always_faster_SandyBridge))))
+            ((gmx_cpuid_is_intel_nehalem(hwinfo->cpuid_info) && nthreads_tot <= nthreads_omp_always_faster_Nehalem) ||
+             (bIntelAVX && nthreads_tot <= nthreads_omp_always_faster_Intel_AVX)))
         {
             /* Use pure OpenMP parallelization */
             nthreads_tmpi = 1;
@@ -1097,7 +1097,7 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
              int repl_ex_seed, real pforce, real cpt_period, real max_hours,
              const char *deviceOptions, int imdport, unsigned long Flags)
 {
-    gmx_bool                  bForceUseGPU, bTryUseGPU;
+    gmx_bool                  bForceUseGPU, bTryUseGPU, bRerunMD, bCantUseGPU;
     double                    nodetime = 0, realtime;
     t_inputrec               *inputrec;
     t_state                  *state = NULL;
@@ -1142,8 +1142,20 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
         fplog = NULL;
     }
 
+    bRerunMD     = (Flags & MD_RERUN);
     bForceUseGPU = (strncmp(nbpu_opt, "gpu", 3) == 0);
     bTryUseGPU   = (strncmp(nbpu_opt, "auto", 4) == 0) || bForceUseGPU;
+    /* Rerun execution time is dominated by I/O and pair search, so
+     * GPUs are not very useful, plus they do not support more than
+     * one energy group. Don't select them when they can't be used,
+     * unless the user requested it, then fatal_error is called later.
+     *
+     * TODO it would be nice to notify the user that if this check
+     * causes GPUs not to be used that this is what is happening, and
+     * why, but that will be easier to do after some future
+     * cleanup. */
+    bCantUseGPU = bRerunMD && (inputrec->opts.ngener > 1);
+    bTryUseGPU  = bTryUseGPU && !(bCantUseGPU && !bForceUseGPU);
 
     /* Detect hardware, gather information. This is an operation that is
      * global for this process (MPI rank). */
@@ -1357,7 +1369,7 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
                   );
     }
 
-    if ((Flags & MD_RERUN) &&
+    if (bRerunMD &&
         (EI_ENERGY_MINIMIZATION(inputrec->eI) || eiNM == inputrec->eI))
     {
         gmx_fatal(FARGS, "The .mdp file specified an energy mininization or normal mode algorithm, and these are not compatible with mdrun -rerun");

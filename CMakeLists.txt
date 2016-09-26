@@ -1,7 +1,7 @@
 #
 # This file is part of the GROMACS molecular simulation package.
 #
-# Copyright (c) 2009,2010,2011,2012,2013,2014, by the GROMACS development team, led by
+# Copyright (c) 2009,2010,2011,2012,2013,2014,2015, by the GROMACS development team, led by
 # Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
 # and including many others, as listed in the AUTHORS file in the
 # top-level source directory and at http://www.gromacs.org.
@@ -58,15 +58,15 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 # NOTE: when releasing the "-dev" suffix needs to be stripped off!
 # REGRESSIONTEST_VERSION and REGRESSIONTEST_BRANCH should always be
 # defined.
-set(PROJECT_VERSION "5.0.4")
+set(PROJECT_VERSION "5.0.5")
 # If this is a released tarball, "-dev" will not be present in
 # PROJECT_VERSION, and REGRESSIONTEST_VERSION specifies the version
 # number of the regressiontest tarball against which the code tarball
 # can be tested. This will be the version of the last patch release.
-set(REGRESSIONTEST_VERSION "5.0.4")
+set(REGRESSIONTEST_VERSION "5.0.5")
 # The MD5 checksum of the regressiontest tarball. Only used if "-dev"
 # is not present in the PROJECT_VERSION
-set(REGRESSIONTEST_MD5SUM "81e8ff1600495ce2a57706dca9d73482")
+set(REGRESSIONTEST_MD5SUM "c3258e8c3162ce851718d1649e33e565")
 # If this is not a released tarball, "-dev" will be present in
 # PROJECT_VERSION, and REGRESSIONTEST_BRANCH specifies the name of the
 # gerrit.gromacs.org branch whose HEAD can test this code, *if* this
@@ -328,6 +328,11 @@ option(GMX_DEVELOPER_BUILD
     OFF)
 mark_as_advanced(GMX_DEVELOPER_BUILD)
 
+option(GMX_BUILD_SHARED_EXE
+    "Build exectuables as shared binaries. If not set, this disables rpath and dynamic linker flags in an attempt to build a static binary, but this may require setting up the toolchain properly and making appropriate libraries available."
+    ON)
+mark_as_advanced(GMX_BUILD_SHARED_EXE)
+
 ######################################################################
 # Detect OpenMP support
 ######################################################################
@@ -414,7 +419,6 @@ check_include_files(io.h         HAVE_IO_H)
 check_include_files(sched.h      HAVE_SCHED_H)
 
 check_include_files(regex.h      HAVE_POSIX_REGEX)
-check_include_file_cxx(regex     HAVE_CXX11_REGEX)
 # TODO: It could be nice to inform the user if no regex support is found,
 # as selections won't be fully functional.
 
@@ -473,6 +477,11 @@ include(gmxManageSharedLibraries)
 ########################################################################
 # Find external packages                                               #
 ########################################################################
+
+# TNG wants zlib if it is available. And static libxml2 might have a dependency
+find_package(ZLIB QUIET)
+include(gmxTestZLib)
+gmx_test_zlib(HAVE_ZLIB)
 
 # Unconditionally find the package, as it is also required for unit
 # tests. This exports LIBXML2_FOUND, which we should not use because
@@ -609,13 +618,6 @@ if (GMX_BUILD_UNITTESTS AND NOT HAVE_LIBXML2)
         "Either set GMX_BUILD_UNITTESTS=OFF or tell CMake how to find a working version of libxml2.")
 endif()
 
-if(GMX_USE_TNG AND NOT GMX_EXTERNAL_TNG)
-    # TNG wants zlib if it is available
-    find_package(ZLIB QUIET)
-    include(gmxTestZLib)
-    gmx_test_zlib(HAVE_ZLIB)
-endif()
-
 ########################################################################
 # Generate development version info for cache
 ########################################################################
@@ -698,6 +700,8 @@ if(GMX_CXX11)
     set(EXTRA_CXX_FLAGS "${EXTRA_CXX_FLAGS} ${GMX_CXX11_FLAGS}")
 endif()
 
+# Now we can test for CXX11_REGEX include file
+check_include_file_cxx(regex     HAVE_CXX11_REGEX)
 
 include(gmxTestXDR)
 gmx_test_xdr(GMX_SYSTEM_XDR)
@@ -870,7 +874,13 @@ include(gmxManageSuffixes)
 # CMake supports RPATH on OS X only from 2.8.12 upwards.
 # CMAKE_SYSTEM_VERSION > 8.0 matches OS X 10.5 and above, where RPATH support
 # was added.
-if((NOT CMAKE_SYSTEM_NAME STREQUAL "Darwin") OR
+
+if(NOT GMX_BUILD_SHARED_EXE)
+    # No rpath
+    set(CMAKE_SKIP_RPATH TRUE)
+    set(CMAKE_EXE_LINK_DYNAMIC_C_FLAGS) # remove -Wl,-Bdynamic
+    set(CMAKE_EXE_LINK_DYNAMIC_CXX_FLAGS)
+elseif((NOT CMAKE_SYSTEM_NAME STREQUAL "Darwin") OR
    ((CMAKE_SYSTEM_VERSION VERSION_GREATER 8.0) AND (NOT CMAKE_VERSION VERSION_LESS 2.8.12)))
     # The build folder always has bin/ and lib/; if we are also going to
     # install to lib/, then the installation RPATH works also in the build
