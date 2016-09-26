@@ -607,7 +607,7 @@ static void increase_nstlist(FILE *fp, t_commrec *cr,
         ir->nstlist = nstlist_cmdline;
     }
 
-    verletbuf_get_list_setup(bGPU, &ls);
+    verletbuf_get_list_setup(TRUE, bGPU, &ls);
 
     /* Allow rlist to make the list a given factor larger than the list
      * would be with nstlist=10.
@@ -732,7 +732,7 @@ static void prepare_verlet_scheme(FILE                           *fplog,
          * calc_verlet_buffer_size gives the same results for 4x8 and 4x4
          * and 4x2 gives a larger buffer than 4x4, this is ok.
          */
-        verletbuf_get_list_setup(bUseGPU, &ls);
+        verletbuf_get_list_setup(TRUE, bUseGPU, &ls);
 
         calc_verlet_buffer_size(mtop, det(box), ir, -1, &ls, NULL, &rlist_new);
 
@@ -833,7 +833,7 @@ static void convert_to_verlet_scheme(FILE *fplog,
     {
         verletbuf_list_setup_t ls;
 
-        verletbuf_get_list_setup(FALSE, &ls);
+        verletbuf_get_list_setup(TRUE, FALSE, &ls);
         calc_verlet_buffer_size(mtop, box_vol, ir, -1, &ls, NULL, &ir->rlist);
     }
     else
@@ -1340,7 +1340,13 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
     {
         /* now broadcast everything to the non-master nodes/threads: */
         init_parallel(cr, inputrec, mtop);
+
+        /* The master rank decided on the use of GPUs,
+         * broadcast this information to all ranks.
+         */
+        gmx_bcast_sim(sizeof(bUseGPU), &bUseGPU, cr);
     }
+
     if (fplog != NULL)
     {
         pr_inputrec(fplog, 0, "Input Parameters", inputrec, FALSE);
@@ -1388,6 +1394,15 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
                                  "PME-only ranks are requested, but the system does not use PME for electrostatics or LJ");
         }
 
+        cr->npmenodes = 0;
+    }
+
+    if (bUseGPU && cr->npmenodes < 0)
+    {
+        /* With GPUs we don't automatically use PME-only ranks. PME ranks can
+         * improve performance with many threads per GPU, since our OpenMP
+         * scaling is bad, but it's difficult to automate the setup.
+         */
         cr->npmenodes = 0;
     }
 
@@ -1559,22 +1574,8 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
                           (cr->duty & DUTY_PP) == 0,
                           inputrec->cutoff_scheme == ecutsVERLET);
 
-    if (PAR(cr))
-    {
-        /* The master rank decided on the use of GPUs,
-         * broadcast this information to all ranks.
-         */
-        gmx_bcast_sim(sizeof(bUseGPU), &bUseGPU, cr);
-    }
-
     if (bUseGPU)
     {
-        if (cr->npmenodes == -1)
-        {
-            /* Don't automatically use PME-only nodes with GPUs */
-            cr->npmenodes = 0;
-        }
-
         /* Select GPU id's to use */
         gmx_select_gpu_ids(fplog, cr, &hwinfo->gpu_info, bForceUseGPU,
                            &hw_opt->gpu_opt);

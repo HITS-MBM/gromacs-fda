@@ -58,15 +58,15 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 # NOTE: when releasing the "-dev" suffix needs to be stripped off!
 # REGRESSIONTEST_VERSION and REGRESSIONTEST_BRANCH should always be
 # defined.
-set(PROJECT_VERSION "5.0.5")
+set(PROJECT_VERSION "5.0.6")
 # If this is a released tarball, "-dev" will not be present in
 # PROJECT_VERSION, and REGRESSIONTEST_VERSION specifies the version
 # number of the regressiontest tarball against which the code tarball
 # can be tested. This will be the version of the last patch release.
-set(REGRESSIONTEST_VERSION "5.0.5")
+set(REGRESSIONTEST_VERSION "5.0.6")
 # The MD5 checksum of the regressiontest tarball. Only used if "-dev"
 # is not present in the PROJECT_VERSION
-set(REGRESSIONTEST_MD5SUM "c3258e8c3162ce851718d1649e33e565")
+set(REGRESSIONTEST_MD5SUM "0f3b41e7a0fbb43efd6793d2b2fedacc")
 # If this is not a released tarball, "-dev" will be present in
 # PROJECT_VERSION, and REGRESSIONTEST_BRANCH specifies the name of the
 # gerrit.gromacs.org branch whose HEAD can test this code, *if* this
@@ -104,6 +104,9 @@ set(API_VERSION ${NUM_VERSION})
 
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT AND UNIX)
     set(CMAKE_INSTALL_PREFIX "/usr/local/gromacs" CACHE STRING "Installation prefix (installation will need write permissions here)" FORCE)
+endif()
+if("${CMAKE_INSTALL_PREFIX}" STREQUAL "${CMAKE_BINARY_DIR}")
+    message(FATAL_ERROR "GROMACS cannot be installed into the build tree, choose a different location for CMAKE_INSTALL_PREFIX")
 endif()
 
 include(gmxBuildTypeReference)
@@ -265,10 +268,16 @@ gmx_option_multichoice(
     "${GMX_SUGGESTED_SIMD}"
     None SSE2 SSE4.1 AVX_128_FMA AVX_256 AVX2_256 IBM_QPX Sparc64_HPC_ACE Reference)
 
+if(GMX_TARGET_MIC)
+    set(GMX_FFT_LIBRARY_DEFAULT "mkl")
+else()
+    set(GMX_FFT_LIBRARY_DEFAULT "fftw3")
+endif()
+
 gmx_option_multichoice(
     GMX_FFT_LIBRARY
     "FFT library"
-    "fftw3"
+    "${GMX_FFT_LIBRARY_DEFAULT}"
     fftw3 mkl "fftpack[built-in]")
 gmx_dependent_option(
     GMX_BUILD_OWN_FFTW

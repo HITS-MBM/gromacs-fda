@@ -131,6 +131,9 @@ static inline int calc_nb_kernel_nblock(int nwork_units, cuda_dev_info_t *dinfo)
     int max_grid_x_size;
 
     assert(dinfo);
+    /* CUDA does not accept grid dimension of 0 (which can happen e.g. with an
+       empty domain) and that case should be handled before this point. */
+    assert(nwork_units > 0);
 
     max_grid_x_size = dinfo->prop.maxGridSize[0];
 
@@ -270,12 +273,13 @@ static inline int calc_shmem_required()
 
    These operations are issued in the local stream at the beginning of the step
    and therefore always complete before the local kernel launch. The non-local
-   kernel is launched after the local on the same device/context, so this is
+   kernel is launched after the local on the same device/context hence it is
    inherently scheduled after the operations in the local stream (including the
-   above "misc_ops").
-   However, for the sake of having a future-proof implementation, we use the
-   misc_ops_done event to record the point in time when the above  operations
-   are finished and synchronize with this event in the non-local stream.
+   above "misc_ops") on pre-GK110 devices with single hardware queue, but on later
+   devices with multiple hardware queues the dependency needs to be enforced.
+   We use the misc_ops_and_local_H2D_done event to record the point where
+   the local x+q H2D (and all preceding) tasks are complete and synchronize
+   with this event in the non-local stream before launching the non-bonded kernel.
  */
 void nbnxn_cuda_launch_kernel(nbnxn_cuda_ptr_t        cu_nb,
                               const nbnxn_atomdata_t *nbatom,
@@ -309,7 +313,8 @@ void nbnxn_cuda_launch_kernel(nbnxn_cuda_ptr_t        cu_nb,
        we always call the local kernel, the local x+q copy and later (not in
        this function) the stream wait, local f copyback and the f buffer
        clearing. All these operations, except for the local interaction kernel,
-       are needed for the non-local interactions. */
+       are needed for the non-local interactions. The skip of the local kernel
+       call is taken care of later in this function. */
     if (iloc == eintNonlocal && plist->nsci == 0)
     {
         return;
@@ -327,22 +332,6 @@ void nbnxn_cuda_launch_kernel(nbnxn_cuda_ptr_t        cu_nb,
         adat_len    = adat->natoms - adat->natoms_local;
     }
 
-    /* When we get here all misc operations issues in the local stream are done,
-       so we record that in the local stream and wait for it in the nonlocal one. */
-    if (cu_nb->bUseTwoStreams)
-    {
-        if (iloc == eintLocal)
-        {
-            stat = cudaEventRecord(cu_nb->misc_ops_done, stream);
-            CU_RET_ERR(stat, "cudaEventRecord on misc_ops_done failed");
-        }
-        else
-        {
-            stat = cudaStreamWaitEvent(stream, cu_nb->misc_ops_done, 0);
-            CU_RET_ERR(stat, "cudaStreamWaitEvent on misc_ops_done failed");
-        }
-    }
-
     /* beginning of timed HtoD section */
     if (bDoTime)
     {
@@ -354,10 +343,33 @@ void nbnxn_cuda_launch_kernel(nbnxn_cuda_ptr_t        cu_nb,
     cu_copy_H2D_async(adat->xq + adat_begin, nbatom->x + adat_begin * 4,
                       adat_len * sizeof(*adat->xq), stream);
 
+    /* When we get here all misc operations issues in the local stream as well as
+       the local xq H2D are done,
+       so we record that in the local stream and wait for it in the nonlocal one. */
+    if (cu_nb->bUseTwoStreams)
+    {
+        if (iloc == eintLocal)
+        {
+            stat = cudaEventRecord(cu_nb->misc_ops_and_local_H2D_done, stream);
+            CU_RET_ERR(stat, "cudaEventRecord on misc_ops_and_local_H2D_done failed");
+        }
+        else
+        {
+            stat = cudaStreamWaitEvent(stream, cu_nb->misc_ops_and_local_H2D_done, 0);
+            CU_RET_ERR(stat, "cudaStreamWaitEvent on misc_ops_and_local_H2D_done failed");
+        }
+    }
+
     if (bDoTime)
     {
         stat = cudaEventRecord(t->stop_nb_h2d[iloc], stream);
         CU_RET_ERR(stat, "cudaEventRecord failed");
+    }
+
+    if (plist->nsci == 0)
+    {
+        /* Don't launch an empty local kernel (not allowed with CUDA) */
+        return;
     }
 
     /* beginning of timed nonbonded calculation section */
