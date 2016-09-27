@@ -32,10 +32,6 @@
 # To help us fund GROMACS development, we humbly ask that you cite
 # the research papers on the package. Check out http://www.gromacs.org.
 
-if(NOT GMX_CXX11)
-  message(FATAL_ERROR "GROMACS FDA analysis can not compiled without C++11")
-endif()
-
 file(GLOB GMXANA_SOURCES *.cpp)
 
 gmx_install_headers(
