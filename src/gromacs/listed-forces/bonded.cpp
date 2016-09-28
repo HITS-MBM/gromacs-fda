@@ -901,10 +901,10 @@ real thole_pol(int nbonds,
         al2   = forceparams[type].thole.alpha2;
         qq    = q1*q2;
         afac  = a*gmx::invsixthroot(al1*al2);
-        V    += do_1_thole(x[a1], x[a2], f[a1], f[a2], pbc, qq, fshift, afac);
-        V    += do_1_thole(x[da1], x[a2], f[da1], f[a2], pbc, -qq, fshift, afac);
-        V    += do_1_thole(x[a1], x[da2], f[a1], f[da2], pbc, -qq, fshift, afac);
-        V    += do_1_thole(x[da1], x[da2], f[da1], f[da2], pbc, qq, fshift, afac);
+        V    += do_1_thole(x[a1], x[a2], f[a1], f[a2], pbc, qq, fshift, afac, pf_global, a1, a2);
+        V    += do_1_thole(x[da1], x[a2], f[da1], f[a2], pbc, -qq, fshift, afac, pf_global, a1, a2);
+        V    += do_1_thole(x[a1], x[da2], f[a1], f[da2], pbc, -qq, fshift, afac, pf_global, a1, a2);
+        V    += do_1_thole(x[da1], x[da2], f[da1], f[da2], pbc, qq, fshift, afac, pf_global, a1, a2);
     }
     /* 290 flops */
     return V;
@@ -1508,7 +1508,6 @@ real dih_angle(const rvec xi, const rvec xj, const rvec xk, const rvec xl,
     return phi;
 }
 
-
 #if GMX_SIMD_HAVE_REAL
 
 /* As dih_angle above, but calculates 4 dihedral angles at once using SIMD,
@@ -1627,7 +1626,135 @@ dih_angle_simd(const rvec *x,
     *q_S       = *q_S * nrkj_2_S;
 }
 
-#endif // GMX_SIMD_HAVE_REAL
+#endif /* GMX_SIMD_HAVE_REAL */
+
+void print_vec(char *s, rvec x) {
+  fprintf(stderr, "%s %f %f %f\n", s, x[0], x[1], x[2]);
+}
+
+void pf_atom_add_dihedral(t_pf_global *pf_global,
+			              int i, int j, int k, int l,
+			              rvec f_i, rvec f_j, rvec f_k, rvec f_l)
+{
+    rvec f_mj, f_mk;
+    rvec f_ipl, f_jpk, f_jpk_i, f_jpk_l, f_j_ipl, f_jpk_ipl;
+    rvec f_j_i, f_k_i, f_j_l, f_k_l, f_j_k, f_l_i;
+    rvec f_jpk_c_f_j, f_jpk_c_f_k;
+    rvec uf_jpk, uf_j, uf_k;
+    real cos_a, sin_a, cos_b, sin_b, sinacosbpsinbcosa;
+    real nf_ipl, nf_jpk, nf_j, nf_k, nf_j_i, nf_j_l, nf_k_i, nf_k_l, nf_jpkxnf_j, nf_jpkxnf_k, nf_jpk_i, nf_jpk_l;
+
+    /* below computation can sometimes return before finishing to avoid division with very small numbers;
+     * this situation can occur f.e. when all f_i, f_j, f_k and f_l are (almost) zero;
+     * in this case there is no call to pf_atom_add_bonded, no pairwise forces are recorded (which is different from recording zero forces!)
+     */
+    //fprintf(stderr, "dihedral: i=%d, j=%d, k=%d, l=%d\n", i, j, k, l);
+    /*print_vec("f_i", f_i);
+    print_vec("f_j", f_j);
+    print_vec("f_k", f_k);
+    print_vec("f_l", f_l);*/
+    /* below computation needs -f_j and -f_k */
+    clear_rvec(f_mj);
+    rvec_sub(f_mj, f_j, f_mj);
+    clear_rvec(f_mk);
+    rvec_sub(f_mk, f_k, f_mk);
+    //fprintf(stderr, "fi=%8f %8f %8f, fmj=%8f %8f %8f, fmk=%8f %8f %8f, fl=%8f %8f %8f\n", f_i[0], f_i[1], f_i[2], f_mj[0], f_mj[1], f_mj[2], f_mk[0], f_mk[1], f_mk[2], f_l[0], f_l[1], f_l[2]);
+    /*print_vec("f_i", f_i);
+    print_vec("f_j", f_mj);
+    print_vec("f_k", f_mk);
+    print_vec("f_l", f_l);*/
+    rvec_add(f_i, f_l, f_ipl);
+    rvec_add(f_mj, f_mk, f_jpk);
+    unitv(f_jpk, uf_jpk);
+    unitv(f_mj, uf_j);
+    unitv(f_mk, uf_k);
+    /*print_vec("uf_j", uf_j);
+    print_vec("uf_k", uf_k);*/
+    /* project f_i and f_l on f_jpk = f_j + f_k */
+    nf_ipl = norm(f_ipl);
+    /*fprintf(stderr, "nf_ipl=%f\n", nf_ipl);*/
+    if (nf_ipl < GMX_FLOAT_EPS)
+      return;
+    svmul(iprod(f_i, f_ipl) / nf_ipl, uf_jpk, f_jpk_i);
+    svmul(iprod(f_l, f_ipl) / nf_ipl, uf_jpk, f_jpk_l);
+    rvec_add(f_jpk_i, f_jpk_l, f_jpk_ipl);
+    /*print_vec("f_jpk_i", f_jpk_i);
+    print_vec("f_jpk_l", f_jpk_l);
+    print_vec("f_jpk_ipl", f_jpk_ipl);*/
+    //fprintf(stderr, "f_jpk=%8f %8f %8f, f_jpk_ipl=%8f %8f %8f\n", f_jpk[0], f_jpk[1], f_jpk[2], f_jpk_ipl[0], f_jpk_ipl[1], f_jpk_ipl[2]);
+    /* decompose f_jpk_i in 2 forces in directions of f_j and f_k; decompose f_jpk_l in 2 forces in directions of f_j and f_k */
+    nf_jpk = norm(f_jpk);
+    nf_j = norm(f_mj);
+    nf_k = norm(f_mk);
+    /* a = angle between f_jpk and -f_j, b = angle between f_jpk and -f_k */
+    /* obtain cos from dot product and sin from cross product */
+    cprod(f_jpk, f_mj, f_jpk_c_f_j);
+    cprod(f_jpk, f_mk, f_jpk_c_f_k);
+    nf_jpkxnf_j = nf_jpk * nf_j;
+    nf_jpkxnf_k = nf_jpk * nf_k;
+    /*fprintf(stderr, "nf_jpkxnf_j=%f, nf_jpkxnf_k=%f\n", nf_jpkxnf_j, nf_jpkxnf_k);*/
+    if ((nf_jpkxnf_j < GMX_FLOAT_EPS) || (nf_jpkxnf_k < GMX_FLOAT_EPS))
+      return;
+    cos_a = iprod(f_jpk, f_mj) / nf_jpkxnf_j;
+    sin_a = norm(f_jpk_c_f_j) / nf_jpkxnf_j;
+    cos_b = iprod(f_jpk, f_mk) / nf_jpkxnf_k;
+    sin_b = norm(f_jpk_c_f_k) / nf_jpkxnf_k;
+    /* in a triangle, known: length of one side and 2 angles; unknown: lengths of the 2 other sides */
+    sinacosbpsinbcosa = sin_a * cos_b + sin_b * cos_a;
+    /*fprintf(stderr, "sin_a=%f, cos_a=%f, sin_b=%f, cos_b=%f, sinacosbpsinbcosa=%f\n", sin_a, cos_a, sin_b, cos_b, sinacosbpsinbcosa);*/
+    if (sinacosbpsinbcosa < GMX_FLOAT_EPS)
+      return;
+    nf_jpk_i = norm(f_jpk_i);
+    nf_jpk_l = norm(f_jpk_l);
+    nf_j_i = nf_jpk_i * sin_b / sinacosbpsinbcosa;
+    nf_k_i = nf_jpk_i * sin_a / sinacosbpsinbcosa;
+    nf_j_l = nf_jpk_l * sin_b / sinacosbpsinbcosa;
+    nf_k_l = nf_jpk_l * sin_a / sinacosbpsinbcosa;
+    /*fprintf(stderr, "nf_j_i=%f, nf_j_l=%f, nf_k_i=%f, nf_k_l=%f\n", nf_j_i, nf_j_l, nf_k_i, nf_k_l);*/
+    //fprintf(stderr, "nf_k=%8f, nf_k_i+nf_k_l=%8f\n", nf_k, nf_k_i+nf_k_l);
+    //fprintf(stderr, "nf_j=%8f, nf_j_i+nf_j_l=%8f\n", nf_j, nf_j_i+nf_j_l);
+    /* make vectors from lengths */
+    /* f_j_i and f_j_l are in the direction of f_j, f_k_i and f_k_l are in the direction of f_k */
+    svmul(nf_j_i, uf_j, f_j_i);
+    svmul(nf_j_l, uf_j, f_j_l);
+    svmul(nf_k_i, uf_k, f_k_i);
+    svmul(nf_k_l, uf_k, f_k_l);
+    /* get f_j_k from difference */
+    rvec_add(f_j_i, f_j_l, f_j_ipl);
+    rvec_sub(f_mj, f_j_ipl, f_j_k);
+    /* do the same for f_k_j, just to check by comparing with f_j_k */
+    /*rvec_add(f_k_i, f_k_l, f_k_ipl);
+    rvec_sub(f_mk, f_k_ipl, f_k_j);*/
+    /* f_i is minus (f_j_i + f_k_i + f_l_i) because these are forces from i on these atoms, in the opposite direction from f_i */
+    rvec_add(f_i, f_jpk_i, f_l_i);
+    rvec_opp(f_l_i);
+    /* do the same for f_il, just to check by comparing with f_il */
+    /*rvec_add(f_l, f_jpk_l, f_i_l);
+    rvec_opp(f_i_l);*/
+    //fprintf(stderr, "f_i_l=%8f %8f %8f, f_l_i=%8f %8f %8f\n", f_i_l[0], f_i_l[1], f_i_l[2], f_l_i[0], f_l_i[1], f_l_i[2]);
+    //fprintf(stderr, "nfi=%8f, nfij=%8f, nfik=%8f, nfil=%8f\n", norm(f_i), norm(f_ji), norm(f_ki), norm(f_il));
+    /*forcemat_add_bonded(forcemat, j, k, f_jk, x, iBond);*/
+    /*fprintf(debug, "f_ij=%8f, f_ik=%8f, f_il=%8f, f_kl=%8f, f_jl=%8f, f_jk=%8f\n", f_ij, f_ik, f_il, f_kl, f_jl, f_jk);*/
+    /*rvec_sub(f_i, f_l, f_w);*/
+    /*print_vec("f_w", f_w);*/
+    /* !!! watch out, if uncommenting the below print_vec section, also uncomment the 2 sections above calculating f_k_j and f_i_l !!! */
+    /*print_vec("f_i_l", f_i_l);
+    print_vec("f_l_i", f_l_i);
+    print_vec("f_j_i", f_j_i);
+    print_vec("f_j_l", f_j_l);
+    print_vec("f_k_i", f_k_i);
+    print_vec("f_k_l", f_k_l);
+    print_vec("f_jpk_i", f_jpk_i);
+    print_vec("f_jpk_l", f_jpk_l);
+    print_vec("f_j_k", f_j_k);
+    print_vec("f_k_j", f_k_j);*/
+    pf_atom_add_bonded(pf_global, j, i, PF_INTER_DIHEDRAL, f_j_i);
+    pf_atom_add_bonded(pf_global, k, i, PF_INTER_DIHEDRAL, f_k_i);
+    pf_atom_add_bonded(pf_global, l, i, PF_INTER_DIHEDRAL, f_l_i);
+    pf_atom_add_bonded(pf_global, j, k, PF_INTER_DIHEDRAL, f_j_k);
+    pf_atom_add_bonded(pf_global, j, l, PF_INTER_DIHEDRAL, f_j_l);
+    pf_atom_add_bonded(pf_global, k, l, PF_INTER_DIHEDRAL, f_k_l);
+}
 
 void do_dih_fup(int i, int j, int k, int l, real ddphi,
                 rvec r_ij, rvec r_kj, rvec r_kl,
