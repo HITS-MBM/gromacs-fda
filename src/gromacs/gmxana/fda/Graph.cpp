@@ -19,7 +19,7 @@
 
 namespace fda_analysis {
 
-Graph::Graph(std::vector<double> const& forceMatrix, rvec *coord, atom_id *index, int isize)
+Graph::Graph(std::vector<double> const& forceMatrix, rvec *coord, int *index, int isize)
 {
 	double force;
 	bool addNode1, addNode2;
@@ -72,7 +72,7 @@ Graph::Graph(std::vector<double> const& forceMatrix, rvec *coord, atom_id *index
     updateCoordinates(coord, index, isize);
 }
 
-void Graph::updateCoordinates(rvec *coord, atom_id *index, int isize)
+void Graph::updateCoordinates(rvec *coord, int *index, int isize)
 {
     std::vector<int>::iterator iterFind;
 

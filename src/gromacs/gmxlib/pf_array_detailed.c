@@ -70,7 +70,7 @@ t_pf_interaction_array_detailed *pf_interaction_array_by_type(t_pf_interactions_
 
 /* looks up an interaction with atom/residue jjnr and returns a pointer if found, otherwise NULL */
 t_pf_interaction_detailed *pf_lookup_interaction_detailed(t_pf_interaction_array_detailed *ia, int jjnr) {
-  atom_id i;
+  int i;
 
   /* there is no check whether the array is allocated; if len is positive,
    * the array should have been allocated already
@@ -82,7 +82,7 @@ t_pf_interaction_detailed *pf_lookup_interaction_detailed(t_pf_interaction_array
 }
 
 /* appends an interaction to the end of an interaction array */
-void pf_interaction_array_detailed_append(t_pf_interaction_array_detailed *ia, atom_id jjnr, rvec force) {
+void pf_interaction_array_detailed_append(t_pf_interaction_array_detailed *ia, int jjnr, rvec force) {
   /*fprintf(stderr, "pf_interaction_array_detailed_append ia=%p array=%p len=%d allocated=%d jjnr=%d force=%f,%f,%f\n", ia, ia->array, ia->len, ia->allocated, jjnr, force[0], force[1], force[2]);*/
   if (ia->len >= ia->allocated) {
     if (ia->array == NULL) {
@@ -102,7 +102,7 @@ void pf_interaction_array_detailed_append(t_pf_interaction_array_detailed *ia, a
  * the force is added to the existing value; if not, a new interaction is
  * appended to the array
  */
-void pf_atom_detailed_add(t_pf_atom_detailed *atom, atom_id jjnr, int type, rvec force) {
+void pf_atom_detailed_add(t_pf_atom_detailed *atom, int jjnr, int type, rvec force) {
   t_pf_interaction_array_detailed *ia;
   t_pf_interaction_detailed *p;
 
@@ -121,7 +121,7 @@ void pf_atom_detailed_merge(t_pf_atom_detailed *dst, t_pf_atom_detailed *src) {
   t_pf_interaction_array_detailed *ia_src, *ia_dst;
   t_pf_interaction_detailed *i_src, *i_dst;
   int type;
-  atom_id j;
+  int j;
 
   if (src->nr != dst->nr)
     gmx_fatal(FARGS, "Mismatch of PF atom detailed number: %d vs %d\n", src->nr, dst->nr);
@@ -145,7 +145,7 @@ void pf_atom_detailed_real_divide(t_pf_atom_detailed *atom, real divisor) {
   t_pf_interaction_array_detailed *ia;
   t_pf_interaction_detailed *i;
   int type;
-  atom_id j;
+  int j;
 
   for (type = 1; type < PF_INTER_ALL; type <<= 1) {
     ia = pf_interaction_array_by_type(&(atom->interactions), type);

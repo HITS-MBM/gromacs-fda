@@ -11,7 +11,6 @@
 #include <string>
 #include <vector>
 #include <boost/array.hpp> // back-compatibility to gcc-4.7.2
-#include "gromacs/legacyheaders/types/simple.h"
 
 namespace fda_analysis {
 

@@ -39,25 +39,26 @@
 #ifndef pf_types_array_h
 #define pf_types_array_h
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
-
 #include <stdio.h>
 
-#include "simple.h"
+#include "gromacs/math/vectypes.h"
+#include "gromacs/utility/basedefinitions.h"
 #include "pf_array_detailed.h"
 #include "pf_array_summed.h"
 #include "pf_array_scalar.h"
 #include "pf_per_atom.h"
 
-/* type for a list of atom_id's, containing both the list itself and the
+#ifdef HAVE_CONFIG_H
+  #include <config.h>
+#endif
+
+/* type for a list of int's, containing both the list itself and the
  * length of the list
  */
 typedef struct {
-  atom_id *list;
+  int *list;
   int len;
-} t_pf_atom_id_list;
+} t_pf_int_list;
 
 /* TODO: the bonded interaction type  might be possible to be reduced to a 
  * single real vector (=eliminate jjnr) as the atoms interacting are known
@@ -71,8 +72,8 @@ typedef struct {
 /* type to represent all atoms */
 
 typedef struct {
-  atom_id *sys2pf;		/* indexing table: real atom nr. to index in the pf array; this has length equal to the total nr. of atoms in system */
-  atom_id len;			/* nr. of atoms from both groups, gives the length of the atoms lists below */
+  int *sys2pf;		/* indexing table: real atom nr. to index in the pf array; this has length equal to the total nr. of atoms in system */
+  int len;			/* nr. of atoms from both groups, gives the length of the atoms lists below */
   /* only one of atoms and atom_summed lists will be initialized */
   t_pf_atom_detailed *detailed;	/* list of atoms */
   t_pf_atom_summed *summed;	/* list of atoms */
@@ -122,7 +123,7 @@ typedef struct {
   char *sys_in_g2;              /* 0 if atom not in group2, 1 if atom in group2, length of syslen_atoms; always allocated */
   t_pf_atoms *atoms;            /* atoms, always allocated but structure only initialized if AtomBased is non-zero */
   t_pf_atoms *residues;         /* residues, always allocated but structure only initialized if ResidueBased is non-zero */
-  atom_id *atom2residue;        /* stores the residue nr. for each atom; array of length syslen; only initialized if ResidueBased is non-zero */
+  int *atom2residue;        /* stores the residue nr. for each atom; array of length syslen; only initialized if ResidueBased is non-zero */
   int ResiduesRenumber;         /* detect/force residue renumbering */
   int type;                     /* interaction types that are interesting, set based on input file; functions are supposed to test against this before calculating/storing data */
 

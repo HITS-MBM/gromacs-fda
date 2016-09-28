@@ -20,7 +20,6 @@
 #include "gromacs/legacyheaders/macros.h"
 #include "gromacs/legacyheaders/types/oenv.h"
 #include "gromacs/legacyheaders/types/rgb.h"
-#include "gromacs/legacyheaders/types/simple.h"
 #include "gromacs/math/vectypes.h"
 #include "gromacs/topology/atoms.h"
 #include "gromacs/topology/index.h"
@@ -104,7 +103,7 @@ int gmx_fda_view_stress(int argc, char *argv[])
 
     // Interactive input of group name for residue model points
     int isize = 0;
-    atom_id *index;
+    int *index;
     char *grpname;
     if (ftp2fn_null(efNDX, NFILE, fnm)) {
 		fprintf(stderr, "\nSelect group for residue model points:\n");

@@ -26,10 +26,10 @@ static inline gmx_bool pf_atoms_in_groups(int i, int j, t_pf_global *pf_global) 
   return ((pf_global->sys_in_g1[i] && pf_global->sys_in_g2[j]) || (pf_global->sys_in_g1[j] && pf_global->sys_in_g2[i]));
 }
 
-static inline void pf_atom_add_bonded_nocheck(t_pf_global *pf_global, atom_id i, atom_id j, int type, rvec force) {
+static inline void pf_atom_add_bonded_nocheck(t_pf_global *pf_global, int i, int j, int type, rvec force) {
   t_pf_atoms *atoms;
   t_pf_atoms *residues;
-  atom_id ri = 0, rj = 0;       /* initialized to get rid of compiler warning, as they are only initialized later if ResidueBased is non-zero */
+  int ri = 0, rj = 0;       /* initialized to get rid of compiler warning, as they are only initialized later if ResidueBased is non-zero */
   rvec force_residue;
 
   atoms = pf_global->atoms;
@@ -101,11 +101,11 @@ static inline void pf_atom_add_bonded_nocheck(t_pf_global *pf_global, atom_id i,
   }
 }
 
-void pf_atom_add_bonded(t_pf_global *pf_global, atom_id i, atom_id j, int type, rvec force) {
+void pf_atom_add_bonded(t_pf_global *pf_global, int i, int j, int type, rvec force) {
   t_pf_atoms *atoms;
   t_pf_atoms *residues;
-  atom_id ai = 0, aj = 0;       /* initialized to get rid of compiler warning, as they are only initialized later if AtomBased is non-zero */
-  atom_id ri = 0, rj = 0;       /* initialized to get rid of compiler warning, as they are only initialized later if ResidueBased is non-zero */
+  int ai = 0, aj = 0;       /* initialized to get rid of compiler warning, as they are only initialized later if AtomBased is non-zero */
+  int ri = 0, rj = 0;       /* initialized to get rid of compiler warning, as they are only initialized later if ResidueBased is non-zero */
   rvec force_atom, force_residue;
   gmx_bool atom_add = FALSE;
   gmx_bool residue_add = FALSE;
@@ -125,7 +125,7 @@ void pf_atom_add_bonded(t_pf_global *pf_global, atom_id i, atom_id j, int type, 
  * force is passed as scalar along with the distance vector (as dx, dy, dz) from which the vector force is
  * computed, the same way it's done in the nonbonded kernels
  */
-void pf_atom_add_nonbonded_single(t_pf_global *pf_global, atom_id i, atom_id j, int type, real force, real dx, real dy, real dz) {
+void pf_atom_add_nonbonded_single(t_pf_global *pf_global, int i, int j, int type, real force, real dx, real dy, real dz) {
   rvec force_v;			/* vector force for interaction */
 
   /* first check that the interaction is interesting before doing computation and lookups */
@@ -147,10 +147,10 @@ void pf_atom_add_nonbonded_single(t_pf_global *pf_global, atom_id i, atom_id j, 
  * forces are passed as scalars along with the distance vector (as dx, dy, dz) from which the vector forces are
  * computed, the same way it's done in the nonbonded kernels
  */
-void pf_atom_add_nonbonded(t_pf_global *pf_global, atom_id i, atom_id j, real pf_coul, real pf_lj, real dx, real dy, real dz) {
+void pf_atom_add_nonbonded(t_pf_global *pf_global, int i, int j, real pf_coul, real pf_lj, real dx, real dy, real dz) {
   t_pf_atoms *atoms;
   t_pf_atoms *residues;
-  atom_id ri = 0, rj = 0;
+  int ri = 0, rj = 0;
   real pf_lj_residue, pf_coul_residue, pf_lj_coul;
   rvec pf_lj_atom_v, pf_lj_residue_v, pf_coul_atom_v, pf_coul_residue_v;
 

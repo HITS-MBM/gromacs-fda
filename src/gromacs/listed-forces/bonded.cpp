@@ -837,7 +837,7 @@ real water_pol(int nbonds,
 static real do_1_thole(const rvec xi, const rvec xj, rvec fi, rvec fj,
                        const t_pbc *pbc, real qq,
                        rvec fshift[], real afac,
-        		       t_pf_global *pf_global, atom_id ai, atom_id aj)
+        		       t_pf_global *pf_global, int ai, int aj)
 {
     rvec r12, pf_forcevector;
     real r12sq, r12_1, r12bar, v0, v1, fscal, ebar, fff;

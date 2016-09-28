@@ -101,7 +101,7 @@ gmx_int64_t pf_atoms_summed_to_fm(t_pf_atoms *atoms, int **fmatoms) {
   t_pf_atom_summed i_atom_summed;
   gmx_int64_t interactions_count;
   int *fm;
-  atom_id i;
+  int i;
 
   snew(fm, atoms->len);
   //fprintf(stderr, "pf_atoms_summed_to_fm: atoms->len=%d\n", atoms->len);
@@ -127,7 +127,7 @@ gmx_int64_t pf_atoms_scalar_to_fm(t_pf_atoms *atoms, int **fmatoms) {
   t_pf_atom_scalar i_atom_scalar;
   gmx_int64_t interactions_count;
   int *fm;
-  atom_id i;
+  int i;
 
   snew(fm, atoms->len);
   //fprintf(stderr, "pf_atoms_scalar_to_fm: atoms->len=%d\n", atoms->len);
@@ -233,7 +233,7 @@ void pf_write_frame_atoms_summed_compat(t_pf_atoms *atoms, FILE *f, int *framenr
  */
 rvec *pf_residues_com(t_pf_global *pf_global, gmx_mtop_t *top_global, const rvec *x) {
   int moltype_index, mol_index, d;
-  atom_id i, atom_index, atom_global_index, residue_global_index;
+  int i, atom_index, atom_global_index, residue_global_index;
   t_atoms *atoms;
   t_atom *atom_info;
   gmx_molblock_t *mb;
@@ -283,7 +283,7 @@ rvec *pf_residues_com(t_pf_global *pf_global, gmx_mtop_t *top_global, const rvec
 }
 
 void pf_write_frame_detailed(t_pf_atoms *atoms, FILE* f, int *framenr, const rvec *x, gmx_bool bVector, int Vector2Scalar) {
-  atom_id i, ii, j, jj;
+  int i, ii, j, jj;
   t_pf_interaction_array_detailed *iad;
   t_pf_interaction_detailed id;
   int type;
@@ -309,7 +309,7 @@ void pf_write_frame_detailed(t_pf_atoms *atoms, FILE* f, int *framenr, const rve
 }
 
 void pf_write_frame_summed(t_pf_atoms *atoms, FILE* f, int *framenr, const rvec *x, gmx_bool bVector, int Vector2Scalar) {
-  atom_id i, ii, j, jj;
+  int i, ii, j, jj;
   t_pf_interaction_array_summed ias;
   t_pf_interaction_summed is;
 
@@ -332,7 +332,7 @@ void pf_write_frame_summed(t_pf_atoms *atoms, FILE* f, int *framenr, const rvec 
 }
 
 void pf_write_frame_scalar(t_pf_atoms *atoms, FILE* f, int *framenr) {
-  atom_id i, ii, j, jj;
+  int i, ii, j, jj;
   t_pf_interaction_array_scalar ias;
   t_pf_interaction_scalar is;
 
@@ -542,7 +542,7 @@ void pf_close(t_pf_global *pf_global)\
 
 /* for each atom in src, adds it's interactions to the same atom in dst */
 void pf_atoms_merge(t_pf_atoms *dst, t_pf_atoms *src, int OnePair) {
-  atom_id i;
+  int i;
 
   if (src->len != dst->len)
     gmx_fatal(FARGS, "Mismatch in atoms list: %d vs. %d\n", src->len, dst->len);
@@ -562,7 +562,7 @@ void pf_atoms_merge(t_pf_atoms *dst, t_pf_atoms *src, int OnePair) {
 
 /* for each interaction, divide the force by divisor */
 void pf_atoms_divide(t_pf_atoms *atoms, int OnePair, real divisor) {
-  atom_id i;
+  int i;
 
   switch (OnePair) {
     case PF_ONEPAIR_DETAILED:
@@ -580,14 +580,14 @@ void pf_atoms_divide(t_pf_atoms *atoms, int OnePair, real divisor) {
 
 /* this will be used only together with scalar interactions, so it's safe to use atoms->scalar */
 void pf_x_inc(t_pf_atoms *atoms, rvec *pf_x, const rvec *x) {
-  atom_id i;
+  int i;
 
   for (i = 0; i < atoms->len; i++)
     rvec_inc(pf_x[i], x[atoms->scalar[i].nr]);
 }
 
-void pf_x_real_div(rvec *pf_x, atom_id pf_x_len, real divisor) {
-  atom_id i;
+void pf_x_real_div(rvec *pf_x, int pf_x_len, real divisor) {
+  int i;
 
   for (i = 0; i < pf_x_len; i++)
     svdiv(divisor, pf_x[i]);

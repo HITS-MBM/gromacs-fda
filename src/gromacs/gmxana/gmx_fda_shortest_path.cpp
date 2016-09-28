@@ -19,7 +19,6 @@
 #include "gromacs/fileio/trxio.h"
 #include "gromacs/legacyheaders/macros.h"
 #include "gromacs/legacyheaders/types/oenv.h"
-#include "gromacs/legacyheaders/types/simple.h"
 #include "gromacs/math/vectypes.h"
 #include "gromacs/topology/index.h"
 #include "gromacs/topology/topology.h"
@@ -95,7 +94,7 @@ int gmx_fda_shortest_path(int argc, char *argv[])
 
     // Interactive input of group name for residue model points
     int isize = 0;
-    atom_id *index;
+    int *index;
     char *grpname;
     fprintf(stderr, "\nSelect group for residue model points:\n");
     rd_index(ftp2fn(efNDX, NFILE, fnm), 1, &isize, &index, &grpname);

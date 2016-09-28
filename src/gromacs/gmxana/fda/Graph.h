@@ -13,7 +13,6 @@
 #include <string>
 #include <vector>
 
-#include "gromacs/legacyheaders/types/simple.h"
 #include "gromacs/math/vectypes.h"
 #include "Node.h"
 
@@ -29,7 +28,7 @@ public:
 	Graph() {};
 
 	//! Build graph by adjacency matrix
-	Graph(std::vector<double> const& forceMatrix, rvec *coord, atom_id *index, int isize);
+	Graph(std::vector<double> const& forceMatrix, rvec *coord, int *index, int isize);
 
 	void convertInPDBMinGraphOrder(std::string const& outFilename, double threshold,
 		size_t minGraphOrder, bool onlyBiggestNetwork, bool append) const;
@@ -37,7 +36,7 @@ public:
 	void convertInDIMACSMinGraphOrder(std::string const& outFilename, double threshold,
 		size_t minGraphOrder, bool onlyBiggestNetwork) const;
 
-	void updateCoordinates(rvec *coord, atom_id *index, int isize);
+	void updateCoordinates(rvec *coord, int *index, int isize);
 
 private:
 

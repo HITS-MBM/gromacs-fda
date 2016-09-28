@@ -8,7 +8,6 @@
 #ifndef TEXTSPLITTER_H_
 #define TEXTSPLITTER_H_
 
-#include "gromacs/legacyheaders/types/simple.h"
 #include <cmath>
 #include <iostream>
 #include <iomanip>

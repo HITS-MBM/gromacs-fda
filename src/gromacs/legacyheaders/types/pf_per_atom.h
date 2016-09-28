@@ -7,17 +7,17 @@
 #ifndef pf_types_per_atom_h
 #define pf_types_per_atom_h
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
+#include "gromacs/utility/real.h"
 
-#include "simple.h"
+#ifdef HAVE_CONFIG_H
+  #include <config.h>
+#endif
 
 /* type for scalar interactions per atom that require only a real;
  * could be used for sum, min/max, etc.
  */
 typedef struct {
-  atom_id len;          /* length of the below array, should be equal to the syslen */
+  int len;          /* length of the below array, should be equal to the syslen */
   real *force;
 } t_pf_per_atom_real;
 
@@ -27,7 +27,7 @@ typedef struct {
  * could also add something like standard deviation, but not sure what this could be shown graphically...
  */
 typedef struct {
-  atom_id len;          /* length of the below arrays, should be equal to the syslen */
+  int len;          /* length of the below arrays, should be equal to the syslen */
   real *force;
   int *interactions;
 } t_pf_per_atom_real_int;

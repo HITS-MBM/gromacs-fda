@@ -20,15 +20,15 @@
 #endif
 
 void pf_per_atom_real_set(t_pf_per_atom_real *per_atom_real, real val) {
-  atom_id i;
+  int i;
 
   for (i = 0; i < per_atom_real->len; i++)
     per_atom_real->force[i] = val;
 }
 
-void pf_per_atom_real_init(t_pf_per_atom_real **per_atom_real, atom_id len, real val) {
+void pf_per_atom_real_init(t_pf_per_atom_real **per_atom_real, int len, real val) {
   t_pf_per_atom_real *p;
-  atom_id i;
+  int i;
 
   snew(p, 1);
   p->len = len;
@@ -38,7 +38,7 @@ void pf_per_atom_real_init(t_pf_per_atom_real **per_atom_real, atom_id len, real
 }
 
 void pf_per_atom_real_int_set(t_pf_per_atom_real_int *per_atom_real_int, real val_real, int val_int) {
-  atom_id i;
+  int i;
 
   for (i = 0; i < per_atom_real_int->len; i++) {
     per_atom_real_int->force[i] = val_int;
@@ -46,9 +46,9 @@ void pf_per_atom_real_int_set(t_pf_per_atom_real_int *per_atom_real_int, real va
   }
 }
 
-void pf_per_atom_real_int_init(t_pf_per_atom_real_int **per_atom_real_int, atom_id len, real val_real, int val_int) {
+void pf_per_atom_real_int_init(t_pf_per_atom_real_int **per_atom_real_int, int len, real val_real, int val_int) {
   t_pf_per_atom_real_int *p;
-  atom_id i;
+  int i;
 
   snew(p, 1);
   p->len = len;
@@ -58,8 +58,8 @@ void pf_per_atom_real_int_init(t_pf_per_atom_real_int **per_atom_real_int, atom_
   *per_atom_real_int = p;
 }
 
-void pf_per_atom_real_write_frame(FILE *f, real *force, atom_id len, gmx_bool no_end_zeros) {
-  atom_id i, j;
+void pf_per_atom_real_write_frame(FILE *f, real *force, int len, gmx_bool no_end_zeros) {
+  int i, j;
   gmx_bool first_on_line = TRUE;
 
   j = len;
@@ -92,8 +92,8 @@ static inline real pf_vector2unsignedscalar(const rvec v, const int i, const int
   return p;
 }
 
-void pf_per_atom_sum(t_pf_per_atom_real *per_atom_sum, t_pf_atom_summed *atoms, atom_id atoms_len, const rvec *x, int Vector2Scalar) {
-  atom_id i, ii, j, jj;
+void pf_per_atom_sum(t_pf_per_atom_real *per_atom_sum, t_pf_atom_summed *atoms, int atoms_len, const rvec *x, int Vector2Scalar) {
+  int i, ii, j, jj;
   t_pf_interaction_array_summed ias;
   t_pf_interaction_summed is;
   real scalar_force = 0.0;
@@ -138,8 +138,8 @@ static gmx_inline void pf_per_atom_minmax_op(real *force, real val, gmx_bool fin
 }
 
 /* findmax parameter: TRUE = find max; FALSE = find min */
-void pf_per_atom_minmax(t_pf_per_atom_real *per_atom_real, t_pf_atom_summed *atoms, atom_id atoms_len, gmx_bool findmax, const rvec *x, int Vector2Scalar) {
-  atom_id i, ii, j, jj;
+void pf_per_atom_minmax(t_pf_per_atom_real *per_atom_real, t_pf_atom_summed *atoms, int atoms_len, gmx_bool findmax, const rvec *x, int Vector2Scalar) {
+  int i, ii, j, jj;
   t_pf_interaction_array_summed ias;
   t_pf_interaction_summed is;
   real scalar_force = 0.0;
@@ -189,8 +189,8 @@ static gmx_inline real pf_per_atom_average_compute(real r, int i) {
 /* computes averages in place and returns a t_pf_per_atom_real pointing to it;
  * this way, only one large memory allocation is made at beginning for the pf->global->per_atom_real_int
  */
-void pf_per_atom_average(t_pf_per_atom_real_int *per_atom_average, t_pf_atom_summed *atoms, atom_id atoms_len, const rvec *x, int Vector2Scalar) {
-  atom_id i, ii, j, jj;
+void pf_per_atom_average(t_pf_per_atom_real_int *per_atom_average, t_pf_atom_summed *atoms, int atoms_len, const rvec *x, int Vector2Scalar) {
+  int i, ii, j, jj;
   t_pf_interaction_array_summed ias;
   t_pf_interaction_summed is;
   real scalar_force = 0.0;
@@ -232,7 +232,7 @@ void pf_per_atom_average(t_pf_per_atom_real_int *per_atom_average, t_pf_atom_sum
  */
 void pf_write_atom_virial_sum(FILE *f, tensor *atom_vir, int natoms)
 {
-  atom_id i;
+  int i;
   gmx_bool first_on_line = TRUE;
 
   for (i = 0; i < natoms; i++) {
@@ -262,7 +262,7 @@ static gmx_inline real tensor_to_vonmises(tensor t)
  */
 void pf_write_atom_virial_sum_von_mises(FILE *f, tensor *atom_vir, int natoms)
 {
-  atom_id i;
+  int i;
   gmx_bool first_on_line = TRUE;
 
   for (i = 0; i < natoms; i++) {

@@ -7,15 +7,15 @@
 #ifndef pf_types_array_scalar_h
 #define pf_types_array_scalar_h
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
+#include "gromacs/utility/real.h"
 
-#include "simple.h"
+#ifdef HAVE_CONFIG_H
+  #include <config.h>
+#endif
 
 /* type for a single interaction */
 typedef struct {
-  atom_id jjnr;         /* atom index */
+  int jjnr;         /* atom index */
   real force;
   int type;             /* interaction type, will be an "or" of all interactions which have been added to force */
 } t_pf_interaction_scalar;
@@ -30,7 +30,7 @@ typedef struct {
 /* type for an atom; contains lists of all atoms this atom interacts with */
 typedef struct {
   t_pf_interaction_array_scalar interactions;
-  atom_id nr;                           /* real atom nr. */
+  int nr;                           /* real atom nr. */
 } t_pf_atom_scalar;
 
 #endif  /* pf_types_array_scalar_h */

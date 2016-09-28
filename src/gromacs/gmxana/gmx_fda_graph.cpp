@@ -18,7 +18,6 @@
 #include "gromacs/fileio/trxio.h"
 #include "gromacs/legacyheaders/macros.h"
 #include "gromacs/legacyheaders/types/oenv.h"
-#include "gromacs/legacyheaders/types/simple.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/math/vectypes.h"
 #include "gromacs/topology/index.h"
@@ -96,7 +95,7 @@ int gmx_fda_graph(int argc, char *argv[])
 
     // Interactive input of group name for residue model points
     int isize = 0;
-    atom_id *index = NULL;
+    int *index = NULL;
     char *grpname;
     if (ftp2bSet(efNDX, NFILE, fnm)) {
         fprintf(stderr, "\nSelect group for residue model points:\n");

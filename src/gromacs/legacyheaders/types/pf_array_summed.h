@@ -7,15 +7,15 @@
 #ifndef pf_types_array_summed_h
 #define pf_types_array_summed_h
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
+#include "gromacs/math/vectypes.h"
 
-#include "simple.h"
+#ifdef HAVE_CONFIG_H
+  #include <config.h>
+#endif
 
 /* type for a single interaction */
 typedef struct {
-  atom_id jjnr;		/* atom index */
+  int jjnr;		/* atom index */
   rvec force;
   int type;		/* interaction type, will be an "or" of all interactions which have been added to force */
 } t_pf_interaction_summed;
@@ -30,7 +30,7 @@ typedef struct {
 /* type for an atom; contains lists of all atoms this atom interacts with */
 typedef struct {
   t_pf_interaction_array_summed interactions;
-  atom_id nr;				/* real atom nr. */
+  int nr;				/* real atom nr. */
 } t_pf_atom_summed;
 
 #endif  /* pf_types_array_summed_h */

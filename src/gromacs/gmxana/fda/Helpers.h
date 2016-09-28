@@ -9,7 +9,6 @@
 #define HELPERS_H_
 
 #include "FrameType.h"
-#include "gromacs/legacyheaders/types/simple.h"
 #include <iterator>
 #include <string>
 #include <vector>

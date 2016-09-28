@@ -89,8 +89,8 @@ const char *pf_vector2scalar_option[PF_VECTOR2SCALAR_NR+1] = {
   NULL
 };
 
-t_pf_atom_id_list *pf_atom_id_list_alloc(int len) {
-  t_pf_atom_id_list *p;
+t_pf_int_list *pf_int_list_alloc(int len) {
+  t_pf_int_list *p;
 
   snew(p, 1);
   p->len = len;
@@ -98,13 +98,13 @@ t_pf_atom_id_list *pf_atom_id_list_alloc(int len) {
   return p;
 }
 
-void pf_atom_id_list_free(t_pf_atom_id_list *p) {
+void pf_int_list_free(t_pf_int_list *p) {
   sfree(p->list);
   sfree(p);
 }
 
 void pf_atoms_scalar_real_divide(t_pf_atoms *atoms, real divisor) {
-  atom_id i;
+  int i;
 
   for (i = 0; i < atoms->len; i++) {
     pf_atom_scalar_real_divide(&(atoms->scalar[i]), divisor);
@@ -114,7 +114,7 @@ void pf_atoms_scalar_real_divide(t_pf_atoms *atoms, real divisor) {
 void pf_atom_summed_merge_to_scalar(t_pf_atom_summed *src, t_pf_atom_scalar *dst, const rvec *x, int Vector2Scalar) {
   t_pf_interaction_array_summed *ia;
   t_pf_interaction_summed *i;
-  atom_id j;
+  int j;
 
   if (src->nr != dst->nr)
     gmx_fatal(FARGS, "Mismatch of PF atom id: summed %d vs scalar %d\n", src->nr, dst->nr);
@@ -126,7 +126,7 @@ void pf_atom_summed_merge_to_scalar(t_pf_atom_summed *src, t_pf_atom_scalar *dst
 }
 
 void pf_atoms_summed_merge_to_scalar(t_pf_atoms *atoms, const rvec *x, int Vector2Scalar) {
-  atom_id i;
+  int i;
 
   for (i = 0; i < atoms->len; i++) {
     pf_atom_summed_merge_to_scalar(&(atoms->summed[i]), &(atoms->scalar[i]), x, Vector2Scalar);
@@ -175,8 +175,8 @@ real pf_vector2signedscalar(const rvec v, const rvec xi, const rvec xj, int Vect
 }
 
 /* allocates and fills with NO_ATID the indexing table real atom nr. to pf number */
-atom_id *pf_init_sys2pf(int syslen) {
-  atom_id *sys2pf;
+int *pf_init_sys2pf(int syslen) {
+  int *sys2pf;
   int i;
 
   snew(sys2pf, syslen);
@@ -187,7 +187,7 @@ atom_id *pf_init_sys2pf(int syslen) {
 }
 
 /* fills an indexing table: real atom nr. to pf number based on data from group atom lists*/
-void pf_fill_sys2pf(atom_id *sys2pf, atom_id *len, t_pf_atom_id_list *p) {
+void pf_fill_sys2pf(int *sys2pf, int *len, t_pf_int_list *p) {
   int i;
 
   for (i = 0; i < p->len; i++) {
@@ -198,7 +198,7 @@ void pf_fill_sys2pf(atom_id *sys2pf, atom_id *len, t_pf_atom_id_list *p) {
   }
 }
 
-char *pf_make_sys_in_group(int syslen, t_pf_atom_id_list *p) {
+char *pf_make_sys_in_group(int syslen, t_pf_int_list *p) {
   char *sys_in_group;
   int i;
 
@@ -239,9 +239,9 @@ char *pf_make_sys_in_group(int syslen, t_pf_atom_id_list *p) {
 
 /* returns the global residue number - based on mtop_util.c::gmx_mtop_atominfo_global(),
  * equivalent to a call to it with mtop->maxres_renum = INT_MAX */
-atom_id pf_get_global_residue_number(const gmx_mtop_t *mtop, const atom_id atnr_global) {
+int pf_get_global_residue_number(const gmx_mtop_t *mtop, const int atnr_global) {
   int mb;
-  atom_id a_start, a_end, maxresnr, at_loc;
+  int a_start, a_end, maxresnr, at_loc;
   gmx_molblock_t *molb;
   t_atoms *atoms=NULL;
 
@@ -278,10 +278,10 @@ void pf_fill_atom2residue(t_pf_global *pf_global, gmx_mtop_t *top_global) {
   t_atom *atom_info;
   gmx_molblock_t *mb;
   gmx_moltype_t *mt;
-  atom_id *a2r_resnr, *a2r_renum;       /* atom 2 residue correspondence tables, both are filled, one will be used in the end */
-  atom_id *resnr2renum;                 /* residue nr. to renumbered nr. corespondence */
+  int *a2r_resnr, *a2r_renum;       /* atom 2 residue correspondence tables, both are filled, one will be used in the end */
+  int *resnr2renum;                 /* residue nr. to renumbered nr. corespondence */
   int resnr;                            /* residue nr.; set to atoms->resinfo[].nr => type int */
-  atom_id renum;                        /* renumbered residue nr.; increased monotonically, so could theoretically be as large as the nr. of atoms => type atom_id */
+  int renum;                        /* renumbered residue nr.; increased monotonically, so could theoretically be as large as the nr. of atoms => type int */
   gmx_bool bResnrCollision = FALSE;     /* TRUE if residue number collision */
 
   /* fill in the map between atom nr. and residue nr.; adapted from the code fragment in Data_Structures page on GROMACS website */
@@ -360,13 +360,13 @@ void pf_fill_atom2residue(t_pf_global *pf_global, gmx_mtop_t *top_global) {
  * 
  * this can also be used later to map atoms to different nodes in a parallel run
  */
-t_pf_atom_id_list *pf_group2atoms(int len, atom_id *list){
-  t_pf_atom_id_list *p;
-  atom_id i;
+t_pf_int_list *pf_group2atoms(int len, int *list){
+  t_pf_int_list *p;
+  int i;
 
   if (len == 0)
     return NULL;
-  p = pf_atom_id_list_alloc(len);
+  p = pf_int_list_alloc(len);
   for (i = 0; i < p->len; i++)
     p->list[i] = list[i];
   return p;
@@ -375,12 +375,12 @@ t_pf_atom_id_list *pf_group2atoms(int len, atom_id *list){
 /* makes a list of residue numbers based on atom numbers of this group;
  * this is slightly more complex than needed to allow the residue numbers to retain the ordering given to atoms
  */
-t_pf_atom_id_list *pf_groupatoms2residues(t_pf_atom_id_list *atoms, t_pf_global *pf_global) {
-  atom_id i, j, r;
+t_pf_int_list *pf_groupatoms2residues(t_pf_int_list *atoms, t_pf_global *pf_global) {
+  int i, j, r;
   int nr_residues_in_g = 0;
-  atom_id *group_residues;
+  int *group_residues;
   gmx_bool *in_g;
-  t_pf_atom_id_list *p;
+  t_pf_int_list *p;
 
   /* as the list length is unknown at this point, make it as large as possible */
   snew(group_residues, pf_global->syslen_residues);
@@ -399,7 +399,7 @@ t_pf_atom_id_list *pf_groupatoms2residues(t_pf_atom_id_list *atoms, t_pf_global 
   }
 
   /* as the length is now known, copy the residue ids to a properly sized list */
-  p = pf_atom_id_list_alloc(nr_residues_in_g);
+  p = pf_int_list_alloc(nr_residues_in_g);
   for (i = 0; i < p->len; i++)
     p->list[i] = group_residues[i];
   sfree(in_g);
@@ -411,10 +411,10 @@ void pf_read_group(t_pf_global *pf_global, const char *ndxfile, char *groupname,
   t_blocka *groups;
   char** groupnames;
   int i, k;
-  atom_id j;
-  t_pf_atom_id_list *groupatoms, *groupresidues;
+  int j;
+  t_pf_int_list *groupatoms, *groupresidues;
   int nr_residues_in_g = 0;
-  atom_id *residues_in_g;
+  int *residues_in_g;
   gmx_bool residue_in_g;
 
   groups = init_index(ndxfile, &groupnames);
@@ -439,10 +439,10 @@ void pf_read_group(t_pf_global *pf_global, const char *ndxfile, char *groupname,
         pf_fill_sys2pf(pf_global->residues->sys2pf, &pf_global->residues->len, groupresidues);
 //	for (k = 0; k < pf_global->syslen_residues; k++)
 //	  fprintf(stderr, "sys2pf[%d]=%d\n", k, pf_global->residues->sys2pf[k]);
-        pf_atom_id_list_free(groupresidues);
+        pf_int_list_free(groupresidues);
       }
 
-      pf_atom_id_list_free(groupatoms);
+      pf_int_list_free(groupatoms);
       break;	/* once the group is found, no reason to check against further group names */
     }
   }
@@ -499,7 +499,7 @@ char *pf_interactions_type_val2str(int type) {
 }
 
 void pf_atoms_alloc(int OnePair, t_pf_atoms *atoms, int syslen, char *name) {
-  atom_id i;
+  int i;
 
   fprintf(stderr, "Allocating space for pairwise forces of %d %s.\n", atoms->len, name);
   switch(OnePair) {
@@ -523,7 +523,7 @@ void pf_atoms_alloc(int OnePair, t_pf_atoms *atoms, int syslen, char *name) {
 }
 
 void pf_atoms_init(int OnePair, t_pf_atoms *atoms) {
-  atom_id j;
+  int j;
 
   switch(OnePair) {
     case PF_ONEPAIR_DETAILED:
@@ -547,7 +547,7 @@ void pf_atoms_and_residues_init(t_pf_global *pf_global) {
 }
 
 void pf_atoms_scalar_alloc(t_pf_atoms *atoms, int syslen, char *name) {
-  atom_id i;
+  int i;
 
   fprintf(stderr, "Allocating space for scalar pairwise forces of %d %s.\n", atoms->len, name);
   snew(atoms->scalar, atoms->len);
@@ -557,7 +557,7 @@ void pf_atoms_scalar_alloc(t_pf_atoms *atoms, int syslen, char *name) {
 }
 
 void pf_atoms_scalar_init(t_pf_atoms *atoms) {
-  atom_id j;
+  int j;
 
   for (j = 0; j < atoms->len; j++)
     pf_atom_scalar_init(&atoms->scalar[j]);
