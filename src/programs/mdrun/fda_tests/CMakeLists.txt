@@ -1,8 +1,7 @@
 set(testname "FDATests")
 set(exename "fda-test")
 
-gmx_build_unit_test(
-    ${testname}
+gmx_add_gtest_executable(
     ${exename}
     # files with code for tests
     FDATest.cpp

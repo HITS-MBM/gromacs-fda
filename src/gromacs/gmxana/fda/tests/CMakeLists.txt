@@ -1,10 +1,8 @@
 set(testname "FDAGraphTest")
 set(exename "fda-graph-test")
 
-gmx_build_unit_test(
-    ${testname}
+gmx_add_gtest_executable(
     ${exename}
-    # files with code for test fixtures
     FDABoostGraphTest.cpp
     FDAGetStressTest.cpp
     FDAGraphTest.cpp
