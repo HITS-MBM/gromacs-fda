@@ -11,17 +11,16 @@
 #include "fda/Graph.h"
 #include "fda/Helpers.h"
 #include "gmx_ana.h"
+#include "gromacs/commandline/filenm.h"
 #include "gromacs/commandline/pargs.h"
-#include "gromacs/utility/smalloc.h"
+#include "gromacs/fileio/oenv.h"
 #include "gromacs/fileio/tpxio.h"
 #include "gromacs/fileio/trxio.h"
-#include "gromacs/utility/cstringutil.h"
 #include "gromacs/fileio/matio.h"
-#include "gromacs/fileio/filenm.h"
-#include "gromacs/legacyheaders/macros.h"
-#include "gromacs/legacyheaders/types/oenv.h"
+#include "gromacs/utility/cstringutil.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/real.h"
+#include "gromacs/utility/smalloc.h"
 
 #ifdef HAVE_CONFIG_H
   #include <config.h>

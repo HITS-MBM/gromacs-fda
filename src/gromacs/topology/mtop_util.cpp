@@ -42,6 +42,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "gromacs/fda/pf_interactions.h"
 #include "gromacs/math/vectypes.h"
 #include "gromacs/topology/atoms.h"
 #include "gromacs/topology/block.h"

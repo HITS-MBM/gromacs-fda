@@ -49,7 +49,6 @@
 
 #include "gromacs/fda/pf_array.h"
 #include "gromacs/fda/pf_interactions.h"
-#include "gromacs/legacyheaders/types/group.h"
 #include "gromacs/math/functions.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/mdtypes/group.h"

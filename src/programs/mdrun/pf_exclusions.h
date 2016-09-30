@@ -8,8 +8,8 @@
 #ifndef PF_EXCLUSIONS_H_
 #define PF_EXCLUSIONS_H_
 
-#include "gromacs/fileio/filenm.h"
-#include "gromacs/legacyheaders/types/inputrec.h"
+#include "gromacs/commandline/filenm.h"
+#include "gromacs/mdtypes/inputrec.h"
 #include "gromacs/utility/cstringutil.h"
 
 struct gmx_groups_t;
