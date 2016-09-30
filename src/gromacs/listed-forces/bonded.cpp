@@ -61,6 +61,7 @@
 #include "gromacs/math/units.h"
 #include "gromacs/math/utilities.h"
 #include "gromacs/math/vec.h"
+#include "gromacs/math/functions.h"
 #include "gromacs/pbcutil/ishift.h"
 #include "gromacs/pbcutil/mshift.h"
 #include "gromacs/pbcutil/pbc.h"
@@ -1781,7 +1782,7 @@ void do_dih_fup(int i, int j, int k, int l, real ddphi,
         a      = -ddphi*nrkj/iprm;    /* 11	*/
         svmul(a, m, f_i);             /*  3	*/
         b     = ddphi*nrkj/iprn;      /* 11	*/
-        svmul(b, n, f_l);             /*  3  */
+        svmul(b, n, f_l);             /*  3     */
         p     = iprod(r_ij, r_kj);    /*  5	*/
         p    *= nrkj_2;               /*  1	*/
         q     = iprod(r_kl, r_kj);    /*  5	*/
