@@ -5,8 +5,9 @@
  */
 
 #include <stddef.h>
-#include "gromacs/legacyheaders/types/pf_array.h"
-#include "gromacs/legacyheaders/types/pf_array_scalar.h"
+
+#include "gromacs/fda/types/pf_array.h"
+#include "gromacs/fda/types/pf_array_scalar.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/real.h"
 #include "gromacs/utility/smalloc.h"

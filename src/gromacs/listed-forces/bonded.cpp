@@ -54,8 +54,8 @@
 
 #include <algorithm>
 
-#include "gromacs/legacyheaders/pf_interactions.h"
-#include "gromacs/legacyheaders/pf_array.h"
+#include "gromacs/fda/pf_array.h"
+#include "gromacs/fda/pf_interactions.h"
 #include "gromacs/listed-forces/pairs.h"
 #include "gromacs/math/functions.h"
 #include "gromacs/math/units.h"

@@ -5,8 +5,9 @@
  */
 
 #include <stddef.h>
-#include "gromacs/legacyheaders/types/pf_array_summed.h"
-#include "gromacs/legacyheaders/types/pf_array.h"
+
+#include "gromacs/fda/types/pf_array.h"
+#include "gromacs/fda/types/pf_array_summed.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/math/vectypes.h"
 #include "gromacs/utility/fatalerror.h"

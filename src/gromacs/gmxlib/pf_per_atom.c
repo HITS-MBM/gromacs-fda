@@ -5,9 +5,10 @@
  */
 
 #include <math.h>
-#include "gromacs/legacyheaders/pf_array.h"
-#include "gromacs/legacyheaders/pf_per_atom.h"
-#include "gromacs/legacyheaders/types/pf_array_summed.h"
+
+#include "gromacs/fda/pf_array.h"
+#include "gromacs/fda/pf_per_atom.h"
+#include "gromacs/fda/types/pf_array_summed.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/math/vectypes.h"
 #include "gromacs/utility/basedefinitions.h"

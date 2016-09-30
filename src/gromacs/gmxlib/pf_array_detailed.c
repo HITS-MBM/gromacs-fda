@@ -5,9 +5,10 @@
  */
 
 #include <stddef.h>
-#include "gromacs/legacyheaders/pf_interactions.h"
-#include "gromacs/legacyheaders/types/pf_array_detailed.h"
-#include "gromacs/legacyheaders/types/pf_array.h"
+
+#include "gromacs/fda/pf_interactions.h"
+#include "gromacs/fda/types/pf_array_detailed.h"
+#include "gromacs/fda/types/pf_array.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/math/vectypes.h"
 #include "gromacs/utility/fatalerror.h"

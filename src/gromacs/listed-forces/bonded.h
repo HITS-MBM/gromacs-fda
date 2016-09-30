@@ -49,8 +49,8 @@
 
 #include <stdio.h>
 
+#include "gromacs/fda/types/pf_array.h"
 #include "gromacs/gmxlib/nrnb.h"
-#include "gromacs/legacyheaders/types/pf_array.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/mdtypes/fcdata.h"
 #include "gromacs/mdtypes/forcerec.h"

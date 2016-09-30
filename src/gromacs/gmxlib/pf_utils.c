@@ -5,17 +5,18 @@
  */
 
 #include <stdio.h>
+
+#include "gromacs/fda/pf_array.h"
+#include "gromacs/fda/pf_array_detailed.h"
+#include "gromacs/fda/pf_array_scalar.h"
+#include "gromacs/fda/pf_array_summed.h"
+#include "gromacs/fda/pf_interactions.h"
+#include "gromacs/fda/pf_per_atom.h"
+#include "gromacs/fda/pf_utils.h"
+#include "gromacs/fda/types/pf_array_scalar.h"
+#include "gromacs/fda/types/pf_array_summed.h"
 #include "gromacs/legacyheaders/macros.h"
-#include "gromacs/legacyheaders/pf_array.h"
-#include "gromacs/legacyheaders/pf_array_detailed.h"
-#include "gromacs/legacyheaders/pf_array_scalar.h"
-#include "gromacs/legacyheaders/pf_array_summed.h"
-#include "gromacs/legacyheaders/pf_interactions.h"
-#include "gromacs/legacyheaders/pf_per_atom.h"
-#include "gromacs/legacyheaders/pf_utils.h"
 #include "gromacs/legacyheaders/readinp.h"
-#include "gromacs/legacyheaders/types/pf_array_scalar.h"
-#include "gromacs/legacyheaders/types/pf_array_summed.h"
 #include "gromacs/legacyheaders/warninp.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/math/vectypes.h"

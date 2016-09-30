@@ -12,7 +12,7 @@
 #include "types/pf_array.h"
 
 #ifdef __cplusplus
-extern "C" {
+  extern "C" {
 #endif
 
 t_pf_int_list *pf_int_list_alloc(int len);

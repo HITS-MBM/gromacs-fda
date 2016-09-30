@@ -14,12 +14,12 @@
 #include "gromacs/topology/index.h"
 #include "gromacs/legacyheaders/macros.h"
 #include "gromacs/legacyheaders/readinp.h"
-#include "gromacs/legacyheaders/pf_utils.h"
-#include "gromacs/legacyheaders/pf_interactions.h"
 #include "gromacs/legacyheaders/warninp.h"
 #include "gromacs/utility/cstringutil.h"
 #include "gromacs/utility/smalloc.h"
 #include "pf_exclusions.h"
+#include "../../gromacs/fda/pf_interactions.h"
+#include "../../gromacs/fda/pf_utils.h"
 
 void pf_global_data_init(int nfile, const t_filenm fnm[])
 {

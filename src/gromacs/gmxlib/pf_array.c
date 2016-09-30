@@ -4,10 +4,10 @@
  * Copyright Bogdan Costescu 2010-2012
  */
 
-#include "gromacs/legacyheaders/pf_array_detailed.h"
-#include "gromacs/legacyheaders/pf_array_summed.h"
-#include "gromacs/legacyheaders/pf_interactions.h"
-#include "gromacs/legacyheaders/types/pf_array.h"
+#include "gromacs/fda/pf_array_detailed.h"
+#include "gromacs/fda/pf_array_summed.h"
+#include "gromacs/fda/pf_interactions.h"
+#include "gromacs/fda/types/pf_array.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/math/vectypes.h"
 #include "gromacs/utility/basedefinitions.h"

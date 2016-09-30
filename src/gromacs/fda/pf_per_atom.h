@@ -8,11 +8,12 @@
 #define pf_per_atom_h
 
 #include <stdio.h>
-#include "types/pf_per_atom.h"
-#include "types/pf_array_summed.h"
+
 #include "gromacs/math/vectypes.h"
 #include "gromacs/utility/basedefinitions.h"
 #include "gromacs/utility/real.h"
+#include "types/pf_per_atom.h"
+#include "types/pf_array_summed.h"
 
 #ifdef __cplusplus
 extern "C" {

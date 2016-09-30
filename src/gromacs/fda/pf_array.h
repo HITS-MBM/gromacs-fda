@@ -7,10 +7,10 @@
 #ifndef pf_array_h
 #define pf_array_h
 
-#include "types/pf_array.h"
 #include "pf_array_detailed.h"
-#include "pf_array_summed.h"
 #include "pf_array_scalar.h"
+#include "pf_array_summed.h"
+#include "types/pf_array.h"
 
 #ifdef __cplusplus
 extern "C" {

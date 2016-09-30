@@ -44,8 +44,8 @@
 #include "gromacs/math/vectypes.h"
 #include "gromacs/utility/basedefinitions.h"
 #include "pf_array_detailed.h"
-#include "pf_array_summed.h"
 #include "pf_array_scalar.h"
+#include "pf_array_summed.h"
 #include "pf_per_atom.h"
 
 #ifdef HAVE_CONFIG_H
