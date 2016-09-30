@@ -73,7 +73,9 @@ typedef void (*p_nbk_func_ener)(const nbnxn_pairlist_t     *nbl,
                                 real                       *f,
                                 real                       *fshift,
                                 real                       *Vvdw,
-                                real                       *Vc);
+                                real                       *Vc,
+                                t_pf_global                *pf_global,
+                                int                        *cellInv);
 
 /* Analytical reaction-field kernels */
 #define CALC_COUL_RF
@@ -183,7 +185,9 @@ nbnxn_kernel_ref(const nbnxn_pairlist_set_t *nbl_list,
                  int                         clearF,
                  real                       *fshift,
                  real                       *Vc,
-                 real                       *Vvdw)
+                 real                       *Vvdw,
+                 t_pf_global                *pf_global,
+                 int                        *cellInv)
 {
     int                nnbl;
     nbnxn_pairlist_t **nbl;
@@ -300,7 +304,9 @@ nbnxn_kernel_ref(const nbnxn_pairlist_set_t *nbl_list,
                                       out->f,
                                       fshift_p,
                                       out->Vvdw,
-                                      out->Vc);
+                                      out->Vc,
+                                      pf_global,
+                                      cellInv);
         }
         else
         {
@@ -322,7 +328,9 @@ nbnxn_kernel_ref(const nbnxn_pairlist_set_t *nbl_list,
                                          out->f,
                                          fshift_p,
                                          out->Vvdw,
-                                         out->Vc);
+                                         out->Vc,
+                                         pf_global,
+                                         cellInv);
         }
     }
 

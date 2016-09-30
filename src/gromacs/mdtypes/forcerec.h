@@ -37,6 +37,7 @@
 #ifndef GMX_MDTYPES_TYPES_FORCEREC_H
 #define GMX_MDTYPES_TYPES_FORCEREC_H
 
+#include "gromacs/fda/types/pf_array.h"
 #include "gromacs/math/vectypes.h"
 #include "gromacs/mdtypes/interaction_const.h"
 #include "gromacs/mdtypes/md_enums.h"
@@ -401,6 +402,9 @@ typedef struct t_forcerec {
 
     /* Limit for printing large forces, negative is don't print */
     real print_force;
+
+    /* pf structure */
+    t_pf_global *pf_global;
 
     /* coarse load balancing time measurement */
     double t_fnbf;
