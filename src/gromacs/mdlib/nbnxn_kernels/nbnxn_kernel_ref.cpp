@@ -44,6 +44,7 @@
 
 #include <algorithm>
 
+#include "gromacs/fda/pf_array.h"
 #include "gromacs/math/functions.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/mdlib/force.h"
