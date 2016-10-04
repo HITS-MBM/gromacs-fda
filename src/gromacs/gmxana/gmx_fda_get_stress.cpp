@@ -17,6 +17,7 @@
 #include "gromacs/fileio/tpxio.h"
 #include "gromacs/fileio/trxio.h"
 #include "gromacs/fileio/matio.h"
+#include "gromacs/utility/arraysize.h"
 #include "gromacs/utility/cstringutil.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/real.h"
@@ -38,7 +39,7 @@ int gmx_fda_get_stress(int argc, char *argv[])
         "the differences of the pairwise forces will be taken."
     };
 
-    output_env_t oenv;
+    gmx_output_env_t *oenv;
 
     t_pargs pa[] = {};
 

@@ -11,6 +11,7 @@
 #include <string>
 #include <vector>
 #include <boost/array.hpp> // back-compatibility to gcc-4.7.2
+#include "gromacs/math/vectypes.h"
 
 namespace fda_analysis {
 

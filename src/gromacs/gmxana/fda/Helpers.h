@@ -8,10 +8,11 @@
 #ifndef HELPERS_H_
 #define HELPERS_H_
 
-#include "FrameType.h"
 #include <iterator>
 #include <string>
 #include <vector>
+#include "FrameType.h"
+#include "gromacs/utility/real.h"
 
 namespace fda_analysis {
 

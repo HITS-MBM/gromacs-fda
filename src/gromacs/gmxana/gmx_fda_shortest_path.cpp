@@ -12,16 +12,16 @@
 #include "fda/Helpers.h"
 #include "fda/PDB.h"
 #include "gmx_ana.h"
+#include "gromacs/commandline/filenm.h"
 #include "gromacs/commandline/pargs.h"
-#include "gromacs/fileio/filenm.h"
+#include "gromacs/fileio/confio.h"
 #include "gromacs/fileio/pdbio.h"
 #include "gromacs/fileio/tpxio.h"
 #include "gromacs/fileio/trxio.h"
-#include "gromacs/legacyheaders/macros.h"
-#include "gromacs/legacyheaders/types/oenv.h"
 #include "gromacs/math/vectypes.h"
 #include "gromacs/topology/index.h"
 #include "gromacs/topology/topology.h"
+#include "gromacs/utility/arraysize.h"
 #include "gromacs/utility/basedefinitions.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/futil.h"
@@ -51,7 +51,7 @@ int gmx_fda_shortest_path(int argc, char *argv[])
         "The CONNECT header will be used to create bonds between nodes. "
     };
 
-    output_env_t oenv;
+    gmx_output_env_t *oenv;
     static const char* frameString = "average 1";
     static int source = 0;
     static int dest = 0;
@@ -119,12 +119,11 @@ int gmx_fda_shortest_path(int argc, char *argv[])
     #endif
 
     // Read input structure coordinates
-    char buf[256];
     rvec *coord;
     t_topology top;
     int ePBC;
     matrix box;
-    read_tps_conf(ftp2fn(efTPS, NFILE, fnm), buf, &top, &ePBC, &coord, NULL, box, TRUE);
+    read_tps_conf(ftp2fn(efTPS, NFILE, fnm), &top, &ePBC, &coord, NULL, box, TRUE);
 
     PDB pdb(opt2fn("-s", NFILE, fnm), std::vector<int>(index, index + isize));
 

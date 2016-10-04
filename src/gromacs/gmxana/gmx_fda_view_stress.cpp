@@ -11,19 +11,18 @@
 #include "fda/ParticleType.h"
 #include "fda/StressType.h"
 #include "gmx_ana.h"
+#include "gromacs/commandline/filenm.h"
 #include "gromacs/commandline/pargs.h"
-#include "gromacs/fileio/filenm.h"
+#include "gromacs/fileio/confio.h"
 #include "gromacs/fileio/matio.h"
 #include "gromacs/fileio/pdbio.h"
 #include "gromacs/fileio/tpxio.h"
 #include "gromacs/fileio/trxio.h"
-#include "gromacs/legacyheaders/macros.h"
-#include "gromacs/legacyheaders/types/oenv.h"
-#include "gromacs/legacyheaders/types/rgb.h"
 #include "gromacs/math/vectypes.h"
 #include "gromacs/topology/atoms.h"
 #include "gromacs/topology/index.h"
 #include "gromacs/topology/topology.h"
+#include "gromacs/utility/arraysize.h"
 #include "gromacs/utility/basedefinitions.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/futil.h"
@@ -52,7 +51,7 @@ int gmx_fda_view_stress(int argc, char *argv[])
         "The pdb-file can be visualized with an program of your choice. "
     };
 
-    output_env_t oenv;
+    gmx_output_env_t *oenv;
     static const char* frameString = "average 1";
     static bool convert = false;
     static int nbColors = 10;
@@ -141,13 +140,12 @@ int gmx_fda_view_stress(int argc, char *argv[])
 
 	if (fn2ftp(opt2fn("-o", NFILE, fnm)) == efPDB) {
 
-        char buf[256];
         rvec *xp;
         t_topology top;
         int ePBC;
         matrix box;
 
-        read_tps_conf(ftp2fn(efTPS, NFILE, fnm), buf, &top, &ePBC, &xp, NULL, box, TRUE);
+        read_tps_conf(ftp2fn(efTPS, NFILE, fnm), &top, &ePBC, &xp, NULL, box, TRUE);
 
         real currentStress;
 
