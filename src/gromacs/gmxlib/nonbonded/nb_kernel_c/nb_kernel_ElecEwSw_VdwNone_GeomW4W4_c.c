@@ -43,7 +43,6 @@
 #include "gromacs/fda/pf_interactions.h"
 #include "gromacs/fda/types/pf_array.h"
 #include "gromacs/gmxlib/nrnb.h"
-#include "gromacs/math/vec.h"
 
 /*
  * Gromacs nonbonded kernel:   nb_kernel_ElecEwSw_VdwNone_GeomW4W4_VF_c
