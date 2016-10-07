@@ -8,7 +8,7 @@ Command-line reference
    /onlinehelp/gmx
    /onlinehelp/gmx-*
 
-|Gromacs| includes many tools for preparing, running and analysing
+|Gromacs| includes many tools for preparing, running and analyzing
 molecular dynamics simulations. These are all structured as part of a single
 :command:`gmx` wrapper binary, and invoked with commands like :command:`gmx grompp`.
 :ref:`mdrun <gmx mdrun>` is the only other binary that
@@ -141,6 +141,41 @@ linked help for the new commands for a full description.
 This section lists only major changes; minor changes like additional/removed
 options or bug fixes are not typically included.
 
+Version 2016
+^^^^^^^^^^^^
+
+Analysis on arbitrary subsets of atoms
+......................................
+
+Tools implemented in the new analysis framework can now operate upon trajectories
+that match only a subset of the atoms in the input structure file.
+
+gmx insert-molecules
+....................
+
+**improved**
+
+:ref:`gmx insert-molecules` has gained an option ``-replace`` that makes it
+possible to insert molecules into a solvated configuration, replacing any
+overlapping solvent atoms.  In a fully solvated box, it is also possible to
+insert into a certain region of the solvent only by selecting a subset of the
+solvent atoms (``-replace`` takes a selection that can also contain expressions
+like ``not within 1 of ...``).
+
+gmx rdf
+.......
+
+**improved**
+
+The normalization for the output RDF can now also be the radial number density.
+
+gmx genconf
+...........
+
+**simplified**
+
+Removed ``-block``, ``-sort`` and ``-shuffle``.
+
 Version 5.1
 ^^^^^^^^^^^
 
@@ -266,6 +301,7 @@ calculating normal angles between three atoms and/or centers-of-mass, making it
 a partial replacement for :ref:`gmx angle` as well.
 
 gmx protonate
+.............
 
 **replaced**
 

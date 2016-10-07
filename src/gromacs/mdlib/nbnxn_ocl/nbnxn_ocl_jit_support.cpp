@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2014,2015, by the GROMACS development team, led by
+ * Copyright (c) 2014,2015,2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -47,17 +47,18 @@
 
 #include <string>
 
-#include "gromacs/gmxlib/gpu_utils/gpu_utils.h"
-#include "gromacs/gmxlib/gpu_utils/ocl_compiler.h"
-#include "gromacs/legacyheaders/types/enums.h"
-#include "gromacs/legacyheaders/types/interaction_const.h"
+#include "gromacs/gpu_utils/gpu_utils.h"
+#include "gromacs/gpu_utils/ocl_compiler.h"
 #include "gromacs/mdlib/nbnxn_consts.h"
 #include "gromacs/mdlib/nbnxn_gpu.h"
 #include "gromacs/mdlib/nbnxn_gpu_jit_support.h"
+#include "gromacs/mdtypes/interaction_const.h"
+#include "gromacs/mdtypes/md_enums.h"
 #include "gromacs/pbcutil/ishift.h"
 #include "gromacs/utility/cstringutil.h"
 #include "gromacs/utility/exceptions.h"
 #include "gromacs/utility/fatalerror.h"
+#include "gromacs/utility/stringutil.h"
 
 #include "nbnxn_ocl_types.h"
 
@@ -90,6 +91,8 @@ static const char * kernel_electrostatic_family_definitions[] =
 static const char * kernel_VdW_family_definitions[] =
 {
     " -DVDWNAME=_VdwLJ",
+    " -DLJ_COMB_GEOM -DVDWNAME=_VdwLJCombGeom",
+    " -DLJ_COMB_LB  -DVDWNAME=_VdwLJCombLB",
     " -DLJ_FORCE_SWITCH -DVDWNAME=_VdwLJFsw",
     " -DLJ_POT_SWITCH -DVDWNAME=_VdwLJPsw",
     " -DLJ_EWALD_COMB_GEOM -DVDWNAME=_VdwLJEwCombGeom",
@@ -128,9 +131,9 @@ static const char * kernel_VdW_family_definitions[] =
  * \throws std::bad_alloc if out of memory
  */
 static std::string
-make_defines_for_kernel_types(bool bFastGen,
-                              int  eeltype,
-                              int  vdwtype)
+makeDefinesForKernelTypes(bool bFastGen,
+                          int  eeltype,
+                          int  vdwtype)
 {
     std::string defines_for_kernel_types;
 
@@ -151,10 +154,6 @@ make_defines_for_kernel_types(bool bFastGen,
         }
         defines_for_kernel_types += kernel_electrostatic_family_definitions[eeltype];
         defines_for_kernel_types += kernel_VdW_family_definitions[vdwtype];
-
-#ifndef NDEBUG
-        printf("Setting up defines for kernel types for FastGen %s \n", defines_for_kernel_types.c_str());
-#endif
     }
 
     return defines_for_kernel_types;
@@ -177,58 +176,58 @@ make_defines_for_kernel_types(bool bFastGen,
 void
 nbnxn_gpu_compile_kernels(gmx_nbnxn_ocl_t *nb)
 {
-    char                      gpu_err_str[STRLEN];
     gmx_bool                  bFastGen = TRUE;
-    cl_device_id              device_id;
-    cl_context                context;
-    cl_program                program;
-    char                      runtime_consts[256];
+    cl_program                program  = nullptr;
 
     if (getenv("GMX_OCL_NOFASTGEN") != NULL)
     {
         bFastGen = FALSE;
     }
 
-    device_id        = nb->dev_info->ocl_gpu_id.ocl_device_id;
-    context          = nb->dev_info->context;
-
-    sprintf(runtime_consts,
-            "-DCENTRAL=%d -DNBNXN_GPU_NCLUSTER_PER_SUPERCLUSTER=%d -DNBNXN_GPU_CLUSTER_SIZE=%d -DNBNXN_GPU_JGROUP_SIZE=%d -DNBNXN_AVOID_SING_R2_INC=%s",
-            CENTRAL,                                    /* Defined in ishift.h */
-            NBNXN_GPU_NCLUSTER_PER_SUPERCLUSTER,        /* Defined in nbnxn_consts.h */
-            NBNXN_GPU_CLUSTER_SIZE,                     /* Defined in nbnxn_consts.h */
-            NBNXN_GPU_JGROUP_SIZE,                      /* Defined in nbnxn_consts.h */
-            STRINGIFY_MACRO(NBNXN_AVOID_SING_R2_INC)    /* Defined in nbnxn_consts.h */
-                                                        /* NBNXN_AVOID_SING_R2_INC passed as string to avoid
-                                                           floating point representation problems with sprintf */
-            );
-
     /* Need to catch std::bad_alloc here and during compilation string
        handling. */
     try
     {
-        std::string defines_for_kernel_types =
-            make_defines_for_kernel_types(bFastGen,
-                                          nb->nbparam->eeltype,
-                                          nb->nbparam->vdwtype);
+        std::string extraDefines = makeDefinesForKernelTypes(bFastGen,
+                                                             nb->nbparam->eeltype,
+                                                             nb->nbparam->vdwtype);
 
-        cl_int cl_error = ocl_compile_program(default_source,
-                                              auto_vendor_kernels,
-                                              defines_for_kernel_types.c_str(),
-                                              gpu_err_str,
-                                              context,
-                                              device_id,
-                                              nb->dev_info->vendor_e,
-                                              &program,
-                                              runtime_consts);
-        if (cl_error != CL_SUCCESS)
+        /* Here we pass macros and static const int variables defined in include
+         * files outside the nbnxn_ocl as macros, to avoid including those files
+         * in the JIT compilation that happens at runtime.
+         */
+        extraDefines += gmx::formatString(
+                    " -DCENTRAL=%d -DNBNXN_GPU_NCLUSTER_PER_SUPERCLUSTER=%d -DNBNXN_GPU_CLUSTER_SIZE=%d -DNBNXN_GPU_JGROUP_SIZE=%d -DNBNXN_MIN_RSQ=%s %s",
+                    CENTRAL,                                 /* Defined in ishift.h */
+                    c_nbnxnGpuNumClusterPerSupercluster,     /* Defined in nbnxn_pairlist.h */
+                    c_nbnxnGpuClusterSize,                   /* Defined in nbnxn_pairlist.h */
+                    c_nbnxnGpuJgroupSize,                    /* Defined in nbnxn_pairlist.h */
+                    STRINGIFY_MACRO(NBNXN_MIN_RSQ)           /* Defined in nbnxn_consts.h */
+                                                             /* NBNXN_MIN_RSQ passed as string to avoid
+                                                                floating point representation problems with sprintf */
+                    , (nb->bPrefetchLjParam) ? "-DIATYPE_SHMEM" : ""
+                    );
+
+
+        try
         {
-            gmx_fatal(FARGS, "Failed to compile NBNXN kernels for GPU #%s: %s",
-                      nb->dev_info->device_name,
-                      gpu_err_str);
+            /* TODO when we have a proper MPI-aware logging module,
+               the log output here should be written there */
+            program = gmx::ocl::compileProgram(stderr,
+                                               "nbnxn_ocl_kernels.cl",
+                                               extraDefines,
+                                               nb->dev_rundata->context,
+                                               nb->dev_info->ocl_gpu_id.ocl_device_id,
+                                               nb->dev_info->vendor_e);
+        }
+        catch (gmx::GromacsException &e)
+        {
+            e.prependContext(gmx::formatString("Failed to compile NBNXN kernels for GPU #%s\n",
+                                               nb->dev_info->device_name));
+            throw;
         }
     }
     GMX_CATCH_ALL_AND_EXIT_WITH_FATAL_ERROR;
 
-    nb->dev_info->program = program;
+    nb->dev_rundata->program = program;
 }

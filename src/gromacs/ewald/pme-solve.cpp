@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014,2015, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -39,20 +39,25 @@
 
 #include "pme-solve.h"
 
-#include <math.h>
+#include <cmath>
 
 #include "gromacs/fft/parallel_3dfft.h"
+#include "gromacs/math/units.h"
+#include "gromacs/math/utilities.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/simd/simd.h"
 #include "gromacs/simd/simd_math.h"
+#include "gromacs/utility/exceptions.h"
 #include "gromacs/utility/smalloc.h"
 
 #include "pme-internal.h"
 
-#ifdef GMX_SIMD_HAVE_REAL
+#if GMX_SIMD_HAVE_REAL
 /* Turn on arbitrary width SIMD intrinsics for PME solve */
 #    define PME_SIMD_SOLVE
 #endif
+
+using namespace gmx; // TODO: Remove when this file is moved into gmx namespace
 
 struct pme_solve_work_t
 {
@@ -125,7 +130,11 @@ void pme_init_all_work(struct pme_solve_work_t **work, int nthread, int nkx)
 #pragma omp parallel for num_threads(nthread) schedule(static)
     for (thread = 0; thread < nthread; thread++)
     {
-        realloc_work(&((*work)[thread]), nkx);
+        try
+        {
+            realloc_work(&((*work)[thread]), nkx);
+        }
+        GMX_CATCH_ALL_AND_EXIT_WITH_FATAL_ERROR;
     }
 }
 
@@ -195,22 +204,21 @@ void get_pme_ener_vir_lj(struct pme_solve_work_t *work, int nthread,
 gmx_inline static void calc_exponentials_q(int gmx_unused start, int end, real f, real *d_aligned, real *r_aligned, real *e_aligned)
 {
     {
-        gmx_simd_real_t       f_simd;
-        gmx_simd_real_t       tmp_d1, d_inv, tmp_r, tmp_e;
+        SimdReal              f_simd(f);
+        SimdReal              tmp_d1, tmp_r, tmp_e;
         int                   kx;
-        f_simd = gmx_simd_set1_r(f);
+
         /* We only need to calculate from start. But since start is 0 or 1
          * and we want to use aligned loads/stores, we always start from 0.
          */
         for (kx = 0; kx < end; kx += GMX_SIMD_REAL_WIDTH)
         {
-            tmp_d1   = gmx_simd_load_r(d_aligned+kx);
-            d_inv    = gmx_simd_inv_r(tmp_d1);
-            tmp_r    = gmx_simd_load_r(r_aligned+kx);
-            tmp_r    = gmx_simd_exp_r(tmp_r);
-            tmp_e    = gmx_simd_mul_r(f_simd, d_inv);
-            tmp_e    = gmx_simd_mul_r(tmp_e, tmp_r);
-            gmx_simd_store_r(e_aligned+kx, tmp_e);
+            tmp_d1   = load(d_aligned+kx);
+            tmp_r    = load(r_aligned+kx);
+            tmp_r    = gmx::exp(tmp_r);
+            tmp_e    = f_simd / tmp_d1;
+            tmp_e    = tmp_e * tmp_r;
+            store(e_aligned+kx, tmp_e);
         }
     }
 }
@@ -224,7 +232,7 @@ gmx_inline static void calc_exponentials_q(int start, int end, real f, real *d, 
     }
     for (kx = start; kx < end; kx++)
     {
-        r[kx] = exp(r[kx]);
+        r[kx] = std::exp(r[kx]);
     }
     for (kx = start; kx < end; kx++)
     {
@@ -237,23 +245,23 @@ gmx_inline static void calc_exponentials_q(int start, int end, real f, real *d, 
 /* Calculate exponentials through SIMD */
 gmx_inline static void calc_exponentials_lj(int gmx_unused start, int end, real *r_aligned, real *factor_aligned, real *d_aligned)
 {
-    gmx_simd_real_t       tmp_r, tmp_d, tmp_fac, d_inv, tmp_mk;
-    const gmx_simd_real_t sqr_PI = gmx_simd_sqrt_r(gmx_simd_set1_r(M_PI));
+    SimdReal              tmp_r, tmp_d, tmp_fac, d_inv, tmp_mk;
+    const SimdReal        sqr_PI = sqrt(SimdReal(M_PI));
     int                   kx;
     for (kx = 0; kx < end; kx += GMX_SIMD_REAL_WIDTH)
     {
         /* We only need to calculate from start. But since start is 0 or 1
          * and we want to use aligned loads/stores, we always start from 0.
          */
-        tmp_d = gmx_simd_load_r(d_aligned+kx);
-        d_inv = gmx_simd_inv_r(tmp_d);
-        gmx_simd_store_r(d_aligned+kx, d_inv);
-        tmp_r = gmx_simd_load_r(r_aligned+kx);
-        tmp_r = gmx_simd_exp_r(tmp_r);
-        gmx_simd_store_r(r_aligned+kx, tmp_r);
-        tmp_mk  = gmx_simd_load_r(factor_aligned+kx);
-        tmp_fac = gmx_simd_mul_r(sqr_PI, gmx_simd_mul_r(tmp_mk, gmx_simd_erfc_r(tmp_mk)));
-        gmx_simd_store_r(factor_aligned+kx, tmp_fac);
+        tmp_d = load(d_aligned+kx);
+        d_inv = SimdReal(1.0) / tmp_d;
+        store(d_aligned+kx, d_inv);
+        tmp_r = load(r_aligned+kx);
+        tmp_r = gmx::exp(tmp_r);
+        store(r_aligned+kx, tmp_r);
+        tmp_mk  = load(factor_aligned+kx);
+        tmp_fac = sqr_PI * tmp_mk * erfc(tmp_mk);
+        store(factor_aligned+kx, tmp_fac);
     }
 }
 #else
@@ -268,13 +276,13 @@ gmx_inline static void calc_exponentials_lj(int start, int end, real *r, real *t
 
     for (kx = start; kx < end; kx++)
     {
-        r[kx] = exp(r[kx]);
+        r[kx] = std::exp(r[kx]);
     }
 
     for (kx = start; kx < end; kx++)
     {
         mk       = tmp2[kx];
-        tmp2[kx] = sqrt(M_PI)*mk*gmx_erfc(mk);
+        tmp2[kx] = sqrt(M_PI)*mk*std::erfc(mk);
     }
 }
 #endif

@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2009,2010,2011,2012,2013,2014,2015, by the GROMACS development team, led by
+ * Copyright (c) 2009,2010,2011,2012,2013,2014,2015,2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -66,8 +66,9 @@
  *    methods and initializes the children of the method element.
  *  - selectioncollection.h, selectioncollection.cpp:
  *    These files define the high-level public interface to the parser
- *    through SelectionCollection::parseFromStdin(),
- *    SelectionCollection::parseFromFile() and
+ *    through SelectionCollection::parseInteractive(),
+ *    SelectionCollection::parseFromStdin(),
+ *    SelectionCollection::parseFromFile(), and
  *    SelectionCollection::parseFromString().
  *
  * The basic control flow in the parser is as follows: when a parser function
@@ -226,15 +227,14 @@
 #include <stdarg.h>
 #include <stdio.h>
 
-#include <boost/exception_ptr.hpp>
-#include <boost/shared_ptr.hpp>
+#include <exception>
 
 #include "gromacs/selection/selection.h"
 #include "gromacs/utility/cstringutil.h"
 #include "gromacs/utility/exceptions.h"
-#include "gromacs/utility/file.h"
 #include "gromacs/utility/smalloc.h"
 #include "gromacs/utility/stringutil.h"
+#include "gromacs/utility/textwriter.h"
 
 #include "keywords.h"
 #include "poscalc.h"
@@ -287,12 +287,12 @@ _gmx_selparser_handle_exception(yyscan_t scanner, std::exception *ex)
             gromacsException->prependContext(formatCurrentErrorContext(scanner));
             canContinue = (dynamic_cast<gmx::UserInputError *>(ex) != NULL);
         }
-        _gmx_sel_lexer_set_exception(scanner, boost::current_exception());
+        _gmx_sel_lexer_set_exception(scanner, std::current_exception());
         return canContinue;
     }
     catch (const std::exception &)
     {
-        _gmx_sel_lexer_set_exception(scanner, boost::current_exception());
+        _gmx_sel_lexer_set_exception(scanner, std::current_exception());
         return false;
     }
 }
@@ -310,9 +310,11 @@ _gmx_selparser_handle_error(yyscan_t scanner)
     catch (gmx::UserInputError &ex)
     {
         ex.prependContext(context);
-        if (_gmx_sel_is_lexer_interactive(scanner))
+        gmx::TextWriter *statusWriter
+            = _gmx_sel_lexer_get_status_writer(scanner);
+        if (statusWriter != NULL)
         {
-            gmx::formatExceptionMessageToFile(stderr, ex);
+            gmx::formatExceptionMessageToWriter(statusWriter, ex);
             return true;
         }
         throw;
@@ -356,7 +358,7 @@ SelectionParserParameter::SelectionParserParameter(
         SelectionParserValueListPointer  values,
         const SelectionLocation         &location)
     : name_(name != NULL ? name : ""), location_(location),
-      values_(values ? move(values)
+      values_(values ? std::move(values)
               : SelectionParserValueListPointer(new SelectionParserValueList))
 {
 }
@@ -620,9 +622,9 @@ _gmx_sel_init_arithmetic(const gmx::SelectionTreeElementPointer &left,
         case '/': sel->u.arith.type = ARITH_DIV;  break;
         case '^': sel->u.arith.type = ARITH_EXP;  break;
     }
-    char               buf[2];
-    buf[0] = op;
-    buf[1] = 0;
+    char               buf[2] {
+        op, 0
+    };
     sel->setName(buf);
     sel->u.arith.opstr = gmx_strdup(buf);
     sel->child         = left;
@@ -731,7 +733,7 @@ init_keyword_internal(gmx_ana_selmethod_t *method,
         params.push_back(
                 SelectionParserParameter::createFromExpression(NULL, child));
         params.push_back(
-                SelectionParserParameter::create(NULL, move(args), location));
+                SelectionParserParameter::create(NULL, std::move(args), location));
         _gmx_sel_parse_params(params, root->u.expr.method->nparams,
                               root->u.expr.method->param, root, scanner);
     }
@@ -755,7 +757,7 @@ _gmx_sel_init_keyword(gmx_ana_selmethod_t *method,
                       gmx::SelectionParserValueListPointer args,
                       const char *rpost, yyscan_t scanner)
 {
-    return init_keyword_internal(method, gmx::eStringMatchType_Auto, move(args),
+    return init_keyword_internal(method, gmx::eStringMatchType_Auto, std::move(args),
                                  rpost, scanner);
 }
 
@@ -780,7 +782,7 @@ _gmx_sel_init_keyword_strmatch(gmx_ana_selmethod_t *method,
                        "String keyword method called for a non-string-valued method");
     GMX_RELEASE_ASSERT(args && !args->empty(),
                        "String keyword matching method called without any values");
-    return init_keyword_internal(method, matchType, move(args), rpost, scanner);
+    return init_keyword_internal(method, matchType, std::move(args), rpost, scanner);
 }
 
 /*!
@@ -921,16 +923,15 @@ _gmx_sel_init_position(const gmx::SelectionTreeElementPointer &expr,
 SelectionTreeElementPointer
 _gmx_sel_init_const_position(real x, real y, real z, yyscan_t scanner)
 {
-    rvec                        pos;
+    rvec                        pos {
+        x, y, z
+    };
 
     SelectionTreeElementPointer sel(
             new SelectionTreeElement(
                     SEL_CONST, _gmx_sel_lexer_get_current_location(scanner)));
     _gmx_selelem_set_vtype(sel, POS_VALUE);
     _gmx_selvalue_reserve(&sel->v, 1);
-    pos[XX] = x;
-    pos[YY] = y;
-    pos[ZZ] = z;
     gmx_ana_pos_init_const(sel->v.u.p, pos);
     return sel;
 }
@@ -1062,10 +1063,13 @@ _gmx_sel_init_selection(const char                             *name,
     root->fillNameIfMissing(_gmx_sel_lexer_pselstr(scanner));
 
     /* Print out some information if the parser is interactive */
-    if (_gmx_sel_is_lexer_interactive(scanner))
+    gmx::TextWriter *statusWriter = _gmx_sel_lexer_get_status_writer(scanner);
+    if (statusWriter != NULL)
     {
-        fprintf(stderr, "Selection '%s' parsed\n",
-                _gmx_sel_lexer_pselstr(scanner));
+        const std::string message
+            = gmx::formatString("Selection '%s' parsed",
+                                _gmx_sel_lexer_pselstr(scanner));
+        statusWriter->writeLine(message);
     }
 
     return root;
@@ -1129,9 +1133,12 @@ _gmx_sel_assign_variable(const char                             *name,
     srenew(sc->varstrs, sc->nvars + 1);
     sc->varstrs[sc->nvars] = gmx_strdup(pselstr);
     ++sc->nvars;
-    if (_gmx_sel_is_lexer_interactive(scanner))
+    gmx::TextWriter *statusWriter = _gmx_sel_lexer_get_status_writer(scanner);
+    if (statusWriter != NULL)
     {
-        fprintf(stderr, "Variable '%s' parsed\n", pselstr);
+        const std::string message
+            = gmx::formatString("Variable '%s' parsed", pselstr);
+        statusWriter->writeLine(message);
     }
     return root;
 }
@@ -1184,7 +1191,7 @@ _gmx_sel_append_selection(const gmx::SelectionTreeElementPointer &sel,
             gmx::SelectionDataPointer selPtr(
                     new gmx::internal::SelectionData(
                             sel.get(), _gmx_sel_lexer_pselstr(scanner)));
-            sc->sel.push_back(gmx::move(selPtr));
+            sc->sel.push_back(std::move(selPtr));
         }
     }
     /* Clear the selection string now that we've saved it */

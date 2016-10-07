@@ -54,8 +54,10 @@ namespace gmx
 namespace test
 {
 
+class TestReferenceChecker;
+
 /*! \libinternal \brief
- * In-memory implementation for FileInputRedirectorInterface for tests.
+ * In-memory implementation for IFileInputRedirector for tests.
  *
  * By default, this implementation will return `false` for all file existence
  * checks.  To return `true` for a specific path, use addExistingFile().
@@ -63,7 +65,7 @@ namespace test
  * \inlibraryapi
  * \ingroup module_testutils
  */
-class TestFileInputRedirector : public FileInputRedirectorInterface
+class TestFileInputRedirector : public IFileInputRedirector
 {
     public:
         TestFileInputRedirector();
@@ -78,13 +80,48 @@ class TestFileInputRedirector : public FileInputRedirectorInterface
          */
         void addExistingFile(const char *filename);
 
-        // From FileInputRedirectorInterface
-        virtual bool fileExists(const char *filename) const;
+        // From IFileInputRedirector
+        virtual bool fileExists(const char            *filename,
+                                File::NotFoundHandler  onNotFound) const;
 
     private:
         std::set<std::string> existingFiles_;
 
         GMX_DISALLOW_COPY_AND_ASSIGN(TestFileInputRedirector);
+};
+
+/*! \libinternal \brief
+ * In-memory implementation of IFileOutputRedirector for tests.
+ *
+ * This class redirects all output files to in-memory buffers, and supports
+ * checking the contents of these files using the reference data framework.
+ *
+ * \ingroup module_testutils
+ */
+class TestFileOutputRedirector : public IFileOutputRedirector
+{
+    public:
+        TestFileOutputRedirector();
+        virtual ~TestFileOutputRedirector();
+
+        /*! \brief
+         * Checks contents of all redirected files (including stdout).
+         *
+         * This method should not be called if the redirector will still be
+         * used for further output in the test.  Behavior is not designed for
+         * checking in the middle of the test, although that could potentially
+         * be changed if necessary.
+         */
+        void checkRedirectedFiles(TestReferenceChecker *checker);
+
+        // From IFileOutputRedirector
+        virtual TextOutputStream &standardOutput();
+        virtual TextOutputStreamPointer openTextOutputFile(const char *filename);
+
+    private:
+        class Impl;
+
+        PrivateImplPointer<Impl> impl_;
 };
 
 } // namespace test

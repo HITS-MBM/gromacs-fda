@@ -39,42 +39,42 @@
 #include "pdb2top.h"
 
 #include <ctype.h>
-#include <math.h>
 #include <stdio.h>
 #include <string.h>
+
+#include <cmath>
 
 #include <algorithm>
 #include <string>
 #include <vector>
 
-#include "gromacs/fileio/filenm.h"
 #include "gromacs/fileio/pdbio.h"
-#include "gromacs/fileio/strdb.h"
 #include "gromacs/gmxpreprocess/add_par.h"
 #include "gromacs/gmxpreprocess/fflibutil.h"
 #include "gromacs/gmxpreprocess/gen_ad.h"
 #include "gromacs/gmxpreprocess/gen_vsite.h"
 #include "gromacs/gmxpreprocess/gpp_nextnb.h"
 #include "gromacs/gmxpreprocess/h_db.h"
+#include "gromacs/gmxpreprocess/notset.h"
 #include "gromacs/gmxpreprocess/pgutil.h"
 #include "gromacs/gmxpreprocess/resall.h"
 #include "gromacs/gmxpreprocess/topdirs.h"
 #include "gromacs/gmxpreprocess/topio.h"
 #include "gromacs/gmxpreprocess/toputil.h"
-#include "gromacs/legacyheaders/copyrite.h"
-#include "gromacs/legacyheaders/macros.h"
+#include "gromacs/math/functions.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/topology/residuetypes.h"
 #include "gromacs/topology/symtab.h"
+#include "gromacs/utility/binaryinformation.h"
 #include "gromacs/utility/cstringutil.h"
 #include "gromacs/utility/dir_separator.h"
 #include "gromacs/utility/exceptions.h"
 #include "gromacs/utility/fatalerror.h"
-#include "gromacs/utility/file.h"
 #include "gromacs/utility/futil.h"
 #include "gromacs/utility/path.h"
 #include "gromacs/utility/programcontext.h"
 #include "gromacs/utility/smalloc.h"
+#include "gromacs/utility/strdb.h"
 #include "gromacs/utility/stringutil.h"
 
 /* this must correspond to enum in pdb2top.h */
@@ -123,7 +123,7 @@ gmx_bool is_int(double x)
     {
         x = -x;
     }
-    ix = gmx_nint(x);
+    ix = std::round(x);
 
     return (fabs(x-ix) < tol);
 }
@@ -218,7 +218,7 @@ choose_ff_impl(const char *ffsel,
                                     fflib_forcefield_doc()));
             // TODO: Just try to open the file with a method that does not
             // throw/bail out with a fatal error instead of multiple checks.
-            if (gmx::File::exists(docFileName))
+            if (gmx::File::exists(docFileName, gmx::File::returnFalseOnError))
             {
                 // TODO: Use a C++ API without such an intermediate/fixed-length buffer.
                 char  buf[STRLEN];
@@ -738,7 +738,7 @@ static void do_ssbonds(t_params *ps, t_atoms *atoms,
                        int nssbonds, t_ssbond *ssbonds, gmx_bool bAllowMissing)
 {
     int     i, ri, rj;
-    atom_id ai, aj;
+    int     ai, aj;
 
     for (i = 0; (i < nssbonds); i++)
     {
@@ -748,7 +748,7 @@ static void do_ssbonds(t_params *ps, t_atoms *atoms,
                              "special bond", bAllowMissing);
         aj = search_res_atom(ssbonds[i].a2, rj, atoms,
                              "special bond", bAllowMissing);
-        if ((ai == NO_ATID) || (aj == NO_ATID))
+        if ((ai == -1) || (aj == -1))
         {
             gmx_fatal(FARGS, "Trying to make impossible special bond (%s-%s)!",
                       ssbonds[i].a1, ssbonds[i].a2);
@@ -763,12 +763,12 @@ static void at2bonds(t_params *psb, t_hackblock *hb,
                      real long_bond_dist, real short_bond_dist)
 {
     int         resind, i, j, k;
-    atom_id     ai, aj;
+    int         ai, aj;
     real        dist2, long_bond_dist2, short_bond_dist2;
     const char *ptr;
 
-    long_bond_dist2  = sqr(long_bond_dist);
-    short_bond_dist2 = sqr(short_bond_dist);
+    long_bond_dist2  = gmx::square(long_bond_dist);
+    short_bond_dist2 = gmx::square(short_bond_dist);
 
     if (debug)
     {
@@ -794,19 +794,19 @@ static void at2bonds(t_params *psb, t_hackblock *hb,
                              ptr, TRUE);
             aj = search_atom(hb[resind].rb[ebtsBONDS].b[j].a[1], i, atoms,
                              ptr, TRUE);
-            if (ai != NO_ATID && aj != NO_ATID)
+            if (ai != -1 && aj != -1)
             {
                 dist2 = distance2(x[ai], x[aj]);
                 if (dist2 > long_bond_dist2)
 
                 {
                     fprintf(stderr, "Warning: Long Bond (%d-%d = %g nm)\n",
-                            ai+1, aj+1, sqrt(dist2));
+                            ai+1, aj+1, std::sqrt(dist2));
                 }
                 else if (dist2 < short_bond_dist2)
                 {
                     fprintf(stderr, "Warning: Short Bond (%d-%d = %g nm)\n",
-                            ai+1, aj+1, sqrt(dist2));
+                            ai+1, aj+1, std::sqrt(dist2));
                 }
                 add_param(psb, ai, aj, NULL, hb[resind].rb[ebtsBONDS].b[j].s);
             }
@@ -866,7 +866,7 @@ static int pcompar(const void *a, const void *b)
 static void clean_bonds(t_params *ps)
 {
     int     i, j;
-    atom_id a;
+    int     a;
 
     if (ps->nr > 0)
     {
@@ -1417,7 +1417,7 @@ static void gen_cmap(t_params *psb, t_restp *restp, t_atoms *atoms)
     t_resinfo  *resinfo = atoms->resinfo;
     int         nres    = atoms->nres;
     gmx_bool    bAddCMAP;
-    atom_id     cmap_atomid[NUM_CMAP_ATOMS];
+    int         cmap_atomid[NUM_CMAP_ATOMS];
     int         cmap_chainnum = -1, this_residue_index;
 
     if (debug)
@@ -1463,11 +1463,11 @@ static void gen_cmap(t_params *psb, t_restp *restp, t_atoms *atoms)
 
                 cmap_atomid[k] = search_atom(pname,
                                              i, atoms, ptr, TRUE);
-                bAddCMAP = bAddCMAP && (cmap_atomid[k] != NO_ATID);
+                bAddCMAP = bAddCMAP && (cmap_atomid[k] != -1);
                 if (!bAddCMAP)
                 {
                     /* This break is necessary, because cmap_atomid[k]
-                     * == NO_ATID cannot be safely used as an index
+                     * == -1 cannot be safely used as an index
                      * into the atom array. */
                     break;
                 }

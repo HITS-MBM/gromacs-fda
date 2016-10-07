@@ -32,8 +32,8 @@
 # To help us fund GROMACS development, we humbly ask that you cite
 # the research papers on the package. Check out http://www.gromacs.org.
 
-gmx_sphinx_theme = '@SPHINX_THEME@'
 gmx_sphinx_extension_path = '@SPHINX_EXTENSION_PATH@'
+releng_path = '@RELENG_PATH@'
 gmx_version_string = '@GMX_VERSION_STRING@'
 gmx_version_string_full = '@GMX_VERSION_STRING_FULL@'
 regressiontest_version = '@REGRESSIONTEST_VERSION@'
@@ -44,5 +44,7 @@ variables = [
         ('REQUIRED_CUDA_COMPUTE_CAPABILITY', '@REQUIRED_CUDA_COMPUTE_CAPABILITY@'),
         ('REQUIRED_OPENCL_MIN_VERSION', '@REQUIRED_OPENCL_MIN_VERSION@'),
         ('SOURCE_MD5SUM', '@SOURCE_MD5SUM@'),
-        ('REGRESSIONTEST_MD5SUM', '@REGRESSIONTEST_MD5SUM_STRING@')
+        ('REGRESSIONTEST_MD5SUM', '@REGRESSIONTEST_MD5SUM_STRING@'),
+        ('GMX_TNG_MINIMUM_REQUIRED_VERSION', '@GMX_TNG_MINIMUM_REQUIRED_VERSION@'),
+        ('GMX_LMFIT_MINIMUM_REQUIRED_VERSION', '@GMX_LMFIT_MINIMUM_REQUIRED_VERSION@')
     ]

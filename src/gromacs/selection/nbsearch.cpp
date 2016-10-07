@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2009,2010,2011,2012,2013,2014,2015, by the GROMACS development team, led by
+ * Copyright (c) 2009,2010,2011,2012,2013,2014,2015,2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -62,9 +62,7 @@
 #include <algorithm>
 #include <vector>
 
-#include "thread_mpi/mutex.h"
-
-#include "gromacs/legacyheaders/names.h"
+#include "gromacs/math/functions.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/pbcutil/pbc.h"
 #include "gromacs/selection/position.h"
@@ -72,6 +70,7 @@
 #include "gromacs/utility/arrayref.h"
 #include "gromacs/utility/exceptions.h"
 #include "gromacs/utility/gmxassert.h"
+#include "gromacs/utility/mutex.h"
 #include "gromacs/utility/stringutil.h"
 
 namespace gmx
@@ -309,7 +308,7 @@ class AnalysisNeighborhoodSearchImpl
         //! Data structure to hold the grid cell contents.
         CellList                cells_;
 
-        tMPI::mutex             createPairSearchMutex_;
+        Mutex                   createPairSearchMutex_;
         PairSearchList          pairSearchList_;
 
         friend class AnalysisNeighborhoodPairSearchImpl;
@@ -405,7 +404,7 @@ AnalysisNeighborhoodSearchImpl::AnalysisNeighborhoodSearchImpl(real cutoff)
     }
     else
     {
-        cutoff2_        = sqr(cutoff_);
+        cutoff2_        = gmx::square(cutoff_);
     }
     bXY_             = false;
     nref_            = 0;
@@ -439,7 +438,7 @@ AnalysisNeighborhoodSearchImpl::~AnalysisNeighborhoodSearchImpl()
 AnalysisNeighborhoodSearchImpl::PairSearchImplPointer
 AnalysisNeighborhoodSearchImpl::getPairSearch()
 {
-    tMPI::lock_guard<tMPI::mutex> lock(createPairSearchMutex_);
+    lock_guard<Mutex> lock(createPairSearchMutex_);
     // TODO: Consider whether this needs to/can be faster, e.g., by keeping a
     // separate pool of unused search objects.
     PairSearchList::const_iterator i;
@@ -891,7 +890,7 @@ void AnalysisNeighborhoodSearchImpl::init(
         {
             std::string message =
                 formatString("Computations in the XY plane are not supported with PBC type '%s'",
-                             EPBC(pbc->ePBC));
+                             epbc_names[pbc->ePBC]);
             GMX_THROW(NotImplementedError(message));
         }
         if (pbc->ePBC == epbcXYZ &&
@@ -929,7 +928,7 @@ void AnalysisNeighborhoodSearchImpl::init(
     if (bGrid_)
     {
         xrefAlloc_.resize(nref_);
-        xref_ = as_rvec_array(&xrefAlloc_[0]);
+        xref_ = as_rvec_array(xrefAlloc_.data());
 
         for (int i = 0; i < nref_; ++i)
         {
@@ -942,7 +941,7 @@ void AnalysisNeighborhoodSearchImpl::init(
     else if (refIndices_ != NULL)
     {
         xrefAlloc_.resize(nref_);
-        xref_ = as_rvec_array(&xrefAlloc_[0]);
+        xref_ = as_rvec_array(xrefAlloc_.data());
         for (int i = 0; i < nref_; ++i)
         {
             copy_rvec(positions.x_[refIndices_[i]], xrefAlloc_[i]);
@@ -1203,6 +1202,8 @@ class MindistAction
             : closestPoint_(*closestPoint), minDist2_(*minDist2), dx_(*dx)
         {
         }
+        //! Copies the action.
+        MindistAction(const MindistAction &)            = default;
 
         //! Processes a neighbor to find the nearest point.
         bool operator()(int i, real r2, const rvec dx)
@@ -1252,7 +1253,7 @@ class AnalysisNeighborhood::Impl
 
         SearchImplPointer getSearch();
 
-        tMPI::mutex             createSearchMutex_;
+        Mutex                   createSearchMutex_;
         SearchList              searchList_;
         real                    cutoff_;
         const t_blocka         *excls_;
@@ -1263,7 +1264,7 @@ class AnalysisNeighborhood::Impl
 AnalysisNeighborhood::Impl::SearchImplPointer
 AnalysisNeighborhood::Impl::getSearch()
 {
-    tMPI::lock_guard<tMPI::mutex> lock(createSearchMutex_);
+    lock_guard<Mutex> lock(createSearchMutex_);
     // TODO: Consider whether this needs to/can be faster, e.g., by keeping a
     // separate pool of unused search objects.
     SearchList::const_iterator i;
@@ -1377,7 +1378,7 @@ real AnalysisNeighborhoodSearch::minimumDistance(
     rvec          dx           = {0.0, 0.0, 0.0};
     MindistAction action(&closestPoint, &minDist2, &dx);
     (void)pairSearch.searchNext(action);
-    return sqrt(minDist2);
+    return std::sqrt(minDist2);
 }
 
 AnalysisNeighborhoodPair

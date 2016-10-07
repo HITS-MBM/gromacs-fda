@@ -47,10 +47,10 @@
 
 #include <string>
 
-#include "gromacs/fileio/filenm.h"
+#include "gromacs/fileio/filetypes.h"
 #include "gromacs/options/basicoptions.h"
 #include "gromacs/options/filenameoption.h"
-#include "gromacs/options/options.h"
+#include "gromacs/options/ioptionscontainer.h"
 #include "gromacs/utility/arrayref.h"
 #include "gromacs/utility/exceptions.h"
 #include "gromacs/utility/fileredirector.h"
@@ -81,14 +81,14 @@ const char *const c_compressedExtensions[] =
  */
 std::string findExistingExtension(const std::string                  &prefix,
                                   const FileNameOptionInfo           &option,
-                                  const FileInputRedirectorInterface *redirector)
+                                  const IFileInputRedirector         *redirector)
 {
     ConstArrayRef<int>                 types = option.fileTypes();
     ConstArrayRef<int>::const_iterator i;
     for (i = types.begin(); i != types.end(); ++i)
     {
         std::string testFilename(prefix + ftp2ext_with_dot(*i));
-        if (redirector->fileExists(testFilename))
+        if (redirector->fileExists(testFilename, File::throwOnError))
         {
             return testFilename;
         }
@@ -117,7 +117,7 @@ class FileNameOptionManager::Impl
         }
 
         //! Redirector for file existence checks.
-        const FileInputRedirectorInterface *redirector_;
+        const IFileInputRedirector         *redirector_;
         //! Global default file name, if set.
         std::string                         defaultFileName_;
         //! Whether input option processing has been disabled.
@@ -138,7 +138,7 @@ FileNameOptionManager::~FileNameOptionManager()
 }
 
 void FileNameOptionManager::setInputRedirector(
-        const FileInputRedirectorInterface *redirector)
+        const IFileInputRedirector *redirector)
 {
     impl_->redirector_ = redirector;
 }
@@ -149,7 +149,7 @@ void FileNameOptionManager::disableInputOptionChecking(bool bDisable)
 }
 
 void FileNameOptionManager::addDefaultFileNameOption(
-        Options *options, const char *name)
+        IOptionsContainer *options, const char *name)
 {
     options->addOption(
             StringOption(name).store(&impl_->defaultFileName_)
@@ -182,7 +182,8 @@ std::string FileNameOptionManager::completeFileName(
     const int fileType = fn2ftp(value.c_str());
     if (bInput && !impl_->bInputCheckingDisabled_)
     {
-        if (fileType == efNR && impl_->redirector_->fileExists(value))
+        if (fileType == efNR
+            && impl_->redirector_->fileExists(value, File::throwOnError))
         {
             ConstArrayRef<const char *>                 compressedExtensions(c_compressedExtensions);
             ConstArrayRef<const char *>::const_iterator ext;
@@ -239,14 +240,12 @@ std::string FileNameOptionManager::completeFileName(
             {
                 // TODO: Treat also library files.
             }
-            else if (!bAllowMissing && !impl_->redirector_->fileExists(value))
+            else if (!bAllowMissing)
             {
-                std::string message
-                    = formatString("File '%s' does not exist or is not accessible.",
-                                   value.c_str());
-                // TODO: Get actual errno value from the attempt to open the file
-                // to provide better feedback to the user.
-                GMX_THROW(InvalidInputError(message));
+                if (!impl_->redirector_->fileExists(value, File::throwOnNotFound))
+                {
+                    return std::string();
+                }
             }
             return value;
         }

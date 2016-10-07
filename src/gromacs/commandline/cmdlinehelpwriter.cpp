@@ -48,8 +48,6 @@
 #include <algorithm>
 #include <string>
 
-#include <boost/scoped_ptr.hpp>
-
 #include "gromacs/commandline/cmdlinehelpcontext.h"
 #include "gromacs/onlinehelp/helpwritercontext.h"
 #include "gromacs/options/basicoptions.h"
@@ -59,8 +57,8 @@
 #include "gromacs/options/timeunitmanager.h"
 #include "gromacs/utility/arrayref.h"
 #include "gromacs/utility/exceptions.h"
-#include "gromacs/utility/file.h"
 #include "gromacs/utility/stringutil.h"
+#include "gromacs/utility/textwriter.h"
 
 #include "shellcompletions.h"
 
@@ -74,70 +72,7 @@ namespace
 //! \{
 
 /********************************************************************
- * DescriptionsFormatter
- */
-
-class DescriptionsFormatter : public OptionsVisitor
-{
-    public:
-        /*! \brief
-         * Creates a new description formatter.
-         *
-         * \param[in] context   Help context to use to write the help.
-         */
-        explicit DescriptionsFormatter(const HelpWriterContext &context)
-            : context_(context), title_(NULL), bDidOutput_(false)
-        {
-        }
-
-        //! Formats all section descriptions from a given options.
-        void format(const Options &options, const char *title)
-        {
-            title_      = title;
-            bDidOutput_ = false;
-            visitSubSection(options);
-            if (bDidOutput_)
-            {
-                context_.outputFile().writeLine();
-            }
-        }
-
-        //! Formats the description for a single subsection and handles recursion.
-        virtual void visitSubSection(const Options &section);
-        // This method is not used and never called.
-        virtual void visitOption(const OptionInfo & /*option*/) {}
-
-    private:
-        const HelpWriterContext &context_;
-        const char              *title_;
-        bool                     bDidOutput_;
-
-        GMX_DISALLOW_COPY_AND_ASSIGN(DescriptionsFormatter);
-};
-
-void DescriptionsFormatter::visitSubSection(const Options &section)
-{
-    if (!section.description().empty())
-    {
-        if (bDidOutput_)
-        {
-            context_.outputFile().writeLine();
-        }
-        else if (title_ != NULL)
-        {
-            context_.writeTitle(title_);
-        }
-        // TODO: Print title for the section?
-        context_.writeTextBlock(section.description());
-        bDidOutput_ = true;
-    }
-
-    OptionsIterator iterator(section);
-    iterator.acceptSubSections(this);
-}
-
-/********************************************************************
- * OptionsFormatterInterface
+ * IOptionsFormatter
  */
 
 /*! \brief
@@ -145,10 +80,10 @@ void DescriptionsFormatter::visitSubSection(const Options &section)
  *
  * \see OptionsFilter
  */
-class OptionsFormatterInterface
+class IOptionsFormatter
 {
     public:
-        virtual ~OptionsFormatterInterface() {}
+        virtual ~IOptionsFormatter() {}
 
         //! Formats a single option option.
         virtual void formatOption(const OptionInfo &option) = 0;
@@ -163,7 +98,7 @@ class OptionsFormatterInterface
  *
  * Together with code in CommandLineHelpWriter::writeHelp(), this class
  * implements the common logic for writing out the help.
- * An object implementing the OptionsFormatterInterface must be provided to the
+ * An object implementing the IOptionsFormatter must be provided to the
  * constructor, and does the actual formatting that is specific to the output
  * format.
  */
@@ -198,14 +133,14 @@ class OptionsFilter : public OptionsVisitor
 
         //! Formats selected options using the formatter.
         void formatSelected(FilterType                 type,
-                            OptionsFormatterInterface *formatter,
+                            IOptionsFormatter         *formatter,
                             const Options             &options);
 
         virtual void visitSubSection(const Options &section);
         virtual void visitOption(const OptionInfo &option);
 
     private:
-        OptionsFormatterInterface      *formatter_;
+        IOptionsFormatter              *formatter_;
         FilterType                      filterType_;
         bool                            bShowHidden_;
 
@@ -213,7 +148,7 @@ class OptionsFilter : public OptionsVisitor
 };
 
 void OptionsFilter::formatSelected(FilterType                 type,
-                                   OptionsFormatterInterface *formatter,
+                                   IOptionsFormatter         *formatter,
                                    const Options             &options)
 {
     formatter_  = formatter;
@@ -382,7 +317,7 @@ descriptionWithOptionDetails(const CommonFormatterData &common,
 /*! \brief
  * Formatter implementation for synopsis.
  */
-class SynopsisFormatter : public OptionsFormatterInterface
+class SynopsisFormatter : public IOptionsFormatter
 {
     public:
         //! Creates a helper object for formatting the synopsis.
@@ -413,7 +348,7 @@ void SynopsisFormatter::start(const char *name)
 {
     currentLength_ = std::strlen(name) + 1;
     indent_        = std::min(currentLength_, 13);
-    File &file = context_.outputFile();
+    TextWriter &file = context_.outputFile();
     switch (context_.outputFormat())
     {
         case eHelpOutputFormat_Console:
@@ -436,9 +371,7 @@ void SynopsisFormatter::start(const char *name)
 
 void SynopsisFormatter::finish()
 {
-    File &file = context_.outputFile();
-    file.writeLine();
-    file.writeLine();
+    context_.outputFile().ensureLineBreak();
 }
 
 void SynopsisFormatter::formatOption(const OptionInfo &option)
@@ -456,7 +389,7 @@ void SynopsisFormatter::formatOption(const OptionInfo &option)
     }
     fullOptionText.append(bFormatted_ ? "`]" : "]");
 
-    File       &file = context_.outputFile();
+    TextWriter &file = context_.outputFile();
     currentLength_ += totalLength;
     if (currentLength_ >= lineLength_)
     {
@@ -473,7 +406,7 @@ void SynopsisFormatter::formatOption(const OptionInfo &option)
 /*! \brief
  * Formatter implementation for help export.
  */
-class OptionsListFormatter : public OptionsFormatterInterface
+class OptionsListFormatter : public IOptionsFormatter
 {
     public:
         //! Creates a helper object for formatting options.
@@ -493,7 +426,6 @@ class OptionsListFormatter : public OptionsFormatterInterface
             if (bDidOutput_)
             {
                 context_.writeOptionListEnd();
-                context_.outputFile().writeLine();
             }
         }
 
@@ -511,8 +443,9 @@ class OptionsListFormatter : public OptionsFormatterInterface
             {
                 if (header_ != NULL)
                 {
+                    context_.paragraphBreak();
                     context_.writeTextBlock(header_);
-                    context_.writeTextBlock("");
+                    context_.paragraphBreak();
                 }
                 context_.writeOptionListStart();
             }
@@ -571,26 +504,21 @@ class CommandLineHelpWriter::Impl
 {
     public:
         //! Sets the Options object to use for generating help.
-        explicit Impl(const Options &options);
+        explicit Impl(const Options &options)
+            : options_(options)
+        {
+        }
 
         //! Format the list of known issues.
         void formatBugs(const HelpWriterContext &context);
 
         //! Options object to use for generating help.
         const Options               &options_;
+        //! Help text.
+        std::string                  helpText_;
         //! List of bugs/knows issues.
         ConstArrayRef<const char *>  bugs_;
-        //! Time unit to show in descriptions.
-        std::string                  timeUnit_;
-        //! Whether to write descriptions to output.
-        bool                         bShowDescriptions_;
 };
-
-CommandLineHelpWriter::Impl::Impl(const Options &options)
-    : options_(options), timeUnit_(TimeUnitManager().timeUnitAsString()),
-      bShowDescriptions_(false)
-{
-}
 
 void CommandLineHelpWriter::Impl::formatBugs(const HelpWriterContext &context)
 {
@@ -622,16 +550,16 @@ CommandLineHelpWriter::~CommandLineHelpWriter()
 }
 
 CommandLineHelpWriter &
-CommandLineHelpWriter::setShowDescriptions(bool bSet)
+CommandLineHelpWriter::setHelpText(const std::string &help)
 {
-    impl_->bShowDescriptions_ = bSet;
+    impl_->helpText_ = help;
     return *this;
 }
 
 CommandLineHelpWriter &
-CommandLineHelpWriter::setTimeUnitString(const char *timeUnit)
+CommandLineHelpWriter::setHelpText(const ConstArrayRef<const char *> &help)
 {
-    impl_->timeUnit_ = timeUnit;
+    impl_->helpText_ = joinStrings(help, "\n");
     return *this;
 }
 
@@ -669,12 +597,12 @@ void CommandLineHelpWriter::writeHelp(const CommandLineHelpContext &context)
         synopsisFormatter.finish();
     }
 
-    if (impl_->bShowDescriptions_)
+    if (!impl_->helpText_.empty())
     {
-        DescriptionsFormatter descriptionFormatter(writerContext);
-        descriptionFormatter.format(impl_->options_, "Description");
+        writerContext.writeTitle("Description");
+        writerContext.writeTextBlock(impl_->helpText_);
     }
-    CommonFormatterData    common(impl_->timeUnit_.c_str());
+    CommonFormatterData    common(TimeUnitManager().timeUnitAsString());
     OptionsListFormatter   formatter(writerContext, common, "Options");
     formatter.startSection("Options to specify input files:");
     filter.formatSelected(OptionsFilter::eSelectInputFileOptions,

@@ -47,7 +47,7 @@ class AnalysisTemplate : public TrajectoryAnalysisModule
     public:
         AnalysisTemplate();
 
-        virtual void initOptions(Options                    *options,
+        virtual void initOptions(IOptionsContainer          *options,
                                  TrajectoryAnalysisSettings *settings);
         virtual void initAnalysis(const TrajectoryAnalysisSettings &settings,
                                   const TopologyInformation        &top);
@@ -74,15 +74,14 @@ class AnalysisTemplate : public TrajectoryAnalysisModule
 
 
 AnalysisTemplate::AnalysisTemplate()
-    : TrajectoryAnalysisModule("template", "Template analysis tool"),
-      cutoff_(0.0)
+    : cutoff_(0.0)
 {
     registerAnalysisDataset(&data_, "avedist");
 }
 
 
 void
-AnalysisTemplate::initOptions(Options                    *options,
+AnalysisTemplate::initOptions(IOptionsContainer          *options,
                               TrajectoryAnalysisSettings *settings)
 {
     static const char *const desc[] = {
@@ -101,7 +100,7 @@ AnalysisTemplate::initOptions(Options                    *options,
         "analysis groups."
     };
 
-    options->setDescription(desc);
+    settings->setHelpText(desc);
 
     options->addOption(FileNameOption("o")
                            .filetype(eftPlot).outputFile()

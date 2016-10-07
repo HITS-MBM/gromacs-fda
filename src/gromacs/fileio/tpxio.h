@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -34,40 +34,28 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-
 #ifndef GMX_FILEIO_TPXIO_H
 #define GMX_FILEIO_TPXIO_H
 
+#include <cstdio>
 
-/**************************************************************
- *
- * The routines in the corresponding c-file tpxio.c
- * are based on the lower level routines in gmxfio.c
- * The integer file pointer returned from open_tpx
- * can also be used with the routines in gmxfio.h
- *
- **************************************************************/
-#include "gromacs/fileio/gmxfio.h"
-#include "gromacs/legacyheaders/types/inputrec.h"
-#include "gromacs/legacyheaders/types/state.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include "gromacs/mdtypes/state.h"
 
 struct gmx_mtop_t;
 struct t_atoms;
 struct t_block;
+struct t_inputrec;
 struct t_topology;
 
-typedef struct
+struct t_tpxheader
 {
     int   bIr;       /* Non zero if input_rec is present		*/
     int   bBox;      /* Non zero if a box is present			*/
     int   bTop;      /* Non zero if a topology is present		*/
     int   bX;        /* Non zero if coordinates are present		*/
     int   bV;        /* Non zero if velocities are present		*/
-    int   bF;        /* Non zero if forces are present		*/
+    int   bF;        /* Non zero if forces are present (no longer
+                        supported, but retained so old .tpr can be read) */
 
     int   natoms;    /* The total number of atoms			*/
     int   ngtc;      /* The number of temperature coupling groups    */
@@ -79,47 +67,36 @@ typedef struct
        vary through a simulation, and cannot be completely described
        though a single lambda variable, or even a single state
        index. Eventually, should probably be a vector. MRS*/
-} t_tpxheader;
+};
 
 /*
  * These routines handle reading and writing of preprocessed
  * topology files in any of the following formats:
  * TPR : topology in XDR format, portable accross platforms
- * TRR : trajectory in XDR format (non compressed)
  *
  * Files are written in the precision with which the source are compiled,
  * but double and single precision can be read by either.
  */
 
-t_fileio *open_tpx(const char *fn, const char *mode);
-/* Return an file pointer corresponding to the file you have just opened */
-
-void close_tpx(t_fileio *fio);
-/*  Close the file corresponding to fio */
-
-void read_tpxheader(const char *fn, t_tpxheader *tpx, gmx_bool TopOnlyOK,
-                    int *version, int *generation);
+void read_tpxheader(const char *fn, t_tpxheader *tpx, gmx_bool TopOnlyOK);
 /* Read the header from a tpx file and then close it again.
  * By setting TopOnlyOK to true, it is possible to read future
  * versions too (we skip the changed inputrec), provided we havent
  * changed the topology description. If it is possible to read
  * the inputrec it will still be done even if TopOnlyOK is TRUE.
- *
- * The version and generation if the topology (see top of tpxio.c)
- * are returned in the two last arguments.
  */
 
 void write_tpx_state(const char *fn,
-                     t_inputrec *ir, t_state *state, struct gmx_mtop_t *mtop);
+                     const t_inputrec *ir, const t_state *state, const gmx_mtop_t *mtop);
 /* Write a file, and close it again.
  */
 
 void read_tpx_state(const char *fn,
-                    t_inputrec *ir, t_state *state, rvec *f,
-                    struct gmx_mtop_t *mtop);
+                    t_inputrec *ir, t_state *state,
+                    gmx_mtop_t *mtop);
 int read_tpx(const char *fn,
              t_inputrec *ir, matrix box, int *natoms,
-             rvec *x, rvec *v, rvec *f, struct gmx_mtop_t *mtop);
+             rvec *x, rvec *v, gmx_mtop_t *mtop);
 /* Read a file, and close it again.
  * When step, t or lambda are NULL they will not be stored.
  * Returns ir->ePBC, if it could be read from the file.
@@ -127,25 +104,12 @@ int read_tpx(const char *fn,
 
 int read_tpx_top(const char *fn,
                  t_inputrec *ir, matrix box, int *natoms,
-                 rvec *x, rvec *v, rvec *f, struct t_topology *top);
+                 rvec *x, rvec *v, t_topology *top);
 /* As read_tpx, but for the old t_topology struct */
 
 gmx_bool fn2bTPX(const char *file);
 /* return if *file is one of the TPX file types */
 
-gmx_bool read_tps_conf(const char *infile, char *title, struct t_topology *top,
-                       int *ePBC, rvec **x, rvec **v, matrix box, gmx_bool bMass);
-/* Read title, top.atoms, x, v (if not NULL) and box from an STX file,
- * memory for atoms, x and v will be allocated.
- * Return TRUE if a complete topology was read.
- * If infile is a TPX file read the whole top,
- * else if bMass=TRUE, read the masses into top.atoms from the mass database.
- */
-
-void tpx_make_chain_identifiers(struct t_atoms *atoms, struct t_block *mols);
-
-#ifdef __cplusplus
-}
-#endif
+void pr_tpxheader(FILE *fp, int indent, const char *title, const t_tpxheader *sh);
 
 #endif

@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2009, The GROMACS Development Team.
- * Copyright (c) 2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -42,9 +42,8 @@
 
 #include <math.h>
 
-#include "gromacs/legacyheaders/nrnb.h"
-#include "gromacs/legacyheaders/types/simple.h"
-#include "gromacs/math/vec.h"
+#include "gromacs/gmxlib/nrnb.h"
+#include "gromacs/utility/real.h"
 #include "gromacs/utility/smalloc.h"
 
 typedef struct
@@ -340,7 +339,7 @@ nb_kernel_allvsall(t_nblist gmx_unused *     nlist,
                 rsq               = dx*dx+dy*dy+dz*dz;
 
                 /* Calculate 1/r and 1/r2 */
-                rinv              = gmx_invsqrt(rsq);
+                rinv              = 1.0/sqrt(rsq);
                 rinvsq            = rinv*rinv;
 
                 /* Load parameters for j atom */
@@ -394,7 +393,7 @@ nb_kernel_allvsall(t_nblist gmx_unused *     nlist,
             rsq               = dx*dx+dy*dy+dz*dz;
 
             /* Calculate 1/r and 1/r2 */
-            rinv              = gmx_invsqrt(rsq);
+            rinv              = 1.0/sqrt(rsq);
             rinvsq            = rinv*rinv;
 
             /* Load parameters for j atom */

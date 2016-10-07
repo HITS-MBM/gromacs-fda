@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2010,2011,2012,2013,2014,2015, by the GROMACS development team, led by
+ * Copyright (c) 2010,2011,2012,2013,2014,2015,2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -36,27 +36,31 @@
 
 #include "config.h"
 
+#include <cmath>
+
 #include <algorithm>
 
 #include "gromacs/commandline/pargs.h"
+#include "gromacs/fft/calcgrid.h"
+#include "gromacs/fileio/checkpoint.h"
+#include "gromacs/fileio/readinp.h"
 #include "gromacs/fileio/tpxio.h"
 #include "gromacs/gmxana/gmx_ana.h"
-#include "gromacs/legacyheaders/calcgrid.h"
-#include "gromacs/legacyheaders/checkpoint.h"
-#include "gromacs/legacyheaders/copyrite.h"
-#include "gromacs/legacyheaders/macros.h"
-#include "gromacs/legacyheaders/main.h"
-#include "gromacs/legacyheaders/mdatoms.h"
-#include "gromacs/legacyheaders/network.h"
-#include "gromacs/legacyheaders/readinp.h"
-#include "gromacs/legacyheaders/typedefs.h"
-#include "gromacs/legacyheaders/types/commrec.h"
+#include "gromacs/gmxlib/network.h"
 #include "gromacs/math/calculate-ewald-splitting-coefficient.h"
+#include "gromacs/math/functions.h"
 #include "gromacs/math/units.h"
 #include "gromacs/math/vec.h"
-#include "gromacs/random/random.h"
+#include "gromacs/mdtypes/commrec.h"
+#include "gromacs/mdtypes/inputrec.h"
+#include "gromacs/mdtypes/md_enums.h"
+#include "gromacs/random/threefry.h"
+#include "gromacs/random/uniformintdistribution.h"
 #include "gromacs/topology/mtop_util.h"
+#include "gromacs/topology/topology.h"
+#include "gromacs/utility/arraysize.h"
 #include "gromacs/utility/fatalerror.h"
+#include "gromacs/utility/pleasecite.h"
 #include "gromacs/utility/smalloc.h"
 
 /* We use the same defines as in broadcaststructs.cpp here */
@@ -65,9 +69,6 @@
 #define   snew_bc(cr, d, nr) { if (!MASTER(cr)) {snew((d), (nr)); }}
 /* #define TAKETIME */
 /* #define DEBUG  */
-enum {
-    ddnoSEL, ddnoINTERLEAVE, ddnoPP_PME, ddnoCARTESIAN, ddnoNR
-};
 
 /* Enum for situations that can occur during log file parsing */
 enum {
@@ -121,9 +122,8 @@ static gmx_bool is_charge(real charge)
 
 
 /* calculate charge density */
-static void calc_q2all(
-        gmx_mtop_t *mtop,   /* molecular topology */
-        real *q2all, real *q2allnr)
+static void calc_q2all(const gmx_mtop_t *mtop,   /* molecular topology */
+                       real *q2all, real *q2allnr)
 {
     int             imol, iatom; /* indices for loops */
     real            q2_all = 0;  /* Sum of squared charges */
@@ -182,7 +182,7 @@ static real estimate_direct(
     beta      = info->ewald_beta[0];
     r_coulomb = info->rcoulomb[0];
 
-    e_dir  = 2.0 * info->q2all * gmx_invsqrt( info->q2allnr  *  r_coulomb * info->volume );
+    e_dir  = 2.0 * info->q2all * gmx::invsqrt( info->q2allnr  *  r_coulomb * info->volume );
     e_dir *= exp (-beta*beta*r_coulomb*r_coulomb);
 
     return ONE_4PI_EPS0*e_dir;
@@ -211,19 +211,19 @@ static inline real eps_poly1(
     {
         tmp  = m / K + i;
         tmp *= 2.0*M_PI;
-        nom += pow( tmp, -n );
+        nom += std::pow( tmp, -n );
     }
 
     for (i = SUMORDER; i > 0; i--)
     {
         tmp  = m / K + i;
         tmp *= 2.0*M_PI;
-        nom += pow( tmp, -n );
+        nom += std::pow( tmp, -n );
     }
 
     tmp   = m / K;
     tmp  *= 2.0*M_PI;
-    denom = pow( tmp, -n )+nom;
+    denom = std::pow( tmp, -n )+nom;
 
     return -nom/denom;
 
@@ -248,21 +248,21 @@ static inline real eps_poly2(
     {
         tmp  = m / K + i;
         tmp *= 2.0*M_PI;
-        nom += pow( tmp, -2*n );
+        nom += std::pow( tmp, -2*n );
     }
 
     for (i = SUMORDER; i > 0; i--)
     {
         tmp  = m / K + i;
         tmp *= 2.0*M_PI;
-        nom += pow( tmp, -2*n );
+        nom += std::pow( tmp, -2*n );
     }
 
     for (i = -SUMORDER; i < SUMORDER+1; i++)
     {
         tmp    = m / K + i;
         tmp   *= 2.0*M_PI;
-        denom += pow( tmp, -n );
+        denom += std::pow( tmp, -n );
     }
     tmp = eps_poly1(m, K, n);
     return nom / denom / denom + tmp*tmp;
@@ -288,21 +288,21 @@ static inline real eps_poly3(
     {
         tmp  = m / K + i;
         tmp *= 2.0*M_PI;
-        nom += i * pow( tmp, -2*n );
+        nom += i * std::pow( tmp, -2*n );
     }
 
     for (i = SUMORDER; i > 0; i--)
     {
         tmp  = m / K + i;
         tmp *= 2.0*M_PI;
-        nom += i * pow( tmp, -2*n );
+        nom += i * std::pow( tmp, -2*n );
     }
 
     for (i = -SUMORDER; i < SUMORDER+1; i++)
     {
         tmp    = m / K + i;
         tmp   *= 2.0*M_PI;
-        denom += pow( tmp, -n );
+        denom += std::pow( tmp, -n );
     }
 
     return 2.0 * M_PI * nom / denom / denom;
@@ -328,21 +328,21 @@ static inline real eps_poly4(
     {
         tmp  = m / K + i;
         tmp *= 2.0*M_PI;
-        nom += i * i * pow( tmp, -2*n );
+        nom += i * i * std::pow( tmp, -2*n );
     }
 
     for (i = SUMORDER; i > 0; i--)
     {
         tmp  = m / K + i;
         tmp *= 2.0*M_PI;
-        nom += i * i * pow( tmp, -2*n );
+        nom += i * i * std::pow( tmp, -2*n );
     }
 
     for (i = -SUMORDER; i < SUMORDER+1; i++)
     {
         tmp    = m / K + i;
         tmp   *= 2.0*M_PI;
-        denom += pow( tmp, -n );
+        denom += std::pow( tmp, -n );
     }
 
     return 4.0 * M_PI * M_PI * nom / denom / denom;
@@ -375,18 +375,18 @@ static inline real eps_self(
 
     for (i = -SUMORDER; i < 0; i++)
     {
-        tmp    = -sin(2.0 * M_PI * i * K * rcoord);
+        tmp    = -std::sin(2.0 * M_PI * i * K * rcoord);
         tmp1   = 2.0 * M_PI * m / K + 2.0 * M_PI * i;
-        tmp2   = pow(tmp1, -n);
+        tmp2   = std::pow(tmp1, -n);
         nom   += tmp * tmp2 * i;
         denom += tmp2;
     }
 
     for (i = SUMORDER; i > 0; i--)
     {
-        tmp    = -sin(2.0 * M_PI * i * K * rcoord);
+        tmp    = -std::sin(2.0 * M_PI * i * K * rcoord);
         tmp1   = 2.0 * M_PI * m / K + 2.0 * M_PI * i;
-        tmp2   = pow(tmp1, -n);
+        tmp2   = std::pow(tmp1, -n);
         nom   += tmp * tmp2 * i;
         denom += tmp2;
     }
@@ -430,35 +430,33 @@ static real estimate_reciprocal(
         int                nr,  /* number of charges = size of the charge array */
         FILE  gmx_unused  *fp_out,
         gmx_bool           bVerbose,
-        unsigned int       seed,     /* The seed for the random number generator */
+        int                seed,     /* The seed for the random number generator */
         int               *nsamples, /* Return the number of samples used if Monte Carlo
                                       * algorithm is used for self energy error estimate */
         t_commrec         *cr)
 {
-    real     e_rec   = 0; /* reciprocal error estimate */
-    real     e_rec1  = 0; /* Error estimate term 1*/
-    real     e_rec2  = 0; /* Error estimate term 2*/
-    real     e_rec3  = 0; /* Error estimate term 3 */
-    real     e_rec3x = 0; /* part of Error estimate term 3 in x */
-    real     e_rec3y = 0; /* part of Error estimate term 3 in y */
-    real     e_rec3z = 0; /* part of Error estimate term 3 in z */
-    int      i, ci;
-    int      nx, ny, nz;  /* grid coordinates */
-    real     q2_all = 0;  /* sum of squared charges */
-    rvec     gridpx;      /* reciprocal grid point in x direction*/
-    rvec     gridpxy;     /* reciprocal grid point in x and y direction*/
-    rvec     gridp;       /* complete reciprocal grid point in 3 directions*/
-    rvec     tmpvec;      /* template to create points from basis vectors */
-    rvec     tmpvec2;     /* template to create points from basis vectors */
-    real     coeff  = 0;  /* variable to compute coefficients of the error estimate */
-    real     coeff2 = 0;  /* variable to compute coefficients of the error estimate */
-    real     tmp    = 0;  /* variables to compute different factors from vectors */
-    real     tmp1   = 0;
-    real     tmp2   = 0;
-    gmx_bool bFraction;
+    real      e_rec   = 0; /* reciprocal error estimate */
+    real      e_rec1  = 0; /* Error estimate term 1*/
+    real      e_rec2  = 0; /* Error estimate term 2*/
+    real      e_rec3  = 0; /* Error estimate term 3 */
+    real      e_rec3x = 0; /* part of Error estimate term 3 in x */
+    real      e_rec3y = 0; /* part of Error estimate term 3 in y */
+    real      e_rec3z = 0; /* part of Error estimate term 3 in z */
+    int       i, ci;
+    int       nx, ny, nz;  /* grid coordinates */
+    real      q2_all = 0;  /* sum of squared charges */
+    rvec      gridpx;      /* reciprocal grid point in x direction*/
+    rvec      gridpxy;     /* reciprocal grid point in x and y direction*/
+    rvec      gridp;       /* complete reciprocal grid point in 3 directions*/
+    rvec      tmpvec;      /* template to create points from basis vectors */
+    rvec      tmpvec2;     /* template to create points from basis vectors */
+    real      coeff  = 0;  /* variable to compute coefficients of the error estimate */
+    real      coeff2 = 0;  /* variable to compute coefficients of the error estimate */
+    real      tmp    = 0;  /* variables to compute different factors from vectors */
+    real      tmp1   = 0;
+    real      tmp2   = 0;
+    gmx_bool  bFraction;
 
-    /* Random number generator */
-    gmx_rng_t rng     = NULL;
     int      *numbers = NULL;
 
     /* Index variables for parallel work distribution */
@@ -472,7 +470,14 @@ static real estimate_reciprocal(
     double t1 = 0.0;
 #endif
 
-    rng = gmx_rng_init(seed);
+    if (seed == 0)
+    {
+        seed = static_cast<int>(gmx::makeRandomSeed());
+    }
+    fprintf(stderr, "Using random seed %d.\n", seed);
+
+    gmx::DefaultRandomEngine           rng(seed);
+    gmx::UniformIntDistribution<int>   dist(0, nr-1);
 
     clear_rvec(gridpx);
     clear_rvec(gridpxy);
@@ -491,7 +496,7 @@ static real estimate_reciprocal(
     xtot        = stopglobal*2+1;
     if (PAR(cr))
     {
-        x_per_core = static_cast<int>(ceil(static_cast<real>(xtot) / cr->nnodes));
+        x_per_core = static_cast<int>(std::ceil(static_cast<real>(xtot) / cr->nnodes));
         startlocal = startglobal + x_per_core*cr->nodeid;
         stoplocal  = startlocal + x_per_core -1;
         if (stoplocal > stopglobal)
@@ -505,13 +510,8 @@ static real estimate_reciprocal(
         stoplocal  = stopglobal;
         x_per_core = xtot;
     }
-/*
-   #ifdef GMX_LIB_MPI
-    MPI_Barrier(MPI_COMM_WORLD);
-   #endif
- */
 
-#ifdef GMX_LIB_MPI
+#if GMX_LIB_MPI
 #ifdef TAKETIME
     if (MASTER(cr))
     {
@@ -543,7 +543,7 @@ static real estimate_reciprocal(
                 svmul(nz, info->recipbox[ZZ], tmpvec);
                 rvec_add(gridpxy, tmpvec, gridp);
                 tmp    = norm2(gridp);
-                coeff  = exp(-1.0 * M_PI * M_PI * tmp / info->ewald_beta[0] / info->ewald_beta[0] );
+                coeff  = std::exp(-1.0 * M_PI * M_PI * tmp / info->ewald_beta[0] / info->ewald_beta[0] );
                 coeff /= 2.0 * M_PI * info->volume * tmp;
                 coeff2 = tmp;
 
@@ -620,6 +620,7 @@ static real estimate_reciprocal(
         if (MASTER(cr))
         {
             fprintf(stderr, "\rCalculating reciprocal error part 1 ... %3.0f%%", 100.0*(nx-startlocal+1)/(x_per_core));
+            fflush(stderr);
         }
 
     }
@@ -637,14 +638,14 @@ static real estimate_reciprocal(
         /* Here xtot is the number of samples taken for the Monte Carlo calculation
          * of the average of term IV of equation 35 in Wang2010. Round up to a
          * number of samples that is divisible by the number of nodes */
-        x_per_core  = static_cast<int>(ceil(info->fracself * nr / cr->nnodes));
+        x_per_core  = static_cast<int>(std::ceil(info->fracself * nr / cr->nnodes));
         xtot        = x_per_core * cr->nnodes;
     }
     else
     {
         /* In this case we use all nr particle positions */
         xtot       = nr;
-        x_per_core = static_cast<int>(ceil(static_cast<real>(xtot) / cr->nnodes));
+        x_per_core = static_cast<int>(std::ceil(static_cast<real>(xtot) / cr->nnodes));
     }
 
     startlocal = x_per_core *  cr->nodeid;
@@ -660,7 +661,7 @@ static real estimate_reciprocal(
         {
             for (i = 0; i < xtot; i++)
             {
-                numbers[i] = static_cast<int>(floor(gmx_rng_uniform_real(rng) * nr));
+                numbers[i] = dist(rng); // [0,nr-1]
             }
         }
         /* Broadcast the random number array to the other nodes */
@@ -720,7 +721,7 @@ static real estimate_reciprocal(
                     svmul(nz, info->recipbox[ZZ], tmpvec);
                     rvec_add(gridpxy, tmpvec, gridp);
                     tmp      = norm2(gridp);
-                    coeff    = exp(-1.0 * M_PI * M_PI * tmp / info->ewald_beta[0] / info->ewald_beta[0] );
+                    coeff    = std::exp(-1.0 * M_PI * M_PI * tmp / info->ewald_beta[0] / info->ewald_beta[0] );
                     coeff   /= tmp;
                     e_rec3x += coeff*eps_self(nx, info->nkx[0], info->recipbox[XX], info->pme_order[0], x[ci]);
                     e_rec3y += coeff*eps_self(ny, info->nky[0], info->recipbox[YY], info->pme_order[0], x[ci]);
@@ -744,7 +745,7 @@ static real estimate_reciprocal(
         {
             fprintf(stderr, "\rCalculating reciprocal error part 2 ... %3.0f%%",
                     100.0*(i+1)/stoplocal);
-
+            fflush(stderr);
         }
     }
 
@@ -753,7 +754,7 @@ static real estimate_reciprocal(
         fprintf(stderr, "\n");
     }
 
-#ifdef GMX_LIB_MPI
+#if GMX_LIB_MPI
 #ifdef TAKETIME
     if (MASTER(cr))
     {
@@ -782,7 +783,7 @@ static real estimate_reciprocal(
        e_rec2*=  q2_all / M_PI / M_PI / info->volume / info->volume / nr ;
        e_rec3/= M_PI * M_PI * info->volume * info->volume * nr ;
      */
-    e_rec = sqrt(e_rec1+e_rec2+e_rec3);
+    e_rec = std::sqrt(e_rec1+e_rec2+e_rec3);
 
 
     return ONE_4PI_EPS0 * e_rec;
@@ -811,7 +812,7 @@ static void create_info(t_inputinfo *info)
 /* Allocate and fill an array with coordinates and charges,
  * returns the number of charges found
  */
-static int prepare_x_q(real *q[], rvec *x[], gmx_mtop_t *mtop, rvec x_orig[], t_commrec *cr)
+static int prepare_x_q(real *q[], rvec *x[], const gmx_mtop_t *mtop, const rvec x_orig[], t_commrec *cr)
 {
     int                     i;
     int                     nq; /* number of charged particles */
@@ -861,7 +862,7 @@ static int prepare_x_q(real *q[], rvec *x[], gmx_mtop_t *mtop, rvec x_orig[], t_
 /* Read in the tpr file and save information we need later in info */
 static void read_tpr_file(const char *fn_sim_tpr, t_inputinfo *info, t_state *state, gmx_mtop_t *mtop, t_inputrec *ir, real user_beta, real fracself)
 {
-    read_tpx_state(fn_sim_tpr, ir, state, NULL, mtop);
+    read_tpx_state(fn_sim_tpr, ir, state, mtop);
 
     /* The values of the original tpr input file are save in the first
      * place [0] of the arrays */
@@ -921,8 +922,8 @@ static void bcast_info(t_inputinfo *info, t_commrec *cr)
  * a) a homogeneous distribution of the charges
  * b) a total charge of zero.
  */
-static void estimate_PME_error(t_inputinfo *info, t_state *state,
-                               gmx_mtop_t *mtop, FILE *fp_out, gmx_bool bVerbose, unsigned int seed,
+static void estimate_PME_error(t_inputinfo *info, const t_state *state,
+                               const gmx_mtop_t *mtop, FILE *fp_out, gmx_bool bVerbose, unsigned int seed,
                                t_commrec *cr)
 {
     rvec *x     = NULL; /* The coordinates */
@@ -948,7 +949,7 @@ static void estimate_PME_error(t_inputinfo *info, t_state *state,
     if (MASTER(cr))
     {
         calc_q2all(mtop, &(info->q2all), &(info->q2allnr));
-        info->ewald_rtol[0] = gmx_erfc(info->rcoulomb[0]*info->ewald_beta[0]);
+        info->ewald_rtol[0] = std::erfc(info->rcoulomb[0]*info->ewald_beta[0]);
         /* Write some info to log file */
         fprintf(fp_out, "Box volume              : %g nm^3\n", info->volume);
         fprintf(fp_out, "Number of charged atoms : %d (total atoms %d)\n", ncharges, info->natoms);
@@ -1023,7 +1024,7 @@ static void estimate_PME_error(t_inputinfo *info, t_state *state,
         edir = info->e_dir[0];
         erec = info->e_rec[0];
         derr = edir-erec;
-        while (fabs(derr/std::min(erec, edir)) > 1e-4)
+        while (std::abs(derr/std::min(erec, edir)) > 1e-4)
         {
 
             beta                = info->ewald_beta[0];
@@ -1048,13 +1049,13 @@ static void estimate_PME_error(t_inputinfo *info, t_state *state,
             if (MASTER(cr))
             {
                 i++;
-                fprintf(stderr, "difference between real and rec. space error (step %d): %g\n", i, fabs(derr));
+                fprintf(stderr, "difference between real and rec. space error (step %d): %g\n", i, std::abs(derr));
                 fprintf(stderr, "old beta: %f\n", beta0);
                 fprintf(stderr, "new beta: %f\n", beta);
             }
         }
 
-        info->ewald_rtol[0] = gmx_erfc(info->rcoulomb[0]*info->ewald_beta[0]);
+        info->ewald_rtol[0] = std::erfc(info->rcoulomb[0]*info->ewald_beta[0]);
 
         if (MASTER(cr))
         {
@@ -1104,15 +1105,15 @@ int gmx_pme_error(int argc, char *argv[])
     int             seed     = 0;
 
 
-    static t_filenm fnm[] = {
+    static t_filenm   fnm[] = {
         { efTPR, "-s",     NULL,    ffREAD },
         { efOUT, "-o",    "error",  ffWRITE },
         { efTPR, "-so",   "tuned",  ffOPTWR }
     };
 
-    output_env_t    oenv = NULL;
+    gmx_output_env_t *oenv = NULL;
 
-    t_pargs         pa[] = {
+    t_pargs           pa[] = {
         { "-beta",     FALSE, etREAL, {&user_beta},
           "If positive, overwrite ewald_beta from [REF].tpr[ref] file with this value" },
         { "-tune",     FALSE, etBOOL, {&bTUNE},
@@ -1128,8 +1129,7 @@ int gmx_pme_error(int argc, char *argv[])
 
 #define NFILE asize(fnm)
 
-    cr = init_commrec();
-
+    cr         = init_commrec();
     PCA_Flags  = PCA_NOEXIT_ON_ARGS;
 
     if (!parse_common_args(&argc, argv, PCA_Flags,
@@ -1150,13 +1150,19 @@ int gmx_pme_error(int argc, char *argv[])
     create_info(&info);
     info.fourier_sp[0] = fs;
 
-    /* Read in the tpr file and open logfile for reading */
     if (MASTER(cr))
     {
+        /* Read in the tpr file */
         snew(ir, 1);
         read_tpr_file(opt2fn("-s", NFILE, fnm), &info, &state, &mtop, ir, user_beta, fracself);
-
+        /* Open logfile for reading */
         fp = fopen(opt2fn("-o", NFILE, fnm), "w");
+
+        /* Determine the volume of the simulation box */
+        info.volume = det(state.box);
+        calc_recipbox(state.box, info.recipbox);
+        info.natoms = mtop.natoms;
+        info.bTUNE  = bTUNE;
     }
 
     /* Check consistency if the user provided fourierspacing */
@@ -1175,15 +1181,6 @@ int gmx_pme_error(int argc, char *argv[])
     }
 
     /* Estimate (S)PME force error */
-
-    /* Determine the volume of the simulation box */
-    if (MASTER(cr))
-    {
-        info.volume = det(state.box);
-        calc_recipbox(state.box, info.recipbox);
-        info.natoms = mtop.natoms;
-        info.bTUNE  = bTUNE;
-    }
 
     if (PAR(cr))
     {

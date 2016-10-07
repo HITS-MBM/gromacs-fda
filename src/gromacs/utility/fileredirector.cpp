@@ -43,16 +43,17 @@
 
 #include "fileredirector.h"
 
-#include "gromacs/utility/file.h"
+#include "gromacs/utility/filestream.h"
+#include "gromacs/utility/path.h"
 
 namespace gmx
 {
 
-FileInputRedirectorInterface::~FileInputRedirectorInterface()
+IFileInputRedirector::~IFileInputRedirector()
 {
 }
 
-FileOutputRedirectorInterface::~FileOutputRedirectorInterface()
+IFileOutputRedirector::~IFileOutputRedirector()
 {
 }
 
@@ -67,12 +68,13 @@ namespace
  *
  * \ingroup module_utility
  */
-class DefaultInputRedirector : public FileInputRedirectorInterface
+class DefaultInputRedirector : public IFileInputRedirector
 {
     public:
-        virtual bool fileExists(const char *filename) const
+        virtual bool fileExists(const char            *filename,
+                                File::NotFoundHandler  onNotFound) const
         {
-            return File::exists(filename);
+            return File::exists(filename, onNotFound);
         }
 };
 
@@ -85,29 +87,29 @@ class DefaultInputRedirector : public FileInputRedirectorInterface
  *
  * \ingroup module_utility
  */
-class DefaultOutputRedirector : public FileOutputRedirectorInterface
+class DefaultOutputRedirector : public IFileOutputRedirector
 {
     public:
-        virtual File &standardOutput()
+        virtual TextOutputStream &standardOutput()
         {
-            return File::standardOutput();
+            return TextOutputFile::standardOutput();
         }
-        virtual FileInitializer openFileForWriting(const char *filename)
+        virtual TextOutputStreamPointer openTextOutputFile(const char *filename)
         {
-            return FileInitializer(filename, "w");
+            return TextOutputStreamPointer(new TextOutputFile(filename));
         }
 };
 
 }   // namespace
 
 //! \cond libapi
-FileInputRedirectorInterface &defaultFileInputRedirector()
+IFileInputRedirector &defaultFileInputRedirector()
 {
     static DefaultInputRedirector instance;
     return instance;
 }
 
-FileOutputRedirectorInterface &defaultFileOutputRedirector()
+IFileOutputRedirector &defaultFileOutputRedirector()
 {
     static DefaultOutputRedirector instance;
     return instance;

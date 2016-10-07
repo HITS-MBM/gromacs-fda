@@ -48,21 +48,20 @@
 #include <cstdio>
 
 #include <algorithm>
+#include <memory>
 #include <string>
-
-#include <boost/scoped_ptr.hpp>
 
 #include "gromacs/commandline/cmdlinehelpcontext.h"
 #include "gromacs/commandline/pargs.h"
-#include "gromacs/fileio/filenm.h"
+#include "gromacs/fileio/filetypes.h"
 #include "gromacs/options/basicoptions.h"
 #include "gromacs/options/filenameoption.h"
 #include "gromacs/options/optionsvisitor.h"
 #include "gromacs/utility/arrayref.h"
 #include "gromacs/utility/exceptions.h"
-#include "gromacs/utility/file.h"
 #include "gromacs/utility/gmxassert.h"
 #include "gromacs/utility/stringutil.h"
+#include "gromacs/utility/textwriter.h"
 
 namespace gmx
 {
@@ -108,7 +107,7 @@ class OptionsListWriter : public OptionsVisitor
 class OptionCompletionWriter : public OptionsVisitor
 {
     public:
-        explicit OptionCompletionWriter(File *out) : out_(*out) {}
+        explicit OptionCompletionWriter(TextWriter *out) : out_(*out) {}
 
         virtual void visitSubSection(const Options &section)
         {
@@ -122,7 +121,7 @@ class OptionCompletionWriter : public OptionsVisitor
         void writeOptionCompletion(const OptionInfo  &option,
                                    const std::string &completion);
 
-        File &out_;
+        TextWriter &out_;
 };
 
 void OptionCompletionWriter::visitOption(const OptionInfo &option)
@@ -199,8 +198,9 @@ class ShellCompletionWriter::Impl
             return result;
         }
 
-        std::string             binaryName_;
-        boost::scoped_ptr<File> file_;
+        std::string                   binaryName_;
+        // Never releases ownership.
+        std::unique_ptr<TextWriter>   file_;
 };
 
 ShellCompletionWriter::ShellCompletionWriter(const std::string     &binaryName,
@@ -213,21 +213,21 @@ ShellCompletionWriter::~ShellCompletionWriter()
 {
 }
 
-File *ShellCompletionWriter::outputFile()
+TextWriter &ShellCompletionWriter::outputWriter()
 {
-    return impl_->file_.get();
+    return *impl_->file_;
 }
 
 void ShellCompletionWriter::startCompletions()
 {
-    impl_->file_.reset(new File(impl_->binaryName_ + "-completion.bash", "w"));
+    impl_->file_.reset(new TextWriter(impl_->binaryName_ + "-completion.bash"));
 }
 
 void ShellCompletionWriter::writeModuleCompletions(
         const char    *moduleName,
         const Options &options)
 {
-    File &out = *impl_->file_;
+    TextWriter &out = *impl_->file_;
     out.writeLine(formatString("%s() {", impl_->completionFunctionName(moduleName).c_str()));
     out.writeLine("local IFS=$'\\n'");
     out.writeLine("local c=${COMP_WORDS[COMP_CWORD]}");

@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014,2015, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -40,6 +40,7 @@
 
 #include "config.h"
 
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -51,7 +52,7 @@
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #endif
-#ifdef GMX_NATIVE_WINDOWS
+#if GMX_NATIVE_WINDOWS
 #include <direct.h>   // For _chdir() and _getcwd()
 #include <io.h>
 #include <windows.h>
@@ -165,7 +166,7 @@ void push_ps(FILE *fp)
 #ifdef gmx_ffclose
 #undef gmx_ffclose
 #endif
-#if (!defined(HAVE_PIPES) && !defined(__native_client__))
+#if (!HAVE_PIPES && !defined(__native_client__))
 static FILE *popen(const char *nm, const char *mode)
 {
     gmx_impl("Sorry no pipes...");
@@ -179,7 +180,7 @@ static int pclose(FILE *fp)
 
     return 0;
 }
-#endif /* !defined(HAVE_PIPES) && !defined(__native_client__) */
+#endif /* !HAVE_PIPES && !defined(__native_client__) */
 #endif /* GMX_FAHCORE */
 
 int gmx_ffclose(FILE *fp)
@@ -261,10 +262,10 @@ void frewind(FILE *fp)
 
 int gmx_fseek(FILE *stream, gmx_off_t offset, int whence)
 {
-#ifdef HAVE_FSEEKO
+#if HAVE_FSEEKO
     return fseeko(stream, offset, whence);
 #else
-#ifdef HAVE__FSEEKI64
+#if HAVE__FSEEKI64
     return _fseeki64(stream, offset, whence);
 #else
     return fseek(stream, offset, whence);
@@ -274,10 +275,10 @@ int gmx_fseek(FILE *stream, gmx_off_t offset, int whence)
 
 gmx_off_t gmx_ftell(FILE *stream)
 {
-#ifdef HAVE_FSEEKO
+#if HAVE_FSEEKO
     return ftello(stream);
 #else
-#ifdef HAVE__FSEEKI64
+#if HAVE__FSEEKI64
 #ifndef __MINGW32__
     return _ftelli64(stream);
 #else
@@ -291,7 +292,7 @@ gmx_off_t gmx_ftell(FILE *stream)
 
 int gmx_truncate(const char *filename, gmx_off_t length)
 {
-#ifdef GMX_NATIVE_WINDOWS
+#if GMX_NATIVE_WINDOWS
     FILE *fp = fopen(filename, "rb+");
     if (fp == NULL)
     {
@@ -353,7 +354,7 @@ gmx_bool gmx_fexist(const char *fname)
     if (test == NULL)
     {
         /*Windows doesn't allow fopen of directory - so we need to check this seperately */
-        #ifdef GMX_NATIVE_WINDOWS
+        #if GMX_NATIVE_WINDOWS
         DWORD attr = GetFileAttributes(fname);
         return (attr != INVALID_FILE_ATTRIBUTES) && (attr & FILE_ATTRIBUTE_DIRECTORY);
         #else
@@ -582,24 +583,78 @@ void gmx_tmpnam(char *buf)
      * since windows doesnt support it we have to separate the cases.
      * 20090307: mktemp deprecated, use iso c++ _mktemp instead.
      */
-#ifdef GMX_NATIVE_WINDOWS
+#if GMX_NATIVE_WINDOWS
     _mktemp(buf);
+    if (buf == NULL)
+    {
+        gmx_fatal(FARGS, "Error creating temporary file %s: %s", buf,
+                  strerror(errno));
+    }
 #else
     int fd = mkstemp(buf);
 
     if (fd < 0)
     {
-        gmx_fatal(FARGS, "Creating temporary file %s: %s", buf,
+        gmx_fatal(FARGS, "Error creating temporary file %s: %s", buf,
                   strerror(errno));
     }
     close(fd);
+
 #endif
-    /* name in Buf should now be OK */
+
+    /* name in Buf should now be OK and file is CLOSED */
+
+    return;
+}
+
+FILE *gmx_fopen_temporary(char *buf)
+{
+    int   i, len;
+    FILE *fpout = NULL;
+
+    if ((len = strlen(buf)) < 7)
+    {
+        gmx_fatal(FARGS, "Buf passed to gmx_fopentmp must be at least 7 bytes long");
+    }
+    for (i = len-6; (i < len); i++)
+    {
+        buf[i] = 'X';
+    }
+    /* mktemp is dangerous and we should use mkstemp instead, but
+     * since windows doesnt support it we have to separate the cases.
+     * 20090307: mktemp deprecated, use iso c++ _mktemp instead.
+     */
+#if GMX_NATIVE_WINDOWS
+    _mktemp(buf);
+    if (buf == NULL)
+    {
+        gmx_fatal(FARGS, "Error creating temporary file %s: %s", buf,
+                  strerror(errno));
+    }
+    if ((fpout = fopen(buf, "w")) == NULL)
+    {
+        gmx_fatal(FARGS, "Cannot open temporary file %s", buf);
+    }
+#else
+    int fd = mkstemp(buf);
+    if (fd < 0)
+    {
+        gmx_fatal(FARGS, "Error creating temporary file %s: %s", buf,
+                  strerror(errno));
+    }
+    if ((fpout = fdopen(fd, "w")) == NULL)
+    {
+        gmx_fatal(FARGS, "Cannot open temporary file %s", buf);
+    }
+#endif
+    /* name in Buf should now be OK and file is open */
+
+    return fpout;
 }
 
 int gmx_file_rename(const char *oldname, const char *newname)
 {
-#ifndef GMX_NATIVE_WINDOWS
+#if !GMX_NATIVE_WINDOWS
     /* under unix, rename() is atomic (at least, it should be). */
     return rename(oldname, newname);
 #else
@@ -702,9 +757,9 @@ int gmx_fsync(FILE *fp)
         int fn;
 
         /* get the file number */
-#if defined(HAVE_FILENO)
+#if HAVE_FILENO
         fn = fileno(fp);
-#elif defined(HAVE__FILENO)
+#elif HAVE__FILENO
         fn = _fileno(fp);
 #else
         fn = -1;
@@ -713,9 +768,9 @@ int gmx_fsync(FILE *fp)
         /* do the actual fsync */
         if (fn >= 0)
         {
-#if (defined(HAVE_FSYNC))
+#if HAVE_FSYNC
             rc = fsync(fn);
-#elif (defined(HAVE__COMMIT))
+#elif HAVE__COMMIT
             rc = _commit(fn);
 #endif
         }
@@ -745,7 +800,7 @@ int gmx_fsync(FILE *fp)
 
 void gmx_chdir(const char *directory)
 {
-#ifdef GMX_NATIVE_WINDOWS
+#if GMX_NATIVE_WINDOWS
     int rc = _chdir(directory);
 #else
     int rc = chdir(directory);
@@ -759,7 +814,7 @@ void gmx_chdir(const char *directory)
 
 void gmx_getcwd(char *buffer, size_t size)
 {
-#ifdef GMX_NATIVE_WINDOWS
+#if GMX_NATIVE_WINDOWS
     char *pdum = _getcwd(buffer, size);
 #else
     char *pdum = getcwd(buffer, size);

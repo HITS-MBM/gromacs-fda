@@ -51,9 +51,9 @@
 namespace gmx
 {
 
-class FileInputRedirectorInterface;
 class FileNameOptionInfo;
-class Options;
+class IFileInputRedirector;
+class IOptionsContainer;
 
 /*! \brief
  * Handles interaction of file name options with global options.
@@ -79,7 +79,7 @@ class Options;
  * \inpublicapi
  * \ingroup module_selection
  */
-class FileNameOptionManager : public OptionManagerInterface
+class FileNameOptionManager : public IOptionManager
 {
     public:
         FileNameOptionManager();
@@ -101,7 +101,7 @@ class FileNameOptionManager : public OptionManagerInterface
          * For tests, there should only be need to call this a single time,
          * right after creating the manager.
          */
-        void setInputRedirector(const FileInputRedirectorInterface *redirector);
+        void setInputRedirector(const IFileInputRedirector *redirector);
 
         /*! \brief
          * Disables special input file option handling.
@@ -132,7 +132,7 @@ class FileNameOptionManager : public OptionManagerInterface
          * instead from an option-specific default
          * (FileNameOption::defaultBaseName()).
          */
-        void addDefaultFileNameOption(Options *options, const char *name);
+        void addDefaultFileNameOption(IOptionsContainer *options, const char *name);
 
         /*! \brief
          * Completes file name option values.

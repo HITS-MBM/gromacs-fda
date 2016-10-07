@@ -51,7 +51,6 @@
 namespace gmx
 {
 
-class Options;
 class SelectionCollection;
 class SelectionOptionStorage;
 
@@ -79,7 +78,7 @@ class SelectionOptionStorage;
  * \inpublicapi
  * \ingroup module_selection
  */
-class SelectionOptionManager : public OptionManagerInterface
+class SelectionOptionManager : public IOptionManager
 {
     public:
         /*! \brief
@@ -136,6 +135,12 @@ class SelectionOptionManager : public OptionManagerInterface
         void requestOptionDelayedParsing(SelectionOptionStorage *storage);
 
         /*! \brief
+         * Returns whether there are requested selections that need input from
+         * parseRequestedFrom*().
+         */
+        bool hasRequestedSelections() const;
+
+        /*! \brief
          * Initializes options for setting global selection properties.
          *
          * \param[in,out] options Options object to initialize.
@@ -143,7 +148,7 @@ class SelectionOptionManager : public OptionManagerInterface
          *
          * \see SelectionCollection::initOptions()
          */
-        void initOptions(Options *options);
+        void initOptions(IOptionsContainer *options);
 
         /*! \brief
          * Parses selection(s) from standard input for options not yet

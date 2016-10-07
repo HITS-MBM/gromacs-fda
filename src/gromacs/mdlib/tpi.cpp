@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014,2015, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -34,48 +34,63 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
+/*! \internal \file
+ *
+ * \brief This file defines the integrator for test particle insertion
+ *
+ * \author Berk Hess <hess@kth.se>
+ * \ingroup module_mdlib
+ */
 #include "gmxpre.h"
 
-#include <math.h>
-#include <stdlib.h>
-#include <string.h>
-#include <time.h>
+#include "tpi.h"
+
+#include <cmath>
+#include <cstdlib>
+#include <cstring>
+#include <ctime>
 
 #include <algorithm>
 
+#include "gromacs/commandline/filenm.h"
 #include "gromacs/domdec/domdec.h"
 #include "gromacs/ewald/pme.h"
 #include "gromacs/fileio/confio.h"
-#include "gromacs/fileio/gmxfio.h"
 #include "gromacs/fileio/trxio.h"
 #include "gromacs/fileio/xvgr.h"
+#include "gromacs/gmxlib/chargegroup.h"
 #include "gromacs/gmxlib/conformation-utilities.h"
-#include "gromacs/legacyheaders/chargegroup.h"
-#include "gromacs/legacyheaders/constr.h"
-#include "gromacs/legacyheaders/force.h"
-#include "gromacs/legacyheaders/macros.h"
-#include "gromacs/legacyheaders/mdatoms.h"
-#include "gromacs/legacyheaders/mdebin.h"
-#include "gromacs/legacyheaders/mdrun.h"
-#include "gromacs/legacyheaders/names.h"
-#include "gromacs/legacyheaders/network.h"
-#include "gromacs/legacyheaders/nrnb.h"
-#include "gromacs/legacyheaders/ns.h"
-#include "gromacs/legacyheaders/tgroup.h"
-#include "gromacs/legacyheaders/txtdump.h"
-#include "gromacs/legacyheaders/typedefs.h"
-#include "gromacs/legacyheaders/update.h"
-#include "gromacs/legacyheaders/vsite.h"
-#include "gromacs/legacyheaders/types/commrec.h"
+#include "gromacs/gmxlib/network.h"
+#include "gromacs/gmxlib/nrnb.h"
 #include "gromacs/math/units.h"
 #include "gromacs/math/vec.h"
-#include "gromacs/random/random.h"
+#include "gromacs/mdlib/constr.h"
+#include "gromacs/mdlib/force.h"
+#include "gromacs/mdlib/mdatoms.h"
+#include "gromacs/mdlib/mdebin.h"
+#include "gromacs/mdlib/mdrun.h"
+#include "gromacs/mdlib/ns.h"
+#include "gromacs/mdlib/sim_util.h"
+#include "gromacs/mdlib/tgroup.h"
+#include "gromacs/mdlib/update.h"
+#include "gromacs/mdlib/vsite.h"
+#include "gromacs/mdtypes/commrec.h"
+#include "gromacs/mdtypes/group.h"
+#include "gromacs/mdtypes/inputrec.h"
+#include "gromacs/mdtypes/md_enums.h"
+#include "gromacs/pbcutil/pbc.h"
+#include "gromacs/random/threefry.h"
+#include "gromacs/random/uniformrealdistribution.h"
 #include "gromacs/timing/wallcycle.h"
 #include "gromacs/timing/walltime_accounting.h"
 #include "gromacs/topology/mtop_util.h"
+#include "gromacs/trajectory/trajectoryframe.h"
+#include "gromacs/utility/cstringutil.h"
 #include "gromacs/utility/fatalerror.h"
+#include "gromacs/utility/gmxassert.h"
 #include "gromacs/utility/smalloc.h"
 
+//! Global max algorithm
 static void global_max(t_commrec *cr, int *n)
 {
     int *sum, i;
@@ -91,6 +106,7 @@ static void global_max(t_commrec *cr, int *n)
     sfree(sum);
 }
 
+//! Reallocate arrays.
 static void realloc_bins(double **bin, int *nbin, int nbin_new)
 {
     int i;
@@ -106,21 +122,44 @@ static void realloc_bins(double **bin, int *nbin, int nbin_new)
     }
 }
 
+namespace gmx
+{
+
+/*! \brief Do test particle insertion.
+    \copydoc integrator_t (FILE *fplog, t_commrec *cr,
+                           int nfile, const t_filenm fnm[],
+                           const gmx_output_env_t *oenv, gmx_bool bVerbose,
+                           int nstglobalcomm,
+                           gmx_vsite_t *vsite, gmx_constr_t constr,
+                           int stepout,
+                           t_inputrec *inputrec,
+                           gmx_mtop_t *top_global, t_fcdata *fcd,
+                           t_state *state_global,
+                           t_mdatoms *mdatoms,
+                           t_nrnb *nrnb, gmx_wallcycle_t wcycle,
+                           gmx_edsam_t ed,
+                           t_forcerec *fr,
+                           int repl_ex_nst, int repl_ex_nex, int repl_ex_seed,
+                           real cpt_period, real max_hours,
+                           int imdport,
+                           unsigned long Flags,
+                           gmx_walltime_accounting_t walltime_accounting)
+ */
 double do_tpi(FILE *fplog, t_commrec *cr,
               int nfile, const t_filenm fnm[],
-              const output_env_t oenv, gmx_bool bVerbose, gmx_bool gmx_unused bCompact,
+              const gmx_output_env_t *oenv, gmx_bool bVerbose,
               int gmx_unused nstglobalcomm,
               gmx_vsite_t gmx_unused *vsite, gmx_constr_t gmx_unused constr,
               int gmx_unused stepout,
               t_inputrec *inputrec,
               gmx_mtop_t *top_global, t_fcdata *fcd,
-              t_state *state,
+              t_state *state_global,
               t_mdatoms *mdatoms,
               t_nrnb *nrnb, gmx_wallcycle_t wcycle,
               gmx_edsam_t gmx_unused ed,
               t_forcerec *fr,
               int gmx_unused repl_ex_nst, int gmx_unused repl_ex_nex, int gmx_unused repl_ex_seed,
-              gmx_membed_t gmx_unused membed,
+              gmx_membed_t gmx_unused *membed,
               real gmx_unused cpt_period, real gmx_unused max_hours,
               int gmx_unused imdport,
               unsigned long gmx_unused Flags,
@@ -142,9 +181,7 @@ double do_tpi(FILE *fplog, t_commrec *cr,
     int             nnodes, frame;
     gmx_int64_t     frame_step_prev, frame_step;
     gmx_int64_t     nsteps, stepblocksize = 0, step;
-    gmx_int64_t     rnd_count_stride, rnd_count;
     gmx_int64_t     seed;
-    double          rnd[4];
     int             i;
     FILE           *fp_tpi = NULL;
     char           *ptr, *dump_pdb, **leg, str[STRLEN], str2[STRLEN];
@@ -171,7 +208,7 @@ double do_tpi(FILE *fplog, t_commrec *cr,
 
     nnodes = cr->nnodes;
 
-    top = gmx_mtop_generate_local_top(top_global, inputrec);
+    top = gmx_mtop_generate_local_top(top_global, inputrec->efep != efepNO);
 
     groups = &top_global->groups;
 
@@ -207,7 +244,7 @@ double do_tpi(FILE *fplog, t_commrec *cr,
 
     /*
        init_em(fplog,TPI,inputrec,&lambda,nrnb,mu_tot,
-       state->box,fr,mdatoms,top,cr,nfile,fnm,NULL,NULL);*/
+       state_global->box,fr,mdatoms,top,cr,nfile,fnm,NULL,NULL);*/
     /* We never need full pbc for TPI */
     fr->ePBC = epbcXYZ;
     /* Determine the temperature for the Boltzmann weighting */
@@ -267,12 +304,9 @@ double do_tpi(FILE *fplog, t_commrec *cr,
     {
         fprintf(debug, "TPI cg %d, atoms %d-%d\n", cg_tp, a_tp0, a_tp1);
     }
-    if (a_tp1 - a_tp0 > 1 &&
-        (inputrec->rlist < inputrec->rcoulomb ||
-         inputrec->rlist < inputrec->rvdw))
-    {
-        gmx_fatal(FARGS, "Can not do TPI for multi-atom molecule with a twin-range cut-off");
-    }
+
+    GMX_RELEASE_ASSERT(inputrec->rcoulomb <= inputrec->rlist && inputrec->rvdw <= inputrec->rlist, "Twin-range interactions are not supported with TPI");
+
     snew(x_mol, a_tp1-a_tp0);
 
     bDispCorr = (inputrec->eDispCorr != edispcNO);
@@ -280,14 +314,14 @@ double do_tpi(FILE *fplog, t_commrec *cr,
     for (i = a_tp0; i < a_tp1; i++)
     {
         /* Copy the coordinates of the molecule to be insterted */
-        copy_rvec(state->x[i], x_mol[i-a_tp0]);
+        copy_rvec(state_global->x[i], x_mol[i-a_tp0]);
         /* Check if we need to print electrostatic energies */
         bCharge |= (mdatoms->chargeA[i] != 0 ||
                     (mdatoms->chargeB && mdatoms->chargeB[i] != 0));
     }
-    bRFExcl = (bCharge && EEL_RF(fr->eeltype) && fr->eeltype != eelRF_NEC);
+    bRFExcl = (bCharge && EEL_RF(fr->eeltype));
 
-    calc_cgcm(fplog, cg_tp, cg_tp+1, &(top->cgs), state->x, fr->cg_cm);
+    calc_cgcm(fplog, cg_tp, cg_tp+1, &(top->cgs), state_global->x, fr->cg_cm);
     if (bCavity)
     {
         if (norm(fr->cg_cm[cg_tp]) > 0.5*inputrec->rlist && fplog)
@@ -359,15 +393,9 @@ double do_tpi(FILE *fplog, t_commrec *cr,
 
     /* Copy the random seed set by the user */
     seed = inputrec->ld_seed;
-    /* We use the frame step number as one random counter.
-     * The second counter use the insertion (step) count. But we
-     * need multiple random numbers per insertion. This number is
-     * not fixed, since we generate random locations in a sphere
-     * by putting locations in a cube and some of these fail.
-     * A count of 20 is already extremely unlikely, so 10000 is
-     * a safe margin for random numbers per insertion.
-     */
-    rnd_count_stride = 10000;
+
+    gmx::ThreeFry2x64<16>                rng(seed, gmx::RandomDomain::TestParticleInsertion); // 16 bits internal counter => 2^16 * 2 = 131072 values per stream
+    gmx::UniformRealDistribution<real>   dist;
 
     if (MASTER(cr))
     {
@@ -489,11 +517,11 @@ double do_tpi(FILE *fplog, t_commrec *cr,
         /* Copy the coordinates from the input trajectory */
         for (i = 0; i < rerun_fr.natoms; i++)
         {
-            copy_rvec(rerun_fr.x[i], state->x[i]);
+            copy_rvec(rerun_fr.x[i], state_global->x[i]);
         }
-        copy_mat(rerun_fr.box, state->box);
+        copy_mat(rerun_fr.box, state_global->box);
 
-        V    = det(state->box);
+        V    = det(state_global->box);
         logV = log(V);
 
         bStateChanged = TRUE;
@@ -502,13 +530,16 @@ double do_tpi(FILE *fplog, t_commrec *cr,
         step = cr->nodeid*stepblocksize;
         while (step < nsteps)
         {
-            /* Initialize the second counter for random numbers using
-             * the insertion step index. This ensures that we get
-             * the same random numbers independently of how many
-             * MPI ranks we use. Also for the same seed, we get
-             * the same initial random sequence for different nsteps.
+            /* Restart random engine using the frame and insertion step
+             * as counters.
+             * Note that we need to draw several random values per iteration,
+             * but by using the internal subcounter functionality of ThreeFry2x64
+             * we can draw 131072 unique 64-bit values before exhausting
+             * the stream. This is a huge margin, and if something still goes
+             * wrong you will get an exception when the stream is exhausted.
              */
-            rnd_count = step*rnd_count_stride;
+            rng.restart(frame_step, step);
+            dist.reset();  // erase any memory in the distribution
 
             if (!bCavity)
             {
@@ -517,13 +548,12 @@ double do_tpi(FILE *fplog, t_commrec *cr,
                 if (bNS)
                 {
                     /* Generate a random position in the box */
-                    gmx_rng_cycle_2uniform(frame_step, rnd_count++, seed, RND_SEED_TPI, rnd);
-                    gmx_rng_cycle_2uniform(frame_step, rnd_count++, seed, RND_SEED_TPI, rnd+2);
                     for (d = 0; d < DIM; d++)
                     {
-                        x_init[d] = rnd[d]*state->box[d][d];
+                        x_init[d] = dist(rng)*state_global->box[d][d];
                     }
                 }
+
                 if (inputrec->nstlist == 1)
                 {
                     copy_rvec(x_init, x_tp);
@@ -533,11 +563,9 @@ double do_tpi(FILE *fplog, t_commrec *cr,
                     /* Generate coordinates within |dx|=drmax of x_init */
                     do
                     {
-                        gmx_rng_cycle_2uniform(frame_step, rnd_count++, seed, RND_SEED_TPI, rnd);
-                        gmx_rng_cycle_2uniform(frame_step, rnd_count++, seed, RND_SEED_TPI, rnd+2);
                         for (d = 0; d < DIM; d++)
                         {
-                            dx[d] = (2*rnd[d] - 1)*drmax;
+                            dx[d] = (2*dist(rng) - 1)*drmax;
                         }
                     }
                     while (norm2(dx) > drmax*drmax);
@@ -579,11 +607,9 @@ double do_tpi(FILE *fplog, t_commrec *cr,
                 /* Generate coordinates within |dx|=drmax of x_init */
                 do
                 {
-                    gmx_rng_cycle_2uniform(frame_step, rnd_count++, seed, RND_SEED_TPI, rnd);
-                    gmx_rng_cycle_2uniform(frame_step, rnd_count++, seed, RND_SEED_TPI, rnd+2);
                     for (d = 0; d < DIM; d++)
                     {
-                        dx[d] = (2*rnd[d] - 1)*drmax;
+                        dx[d] = (2*dist(rng) - 1)*drmax;
                     }
                 }
                 while (norm2(dx) > drmax*drmax);
@@ -593,26 +619,24 @@ double do_tpi(FILE *fplog, t_commrec *cr,
             if (a_tp1 - a_tp0 == 1)
             {
                 /* Insert a single atom, just copy the insertion location */
-                copy_rvec(x_tp, state->x[a_tp0]);
+                copy_rvec(x_tp, state_global->x[a_tp0]);
             }
             else
             {
                 /* Copy the coordinates from the top file */
                 for (i = a_tp0; i < a_tp1; i++)
                 {
-                    copy_rvec(x_mol[i-a_tp0], state->x[i]);
+                    copy_rvec(x_mol[i-a_tp0], state_global->x[i]);
                 }
                 /* Rotate the molecule randomly */
-                gmx_rng_cycle_2uniform(frame_step, rnd_count++, seed, RND_SEED_TPI, rnd);
-                gmx_rng_cycle_2uniform(frame_step, rnd_count++, seed, RND_SEED_TPI, rnd+2);
-                rotate_conf(a_tp1-a_tp0, state->x+a_tp0, NULL,
-                            2*M_PI*rnd[0],
-                            2*M_PI*rnd[1],
-                            2*M_PI*rnd[2]);
+                rotate_conf(a_tp1-a_tp0, state_global->x+a_tp0, NULL,
+                            2*M_PI*dist(rng),
+                            2*M_PI*dist(rng),
+                            2*M_PI*dist(rng));
                 /* Shift to the insertion location */
                 for (i = a_tp0; i < a_tp1; i++)
                 {
-                    rvec_inc(state->x[i], x_tp);
+                    rvec_inc(state_global->x[i], x_tp);
                 }
             }
 
@@ -630,29 +654,24 @@ double do_tpi(FILE *fplog, t_commrec *cr,
              * and the RF exclusion terms of the inserted molecule occur
              * within a single charge group we can pass NULL for the graph.
              * This also avoids shifts that would move charge groups
-             * out of the box.
-             *
-             * Some checks above ensure than we can not have
-             * twin-range interactions together with nstlist > 1,
-             * therefore we do not need to remember the LR energies.
-             */
+             * out of the box. */
             /* Make do_force do a single node force calculation */
             cr->nnodes = 1;
             do_force(fplog, cr, inputrec,
                      step, nrnb, wcycle, top, &top_global->groups,
-                     state->box, state->x, &state->hist,
+                     state_global->box, state_global->x, &state_global->hist,
                      f, force_vir, mdatoms, enerd, fcd,
-                     state->lambda,
+                     state_global->lambda,
                      NULL, fr, NULL, mu_tot, t, NULL, NULL, FALSE,
                      GMX_FORCE_NONBONDED | GMX_FORCE_ENERGY |
-                     (bNS ? GMX_FORCE_DYNAMICBOX | GMX_FORCE_NS | GMX_FORCE_DO_LR : 0) |
+                     (bNS ? GMX_FORCE_DYNAMICBOX | GMX_FORCE_NS : 0) |
                      (bStateChanged ? GMX_FORCE_STATECHANGED : 0));
             cr->nnodes    = nnodes;
             bStateChanged = FALSE;
             bNS           = FALSE;
 
             /* Calculate long range corrections to pressure and energy */
-            calc_dispcorr(inputrec, fr, top_global->natoms, state->box,
+            calc_dispcorr(inputrec, fr, state_global->box,
                           lambda, pres, vir, &prescorr, &enercorr, &dvdlcorr);
             /* figure out how to rearrange the next 4 lines MRS 8/4/2009 */
             enerd->term[F_DISPCORR]  = enercorr;
@@ -701,8 +720,7 @@ double do_tpi(FILE *fplog, t_commrec *cr,
                     for (i = 0; i < ngid; i++)
                     {
                         sum_UgembU[e++] +=
-                            (enerd->grpp.ener[egBHAMSR][GID(i, gid_tp, ngid)] +
-                             enerd->grpp.ener[egBHAMLR][GID(i, gid_tp, ngid)])*embU;
+                            enerd->grpp.ener[egBHAMSR][GID(i, gid_tp, ngid)]*embU;
                     }
                 }
                 else
@@ -710,8 +728,7 @@ double do_tpi(FILE *fplog, t_commrec *cr,
                     for (i = 0; i < ngid; i++)
                     {
                         sum_UgembU[e++] +=
-                            (enerd->grpp.ener[egLJSR][GID(i, gid_tp, ngid)] +
-                             enerd->grpp.ener[egLJLR][GID(i, gid_tp, ngid)])*embU;
+                            enerd->grpp.ener[egLJSR][GID(i, gid_tp, ngid)]*embU;
                     }
                 }
                 if (bDispCorr)
@@ -722,9 +739,7 @@ double do_tpi(FILE *fplog, t_commrec *cr,
                 {
                     for (i = 0; i < ngid; i++)
                     {
-                        sum_UgembU[e++] +=
-                            (enerd->grpp.ener[egCOULSR][GID(i, gid_tp, ngid)] +
-                             enerd->grpp.ener[egCOULLR][GID(i, gid_tp, ngid)])*embU;
+                        sum_UgembU[e++] += enerd->grpp.ener[egCOULSR][GID(i, gid_tp, ngid)] * embU;
                     }
                     if (bRFExcl)
                     {
@@ -767,8 +782,8 @@ double do_tpi(FILE *fplog, t_commrec *cr,
             {
                 sprintf(str, "t%g_step%d.pdb", t, (int)step);
                 sprintf(str2, "t: %f step %d ener: %f", t, (int)step, epot);
-                write_sto_conf_mtop(str, str2, top_global, state->x, state->v,
-                                    inputrec->ePBC, state->box);
+                write_sto_conf_mtop(str, str2, top_global, state_global->x, state_global->v,
+                                    inputrec->ePBC, state_global->box);
             }
 
             step++;
@@ -812,7 +827,7 @@ double do_tpi(FILE *fplog, t_commrec *cr,
         }
 
         bNotLastFrame = read_next_frame(oenv, status, &rerun_fr);
-    } /* End of the loop  */
+    }   /* End of the loop  */
     walltime_accounting_end(walltime_accounting);
 
     close_trj(status);
@@ -864,3 +879,5 @@ double do_tpi(FILE *fplog, t_commrec *cr,
 
     return 0;
 }
+
+} // namespace gmx

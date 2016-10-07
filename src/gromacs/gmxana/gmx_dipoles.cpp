@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014,2015, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -36,33 +36,36 @@
  */
 #include "gmxpre.h"
 
-#include <math.h>
-#include <string.h>
+#include <cmath>
+#include <cstring>
 
 #include <algorithm>
 
 #include "gromacs/commandline/pargs.h"
+#include "gromacs/commandline/viewit.h"
 #include "gromacs/correlationfunctions/autocorr.h"
+#include "gromacs/fileio/confio.h"
 #include "gromacs/fileio/enxio.h"
 #include "gromacs/fileio/matio.h"
+#include "gromacs/fileio/tpxio.h"
 #include "gromacs/fileio/trxio.h"
 #include "gromacs/fileio/xvgr.h"
 #include "gromacs/gmxana/gmx_ana.h"
-#include "gromacs/legacyheaders/calcmu.h"
-#include "gromacs/legacyheaders/copyrite.h"
-#include "gromacs/legacyheaders/macros.h"
-#include "gromacs/legacyheaders/names.h"
-#include "gromacs/legacyheaders/txtdump.h"
-#include "gromacs/legacyheaders/viewit.h"
 #include "gromacs/linearalgebra/nrjac.h"
 #include "gromacs/listed-forces/bonded.h"
+#include "gromacs/math/functions.h"
 #include "gromacs/math/units.h"
 #include "gromacs/math/vec.h"
+#include "gromacs/math/vecdump.h"
+#include "gromacs/mdtypes/md_enums.h"
 #include "gromacs/pbcutil/pbc.h"
 #include "gromacs/pbcutil/rmpbc.h"
-#include "gromacs/random/random.h"
 #include "gromacs/statistics/statistics.h"
 #include "gromacs/topology/index.h"
+#include "gromacs/topology/topology.h"
+#include "gromacs/utility/arraysize.h"
+#include "gromacs/utility/binaryinformation.h"
+#include "gromacs/utility/cstringutil.h"
 #include "gromacs/utility/exceptions.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/futil.h"
@@ -133,7 +136,7 @@ static void done_gkrbin(t_gkrbin **gb)
 
 static void add2gkr(t_gkrbin *gb, real r, real cosa, real phi)
 {
-    int  cy, index = gmx_nint(r/gb->spacing);
+    int  cy, index = std::round(r/gb->spacing);
     real alpha;
 
     if (index < gb->nelem)
@@ -143,7 +146,7 @@ static void add2gkr(t_gkrbin *gb, real r, real cosa, real phi)
     }
     if (index < gb->nx)
     {
-        alpha = acos(cosa);
+        alpha = std::acos(cosa);
         if (gb->bPhi)
         {
             cy = static_cast<int>((M_PI+phi)*gb->ny/(2*M_PI));
@@ -164,16 +167,16 @@ static void add2gkr(t_gkrbin *gb, real r, real cosa, real phi)
 static void rvec2sprvec(rvec dipcart, rvec dipsp)
 {
     clear_rvec(dipsp);
-    dipsp[0] = sqrt(dipcart[XX]*dipcart[XX]+dipcart[YY]*dipcart[YY]+dipcart[ZZ]*dipcart[ZZ]); /* R */
-    dipsp[1] = atan2(dipcart[YY], dipcart[XX]);                                               /* Theta */
-    dipsp[2] = atan2(sqrt(dipcart[XX]*dipcart[XX]+dipcart[YY]*dipcart[YY]), dipcart[ZZ]);     /* Phi */
+    dipsp[0] = std::sqrt(dipcart[XX]*dipcart[XX]+dipcart[YY]*dipcart[YY]+dipcart[ZZ]*dipcart[ZZ]);  /* R */
+    dipsp[1] = std::atan2(dipcart[YY], dipcart[XX]);                                                /* Theta */
+    dipsp[2] = std::atan2(std::sqrt(dipcart[XX]*dipcart[XX]+dipcart[YY]*dipcart[YY]), dipcart[ZZ]); /* Phi */
 }
 
 
 
-void do_gkr(t_gkrbin *gb, int ncos, int *ngrp, int *molindex[],
-            int mindex[], rvec x[], rvec mu[],
-            int ePBC, matrix box, t_atom *atom, int *nAtom)
+static void do_gkr(t_gkrbin *gb, int ncos, int *ngrp, int *molindex[],
+                   int mindex[], rvec x[], rvec mu[],
+                   int ePBC, const matrix box, const t_atom *atom, const int *nAtom)
 {
     static rvec *xcm[2] = { NULL, NULL};
     int          gi, gj, j0, j1, i, j, k, n, grp0, grp1;
@@ -204,7 +207,7 @@ void do_gkr(t_gkrbin *gb, int ncos, int *ngrp, int *molindex[],
                 qtot = 0;
                 for (j = j0; j < j1; j++)
                 {
-                    q     = fabs(atom[j].q);
+                    q     = std::abs(atom[j].q);
                     qtot += q;
                     for (k = 0; k < DIM; k++)
                     {
@@ -245,14 +248,14 @@ void do_gkr(t_gkrbin *gb, int ncos, int *ngrp, int *molindex[],
                     phi = dih_angle(xi, xj, xk, xl, &pbc,
                                     r_ij, r_kj, r_kl, mm, nn, /* out */
                                     &sign, &t1, &t2, &t3);
-                    cosa = cos(phi);
+                    cosa = std::cos(phi);
                 }
                 else
                 {
                     cosa = cos_angle(mu[gi], mu[gj]);
                     phi  = 0;
                 }
-                if (debug || gmx_isnan(cosa))
+                if (debug || std::isnan(cosa))
                 {
                     fprintf(debug ? debug : stderr,
                             "mu[%d] = %5.2f %5.2f %5.2f |mi| = %5.2f, mu[%d] = %5.2f %5.2f %5.2f |mj| = %5.2f rr = %5.2f cosa = %5.2f\n",
@@ -276,7 +279,7 @@ static real normalize_cmap(t_gkrbin *gb)
     hi = 0;
     for (i = 0; (i < gb->nx); i++)
     {
-        vol = 4*M_PI*sqr(gb->spacing*i)*gb->spacing;
+        vol = 4*M_PI*gmx::square(gb->spacing*i)*gb->spacing;
         for (j = 0; (j < gb->ny); j++)
         {
             gb->cmap[i][j] /= vol;
@@ -332,7 +335,7 @@ static void print_cmap(const char *cmap, t_gkrbin *gb, int *nlevels)
 
 static void print_gkrbin(const char *fn, t_gkrbin *gb,
                          int ngrp, int nframes, real volume,
-                         const output_env_t oenv)
+                         const gmx_output_env_t *oenv)
 {
     /* We compute Gk(r), gOO and hOO according to
      * Nymand & Linse, JCP 112 (2000) pp 6386-6395.
@@ -368,7 +371,7 @@ static void print_gkrbin(const char *fn, t_gkrbin *gb,
      * Multiply by 2 because we only take half the matrix of interactions
      * into account.
      */
-    fac  = 2.0/((double) ngrp * (double) nframes);
+    fac  = 2.0/(ngrp * nframes);
 
     x0 = 0;
     for (i = 0; i < last; i++)
@@ -437,7 +440,7 @@ gmx_bool read_mu_from_enx(ener_file_t fmu, int Vol, ivec iMu, rvec mu, real *vol
     return bCont;
 }
 
-static void neutralize_mols(int n, int *index, t_block *mols, t_atom *atom)
+static void neutralize_mols(int n, int *index, const t_block *mols, t_atom *atom)
 {
     double mtot, qtot;
     int    ncharged, m, a0, a1, a;
@@ -455,7 +458,7 @@ static void neutralize_mols(int n, int *index, t_block *mols, t_atom *atom)
             qtot += atom[a].q;
         }
         /* This check is only for the count print */
-        if (fabs(qtot) > 0.01)
+        if (std::abs(qtot) > 0.01)
         {
             ncharged++;
         }
@@ -476,7 +479,7 @@ static void neutralize_mols(int n, int *index, t_block *mols, t_atom *atom)
     }
 }
 
-static void mol_dip(int k0, int k1, rvec x[], t_atom atom[], rvec mu)
+static void mol_dip(int k0, int k1, rvec x[], const t_atom atom[], rvec mu)
 {
     int  k, m;
     real q;
@@ -492,7 +495,7 @@ static void mol_dip(int k0, int k1, rvec x[], t_atom atom[], rvec mu)
     }
 }
 
-static void mol_quad(int k0, int k1, rvec x[], t_atom atom[], rvec quad)
+static void mol_quad(int k0, int k1, rvec x[], const t_atom atom[], rvec quad)
 {
     int      i, k, m, n, niter;
     real     q, r2, mass, masstot;
@@ -653,13 +656,13 @@ static void update_slab_dipoles(int k0, int k1, rvec x[], rvec mu,
         xdim += x[k][idim];
     }
     xdim /= (k1-k0);
-    k     = ((int)(xdim*nslice/box[idim][idim] + nslice)) % nslice;
+    k     = (static_cast<int>(xdim*nslice/box[idim][idim] + nslice)) % nslice;
     rvec_inc(slab_dipole[k], mu);
 }
 
 static void dump_slab_dipoles(const char *fn, int idim, int nslice,
                               rvec slab_dipole[], matrix box, int nframes,
-                              const output_env_t oenv)
+                              const gmx_output_env_t *oenv)
 {
     FILE       *fp;
     char        buf[STRLEN];
@@ -702,15 +705,15 @@ static void compute_avercos(int n, rvec dip[], real *dd, rvec axis, gmx_bool bPa
     ddc1 = ddc2 = ddc3 = 0;
     for (i = k = 0; (i < n); i++)
     {
-        ddc1 += fabs(cos_angle(dip[i], xxx));
-        ddc2 += fabs(cos_angle(dip[i], yyy));
-        ddc3 += fabs(cos_angle(dip[i], zzz));
+        ddc1 += std::abs(cos_angle(dip[i], xxx));
+        ddc2 += std::abs(cos_angle(dip[i], yyy));
+        ddc3 += std::abs(cos_angle(dip[i], zzz));
         if (bPairs)
         {
             for (j = i+1; (j < n); j++, k++)
             {
                 dc  = cos_angle(dip[i], dip[j]);
-                d  += fabs(dc);
+                d  += std::abs(dc);
             }
         }
     }
@@ -720,7 +723,7 @@ static void compute_avercos(int n, rvec dip[], real *dd, rvec axis, gmx_bool bPa
     axis[ZZ] = ddc3/n;
 }
 
-static void do_dip(t_topology *top, int ePBC, real volume,
+static void do_dip(const t_topology *top, int ePBC, real volume,
                    const char *fn,
                    const char *out_mtot, const char *out_eps,
                    const char *out_aver, const char *dipdist,
@@ -739,7 +742,7 @@ static void do_dip(t_topology *top, int ePBC, real volume,
                    int  *gkatom,  int skip,
                    gmx_bool bSlab,    int nslices,
                    const char *axtitle, const char *slabfn,
-                   const output_env_t oenv)
+                   const gmx_output_env_t *oenv)
 {
     const char *leg_mtot[] = {
         "M\\sx \\N",
@@ -776,32 +779,32 @@ static void do_dip(t_topology *top, int ePBC, real volume,
     };
 #define NLEGADIP asize(leg_adip)
 
-    FILE         *outdd, *outmtot, *outaver, *outeps, *caver = NULL;
-    FILE         *dip3d = NULL, *adip = NULL;
-    rvec         *x, *dipole = NULL, mu_t, quad, *dipsp = NULL;
-    t_gkrbin     *gkrbin = NULL;
-    gmx_enxnm_t  *enm    = NULL;
-    t_enxframe   *fr;
-    int           nframes = 1000, nre, timecheck = 0, ncolour = 0;
-    ener_file_t   fmu     = NULL;
-    int           i, n, m, natom = 0, gnx_tot, teller, tel3;
-    t_trxstatus  *status;
-    int          *dipole_bin, ndipbin, ibin, iVol, idim = -1;
-    unsigned long mode;
-    real          rcut = 0, t, t0, t1, dt, dd, rms_cos;
-    rvec          dipaxis;
-    matrix        box;
-    gmx_bool      bCorr, bTotal, bCont;
-    double        M_diff = 0, epsilon, invtel, vol_aver;
-    double        mu_ave, mu_mol, M2_ave = 0, M_ave2 = 0, M_av[DIM], M_av2[DIM];
-    double        M[3], M2[3], M4[3], Gk = 0, g_k = 0;
-    gmx_stats_t  *Qlsq, mulsq, muframelsq = NULL;
-    ivec          iMu;
-    real        **muall        = NULL;
-    rvec         *slab_dipoles = NULL;
-    t_atom       *atom         = NULL;
-    t_block      *mols         = NULL;
-    gmx_rmpbc_t   gpbc         = NULL;
+    FILE          *outdd, *outmtot, *outaver, *outeps, *caver = NULL;
+    FILE          *dip3d = NULL, *adip = NULL;
+    rvec          *x, *dipole = NULL, mu_t, quad, *dipsp = NULL;
+    t_gkrbin      *gkrbin = NULL;
+    gmx_enxnm_t   *enm    = NULL;
+    t_enxframe    *fr;
+    int            nframes = 1000, nre, timecheck = 0, ncolour = 0;
+    ener_file_t    fmu     = NULL;
+    int            i, n, m, natom = 0, gnx_tot, teller, tel3;
+    t_trxstatus   *status;
+    int           *dipole_bin, ndipbin, ibin, iVol, idim = -1;
+    unsigned long  mode;
+    real           rcut = 0, t, t0, t1, dt, dd, rms_cos;
+    rvec           dipaxis;
+    matrix         box;
+    gmx_bool       bCorr, bTotal, bCont;
+    double         M_diff = 0, epsilon, invtel, vol_aver;
+    double         mu_ave, mu_mol, M2_ave = 0, M_ave2 = 0, M_av[DIM], M_av2[DIM];
+    double         M[3], M2[3], M4[3], Gk = 0, g_k = 0;
+    gmx_stats_t   *Qlsq, mulsq, muframelsq = NULL;
+    ivec           iMu;
+    real         **muall        = NULL;
+    rvec          *slab_dipoles = NULL;
+    const t_atom  *atom         = NULL;
+    const t_block *mols         = NULL;
+    gmx_rmpbc_t    gpbc         = NULL;
 
     gnx_tot = gnx[0];
     if (ncos > 1)
@@ -823,19 +826,19 @@ static void do_dip(t_topology *top, int ePBC, real volume,
         /* Determine the indexes of the energy grps we need */
         for (i = 0; (i < nre); i++)
         {
-            if (strstr(enm[i].name, "Volume"))
+            if (std::strstr(enm[i].name, "Volume"))
             {
                 iVol = i;
             }
-            else if (strstr(enm[i].name, "Mu-X"))
+            else if (std::strstr(enm[i].name, "Mu-X"))
             {
                 iMu[XX] = i;
             }
-            else if (strstr(enm[i].name, "Mu-Y"))
+            else if (std::strstr(enm[i].name, "Mu-Y"))
             {
                 iMu[YY] = i;
             }
-            else if (strstr(enm[i].name, "Mu-Z"))
+            else if (std::strstr(enm[i].name, "Mu-Z"))
             {
                 iMu[ZZ] = i;
             }
@@ -990,6 +993,7 @@ static void do_dip(t_topology *top, int ePBC, real volume,
                 if ((teller % 10) == 0)
                 {
                     fprintf(stderr, "\r Skipping Frame %6d, time: %8.3f", teller, t);
+                    fflush(stderr);
                 }
             }
             else
@@ -1018,7 +1022,7 @@ static void do_dip(t_topology *top, int ePBC, real volume,
     {
         /* Use 0.7 iso 0.5 to account for pressure scaling */
         /*  rcut   = 0.7*sqrt(max_cutoff2(box)); */
-        rcut   = 0.7*sqrt(sqr(box[XX][XX])+sqr(box[YY][YY])+sqr(box[ZZ][ZZ]));
+        rcut   = 0.7*std::sqrt(gmx::square(box[XX][XX])+gmx::square(box[YY][YY])+gmx::square(box[ZZ][ZZ]));
 
         gkrbin = mk_gkrbin(rcut, rcmax, bPhi, ndegrees);
     }
@@ -1111,12 +1115,12 @@ static void do_dip(t_topology *top, int ePBC, real volume,
                         M_av[m]  += dipole[i][m];               /* M per frame */
                         mu_mol   += dipole[i][m]*dipole[i][m];  /* calc. mu for distribution */
                     }
-                    mu_mol = sqrt(mu_mol);
+                    mu_mol = std::sqrt(mu_mol);
 
                     mu_ave += mu_mol;                         /* calc. the average mu */
 
                     /* Update the dipole distribution */
-                    ibin = (int)(ndipbin*mu_mol/mu_max + 0.5);
+                    ibin = static_cast<int>(ndipbin*mu_mol/mu_max + 0.5);
                     if (ibin < ndipbin)
                     {
                         dipole_bin[ibin]++;
@@ -1205,9 +1209,9 @@ static void do_dip(t_topology *top, int ePBC, real volume,
         if (cosaver)
         {
             compute_avercos(gnx_tot, dipole, &dd, dipaxis, bPairs);
-            rms_cos = sqrt(sqr(dipaxis[XX]-0.5)+
-                           sqr(dipaxis[YY]-0.5)+
-                           sqr(dipaxis[ZZ]-0.5));
+            rms_cos = std::sqrt(gmx::square(dipaxis[XX]-0.5)+
+                                gmx::square(dipaxis[YY]-0.5)+
+                                gmx::square(dipaxis[ZZ]-0.5));
             if (bPairs)
             {
                 fprintf(caver, "%10.3e  %10.3e  %10.3e  %10.3e  %10.3e  %10.3e\n",
@@ -1241,14 +1245,14 @@ static void do_dip(t_topology *top, int ePBC, real volume,
         {
             fprintf(outmtot, "%10g  %12.8e %12.8e %12.8e %12.8e\n",
                     t, M_av[XX], M_av[YY], M_av[ZZ],
-                    sqrt(M_av2[XX]+M_av2[YY]+M_av2[ZZ]));
+                    std::sqrt(M_av2[XX]+M_av2[YY]+M_av2[ZZ]));
         }
 
         for (m = 0; (m < DIM); m++)
         {
             M[m]  += M_av[m];
             M2[m] += M_av2[m];
-            M4[m] += sqr(M_av2[m]);
+            M4[m] += gmx::square(M_av2[m]);
         }
         /* Increment loop counter */
         teller++;
@@ -1315,7 +1319,7 @@ static void do_dip(t_topology *top, int ePBC, real volume,
                 fprintf(outeps, "%10g  %12.8e\n", t, epsilon);
             }
         }
-        gmx_stats_done(muframelsq);
+        gmx_stats_free(muframelsq);
 
         if (bMU)
         {
@@ -1396,7 +1400,7 @@ static void do_dip(t_topology *top, int ePBC, real volume,
             {
                 do_autocorr(corf, oenv, "Dipole Autocorrelation Function",
                             teller, gnx_tot, muall, dt,
-                            mode, strcmp(corrtype, "molsep"));
+                            mode, std::strcmp(corrtype, "molsep"));
             }
         }
     }
@@ -1454,7 +1458,7 @@ static void do_dip(t_topology *top, int ePBC, real volume,
         for (i = 0; (i < ndipbin); i++)
         {
             fprintf(outdd, "%10g  %10f\n",
-                    (i*mu_max)/ndipbin, dipole_bin[i]/(double)teller);
+                    (i*mu_max)/ndipbin, static_cast<real>(dipole_bin[i])/teller);
         }
         xvgrclose(outdd);
         sfree(dipole_bin);
@@ -1465,7 +1469,7 @@ static void do_dip(t_topology *top, int ePBC, real volume,
     }
 }
 
-void dipole_atom2molindex(int *n, int *index, t_block *mols)
+void dipole_atom2molindex(int *n, int *index, const t_block *mols)
 {
     int nmol, i, j, m;
 
@@ -1499,7 +1503,7 @@ void dipole_atom2molindex(int *n, int *index, t_block *mols)
 }
 int gmx_dipoles(int argc, char *argv[])
 {
-    const char    *desc[] = {
+    const char       *desc[] = {
         "[THISMODULE] computes the total dipole plus fluctuations of a simulation",
         "system. From this you can compute e.g. the dielectric constant for",
         "low-dielectric media.",
@@ -1536,16 +1540,16 @@ int gmx_dipoles(int argc, char *argv[])
         "an average dipole moment of the molecule of 2.273 (SPC). For the",
         "distribution function a maximum of 5.0 will be used."
     };
-    real           mu_max     = 5, mu_aver = -1, rcmax = 0;
-    real           epsilonRF  = 0.0, temp = 300;
-    gmx_bool       bPairs     = TRUE, bPhi = FALSE, bQuad = FALSE;
-    const char    *corrtype[] = {NULL, "none", "mol", "molsep", "total", NULL};
-    const char    *axtitle    = "Z";
-    int            nslices    = 10; /* nr of slices defined       */
-    int            skip       = 0, nFA = 0, nFB = 0, ncos = 1;
-    int            nlevels    = 20, ndegrees = 90;
-    output_env_t   oenv;
-    t_pargs        pa[] = {
+    real              mu_max     = 5, mu_aver = -1, rcmax = 0;
+    real              epsilonRF  = 0.0, temp = 300;
+    gmx_bool          bPairs     = TRUE, bPhi = FALSE, bQuad = FALSE;
+    const char       *corrtype[] = {NULL, "none", "mol", "molsep", "total", NULL};
+    const char       *axtitle    = "Z";
+    int               nslices    = 10; /* nr of slices defined       */
+    int               skip       = 0, nFA = 0, nFB = 0, ncos = 1;
+    int               nlevels    = 20, ndegrees = 90;
+    gmx_output_env_t *oenv;
+    t_pargs           pa[] = {
         { "-mu",       FALSE, etREAL, {&mu_aver},
           "dipole of a single molecule (in Debye)" },
         { "-mumax",    FALSE, etREAL, {&mu_max},
@@ -1581,12 +1585,12 @@ int gmx_dipoles(int argc, char *argv[])
         { "-ndegrees", FALSE, etINT, {&ndegrees},
           "Number of divisions on the [IT]y[it]-axis in the cmap output (for 180 degrees)" }
     };
-    int           *gnx;
-    int            nFF[2];
-    atom_id      **grpindex;
-    char         **grpname = NULL;
-    gmx_bool       bGkr, bMU, bSlab;
-    t_filenm       fnm[] = {
+    int              *gnx;
+    int               nFF[2];
+    int             **grpindex;
+    char            **grpname = NULL;
+    gmx_bool          bGkr, bMU, bSlab;
+    t_filenm          fnm[] = {
         { efEDR, "-en", NULL,         ffOPTRD },
         { efTRX, "-f", NULL,           ffREAD },
         { efTPR, NULL, NULL,           ffREAD },
@@ -1604,12 +1608,12 @@ int gmx_dipoles(int argc, char *argv[])
         { efXVG, "-slab", "slab",       ffOPTWR }
     };
 #define NFILE asize(fnm)
-    int            npargs;
-    t_pargs       *ppa;
-    t_topology    *top;
-    int            ePBC;
-    int            k, natoms;
-    matrix         box;
+    int               npargs;
+    t_pargs          *ppa;
+    t_topology       *top;
+    int               ePBC;
+    int               k, natoms;
+    matrix            box;
 
     npargs = asize(pa);
     ppa    = add_acf_pargs(&npargs, pa);
@@ -1664,7 +1668,7 @@ int gmx_dipoles(int argc, char *argv[])
 
     snew(top, 1);
     ePBC = read_tpx_top(ftp2fn(efTPR, NFILE, fnm), NULL, box,
-                        &natoms, NULL, NULL, NULL, top);
+                        &natoms, NULL, NULL, top);
 
     snew(gnx, ncos);
     snew(grpname, ncos);

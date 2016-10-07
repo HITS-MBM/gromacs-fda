@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -38,18 +38,12 @@
 
 #include "tng/tng_io_fwd.h"
 
-#include "gromacs/legacyheaders/types/inputrec.h"
 #include "gromacs/math/vectypes.h"
+#include "gromacs/utility/basedefinitions.h"
 #include "gromacs/utility/real.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-#if 0
-}
-#endif
-
 struct gmx_mtop_t;
+struct t_inputrec;
 
 /*! \brief Open a TNG trajectory file
  *
@@ -72,8 +66,8 @@ void gmx_tng_close(tng_trajectory_t *tng);
  * \param tng   Valid handle to a TNG trajectory
  * \param mtop  Pointer to a topology (can be NULL)
  */
-void gmx_tng_add_mtop(tng_trajectory_t         tng,
-                      const struct gmx_mtop_t *mtop);
+void gmx_tng_add_mtop(tng_trajectory_t  tng,
+                      const gmx_mtop_t *mtop);
 
 /*! \brief Do all TNG preparation for full-precision whole-system
  * trajectory writing during MD simulations.
@@ -82,9 +76,9 @@ void gmx_tng_add_mtop(tng_trajectory_t         tng,
  * \param mtop  Global topology
  * \param ir    Input settings (for writing frequencies)
  */
-void gmx_tng_prepare_md_writing(tng_trajectory_t         tng,
-                                const struct gmx_mtop_t *mtop,
-                                const t_inputrec        *ir);
+void gmx_tng_prepare_md_writing(tng_trajectory_t  tng,
+                                const gmx_mtop_t *mtop,
+                                const t_inputrec *ir);
 
 /*! \brief Set the default compression precision for TNG writing
  *
@@ -100,9 +94,9 @@ void gmx_tng_set_compression_precision(tng_trajectory_t tng,
  * \param mtop  Global topology
  * \param ir    Input settings (for writing frequencies)
  */
-void gmx_tng_prepare_low_prec_writing(tng_trajectory_t         tng,
-                                      const struct gmx_mtop_t *mtop,
-                                      const t_inputrec        *ir);
+void gmx_tng_prepare_low_prec_writing(tng_trajectory_t  tng,
+                                      const gmx_mtop_t *mtop,
+                                      const t_inputrec *ir);
 
 /*! \brief Write a frame to a TNG file
  *
@@ -121,7 +115,7 @@ void gmx_tng_prepare_low_prec_writing(tng_trajectory_t         tng,
  * (that component). box can only be NULL if x is also NULL. */
 void gmx_fwrite_tng(tng_trajectory_t tng,
                     const gmx_bool   bUseLossyCompression,
-                    int              step,
+                    gmx_int64_t      step,
                     real             elapsedPicoSeconds,
                     real             lambda,
                     const rvec      *box,
@@ -143,9 +137,5 @@ void fflush_tng(tng_trajectory_t tng);
  * \param tng Valid handle to a TNG trajectory
  */
 float gmx_tng_get_time_of_final_frame(tng_trajectory_t tng);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif /* GMX_FILEIO_TNGIO_H */

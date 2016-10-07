@@ -51,12 +51,12 @@
 #include "gromacs/onlinehelp/helptopic.h"
 #include "gromacs/onlinehelp/helpwritercontext.h"
 #include "gromacs/utility/exceptions.h"
-#include "gromacs/utility/file.h"
+#include "gromacs/utility/stringstream.h"
+#include "gromacs/utility/textwriter.h"
 
 #include "gromacs/onlinehelp/tests/mock_helptopic.h"
 #include "testutils/stringtest.h"
 #include "testutils/testasserts.h"
-#include "testutils/testfilemanager.h"
 
 namespace
 {
@@ -68,19 +68,17 @@ class HelpTestBase : public gmx::test::StringTestBase
     public:
         HelpTestBase();
 
-        gmx::test::TestFileManager tempFiles_;
         MockHelpTopic              rootTopic_;
-        std::string                filename_;
-        gmx::File                  helpFile_;
+        gmx::StringOutputStream    helpFile_;
+        gmx::TextWriter            writer_;
         gmx::HelpWriterContext     context_;
         gmx::HelpManager           manager_;
 };
 
 HelpTestBase::HelpTestBase()
     : rootTopic_("", NULL, "Root topic text"),
-      filename_(tempFiles_.getTemporaryFilePath("helptext.txt")),
-      helpFile_(filename_, "w"),
-      context_(&helpFile_, gmx::eHelpOutputFormat_Console),
+      writer_(&helpFile_),
+      context_(&writer_, gmx::eHelpOutputFormat_Console),
       manager_(rootTopic_, context_)
 {
 }
@@ -158,7 +156,7 @@ void HelpTopicFormattingTest::checkHelpFormatting()
     ASSERT_NO_THROW_GMX(manager_.writeCurrentTopic());
     helpFile_.close();
 
-    checkFileContents(filename_, "HelpText");
+    checkText(helpFile_.toString(), "HelpText");
 }
 
 TEST_F(HelpTopicFormattingTest, FormatsSimpleTopic)
@@ -173,7 +171,7 @@ TEST_F(HelpTopicFormattingTest, FormatsCompositeTopicWithSubTopics)
     gmx::CompositeHelpTopicPointer topic(new gmx::CompositeHelpTopic<TestHelpText>);
     MockHelpTopic::addSubTopic(topic.get(), "subtopic", "First subtopic", "Text");
     MockHelpTopic::addSubTopic(topic.get(), "other", "Second subtopic", "Text");
-    rootTopic_.addSubTopic(move(topic));
+    rootTopic_.addSubTopic(std::move(topic));
     checkHelpFormatting();
 }
 

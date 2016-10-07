@@ -1,7 +1,7 @@
 #
 # This file is part of the GROMACS molecular simulation package.
 #
-# Copyright (c) 2014,2015, by the GROMACS development team, led by
+# Copyright (c) 2014,2015,2016, by the GROMACS development team, led by
 # Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
 # and including many others, as listed in the AUTHORS file in the
 # top-level source directory and at http://www.gromacs.org.
@@ -37,13 +37,17 @@ gmx_add_unit_test(SimdUnitTests simd-test
 		  base.cpp
                   simd.cpp
 		  simd_floatingpoint.cpp
+                  simd_floatingpoint_util.cpp
                   simd_vector_operations.cpp
                   simd_math.cpp
 		  simd_integer.cpp
                   simd4.cpp
                   simd4_floatingpoint.cpp
                   simd4_vector_operations.cpp
-                  simd4_math.cpp)
+                  simd4_math.cpp
+                  scalar.cpp
+                  scalar_util.cpp
+                  scalar_math.cpp)
 
 
 

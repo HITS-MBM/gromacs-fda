@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2015, by the GROMACS development team, led by
+ * Copyright (c) 2015,2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -36,8 +36,15 @@
 #ifndef GMX_RESOURCE_DIVISION_H
 #define GMX_RESOURCE_DIVISION_H
 
-#include "gromacs/legacyheaders/typedefs.h"
-#include "gromacs/legacyheaders/types/commrec_fwd.h"
+#include <cstdio>
+
+#include "gromacs/utility/basedefinitions.h"
+
+struct gmx_hw_info_t;
+struct gmx_hw_opt_t;
+struct gmx_mtop_t;
+struct t_commrec;
+struct t_inputrec;
 
 /* Return the number of threads to use for thread-MPI based on how many
  * were requested, which algorithms we're using,
@@ -53,7 +60,8 @@ int get_nthreads_mpi(const gmx_hw_info_t *hwinfo,
                      const gmx_mtop_t    *mtop,
                      const t_commrec     *cr,
                      FILE                *fplog,
-                     gmx_bool             bUseGpu);
+                     gmx_bool             bUseGpu,
+                     bool                 doMembed);
 
 /* Check if the number of OpenMP threads is within reasonable range
  * considering the hardware used. This is a crude check, but mainly
@@ -66,12 +74,13 @@ int get_nthreads_mpi(const gmx_hw_info_t *hwinfo,
 void check_resource_division_efficiency(const gmx_hw_info_t *hwinfo,
                                         const gmx_hw_opt_t  *hw_opt,
                                         gmx_bool             bNtOmpOptionSet,
-                                        t_commrec           *cr,
+                                        struct t_commrec    *cr,
                                         FILE                *fplog);
 
 /* Checks we can do when we don't (yet) know the cut-off scheme */
 void check_and_update_hw_opt_1(gmx_hw_opt_t    *hw_opt,
-                               const t_commrec *cr);
+                               const t_commrec *cr,
+                               int              nPmeRanks);
 
 /* Checks we can do when we know the cut-off scheme */
 void check_and_update_hw_opt_2(gmx_hw_opt_t *hw_opt,

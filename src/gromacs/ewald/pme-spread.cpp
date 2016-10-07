@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014,2015, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -46,6 +46,9 @@
 
 #include "gromacs/ewald/pme.h"
 #include "gromacs/simd/simd.h"
+#include "gromacs/utility/basedefinitions.h"
+#include "gromacs/utility/exceptions.h"
+#include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/smalloc.h"
 
 #include "pme-internal.h"
@@ -317,9 +320,7 @@ static void spread_coefficients_bsplines_thread(pmegrid_t                       
     int            offx, offy, offz;
 
 #if defined PME_SIMD4_SPREAD_GATHER && !defined PME_SIMD4_UNALIGNED
-    real           thz_buffer[GMX_SIMD4_WIDTH*3], *thz_aligned;
-
-    thz_aligned = gmx_simd4_align_r(thz_buffer);
+    GMX_ALIGNED(real, GMX_SIMD4_WIDTH)  thz_aligned[GMX_SIMD4_WIDTH*2];
 #endif
 
     pnx = pmegrid->s[XX];
@@ -698,7 +699,7 @@ static void sum_fftgrid_dd(struct gmx_pme_t *pme, real *fftgrid, int grid_index)
     pme_overlap_t *overlap;
     int  send_index0, send_nindex;
     int  recv_nindex;
-#ifdef GMX_MPI
+#if GMX_MPI
     MPI_Status stat;
 #endif
     int  recv_size_y;
@@ -731,7 +732,7 @@ static void sum_fftgrid_dd(struct gmx_pme_t *pme, real *fftgrid, int grid_index)
         {
             size_yx = 0;
         }
-#ifdef GMX_MPI
+#if GMX_MPI
         int datasize = (local_fft_ndata[XX] + size_yx)*local_fft_ndata[ZZ];
 
         int send_size_y = overlap->send_size;
@@ -756,7 +757,7 @@ static void sum_fftgrid_dd(struct gmx_pme_t *pme, real *fftgrid, int grid_index)
                         local_fft_ndata[XX], send_nindex, local_fft_ndata[ZZ]);
             }
 
-#ifdef GMX_MPI
+#if GMX_MPI
             int send_id = overlap->send_id[ipulse];
             int recv_id = overlap->recv_id[ipulse];
             MPI_Sendrecv(sendptr, send_size_y*datasize, GMX_MPI_REAL,
@@ -822,7 +823,7 @@ static void sum_fftgrid_dd(struct gmx_pme_t *pme, real *fftgrid, int grid_index)
                     send_nindex, local_fft_ndata[YY], local_fft_ndata[ZZ]);
         }
 
-#ifdef GMX_MPI
+#if GMX_MPI
         int datasize = local_fft_ndata[YY]*local_fft_ndata[ZZ];
         int send_id  = overlap->send_id[ipulse];
         int recv_id  = overlap->recv_id[ipulse];
@@ -873,15 +874,19 @@ void spread_on_grid(struct gmx_pme_t *pme,
 #pragma omp parallel for num_threads(nthread) schedule(static)
         for (thread = 0; thread < nthread; thread++)
         {
-            int start, end;
+            try
+            {
+                int start, end;
 
-            start = atc->n* thread   /nthread;
-            end   = atc->n*(thread+1)/nthread;
+                start = atc->n* thread   /nthread;
+                end   = atc->n*(thread+1)/nthread;
 
-            /* Compute fftgrid index for all atoms,
-             * with help of some extra variables.
-             */
-            calc_interpolation_idx(pme, atc, start, grid_index, end, thread);
+                /* Compute fftgrid index for all atoms,
+                 * with help of some extra variables.
+                 */
+                calc_interpolation_idx(pme, atc, start, grid_index, end, thread);
+            }
+            GMX_CATCH_ALL_AND_EXIT_WITH_FATAL_ERROR;
         }
     }
 #ifdef PME_TIME_THREADS
@@ -895,62 +900,66 @@ void spread_on_grid(struct gmx_pme_t *pme,
 #pragma omp parallel for num_threads(nthread) schedule(static)
     for (thread = 0; thread < nthread; thread++)
     {
-        splinedata_t *spline;
-        pmegrid_t *grid = NULL;
-
-        /* make local bsplines  */
-        if (grids == NULL || !pme->bUseThreads)
+        try
         {
-            spline = &atc->spline[0];
+            splinedata_t *spline;
+            pmegrid_t *grid = NULL;
 
-            spline->n = atc->n;
-
-            if (bSpread)
+            /* make local bsplines  */
+            if (grids == NULL || !pme->bUseThreads)
             {
-                grid = &grids->grid;
-            }
-        }
-        else
-        {
-            spline = &atc->spline[thread];
+                spline = &atc->spline[0];
 
-            if (grids->nthread == 1)
-            {
-                /* One thread, we operate on all coefficients */
                 spline->n = atc->n;
+
+                if (bSpread)
+                {
+                    grid = &grids->grid;
+                }
             }
             else
             {
-                /* Get the indices our thread should operate on */
-                make_thread_local_ind(atc, thread, spline);
+                spline = &atc->spline[thread];
+
+                if (grids->nthread == 1)
+                {
+                    /* One thread, we operate on all coefficients */
+                    spline->n = atc->n;
+                }
+                else
+                {
+                    /* Get the indices our thread should operate on */
+                    make_thread_local_ind(atc, thread, spline);
+                }
+
+                grid = &grids->grid_th[thread];
             }
 
-            grid = &grids->grid_th[thread];
-        }
-
-        if (bCalcSplines)
-        {
-            make_bsplines(spline->theta, spline->dtheta, pme->pme_order,
-                          atc->fractx, spline->n, spline->ind, atc->coefficient, bDoSplines);
-        }
-
-        if (bSpread)
-        {
-            /* put local atoms on grid. */
-#ifdef PME_TIME_SPREAD
-            ct1a = omp_cyc_start();
-#endif
-            spread_coefficients_bsplines_thread(grid, atc, spline, pme->spline_work);
-
-            if (pme->bUseThreads)
+            if (bCalcSplines)
             {
-                copy_local_grid(pme, grids, grid_index, thread, fftgrid);
+                make_bsplines(spline->theta, spline->dtheta, pme->pme_order,
+                              atc->fractx, spline->n, spline->ind, atc->coefficient, bDoSplines);
             }
+
+            if (bSpread)
+            {
+                /* put local atoms on grid. */
 #ifdef PME_TIME_SPREAD
-            ct1a          = omp_cyc_end(ct1a);
-            cs1a[thread] += (double)ct1a;
+                ct1a = omp_cyc_start();
 #endif
+                spread_coefficients_bsplines_thread(grid, atc, spline, pme->spline_work);
+
+                if (pme->bUseThreads)
+                {
+                    copy_local_grid(pme, grids, grid_index, thread, fftgrid);
+                }
+#ifdef PME_TIME_SPREAD
+                ct1a          = omp_cyc_end(ct1a);
+                cs1a[thread] += (double)ct1a;
+#endif
+            }
         }
+        GMX_CATCH_ALL_AND_EXIT_WITH_FATAL_ERROR;
     }
 #ifdef PME_TIME_THREADS
     c2   = omp_cyc_end(c2);
@@ -965,11 +974,15 @@ void spread_on_grid(struct gmx_pme_t *pme,
 #pragma omp parallel for num_threads(grids->nthread) schedule(static)
         for (thread = 0; thread < grids->nthread; thread++)
         {
-            reduce_threadgrid_overlap(pme, grids, thread,
-                                      fftgrid,
-                                      pme->overlap[0].sendbuf,
-                                      pme->overlap[1].sendbuf,
-                                      grid_index);
+            try
+            {
+                reduce_threadgrid_overlap(pme, grids, thread,
+                                          fftgrid,
+                                          pme->overlap[0].sendbuf,
+                                          pme->overlap[1].sendbuf,
+                                          grid_index);
+            }
+            GMX_CATCH_ALL_AND_EXIT_WITH_FATAL_ERROR;
         }
 #ifdef PME_TIME_THREADS
         c3   = omp_cyc_end(c3);

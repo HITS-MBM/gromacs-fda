@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2012,2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2012,2013,2014,2015,2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -36,13 +36,12 @@
 #ifndef _nbnxn_atomdata_h
 #define _nbnxn_atomdata_h
 
-#include "gromacs/legacyheaders/typedefs.h"
+#include "gromacs/math/vectypes.h"
 #include "gromacs/mdlib/nbnxn_pairlist.h"
+#include "gromacs/utility/basedefinitions.h"
+#include "gromacs/utility/real.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
+struct t_mdatoms;
 
 /* Default nbnxn allocation routine, allocates 32 byte aligned,
  * which works for plain C and aligned SSE and AVX loads/stores.
@@ -62,11 +61,11 @@ void nbnxn_realloc_void(void **ptr,
 void nbnxn_atomdata_realloc(nbnxn_atomdata_t *nbat, int n);
 
 /* Copy na rvec elements from x to xnb using nbatFormat, start dest a0,
- * and fills up to na_round using cx,cy,cz.
+ * and fills up to na_round with coordinates that are far away.
  */
 void copy_rvec_to_nbat_real(const int *a, int na, int na_round,
-                            rvec *x, int nbatFormat, real *xnb, int a0,
-                            int cx, int cy, int cz);
+                            const rvec *x, int nbatFormat,
+                            real *xnb, int a0);
 
 enum {
     enbnxninitcombruleDETECT, enbnxninitcombruleGEOM, enbnxninitcombruleLB, enbnxninitcombruleNONE
@@ -118,9 +117,5 @@ void nbnxn_atomdata_add_nbat_f_to_f(const nbnxn_search_t    nbs,
 /* Add the fshift force stored in nbat to fshift */
 void nbnxn_atomdata_add_nbat_fshift_to_fshift(const nbnxn_atomdata_t *nbat,
                                               rvec                   *fshift);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

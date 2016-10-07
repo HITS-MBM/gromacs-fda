@@ -43,19 +43,18 @@
 
 #include "selhelp.h"
 
+#include <memory>
 #include <set>
 #include <string>
 #include <utility>
 #include <vector>
 
-#include <boost/scoped_ptr.hpp>
-
 #include "gromacs/onlinehelp/helptopic.h"
 #include "gromacs/onlinehelp/helpwritercontext.h"
 #include "gromacs/utility/exceptions.h"
-#include "gromacs/utility/file.h"
 #include "gromacs/utility/gmxassert.h"
 #include "gromacs/utility/stringutil.h"
+#include "gromacs/utility/textwriter.h"
 
 #include "selmethod.h"
 #include "symrec.h"
@@ -620,7 +619,7 @@ KeywordsHelpTopic::KeywordsHelpTopic()
     // TODO: This is not a very elegant way of getting the list of selection
     // methods, but this needs to be rewritten in any case if/when #652 is
     // implemented.
-    boost::scoped_ptr<SelectionParserSymbolTable> symtab(
+    const std::unique_ptr<SelectionParserSymbolTable> symtab(
             new SelectionParserSymbolTable);
     gmx_ana_selmethod_register_defaults(symtab.get());
 
@@ -643,7 +642,6 @@ KeywordsHelpTopic::KeywordsHelpTopic()
 void KeywordsHelpTopic::writeHelp(const HelpWriterContext &context) const
 {
     context.writeTextBlock(helpText());
-    context.writeTextBlock("");
 
     // Print the list of keywords
     writeKeywordListStart(context, "Keywords that select atoms by an integer property:");
@@ -677,14 +675,15 @@ void KeywordsHelpTopic::writeHelp(const HelpWriterContext &context) const
 void KeywordsHelpTopic::writeKeywordListStart(const HelpWriterContext &context,
                                               const char              *heading) const
 {
+    context.paragraphBreak();
     std::string fullHeading("* ");
     fullHeading.append(heading);
     context.writeTextBlock(fullHeading);
     if (context.outputFormat() == eHelpOutputFormat_Rst)
     {
-        context.writeTextBlock("");
+        context.paragraphBreak();
         context.writeTextBlock("  ::");
-        context.writeTextBlock("");
+        context.paragraphBreak();
     }
 }
 
@@ -693,7 +692,7 @@ void KeywordsHelpTopic::writeKeywordListEnd(const HelpWriterContext &context,
 {
     if (context.outputFormat() == eHelpOutputFormat_Rst)
     {
-        context.writeTextBlock("");
+        context.paragraphBreak();
     }
     if (!isNullOrEmpty(extraInfo))
     {
@@ -701,14 +700,13 @@ void KeywordsHelpTopic::writeKeywordListEnd(const HelpWriterContext &context,
         fullInfo.append(extraInfo);
         context.writeTextBlock(fullInfo);
     }
-    context.writeTextBlock("");
 }
 
 void KeywordsHelpTopic::printKeywordList(const HelpWriterContext &context,
                                          e_selvalue_t             type,
                                          bool                     bModifiers) const
 {
-    File &file = context.outputFile();
+    TextWriter                &file = context.outputFile();
     MethodList::const_iterator iter;
     for (iter = methods_.begin(); iter != methods_.end(); ++iter)
     {
@@ -774,12 +772,11 @@ void KeywordsHelpTopic::writeKeywordSubTopics(const HelpWriterContext &context) 
             }
         }
 
-        const HelpTopicInterface *subTopic = findSubTopic(iter->first.c_str());
+        const IHelpTopic         *subTopic = findSubTopic(iter->first.c_str());
         GMX_RELEASE_ASSERT(subTopic != NULL, "Keyword subtopic no longer exists");
         HelpWriterContext         subContext(context);
         subContext.enterSubSection(title);
         subTopic->writeHelp(subContext);
-        context.writeTextBlock("");
     }
 }
 
@@ -797,7 +794,7 @@ HelpTopicPointer createSelectionHelpTopic()
     root->registerSubTopic<SimpleHelpTopic<EvaluationHelpText> >();
     root->registerSubTopic<SimpleHelpTopic<LimitationsHelpText> >();
     root->registerSubTopic<SimpleHelpTopic<ExamplesHelpText> >();
-    return move(root);
+    return std::move(root);
 }
 //! \endcond
 

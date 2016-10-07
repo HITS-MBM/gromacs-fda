@@ -190,15 +190,15 @@ Variables affecting compilation/linking
 
 .. cmake:: GMX_BUILD_SHARED_EXE
 
-.. cmake:: GMX_CXX11
+.. cmake:: GMX_COMPILER_WARNINGS
 
-   If ``ON``, some C++11 features are used internally (mainly
-   ``std::unique_ptr``).
-   If ``OFF``, no C++11 features are used in the code (``boost::shared_ptr`` is
-   used as a replacement).
-   The default is ``ON`` if the compilation environment is determined to
-   support enough C++11 (GPU builds cannot for now use C++11).
-   Installed headers are not affected.
+   If set ``ON``, various compiler warnings are enabled for compilers that
+   Jenkins uses for verification.
+   Defaults to ``OFF`` when building from a source tarball so that users
+   compiling with versions not tested on Jenkins are not exposed to our rather
+   aggressive warning flags that can trigger a lot of warnings with, e.g., new
+   versions of the compilers we use.
+   When building from a git repository, defaults to ``ON``.
 
 .. cmake:: GMX_CYCLE_SUBCOUNTERS
 
@@ -211,23 +211,30 @@ Variables affecting compilation/linking
 
 .. cmake:: GMX_DOUBLE
 
+   Many part of GROMACS are implemented in terms of "real" precision,
+   which is actually either a single- or double-precision type,
+   according to the value of this flag. Some parts of the code
+   deliberately use single- or double-precision types, and these are
+   unaffected by this setting. See reference manual for further
+   information.
+
+.. cmake:: GMX_RELAXED_DOUBLE_PRECISION
+
+   Permit a double-precision configuration to compute some quantities
+   to single-precision accuracy. Particularly on architectures where
+   only double-precision SIMD is available (e.g. Sparc machines such
+   as the K computer), it is faster to default to ``GMX_DOUBLE=ON``
+   and use SIMD than to use ``GMX_DOUBLE=OFF`` and use no
+   SIMD. However, if the user does not need full double precision,
+   then some optimizations can achieve the equivalent of
+   single-precision results (e.g. fewer Newton-Raphson iterations for
+   a reciprocal square root computation).
+
 .. cmake:: GMX_EXTRAE
 
 .. cmake:: GMX_EXTERNAL_BLAS
 
 .. cmake:: GMX_EXTERNAL_LAPACK
-
-.. cmake:: GMX_EXTERNAL_BOOST
-
-   If ``ON``, |GROMACS| is compiled against Boost headers found in the system.
-   If ``OFF``, a subset of Boost headers found in :file:`src/external/boost/`
-   is used instead.
-
-   Default is ``ON`` if external Boost library can be found, ``OFF`` otherwise.
-
-   The Boost headers are also used in installed headers and affect the API/ABI,
-   so using the internal Boost can cause compatibility issues if compiling
-   other software that uses both |GROMACS| and Boost.
 
 .. cmake:: GMX_EXTERNAL_TNG
 
@@ -307,6 +314,7 @@ Variables affecting the ``all`` target
 
    If set ``ON``, the ``all`` target will include also the test binaries using
    Google Test (if :cmake:`GMX_BUILD_UNITTESTS` is ``ON``).
+   Also, :cmake:`GMX_COMPILER_WARNINGS` is always enabled.
    In the future, other developer convenience features (as well as features
    inconvenient for a general user) can be added to the set controlled by this
    variable.
@@ -345,11 +353,10 @@ Variables affecting special targets
 
    If ``ON``, test binaries using Google Test are built (either as the separate
    ``tests`` targer, or also as part of the ``all`` target, depending on
-   :cmake:`GMX_DEVELOPER_BUILD`).  :file:`libxml2` is required for building the
-   tests, but other prerequisites (Google Test and Google Mock frameworks) are
+   :cmake:`GMX_DEVELOPER_BUILD`).  All dependencies required for building the
+   tests (Google Test and Google Mock frameworks, and tinyxml2) are
    included in :file:`src/external/`.
-   Defaults to ``ON`` if :file:`libxml2` is found and :cmake:`BUILD_TESTING` is
-   ``ON``.
+   Defaults to ``ON`` if :cmake:`BUILD_TESTING` is ``ON``.
 
 .. cmake:: GMX_COMPACT_DOXYGEN
 

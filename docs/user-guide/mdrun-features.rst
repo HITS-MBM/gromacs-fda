@@ -62,7 +62,7 @@ including ``-deffnm``.
    You must create a set of ``n`` directories for the ``n`` simulations,
    place all the relevant input files in those directories (e.g. named
    ``topol.tpr``), and run with
-   ``mpirun -np x gmx mdrun_mpi -s topol -multidir <names-of-directories>``.
+   ``mpirun -np x gmx_mpi mdrun -s topol -multidir <names-of-directories>``.
    If the order of the simulations
    within the multi-simulation is significant, then you are responsible
    for ordering their names when you provide them to ``-multidir``. Be
@@ -83,7 +83,7 @@ Examples running multi-simulations
 
 ::
 
-    mpirun -np 32 gmx mdrun_mpi -multi
+    mpirun -np 32 gmx_mpi mdrun -multi
 
 Starts a multi-simulation on 32 ranks with as many simulations ``n`` as
 there are files named ``topol*.tpr`` for integers ``0`` to ``n-1``. Other
@@ -91,14 +91,14 @@ input and output files are suffixed similarly.
 
 ::
 
-    mpirun -np 32 gmx mdrun_mpi -multidir a b c d
+    mpirun -np 32 gmx_mpi mdrun -multidir a b c d
 
 Starts a multi-simulation on 32 ranks with 4 simulations. The input
 and output files are found in directories ``a``, ``b``, ``c``, and ``d``.
 
 ::
 
-    mpirun -np 32 gmx mdrun_mpi -multidir a b c d -gpu_id 0000000011111111
+    mpirun -np 32 gmx_mpi mdrun -multidir a b c d -gpu_id 0000000011111111
 
 Starts the same multi-simulation as before. On a machine with two
 physical nodes and two GPUs per node, there will be 16 MPI ranks per
@@ -130,18 +130,24 @@ more control is useful. `gmx mdrun -nsteps 100` overrides the [.mdp] file
 and executes 100 steps. `gmx mdrun -maxh 2.5` will terminate the
 simulation shortly before 2.5 hours elapse, which can be useful when
 running under cluster queues (as long as the queuing system does not
-ever suspend the simulation). `-maxh` is not supported with
-multi-simulations.
+ever suspend the simulation).
 
 Running a membrane protein embedding simulation
 -----------------------------------------------
 
 This is a module to help embed a membrane protein into an equilibrated
-lipid bilayer at a position and orientation specified by the user. The
-main advantage is that it is possible to use very complex lipid bilayers
+lipid bilayer at a position and orientation specified by the user. 
+
+This method was initially described as a ProtSqueeze technique 
+(Yesylevskyy S.O., J Chem Inf Model 47(5) (2007) 1986-94) and 
+later implemented in GROMACS as g_membed tool (Wolf et al, J Comp Chem 31 (2010) 2169-2174). 
+Currently the functionality of g_membed is available in mdrun if 
+``-membed`` option is specified (see below).
+
+The main advantage is that it is possible to use very complex lipid bilayers
 with a number of different components that have been relaxed for a
 long time in a previous simulation. In theory that could be accomplished
-with a procedure similar to genbox, but since lipids are much larger
+with a procedure similar to :ref:`gmx solvate`, but since lipids are much larger
 than water molecules it will lead to a large vacuum layer between the
 protein and membrane if we remove all molecules where any atom is
 overlapping. Instead, this module works by first artificially shrinking

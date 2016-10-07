@@ -44,8 +44,8 @@
 
 #include <gtest/gtest.h>
 
-#include "gromacs/utility/file.h"
 #include "gromacs/utility/stringutil.h"
+#include "gromacs/utility/textwriter.h"
 
 #include "testutils/cmdlinetest.h"
 
@@ -97,7 +97,7 @@ class BondedInteractionsTest : public gmx::test::MdrunTestFixture
         void setupGrompp(const char *interaction)
         {
             runner_.topFileName_ = fileManager_.getTemporaryFilePath("butane1.top");
-            File::writeFileFromString(runner_.topFileName_, formatString(g_butaneTopFileFormatString, interaction));
+            TextWriter::writeFileFromString(runner_.topFileName_, formatString(g_butaneTopFileFormatString, interaction));
             runner_.groFileName_ = fileManager_.getInputFilePath("butane1.gro");
             runner_.ndxFileName_ = fileManager_.getInputFilePath("butane1.ndx");
             /* TODO Now that Verlet is the default, change the implementation

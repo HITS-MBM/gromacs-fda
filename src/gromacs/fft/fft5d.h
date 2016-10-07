@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2009,2010,2012,2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2009,2010,2012,2013,2014,2015,2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -48,16 +48,16 @@ FILE* debug;
 #include "gromacs/math/gmxcomplex.h"
 #include "gromacs/utility/gmxmpi.h"
 
-#ifndef GMX_MPI
+#if !GMX_MPI
 double MPI_Wtime();
 #endif
 
 /*currently only special optimization for FFTE*/
-#ifdef GMX_FFT_FFTW3
+#if GMX_FFT_FFTW3
 #include <fftw3.h>
 #endif
 
-#ifndef GMX_DOUBLE
+#if !GMX_DOUBLE
 #define FFTW(x) fftwf_ ## x
 #else
 #define FFTW(x) fftw_ ## x
@@ -93,7 +93,7 @@ struct fft5d_plan_t {
     t_complex *lin;
     t_complex *lout, *lout2, *lout3;
     gmx_fft_t* p1d[3]; /*1D plans*/
-#ifdef GMX_FFT_FFTW3
+#if GMX_FFT_FFTW3
     FFTW(plan) p2d;    /*2D plan: used for 1D decomposition if FFT supports transposed output*/
     FFTW(plan) p3d;    /*3D plan: used for 0D decomposition if FFT supports transposed output*/
     FFTW(plan) mpip[2];

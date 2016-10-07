@@ -48,7 +48,7 @@
 #include "gromacs/commandline/cmdlinemodulemanager.h"
 #include "gromacs/options/basicoptions.h"
 #include "gromacs/options/options.h"
-#include "gromacs/utility/file.h"
+#include "gromacs/utility/textwriter.h"
 
 #include "gromacs/onlinehelp/tests/mock_helptopic.h"
 #include "testutils/cmdlinetest.h"
@@ -74,14 +74,13 @@ TEST_F(CommandLineHelpModuleTest, PrintsGeneralHelp)
     };
     CommandLine       args(cmdline);
     initManager(args, "test");
-    redirectManagerOutput();
     addModule("module", "First module");
     addModule("other", "Second module");
     addHelpTopic("topic", "Test topic");
     int rc = 0;
     ASSERT_NO_THROW_GMX(rc = manager().run(args.argc(), args.argv()));
     ASSERT_EQ(0, rc);
-    checkRedirectedOutputFiles();
+    checkRedirectedOutput();
 }
 
 TEST_F(CommandLineHelpModuleTest, PrintsHelpOnTopic)
@@ -91,7 +90,6 @@ TEST_F(CommandLineHelpModuleTest, PrintsHelpOnTopic)
     };
     CommandLine       args(cmdline);
     initManager(args, "test");
-    redirectManagerOutput();
     addModule("module", "First module");
     MockHelpTopic &topic = addHelpTopic("topic", "Test topic");
     topic.addSubTopic("sub1", "Subtopic 1", "");
@@ -101,7 +99,7 @@ TEST_F(CommandLineHelpModuleTest, PrintsHelpOnTopic)
     int rc = 0;
     ASSERT_NO_THROW_GMX(rc = manager().run(args.argc(), args.argv()));
     ASSERT_EQ(0, rc);
-    checkRedirectedOutputFiles();
+    checkRedirectedOutput();
 }
 
 /*! \brief
@@ -109,14 +107,15 @@ TEST_F(CommandLineHelpModuleTest, PrintsHelpOnTopic)
  *
  * \ingroup module_commandline
  */
-void initOptionsBasic(gmx::Options *options)
+void initOptionsBasic(gmx::IOptionsContainer                 *options,
+                      gmx::ICommandLineOptionsModuleSettings *settings)
 {
     const char *const desc[] = {
         "Sample description",
         "for testing [THISMODULE]."
     };
-    options->setDescription(desc);
-    options->addOption(gmx::IntegerOption("int"));
+    settings->setHelpText(desc);
+    options->addOption(gmx::IntegerOption("int").description("Integer option"));
 }
 
 TEST_F(CommandLineHelpModuleTest, ExportsHelp)
@@ -125,10 +124,9 @@ TEST_F(CommandLineHelpModuleTest, ExportsHelp)
         "test", "help", "-export", "rst"
     };
     // TODO: Find a more elegant solution, or get rid of the links.dat altogether.
-    gmx::File::writeFileFromString("links.dat", "");
-    CommandLine       args(cmdline);
+    gmx::TextWriter::writeFileFromString("links.dat", "");
+    CommandLine        args(cmdline);
     initManager(args, "test");
-    redirectManagerOutput();
     MockOptionsModule &mod1 = addOptionsModule("module", "First module");
     MockOptionsModule &mod2 = addOptionsModule("other", "Second module");
     {
@@ -146,8 +144,8 @@ TEST_F(CommandLineHelpModuleTest, ExportsHelp)
     MockHelpTopic &topic2 = addHelpTopic("topic2", "Another topic");
     using ::testing::_;
     using ::testing::Invoke;
-    EXPECT_CALL(mod1, initOptions(_)).WillOnce(Invoke(&initOptionsBasic));
-    EXPECT_CALL(mod2, initOptions(_));
+    EXPECT_CALL(mod1, initOptions(_, _)).WillOnce(Invoke(&initOptionsBasic));
+    EXPECT_CALL(mod2, initOptions(_, _));
     EXPECT_CALL(topic1, writeHelp(_));
     EXPECT_CALL(sub1, writeHelp(_));
     EXPECT_CALL(sub2, writeHelp(_));
@@ -156,7 +154,7 @@ TEST_F(CommandLineHelpModuleTest, ExportsHelp)
     int rc = 0;
     ASSERT_NO_THROW_GMX(rc = manager().run(args.argc(), args.argv()));
     ASSERT_EQ(0, rc);
-    checkRedirectedOutputFiles();
+    checkRedirectedOutput();
     std::remove("links.dat");
 }
 

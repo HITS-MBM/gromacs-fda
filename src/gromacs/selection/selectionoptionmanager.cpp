@@ -47,7 +47,6 @@
 
 #include "gromacs/selection/selection.h"
 #include "gromacs/selection/selectioncollection.h"
-#include "gromacs/selection/selectionfileoption.h"
 #include "gromacs/selection/selectionoption.h"
 #include "gromacs/utility/exceptions.h"
 #include "gromacs/utility/stringutil.h"
@@ -289,8 +288,14 @@ SelectionOptionManager::requestOptionDelayedParsing(
     impl_->requests_.push_back(Impl::SelectionRequest(storage));
 }
 
+bool
+SelectionOptionManager::hasRequestedSelections() const
+{
+    return !impl_->requests_.empty();
+}
+
 void
-SelectionOptionManager::initOptions(Options *options)
+SelectionOptionManager::initOptions(IOptionsContainer *options)
 {
     bool allowOnlyAtomOutput = true;
     Impl::OptionList::const_iterator iter;

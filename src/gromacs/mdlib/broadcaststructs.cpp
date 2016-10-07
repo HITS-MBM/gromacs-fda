@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014,2015, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -39,14 +39,17 @@
 
 #include <string.h>
 
-#include "gromacs/legacyheaders/main.h"
-#include "gromacs/legacyheaders/mdrun.h"
-#include "gromacs/legacyheaders/network.h"
-#include "gromacs/legacyheaders/tgroup.h"
-#include "gromacs/legacyheaders/typedefs.h"
-#include "gromacs/legacyheaders/types/commrec.h"
+#include "gromacs/gmxlib/network.h"
 #include "gromacs/math/vec.h"
+#include "gromacs/mdlib/mdrun.h"
+#include "gromacs/mdlib/tgroup.h"
+#include "gromacs/mdtypes/commrec.h"
+#include "gromacs/mdtypes/inputrec.h"
+#include "gromacs/mdtypes/md_enums.h"
+#include "gromacs/mdtypes/pull-params.h"
+#include "gromacs/mdtypes/state.h"
 #include "gromacs/topology/symtab.h"
+#include "gromacs/topology/topology.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/smalloc.h"
 
@@ -58,6 +61,31 @@
 #define    snew_bc(cr, d, nr) { if (!MASTER(cr)) {snew((d), (nr)); }}
 /* Dirty macro with bAlloc not as an argument */
 #define nblock_abc(cr, nr, d) { if (bAlloc) {snew((d), (nr)); } nblock_bc(cr, (nr), (d)); }
+
+static void bc_cstring(const t_commrec *cr, char **s)
+{
+    int size = 0;
+
+    if (MASTER(cr) && *s != NULL)
+    {
+        /* Size of the char buffer is string length + 1 for '\0' */
+        size = strlen(*s) + 1;
+    }
+    block_bc(cr, size);
+    if (size > 0)
+    {
+        if (!MASTER(cr))
+        {
+            srenew(*s, size);
+        }
+        nblock_bc(cr, size, *s);
+    }
+    else if (!MASTER(cr) && *s != NULL)
+    {
+        sfree(*s);
+        *s = NULL;
+    }
+}
 
 static void bc_string(const t_commrec *cr, t_symtab *symtab, char ***s)
 {
@@ -298,7 +326,6 @@ void bcast_state(const t_commrec *cr, t_state *state)
                 case estVOL0:    block_bc(cr, state->vol0); break;
                 case estX:       nblock_abc(cr, state->natoms, state->x); break;
                 case estV:       nblock_abc(cr, state->natoms, state->v); break;
-                case estSDX:     nblock_abc(cr, state->natoms, state->sd_X); break;
                 case estCGP:     nblock_abc(cr, state->natoms, state->cg_p); break;
                 case estDISRE_INITF: block_bc(cr, state->hist.disre_initf); break;
                 case estDISRE_RM3TAV:
@@ -505,6 +532,17 @@ static void bc_pull(const t_commrec *cr, pull_params_t *pull)
     }
     snew_bc(cr, pull->coord, pull->ncoord);
     nblock_bc(cr, pull->ncoord, pull->coord);
+    for (int c = 0; c < pull->ncoord; c++)
+    {
+        if (!MASTER(cr))
+        {
+            pull->coord[c].externalPotentialProvider = NULL;
+        }
+        if (pull->coord[c].eType == epullEXTERNAL)
+        {
+            bc_cstring(cr, &pull->coord[c].externalPotentialProvider);
+        }
+    }
 }
 
 static void bc_rotgrp(const t_commrec *cr, t_rotgrp *rotg)
@@ -528,21 +566,6 @@ static void bc_rot(const t_commrec *cr, t_rot *rot)
     for (g = 0; g < rot->ngrp; g++)
     {
         bc_rotgrp(cr, &rot->grp[g]);
-    }
-}
-
-static void bc_adress(const t_commrec *cr, t_adress *adress)
-{
-    block_bc(cr, *adress);
-    if (adress->n_tf_grps > 0)
-    {
-        snew_bc(cr, adress->tf_table_index, adress->n_tf_grps);
-        nblock_bc(cr, adress->n_tf_grps, adress->tf_table_index);
-    }
-    if (adress->n_energy_grps > 0)
-    {
-        snew_bc(cr, adress->group_explicit, adress->n_energy_grps);
-        nblock_bc(cr, adress->n_energy_grps, adress->group_explicit);
     }
 }
 
@@ -638,25 +661,27 @@ static void bc_simtempvals(const t_commrec *cr, t_simtemp *simtemp, int n_lambda
 
 static void bc_swapions(const t_commrec *cr, t_swapcoords *swap)
 {
-    int i;
-
-
     block_bc(cr, *swap);
 
-    /* Broadcast ion group atom indices */
-    snew_bc(cr, swap->ind, swap->nat);
-    nblock_bc(cr, swap->nat, swap->ind);
-
-    /* Broadcast split groups atom indices */
-    for (i = 0; i < 2; i++)
+    /* Broadcast atom indices for split groups, solvent group, and for all user-defined swap groups */
+    snew_bc(cr, swap->grp, swap->ngrp);
+    for (int i = 0; i < swap->ngrp; i++)
     {
-        snew_bc(cr, swap->ind_split[i], swap->nat_split[i]);
-        nblock_bc(cr, swap->nat_split[i], swap->ind_split[i]);
-    }
+        t_swapGroup *g = &swap->grp[i];
 
-    /* Broadcast solvent group atom indices */
-    snew_bc(cr, swap->ind_sol, swap->nat_sol);
-    nblock_bc(cr, swap->nat_sol, swap->ind_sol);
+        block_bc(cr, *g);
+        snew_bc(cr, g->ind, g->nat);
+        nblock_bc(cr, g->nat, g->ind);
+
+        int len = 0;
+        if (MASTER(cr))
+        {
+            len = strlen(g->molname);
+        }
+        block_bc(cr, len);
+        snew_bc(cr, g->molname, len);
+        nblock_bc(cr, len, g->molname);
+    }
 }
 
 
@@ -711,11 +736,6 @@ static void bc_inputrec(const t_commrec *cr, t_inputrec *inputrec)
     {
         snew_bc(cr, inputrec->swap, 1);
         bc_swapions(cr, inputrec->swap);
-    }
-    if (inputrec->bAdress)
-    {
-        snew_bc(cr, inputrec->adress, 1);
-        bc_adress(cr, inputrec->adress);
     }
 }
 

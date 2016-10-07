@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2009,2010,2011,2012,2013,2014,2015, by the GROMACS development team, led by
+ * Copyright (c) 2009,2010,2011,2012,2013,2014,2015,2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -56,6 +56,8 @@
 #include "gromacs/utility/exceptions.h"
 #include "gromacs/utility/gmxassert.h"
 #include "gromacs/utility/smalloc.h"
+#include "gromacs/utility/stringutil.h"
+#include "gromacs/utility/textwriter.h"
 
 /********************************************************************
  * gmx_ana_indexgrps_t functions
@@ -261,18 +263,19 @@ gmx_ana_indexgrps_find(gmx_ana_index_t *dest, std::string *destName,
 }
 
 /*!
- * \param[in]  fp     Where to print the output.
+ * \param[in]  writer Writer to use for output.
  * \param[in]  g      Index groups to print.
  * \param[in]  maxn   Maximum number of indices to print
  *      (-1 = print all, 0 = print only names).
  */
 void
-gmx_ana_indexgrps_print(FILE *fp, gmx_ana_indexgrps_t *g, int maxn)
+gmx_ana_indexgrps_print(gmx::TextWriter *writer, gmx_ana_indexgrps_t *g, int maxn)
 {
     for (int i = 0; i < g->nr; ++i)
     {
-        fprintf(fp, " Group %2d \"%s\" ", i, g->names[i].c_str());
-        gmx_ana_index_dump(fp, &g->g[i], maxn);
+        writer->writeString(gmx::formatString(" Group %2d \"%s\" ",
+                                              i, g->names[i].c_str()));
+        gmx_ana_index_dump(writer, &g->g[i], maxn);
     }
 }
 
@@ -330,7 +333,7 @@ gmx_ana_index_clear(gmx_ana_index_t *g)
  * No copy if \p index is made.
  */
 void
-gmx_ana_index_set(gmx_ana_index_t *g, int isize, atom_id *index, int nalloc)
+gmx_ana_index_set(gmx_ana_index_t *g, int isize, int *index, int nalloc)
 {
     g->isize        = isize;
     g->index        = index;
@@ -375,53 +378,49 @@ gmx_ana_index_deinit(gmx_ana_index_t *g)
  * \param[in]  src    Source index group.
  * \param[in]  bAlloc If true, memory is allocated at \p dest; otherwise,
  *   it is assumed that enough memory has been allocated for index.
- *
- * A deep copy of the name is only made if \p bAlloc is true.
  */
 void
 gmx_ana_index_copy(gmx_ana_index_t *dest, gmx_ana_index_t *src, bool bAlloc)
 {
     dest->isize = src->isize;
+    if (bAlloc)
+    {
+        snew(dest->index, dest->isize);
+        dest->nalloc_index = dest->isize;
+    }
     if (dest->isize > 0)
     {
-        if (bAlloc)
-        {
-            snew(dest->index, dest->isize);
-            dest->nalloc_index = dest->isize;
-        }
         std::memcpy(dest->index, src->index, dest->isize*sizeof(*dest->index));
     }
 }
 
 /*!
- * \param[in]  fp     Where to print the output.
+ * \param[in]  writer Writer to use for output.
  * \param[in]  g      Index group to print.
  * \param[in]  maxn   Maximum number of indices to print (-1 = print all).
  */
 void
-gmx_ana_index_dump(FILE *fp, gmx_ana_index_t *g, int maxn)
+gmx_ana_index_dump(gmx::TextWriter *writer, gmx_ana_index_t *g, int maxn)
 {
-    int  j, n;
-
-    fprintf(fp, "(%d atoms)", g->isize);
+    writer->writeString(gmx::formatString("(%d atoms)", g->isize));
     if (maxn != 0)
     {
-        fprintf(fp, ":");
-        n = g->isize;
+        writer->writeString(":");
+        int n = g->isize;
         if (maxn >= 0 && n > maxn)
         {
             n = maxn;
         }
-        for (j = 0; j < n; ++j)
+        for (int j = 0; j < n; ++j)
         {
-            fprintf(fp, " %d", g->index[j]+1);
+            writer->writeString(gmx::formatString(" %d", g->index[j]+1));
         }
         if (n < g->isize)
         {
-            fprintf(fp, " ...");
+            writer->writeString(" ...");
         }
     }
-    fprintf(fp, "\n");
+    writer->ensureLineBreak();
 }
 
 int
@@ -478,11 +477,11 @@ gmx_ana_index_check_range(gmx_ana_index_t *g, int natoms)
 static int
 cmp_atomid(const void *a, const void *b)
 {
-    if (*(atom_id *)a < *(atom_id *)b)
+    if (*(int *)a < *(int *)b)
     {
         return -1;
     }
-    if (*(atom_id *)a > *(atom_id *)b)
+    if (*(int *)a > *(int *)b)
     {
         return 1;
     }
@@ -496,6 +495,21 @@ void
 gmx_ana_index_sort(gmx_ana_index_t *g)
 {
     std::qsort(g->index, g->isize, sizeof(*g->index), cmp_atomid);
+}
+
+void
+gmx_ana_index_remove_duplicates(gmx_ana_index_t *g)
+{
+    int j = 0;
+    for (int i = 0; i < g->isize; ++i)
+    {
+        if (i == 0 || g->index[i-1] != g->index[i])
+        {
+            g->index[j] = g->index[i];
+            ++j;
+        }
+    }
+    g->isize = j;
 }
 
 /*!
@@ -703,6 +717,25 @@ gmx_ana_index_union(gmx_ana_index_t *dest,
             }
             dest->index[k] = a->index[i--];
         }
+    }
+}
+
+void
+gmx_ana_index_union_unsorted(gmx_ana_index_t *dest,
+                             gmx_ana_index_t *a, gmx_ana_index_t *b)
+{
+    if (gmx_ana_index_check_sorted(b))
+    {
+        gmx_ana_index_union(dest, a, b);
+    }
+    else
+    {
+        gmx_ana_index_t tmp;
+        gmx_ana_index_copy(&tmp, b, true);
+        gmx_ana_index_sort(&tmp);
+        gmx_ana_index_remove_duplicates(&tmp);
+        gmx_ana_index_union(dest, a, &tmp);
+        gmx_ana_index_deinit(&tmp);
     }
 }
 

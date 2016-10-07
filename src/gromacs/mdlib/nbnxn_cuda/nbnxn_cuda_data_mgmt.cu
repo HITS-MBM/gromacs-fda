@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2012,2013,2014,2015, by the GROMACS development team, led by
+ * Copyright (c) 2012,2013,2014,2015,2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -46,24 +46,24 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <cuda_profiler_api.h>
-
-#include "gromacs/gmxlib/cuda_tools/cudautils.cuh"
-#include "gromacs/gmxlib/cuda_tools/pmalloc_cuda.h"
-#include "gromacs/gmxlib/gpu_utils/gpu_utils.h"
-#include "gromacs/legacyheaders/gmx_detect_hardware.h"
-#include "gromacs/legacyheaders/typedefs.h"
-#include "gromacs/legacyheaders/types/enums.h"
-#include "gromacs/legacyheaders/types/force_flags.h"
-#include "gromacs/legacyheaders/types/interaction_const.h"
+#include "gromacs/gpu_utils/cudautils.cuh"
+#include "gromacs/gpu_utils/gpu_utils.h"
+#include "gromacs/gpu_utils/pmalloc_cuda.h"
+#include "gromacs/hardware/detecthardware.h"
+#include "gromacs/hardware/gpu_hw_info.h"
+#include "gromacs/math/vectypes.h"
+#include "gromacs/mdlib/force_flags.h"
 #include "gromacs/mdlib/nb_verlet.h"
 #include "gromacs/mdlib/nbnxn_consts.h"
 #include "gromacs/mdlib/nbnxn_gpu_data_mgmt.h"
+#include "gromacs/mdtypes/interaction_const.h"
+#include "gromacs/mdtypes/md_enums.h"
 #include "gromacs/pbcutil/ishift.h"
 #include "gromacs/timing/gpu_timing.h"
 #include "gromacs/utility/basedefinitions.h"
 #include "gromacs/utility/cstringutil.h"
 #include "gromacs/utility/fatalerror.h"
+#include "gromacs/utility/real.h"
 #include "gromacs/utility/smalloc.h"
 
 #include "nbnxn_cuda_types.h"
@@ -86,33 +86,6 @@ extern const struct texture<float, 1, cudaReadModeElementType> &nbnxn_cuda_get_n
 extern const struct texture<float, 1, cudaReadModeElementType> &nbnxn_cuda_get_nbfp_comb_texref();
 extern const struct texture<float, 1, cudaReadModeElementType> &nbnxn_cuda_get_coulomb_tab_texref();
 
-/* We should actually be using md_print_warn in md_logging.c,
- * but we can't include mpi.h in CUDA code.
- */
-static void md_print_warn(FILE       *fplog,
-                          const char *fmt, ...)
-{
-    va_list ap;
-
-    if (fplog != NULL)
-    {
-        /* We should only print to stderr on the master node,
-         * in most cases fplog is only set on the master node, so this works.
-         */
-        va_start(ap, fmt);
-        fprintf(stderr, "\n");
-        vfprintf(stderr, fmt, ap);
-        fprintf(stderr, "\n");
-        va_end(ap);
-
-        va_start(ap, fmt);
-        fprintf(fplog, "\n");
-        vfprintf(fplog, fmt, ap);
-        fprintf(fplog, "\n");
-        va_end(ap);
-    }
-}
-
 
 /* Fw. decl. */
 static void nbnxn_cuda_clear_e_fshift(gmx_nbnxn_cuda_t *nb);
@@ -122,16 +95,83 @@ static void nbnxn_cuda_free_nbparam_table(cu_nbparam_t            *nbparam,
                                           const gmx_device_info_t *dev_info);
 
 
-
-#ifdef HAVE_CUDA_TEXOBJ_SUPPORT
+/*! \brief Return whether texture objects are used on this device.
+ *
+ * \param[in]   pointer to the GPU device info structure to inspect for texture objects support
+ * \return      true if texture objects are used on this device
+ */
 static bool use_texobj(const gmx_device_info_t *dev_info)
 {
     /* Only device CC >= 3.0 (Kepler and later) support texture objects */
     return (dev_info->prop.major >= 3);
 }
-#endif
 
-/*! Tabulates the Ewald Coulomb force and initializes the size/scale
+/*! \brief Return whether combination rules are used.
+ *
+ * \param[in]   pointer to nonbonded paramter struct
+ * \return      true if combination rules are used in this run, false otherwise
+ */
+static inline bool useLjCombRule(const cu_nbparam_t  *nbparam)
+{
+    return (nbparam->vdwtype == evdwCuCUTCOMBGEOM ||
+            nbparam->vdwtype == evdwCuCUTCOMBLB);
+}
+
+/*! \brief Set up float texture object.
+ *
+ * Set up texture object for float data and bind it to the device memory
+ * \p devPtr points to.
+ *
+ * \param[out] texObj   texture object to initialize
+ * \param[in]  devPtr   pointer to device global memory to bind \p texObj to
+ * \param[in]  sizeInBytes  size of memory area to bind \p texObj to
+ */
+static void setup1DFloatTexture(cudaTextureObject_t &texObj,
+                                void                *devPtr,
+                                size_t               sizeInBytes)
+{
+    cudaError_t      stat;
+    cudaResourceDesc rd;
+    cudaTextureDesc  td;
+
+    memset(&rd, 0, sizeof(rd));
+    rd.resType                  = cudaResourceTypeLinear;
+    rd.res.linear.devPtr        = devPtr;
+    rd.res.linear.desc.f        = cudaChannelFormatKindFloat;
+    rd.res.linear.desc.x        = 32;
+    rd.res.linear.sizeInBytes   = sizeInBytes;
+
+    memset(&td, 0, sizeof(td));
+    td.readMode                 = cudaReadModeElementType;
+    stat = cudaCreateTextureObject(&texObj, &rd, &td, NULL);
+    CU_RET_ERR(stat, "cudaCreateTextureObject failed");
+}
+
+/*! \brief Set up float texture reference.
+ *
+ * Set up texture object for float data and bind it to the device memory
+ * \p devPtr points to.
+ *
+ * \param[out] texObj   texture reference to initialize
+ * \param[in]  devPtr   pointer to device global memory to bind \p texObj to
+ * \param[in]  sizeInBytes  size of memory area to bind \p texObj to
+ */
+static void setup1DFloatTexture(const struct texture<float, 1, cudaReadModeElementType> *texRef,
+                                const void                                              *devPtr,
+                                size_t                                                   sizeInBytes)
+{
+    cudaError_t           stat;
+    cudaChannelFormatDesc cd;
+
+    cd   = cudaCreateChannelDesc<float>();
+    stat = cudaBindTexture(NULL, texRef, devPtr, &cd, sizeInBytes);
+    CU_RET_ERR(stat, "cudaBindTexture failed");
+}
+
+
+/*! \brief Initialized the Ewald Coulomb correction GPU table.
+
+    Tabulates the Ewald Coulomb force and initializes the size/scale
     and the table GPU array. If called with an already allocated table,
     it just re-uploads the table.
  */
@@ -147,44 +187,25 @@ static void init_ewald_coulomb_force_table(const interaction_const_t *ic,
         nbnxn_cuda_free_nbparam_table(nbp, dev_info);
     }
 
+    /* initialize table data in nbp and crete/copy into in global mem */
     stat = cudaMalloc((void **)&coul_tab, ic->tabq_size*sizeof(*coul_tab));
-    CU_RET_ERR(stat, "cudaMalloc failed on coul_tab");
-
-    nbp->coulomb_tab = coul_tab;
-
-#ifdef HAVE_CUDA_TEXOBJ_SUPPORT
-    /* Only device CC >= 3.0 (Kepler and later) support texture objects */
-    if (use_texobj(dev_info))
-    {
-        cudaResourceDesc rd;
-        memset(&rd, 0, sizeof(rd));
-        rd.resType                  = cudaResourceTypeLinear;
-        rd.res.linear.devPtr        = nbp->coulomb_tab;
-        rd.res.linear.desc.f        = cudaChannelFormatKindFloat;
-        rd.res.linear.desc.x        = 32;
-        rd.res.linear.sizeInBytes   = ic->tabq_size*sizeof(*coul_tab);
-
-        cudaTextureDesc td;
-        memset(&td, 0, sizeof(td));
-        td.readMode                 = cudaReadModeElementType;
-        stat = cudaCreateTextureObject(&nbp->coulomb_tab_texobj, &rd, &td, NULL);
-        CU_RET_ERR(stat, "cudaCreateTextureObject on coulomb_tab_texobj failed");
-    }
-    else
-#endif  /* HAVE_CUDA_TEXOBJ_SUPPORT */
-    {
-        GMX_UNUSED_VALUE(dev_info);
-        cudaChannelFormatDesc cd   = cudaCreateChannelDesc<float>();
-        stat = cudaBindTexture(NULL, &nbnxn_cuda_get_coulomb_tab_texref(),
-                               coul_tab, &cd,
-                               ic->tabq_size*sizeof(*coul_tab));
-        CU_RET_ERR(stat, "cudaBindTexture on coulomb_tab_texref failed");
-    }
-
+    CU_RET_ERR(stat, "cudaMalloc failed on coulumb_tab");
     cu_copy_H2D(coul_tab, ic->tabq_coul_F, ic->tabq_size*sizeof(*coul_tab));
 
-    nbp->coulomb_tab_size     = ic->tabq_size;
-    nbp->coulomb_tab_scale    = ic->tabq_scale;
+    nbp->coulomb_tab       = coul_tab;
+    nbp->coulomb_tab_size  = ic->tabq_size;
+    nbp->coulomb_tab_scale = ic->tabq_scale;
+
+    if (use_texobj(dev_info))
+    {
+        setup1DFloatTexture(nbp->coulomb_tab_texobj, nbp->coulomb_tab,
+                            nbp->coulomb_tab_size*sizeof(*nbp->coulomb_tab));
+    }
+    else
+    {
+        setup1DFloatTexture(&nbnxn_cuda_get_coulomb_tab_texref(), nbp->coulomb_tab,
+                            nbp->coulomb_tab_size*sizeof(*nbp->coulomb_tab));
+    }
 }
 
 
@@ -292,26 +313,86 @@ static void set_cutoff_parameters(cu_nbparam_t              *nbp,
     nbp->vdw_switch       = ic->vdw_switch;
 }
 
+/*! \brief Initialize LJ parameter lookup table.
+ *
+ * Initializes device memory and copies data from host an binds
+ * a texture to allocated device memory to be used for LJ parameter
+ * lookup.
+ *
+ * \param[out] devPtr    device pointer to the memory to be allocated
+ * \param[out] texObj    texture object to be initialized
+ * \param[out] texRef    texture reference to be initialized
+ * \param[in]  hostPtr   pointer to the host memory to be uploaded to the device
+ * \param[in]  numElem   number of elements in the hostPtr
+ * \param[in]  devInfo   pointer to the info struct of the device in use
+ */
+static void initParamLookupTable(float                    * &devPtr,
+                                 cudaTextureObject_t       &texObj,
+                                 const struct texture<float, 1, cudaReadModeElementType> *texRef,
+                                 const float               *hostPtr,
+                                 int                        numElem,
+                                 const gmx_device_info_t   *devInfo)
+{
+    cudaError_t stat;
+
+    size_t      sizeInBytes = numElem*sizeof(*devPtr);
+
+    stat  = cudaMalloc((void **)&devPtr, sizeInBytes);
+    CU_RET_ERR(stat, "cudaMalloc failed in initParamLookupTable");
+    cu_copy_H2D(devPtr, (void *)hostPtr, sizeInBytes);
+
+    if (use_texobj(devInfo))
+    {
+        setup1DFloatTexture(texObj, devPtr, sizeInBytes);
+    }
+    else
+    {
+        setup1DFloatTexture(texRef, devPtr, sizeInBytes);
+    }
+}
+
 /*! Initializes the nonbonded parameter data structure. */
 static void init_nbparam(cu_nbparam_t              *nbp,
                          const interaction_const_t *ic,
                          const nbnxn_atomdata_t    *nbat,
                          const gmx_device_info_t   *dev_info)
 {
-    cudaError_t stat;
-    int         ntypes, nnbfp, nnbfp_comb;
+    int         ntypes;
 
     ntypes  = nbat->ntype;
 
     set_cutoff_parameters(nbp, ic);
 
+    /* The kernel code supports LJ combination rules (geometric and LB) for
+     * all kernel types, but we only generate useful combination rule kernels.
+     * We currently only use LJ combination rule (geometric and LB) kernels
+     * for plain cut-off LJ. On Maxwell the force only kernels speed up 15%
+     * with PME and 20% with RF, the other kernels speed up about half as much.
+     * For LJ force-switch the geometric rule would give 7% speed-up, but this
+     * combination is rarely used. LJ force-switch with LB rule is more common,
+     * but gives only 1% speed-up.
+     */
     if (ic->vdwtype == evdwCUT)
     {
         switch (ic->vdw_modifier)
         {
             case eintmodNONE:
             case eintmodPOTSHIFT:
-                nbp->vdwtype = evdwCuCUT;
+                switch (nbat->comb_rule)
+                {
+                    case ljcrNONE:
+                        nbp->vdwtype = evdwCuCUT;
+                        break;
+                    case ljcrGEOM:
+                        nbp->vdwtype = evdwCuCUTCOMBGEOM;
+                        break;
+                    case ljcrLB:
+                        nbp->vdwtype = evdwCuCUTCOMBLB;
+                        break;
+                    default:
+                        gmx_incons("The requested LJ combination rule is not implemented in the CUDA GPU accelerated kernels!");
+                        break;
+                }
                 break;
             case eintmodFORCESWITCH:
                 nbp->vdwtype = evdwCuFSWITCH;
@@ -368,69 +449,20 @@ static void init_nbparam(cu_nbparam_t              *nbp,
         init_ewald_coulomb_force_table(ic, nbp, dev_info);
     }
 
-    nnbfp      = 2*ntypes*ntypes;
-    nnbfp_comb = 2*ntypes;
+    /* set up LJ parameter lookup table */
+    if (!useLjCombRule(nbp))
+    {
+        initParamLookupTable(nbp->nbfp, nbp->nbfp_texobj,
+                             &nbnxn_cuda_get_nbfp_texref(),
+                             nbat->nbfp, 2*ntypes*ntypes, dev_info);
+    }
 
-    stat  = cudaMalloc((void **)&nbp->nbfp, nnbfp*sizeof(*nbp->nbfp));
-    CU_RET_ERR(stat, "cudaMalloc failed on nbp->nbfp");
-    cu_copy_H2D(nbp->nbfp, nbat->nbfp, nnbfp*sizeof(*nbp->nbfp));
-
-
+    /* set up LJ-PME parameter lookup table */
     if (ic->vdwtype == evdwPME)
     {
-        stat  = cudaMalloc((void **)&nbp->nbfp_comb, nnbfp_comb*sizeof(*nbp->nbfp_comb));
-        CU_RET_ERR(stat, "cudaMalloc failed on nbp->nbfp_comb");
-        cu_copy_H2D(nbp->nbfp_comb, nbat->nbfp_comb, nnbfp_comb*sizeof(*nbp->nbfp_comb));
-    }
-
-#ifdef HAVE_CUDA_TEXOBJ_SUPPORT
-    /* Only device CC >= 3.0 (Kepler and later) support texture objects */
-    if (use_texobj(dev_info))
-    {
-        cudaResourceDesc rd;
-        cudaTextureDesc  td;
-
-        memset(&rd, 0, sizeof(rd));
-        rd.resType                  = cudaResourceTypeLinear;
-        rd.res.linear.devPtr        = nbp->nbfp;
-        rd.res.linear.desc.f        = cudaChannelFormatKindFloat;
-        rd.res.linear.desc.x        = 32;
-        rd.res.linear.sizeInBytes   = nnbfp*sizeof(*nbp->nbfp);
-
-        memset(&td, 0, sizeof(td));
-        td.readMode                 = cudaReadModeElementType;
-        stat = cudaCreateTextureObject(&nbp->nbfp_texobj, &rd, &td, NULL);
-        CU_RET_ERR(stat, "cudaCreateTextureObject on nbfp_texobj failed");
-
-        if (ic->vdwtype == evdwPME)
-        {
-            memset(&rd, 0, sizeof(rd));
-            rd.resType                  = cudaResourceTypeLinear;
-            rd.res.linear.devPtr        = nbp->nbfp_comb;
-            rd.res.linear.desc.f        = cudaChannelFormatKindFloat;
-            rd.res.linear.desc.x        = 32;
-            rd.res.linear.sizeInBytes   = nnbfp_comb*sizeof(*nbp->nbfp_comb);
-
-            memset(&td, 0, sizeof(td));
-            td.readMode = cudaReadModeElementType;
-            stat        = cudaCreateTextureObject(&nbp->nbfp_comb_texobj, &rd, &td, NULL);
-            CU_RET_ERR(stat, "cudaCreateTextureObject on nbfp_comb_texobj failed");
-        }
-    }
-    else
-#endif /* HAVE_CUDA_TEXOBJ_SUPPORT */
-    {
-        cudaChannelFormatDesc cd = cudaCreateChannelDesc<float>();
-        stat = cudaBindTexture(NULL, &nbnxn_cuda_get_nbfp_texref(),
-                               nbp->nbfp, &cd, nnbfp*sizeof(*nbp->nbfp));
-        CU_RET_ERR(stat, "cudaBindTexture on nbfp_texref failed");
-
-        if (ic->vdwtype == evdwPME)
-        {
-            stat = cudaBindTexture(NULL, &nbnxn_cuda_get_nbfp_comb_texref(),
-                                   nbp->nbfp_comb, &cd, nnbfp_comb*sizeof(*nbp->nbfp_comb));
-            CU_RET_ERR(stat, "cudaBindTexture on nbfp_comb_texref failed");
-        }
+        initParamLookupTable(nbp->nbfp_comb, nbp->nbfp_comb_texobj,
+                             &nbnxn_cuda_get_nbfp_comb_texref(),
+                             nbat->nbfp_comb, 2*ntypes, dev_info);
     }
 }
 
@@ -543,8 +575,7 @@ static void nbnxn_cuda_init_const(gmx_nbnxn_cuda_t               *nb,
     nbnxn_cuda_clear_e_fshift(nb);
 }
 
-void nbnxn_gpu_init(FILE                      *fplog,
-                    gmx_nbnxn_cuda_t         **p_nb,
+void nbnxn_gpu_init(gmx_nbnxn_cuda_t         **p_nb,
                     const gmx_gpu_info_t      *gpu_info,
                     const gmx_gpu_opt_t       *gpu_opt,
                     const interaction_const_t *ic,
@@ -555,9 +586,6 @@ void nbnxn_gpu_init(FILE                      *fplog,
 {
     cudaError_t       stat;
     gmx_nbnxn_cuda_t *nb;
-    char              sbuf[STRLEN];
-    bool              bStreamSync, bNoStreamSync, bTMPIAtomics, bX86, bOldDriver;
-    int               cuda_drv_ver;
 
     assert(gpu_info);
 
@@ -625,118 +653,11 @@ void nbnxn_gpu_init(FILE                      *fplog,
     stat = cudaEventCreateWithFlags(&nb->misc_ops_and_local_H2D_done, cudaEventDisableTiming);
     CU_RET_ERR(stat, "cudaEventCreate on misc_ops_and_local_H2D_done failed");
 
-    /* On GPUs with ECC enabled, cudaStreamSynchronize shows a large overhead
-     * (which increases with shorter time/step) caused by a known CUDA driver bug.
-     * To work around the issue we'll use an (admittedly fragile) memory polling
-     * waiting to preserve performance. This requires support for atomic
-     * operations and only works on x86/x86_64.
-     * With polling wait event-timing also needs to be disabled.
-     *
-     * The overhead is greatly reduced in API v5.0 drivers and the improvement
-     * is independent of runtime version. Hence, with API v5.0 drivers and later
-     * we won't switch to polling.
-     *
-     * NOTE: Unfortunately, this is known to fail when GPUs are shared by (t)MPI,
-     * ranks so we will also disable it in that case.
-     */
-
-    bStreamSync    = getenv("GMX_CUDA_STREAMSYNC") != NULL;
-    bNoStreamSync  = getenv("GMX_NO_CUDA_STREAMSYNC") != NULL;
-
-#ifdef TMPI_ATOMICS
-    bTMPIAtomics = true;
-#else
-    bTMPIAtomics = false;
-#endif
-
-#ifdef GMX_TARGET_X86
-    bX86 = true;
-#else
-    bX86 = false;
-#endif
-
-    if (bStreamSync && bNoStreamSync)
-    {
-        gmx_fatal(FARGS, "Conflicting environment variables: both GMX_CUDA_STREAMSYNC and GMX_NO_CUDA_STREAMSYNC defined");
-    }
-
-    stat = cudaDriverGetVersion(&cuda_drv_ver);
-    CU_RET_ERR(stat, "cudaDriverGetVersion failed");
-
-    bOldDriver = (cuda_drv_ver < 5000);
-
-    if ((nb->dev_info->prop.ECCEnabled == 1) && bOldDriver)
-    {
-        /* Polling wait should be used instead of cudaStreamSynchronize only if:
-         *   - ECC is ON & driver is old (checked above),
-         *   - we're on x86/x86_64,
-         *   - atomics are available, and
-         *   - GPUs are not being shared.
-         */
-        bool bShouldUsePollSync = (bX86 && bTMPIAtomics &&
-                                   (gmx_count_gpu_dev_shared(gpu_opt) < 1));
-
-        if (bStreamSync)
-        {
-            nb->bUseStreamSync = true;
-
-            /* only warn if polling should be used */
-            if (bShouldUsePollSync)
-            {
-                md_print_warn(fplog,
-                              "NOTE: Using a GPU with ECC enabled and CUDA driver API version <5.0, but\n"
-                              "      cudaStreamSynchronize waiting is forced by the GMX_CUDA_STREAMSYNC env. var.\n");
-            }
-        }
-        else
-        {
-            nb->bUseStreamSync = !bShouldUsePollSync;
-
-            if (bShouldUsePollSync)
-            {
-                md_print_warn(fplog,
-                              "NOTE: Using a GPU with ECC enabled and CUDA driver API version <5.0, known to\n"
-                              "      cause performance loss. Switching to the alternative polling GPU wait.\n"
-                              "      If you encounter issues, switch back to standard GPU waiting by setting\n"
-                              "      the GMX_CUDA_STREAMSYNC environment variable.\n");
-            }
-            else
-            {
-                /* Tell the user that the ECC+old driver combination can be bad */
-                sprintf(sbuf,
-                        "NOTE: Using a GPU with ECC enabled and CUDA driver API version <5.0.\n"
-                        "      A known bug in this driver version can cause performance loss.\n"
-                        "      However, the polling wait workaround can not be used because\n%s\n"
-                        "      Consider updating the driver or turning ECC off.",
-                        (bX86 && bTMPIAtomics) ?
-                        "      GPU(s) are being oversubscribed." :
-                        "      atomic operations are not supported by the platform/CPU+compiler.");
-                md_print_warn(fplog, sbuf);
-            }
-        }
-    }
-    else
-    {
-        if (bNoStreamSync)
-        {
-            nb->bUseStreamSync = false;
-
-            md_print_warn(fplog,
-                          "NOTE: Polling wait for GPU synchronization requested by GMX_NO_CUDA_STREAMSYNC\n");
-        }
-        else
-        {
-            /* no/off ECC, cudaStreamSynchronize not turned off by env. var. */
-            nb->bUseStreamSync = true;
-        }
-    }
-
     /* CUDA timing disabled as event timers don't work:
        - with multiple streams = domain-decomposition;
-       - with the polling waiting hack (without cudaStreamSynchronize);
        - when turned off by GMX_DISABLE_CUDA_TIMING.
      */
-    nb->bDoTime = (!nb->bUseTwoStreams && nb->bUseStreamSync &&
+    nb->bDoTime = (!nb->bUseTwoStreams &&
                    (getenv("GMX_DISABLE_CUDA_TIMING") == NULL));
 
     if (nb->bDoTime)
@@ -899,15 +820,23 @@ void nbnxn_gpu_init_atomdata(gmx_nbnxn_cuda_t              *nb,
             cu_free_buffered(d_atdat->f, &d_atdat->natoms, &d_atdat->nalloc);
             cu_free_buffered(d_atdat->xq);
             cu_free_buffered(d_atdat->atom_types);
+            cu_free_buffered(d_atdat->lj_comb);
         }
 
         stat = cudaMalloc((void **)&d_atdat->f, nalloc*sizeof(*d_atdat->f));
         CU_RET_ERR(stat, "cudaMalloc failed on d_atdat->f");
         stat = cudaMalloc((void **)&d_atdat->xq, nalloc*sizeof(*d_atdat->xq));
         CU_RET_ERR(stat, "cudaMalloc failed on d_atdat->xq");
-
-        stat = cudaMalloc((void **)&d_atdat->atom_types, nalloc*sizeof(*d_atdat->atom_types));
-        CU_RET_ERR(stat, "cudaMalloc failed on d_atdat->atom_types");
+        if (useLjCombRule(nb->nbparam))
+        {
+            stat = cudaMalloc((void **)&d_atdat->lj_comb, nalloc*sizeof(*d_atdat->lj_comb));
+            CU_RET_ERR(stat, "cudaMalloc failed on d_atdat->lj_comb");
+        }
+        else
+        {
+            stat = cudaMalloc((void **)&d_atdat->atom_types, nalloc*sizeof(*d_atdat->atom_types));
+            CU_RET_ERR(stat, "cudaMalloc failed on d_atdat->atom_types");
+        }
 
         d_atdat->nalloc = nalloc;
         realloced       = true;
@@ -922,8 +851,16 @@ void nbnxn_gpu_init_atomdata(gmx_nbnxn_cuda_t              *nb,
         nbnxn_cuda_clear_f(nb, nalloc);
     }
 
-    cu_copy_H2D_async(d_atdat->atom_types, nbat->type,
-                      natoms*sizeof(*d_atdat->atom_types), ls);
+    if (useLjCombRule(nb->nbparam))
+    {
+        cu_copy_H2D_async(d_atdat->lj_comb, nbat->lj_comb,
+                          natoms*sizeof(*d_atdat->lj_comb), ls);
+    }
+    else
+    {
+        cu_copy_H2D_async(d_atdat->atom_types, nbat->type,
+                          natoms*sizeof(*d_atdat->atom_types), ls);
+    }
 
     if (bDoTime)
     {
@@ -939,7 +876,6 @@ static void nbnxn_cuda_free_nbparam_table(cu_nbparam_t            *nbparam,
 
     if (nbparam->eeltype == eelCuEWALD_TAB || nbparam->eeltype == eelCuEWALD_TAB_TWIN)
     {
-#ifdef HAVE_CUDA_TEXOBJ_SUPPORT
         /* Only device CC >= 3.0 (Kepler and later) support texture objects */
         if (use_texobj(dev_info))
         {
@@ -947,7 +883,6 @@ static void nbnxn_cuda_free_nbparam_table(cu_nbparam_t            *nbparam,
             CU_RET_ERR(stat, "cudaDestroyTextureObject on coulomb_tab_texobj failed");
         }
         else
-#endif
         {
             GMX_UNUSED_VALUE(dev_info);
             stat = cudaUnbindTexture(nbnxn_cuda_get_coulomb_tab_texref());
@@ -964,14 +899,6 @@ void nbnxn_gpu_free(gmx_nbnxn_cuda_t *nb)
     cu_nbparam_t    *nbparam;
     cu_plist_t      *plist, *plist_nl;
     cu_timers_t     *timers;
-
-    /* Stopping the nvidia profiler here allows us to eliminate the subsequent
-       uninitialization API calls from the trace. */
-    if (getenv("NVPROF_ID") != NULL)
-    {
-        stat = cudaProfilerStop();
-        CU_RET_ERR(stat, "cudaProfilerStop failed");
-    }
 
     if (nb == NULL)
     {
@@ -1026,24 +953,24 @@ void nbnxn_gpu_free(gmx_nbnxn_cuda_t *nb)
         }
     }
 
-#ifdef HAVE_CUDA_TEXOBJ_SUPPORT
-    /* Only device CC >= 3.0 (Kepler and later) support texture objects */
-    if (use_texobj(nb->dev_info))
+    if (!useLjCombRule(nb->nbparam))
     {
-        stat = cudaDestroyTextureObject(nbparam->nbfp_texobj);
-        CU_RET_ERR(stat, "cudaDestroyTextureObject on nbfp_texobj failed");
+        /* Only device CC >= 3.0 (Kepler and later) support texture objects */
+        if (use_texobj(nb->dev_info))
+        {
+            stat = cudaDestroyTextureObject(nbparam->nbfp_texobj);
+            CU_RET_ERR(stat, "cudaDestroyTextureObject on nbfp_texobj failed");
+        }
+        else
+        {
+            stat = cudaUnbindTexture(nbnxn_cuda_get_nbfp_texref());
+            CU_RET_ERR(stat, "cudaUnbindTexture on nbfp_texref failed");
+        }
+        cu_free_buffered(nbparam->nbfp);
     }
-    else
-#endif
-    {
-        stat = cudaUnbindTexture(nbnxn_cuda_get_nbfp_texref());
-        CU_RET_ERR(stat, "cudaUnbindTexture on nbfp_texref failed");
-    }
-    cu_free_buffered(nbparam->nbfp);
 
     if (nbparam->vdwtype == evdwCuEWALDGEOM || nbparam->vdwtype == evdwCuEWALDLB)
     {
-#ifdef HAVE_CUDA_TEXOBJ_SUPPORT
         /* Only device CC >= 3.0 (Kepler and later) support texture objects */
         if (use_texobj(nb->dev_info))
         {
@@ -1051,7 +978,6 @@ void nbnxn_gpu_free(gmx_nbnxn_cuda_t *nb)
             CU_RET_ERR(stat, "cudaDestroyTextureObject on nbfp_comb_texobj failed");
         }
         else
-#endif
         {
             stat = cudaUnbindTexture(nbnxn_cuda_get_nbfp_comb_texref());
             CU_RET_ERR(stat, "cudaUnbindTexture on nbfp_comb_texref failed");
@@ -1072,6 +998,7 @@ void nbnxn_gpu_free(gmx_nbnxn_cuda_t *nb)
     cu_free_buffered(atdat->f, &atdat->natoms, &atdat->nalloc);
     cu_free_buffered(atdat->xq);
     cu_free_buffered(atdat->atom_types, &atdat->ntypes);
+    cu_free_buffered(atdat->lj_comb);
 
     cu_free_buffered(plist->sci, &plist->nsci, &plist->sci_nalloc);
     cu_free_buffered(plist->cj4, &plist->ncj4, &plist->cj4_nalloc);
@@ -1116,19 +1043,6 @@ gmx_wallclock_gpu_t * nbnxn_gpu_get_timings(gmx_nbnxn_cuda_t *nb)
 
 void nbnxn_gpu_reset_timings(nonbonded_verlet_t* nbv)
 {
-    /* The NVPROF_ID environment variable is set by nvprof and indicates that
-       mdrun is executed in the CUDA profiler.
-       If nvprof was run is with "--profile-from-start off", the profiler will
-       be started here. This way we can avoid tracing the CUDA events from the
-       first part of the run. Starting the profiler again does nothing.
-     */
-    if (getenv("NVPROF_ID") != NULL)
-    {
-        cudaError_t stat;
-        stat = cudaProfilerStart();
-        CU_RET_ERR(stat, "cudaProfilerStart failed");
-    }
-
     if (nbv->gpu_nbv && nbv->gpu_nbv->bDoTime)
     {
         init_timings(nbv->gpu_nbv->timings);

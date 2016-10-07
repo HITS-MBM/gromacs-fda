@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2009,2010,2011,2012,2013,2014,2015, by the GROMACS development team, led by
+ * Copyright (c) 2009,2010,2011,2012,2013,2014,2015,2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -114,11 +114,11 @@
  */
 #include "gmxpre.h"
 
-#include <math.h>
+#include <cmath>
 
 #include <algorithm>
 
-#include "gromacs/legacyheaders/macros.h"
+#include "gromacs/math/functions.h"
 #include "gromacs/math/units.h"
 #include "gromacs/math/utilities.h"
 #include "gromacs/math/vec.h"
@@ -126,6 +126,7 @@
 #include "gromacs/selection/indexutil.h"
 #include "gromacs/selection/position.h"
 #include "gromacs/selection/selection.h"
+#include "gromacs/utility/arraysize.h"
 #include "gromacs/utility/exceptions.h"
 #include "gromacs/utility/smalloc.h"
 
@@ -373,17 +374,27 @@ static void *
 init_data_insolidangle(int /* npar */, gmx_ana_selparam_t *param)
 {
     t_methoddata_insolidangle *data = new t_methoddata_insolidangle();
+    // cppcheck-suppress uninitdata
     data->angcut        = 5.0;
+    // cppcheck-suppress uninitdata
     data->cfrac         = 0.0;
 
+    // cppcheck-suppress uninitdata
     data->distccut      = 0.0;
+    // cppcheck-suppress uninitdata
     data->targetbinsize = 0.0;
 
+    // cppcheck-suppress uninitdata
     data->ntbins        = 0;
+    // cppcheck-suppress uninitdata
     data->tbinsize      = 0.0;
+    // cppcheck-suppress uninitdata
     data->tbin          = NULL;
+    // cppcheck-suppress uninitdata
     data->maxbins       = 0;
+    // cppcheck-suppress uninitdata
     data->nbins         = 0;
+    // cppcheck-suppress uninitdata
     data->bin           = NULL;
 
     param[0].val.u.p = &data->center;
@@ -405,7 +416,7 @@ init_insolidangle(t_topology * /* top */, int /* npar */, gmx_ana_selparam_t * /
 
     surf->angcut *= DEG2RAD;
 
-    surf->distccut      = -cos(surf->angcut);
+    surf->distccut      = -std::cos(surf->angcut);
     surf->targetbinsize = surf->angcut / 2;
     surf->ntbins        = static_cast<int>(M_PI / surf->targetbinsize);
     surf->tbinsize      = (180.0 / surf->ntbins)*DEG2RAD;
@@ -414,8 +425,8 @@ init_insolidangle(t_topology * /* top */, int /* npar */, gmx_ana_selparam_t * /
     surf->maxbins = 0;
     for (i = 0; i < surf->ntbins; ++i)
     {
-        c = static_cast<int>(max(sin(surf->tbinsize*i),
-                                 sin(surf->tbinsize*(i+1)))
+        c = static_cast<int>(std::max(std::sin(surf->tbinsize*i),
+                                      std::sin(surf->tbinsize*(i+1)))
                              * M_2PI / surf->targetbinsize) + 1;
         snew(surf->tbin[i].p, c+1);
         surf->maxbins += c;
@@ -702,8 +713,8 @@ clear_surface_points(t_methoddata_insolidangle *surf)
     surf->nbins = 0;
     for (i = 0; i < surf->ntbins; ++i)
     {
-        c = static_cast<int>(min(sin(surf->tbinsize*i),
-                                 sin(surf->tbinsize*(i+1)))
+        c = static_cast<int>(std::min(std::sin(surf->tbinsize*i),
+                                      std::sin(surf->tbinsize*(i+1)))
                              * M_2PI / surf->targetbinsize) + 1;
         if (c <= 0)
         {
@@ -889,8 +900,8 @@ store_surface_point(t_methoddata_insolidangle *surf, rvec x)
     }
     else
     {
-        pdeltamax = asin(sin(surf->angcut) / sin(theta));
-        tmax      = acos(cos(theta) / cos(surf->angcut));
+        pdeltamax = std::asin(sin(surf->angcut) / sin(theta));
+        tmax      = std::acos(cos(theta) / cos(surf->angcut));
     }
     /* Find the first affected bin */
     tbin   = max(static_cast<int>(floor((theta - surf->angcut) / surf->tbinsize)), 0);
@@ -929,8 +940,8 @@ store_surface_point(t_methoddata_insolidangle *surf, rvec x)
              * much, but it would be nicer to adjust the theta bin boundaries
              * such that the case above catches this instead of falling through
              * here. */
-            pdelta2 = 2*asin(sqrt(
-                                     (sqr(sin(surf->angcut/2)) - sqr(sin((theta2-theta)/2))) /
+            pdelta2 = 2*asin(std::sqrt(
+                                     (gmx::square(sin(surf->angcut/2)) - gmx::square(sin((theta2-theta)/2))) /
                                      (sin(theta) * sin(theta2))));
         }
         /* Update the bin */

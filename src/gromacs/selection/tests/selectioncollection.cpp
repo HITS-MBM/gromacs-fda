@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2010,2011,2012,2013,2014,2015, by the GROMACS development team, led by
+ * Copyright (c) 2010,2011,2012,2013,2014,2015,2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -45,18 +45,19 @@
 
 #include <gtest/gtest.h>
 
-#include "gromacs/fileio/trx.h"
 #include "gromacs/options/basicoptions.h"
-#include "gromacs/options/options.h"
+#include "gromacs/options/ioptionscontainer.h"
 #include "gromacs/selection/indexutil.h"
 #include "gromacs/selection/selection.h"
 #include "gromacs/topology/topology.h"
+#include "gromacs/trajectory/trajectoryframe.h"
 #include "gromacs/utility/arrayref.h"
 #include "gromacs/utility/exceptions.h"
 #include "gromacs/utility/flags.h"
 #include "gromacs/utility/gmxregex.h"
 #include "gromacs/utility/stringutil.h"
 
+#include "testutils/interactivetest.h"
 #include "testutils/refdata.h"
 #include "testutils/testasserts.h"
 #include "testutils/testfilemanager.h"
@@ -91,13 +92,12 @@ class SelectionCollectionTest : public ::testing::Test
         gmx::SelectionCollection    sc_;
         gmx::SelectionList          sel_;
         t_topology                 *top_;
-        t_trxframe                 *frame_;
         gmx_ana_indexgrps_t        *grps_;
 };
 
 int SelectionCollectionTest::s_debugLevel = 0;
 
-// \cond/\endcond do not seem to work here with Doxygen 1.8.5 parser.
+// cond/endcond do not seem to work here with Doxygen 1.8.5 parser.
 #ifndef DOXYGEN
 GMX_TEST_OPTIONS(SelectionCollectionTestOptions, options)
 {
@@ -108,7 +108,7 @@ GMX_TEST_OPTIONS(SelectionCollectionTestOptions, options)
 #endif
 
 SelectionCollectionTest::SelectionCollectionTest()
-    : top_(NULL), frame_(NULL), grps_(NULL)
+    : top_(NULL), grps_(NULL)
 {
     topManager_.requestFrame();
     sc_.setDebugLevel(s_debugLevel);
@@ -135,7 +135,6 @@ void
 SelectionCollectionTest::setTopology()
 {
     top_   = topManager_.topology();
-    frame_ = topManager_.frame();
 
     ASSERT_NO_THROW_GMX(sc_.setTopology(top_, -1));
 }
@@ -149,6 +148,39 @@ SelectionCollectionTest::loadIndexGroups(const char *filename)
         gmx::test::TestFileManager::getInputFilePath(filename);
     gmx_ana_indexgrps_init(&grps_, NULL, fullpath.c_str());
     sc_.setIndexGroups(grps_);
+}
+
+
+/********************************************************************
+ * Test fixture for interactive SelectionCollection tests
+ */
+
+class SelectionCollectionInteractiveTest : public SelectionCollectionTest
+{
+    public:
+        SelectionCollectionInteractiveTest()
+            : helper_(data_.rootChecker())
+        {
+        }
+
+        void runTest(int count, bool bInteractive,
+                     const gmx::ConstArrayRef<const char *> &input);
+
+        gmx::test::TestReferenceData      data_;
+        gmx::test::InteractiveTestHelper  helper_;
+};
+
+void SelectionCollectionInteractiveTest::runTest(
+        int count, bool bInteractive,
+        const gmx::ConstArrayRef<const char *> &inputLines)
+{
+    helper_.setInputLines(inputLines);
+    // TODO: Check something about the returned selections as well.
+    ASSERT_NO_THROW_GMX(sc_.parseInteractive(
+                                count, &helper_.inputStream(),
+                                bInteractive ? &helper_.outputStream() : NULL,
+                                "for test context"));
+    helper_.checkSession();
 }
 
 
@@ -336,7 +368,7 @@ SelectionCollectionDataTest::runEvaluate()
     using gmx::test::TestReferenceChecker;
 
     ++framenr_;
-    ASSERT_NO_THROW_GMX(sc_.evaluate(frame_, NULL));
+    ASSERT_NO_THROW_GMX(sc_.evaluate(topManager_.frame(), NULL));
     std::string          frame = gmx::formatString("Frame%d", framenr_);
     TestReferenceChecker compound(
             checker_.checkCompound("EvaluatedSelections", frame.c_str()));
@@ -584,7 +616,7 @@ TEST_F(SelectionCollectionTest, RecoversFromInvalidPermutation3)
     ASSERT_NO_THROW_GMX(sc_.parseFromString("x < 1.5 permute 3 2 1"));
     ASSERT_NO_FATAL_FAILURE(loadTopology("simple.gro"));
     ASSERT_NO_THROW_GMX(sc_.compile());
-    EXPECT_THROW_GMX(sc_.evaluate(frame_, NULL), gmx::InconsistentInputError);
+    EXPECT_THROW_GMX(sc_.evaluate(topManager_.frame(), NULL), gmx::InconsistentInputError);
 }
 
 TEST_F(SelectionCollectionTest, HandlesFramesWithTooSmallAtomSubsets)
@@ -592,30 +624,185 @@ TEST_F(SelectionCollectionTest, HandlesFramesWithTooSmallAtomSubsets)
     ASSERT_NO_THROW_GMX(sc_.parseFromString("atomnr 3 to 10"));
     ASSERT_NO_FATAL_FAILURE(loadTopology("simple.gro"));
     ASSERT_NO_THROW_GMX(sc_.compile());
-    frame_->natoms = 8;
-    EXPECT_THROW_GMX(sc_.evaluate(frame_, NULL), gmx::InconsistentInputError);
+    topManager_.frame()->natoms = 8;
+    EXPECT_THROW_GMX(sc_.evaluate(topManager_.frame(), NULL), gmx::InconsistentInputError);
 }
 
 TEST_F(SelectionCollectionTest, HandlesFramesWithTooSmallAtomSubsets2)
 {
-    // Evaluating the positions will require atoms 1-9.
-    ASSERT_NO_THROW_GMX(sc_.parseFromString("whole_res_com of atomnr 2 5 7"));
+    const int index[] = { 1, 2, 3, 9 };
+    ASSERT_NO_THROW_GMX(sc_.parseFromString("atomnr 3 4 7 10"));
     ASSERT_NO_FATAL_FAILURE(loadTopology("simple.gro"));
     ASSERT_NO_THROW_GMX(sc_.compile());
-    frame_->natoms = 8;
-    EXPECT_THROW_GMX(sc_.evaluate(frame_, NULL), gmx::InconsistentInputError);
+    topManager_.initFrameIndices(index);
+    EXPECT_THROW_GMX(sc_.evaluate(topManager_.frame(), NULL), gmx::InconsistentInputError);
 }
 
 TEST_F(SelectionCollectionTest, HandlesFramesWithTooSmallAtomSubsets3)
 {
+    const int index[] = { 0, 1, 2, 3, 4, 5, 6, 9, 10, 11 };
+    // Evaluating the positions will require atoms 1-3, 7-12.
+    ASSERT_NO_THROW_GMX(sc_.parseFromString("whole_res_com of atomnr 2 7 11"));
+    ASSERT_NO_FATAL_FAILURE(loadTopology("simple.gro"));
+    ASSERT_NO_THROW_GMX(sc_.compile());
+    topManager_.initFrameIndices(index);
+    EXPECT_THROW_GMX(sc_.evaluate(topManager_.frame(), NULL), gmx::InconsistentInputError);
+}
+
+TEST_F(SelectionCollectionTest, HandlesFramesWithTooSmallAtomSubsets4)
+{
     ASSERT_NO_THROW_GMX(sc_.parseFromString("mindistance from atomnr 1 to 5 < 2"));
     ASSERT_NO_FATAL_FAILURE(loadTopology("simple.gro"));
     ASSERT_NO_THROW_GMX(sc_.compile());
-    frame_->natoms = 10;
-    EXPECT_THROW_GMX(sc_.evaluate(frame_, NULL), gmx::InconsistentInputError);
+    topManager_.frame()->natoms = 10;
+    EXPECT_THROW_GMX(sc_.evaluate(topManager_.frame(), NULL), gmx::InconsistentInputError);
 }
 
 // TODO: Tests for more evaluation errors
+
+/********************************************************************
+ * Tests for interactive selection input
+ */
+
+TEST_F(SelectionCollectionInteractiveTest, HandlesBasicInput)
+{
+    const char *const input[] = {
+        "foo = resname RA",
+        "resname RB",
+        "\"Name\" resname RC"
+    };
+    runTest(-1, true, input);
+}
+
+TEST_F(SelectionCollectionInteractiveTest, HandlesContinuation)
+{
+    const char *const input[] = {
+        "resname RB and \\",
+        "resname RC"
+    };
+    runTest(-1, true, input);
+}
+
+TEST_F(SelectionCollectionInteractiveTest, HandlesSingleSelectionInput)
+{
+    const char *const input[] = {
+        "foo = resname RA",
+        "resname RA"
+    };
+    runTest(1, true, input);
+}
+
+TEST_F(SelectionCollectionInteractiveTest, HandlesTwoSelectionInput)
+{
+    const char *const input[] = {
+        "resname RA",
+        "resname RB"
+    };
+    runTest(2, true, input);
+}
+
+TEST_F(SelectionCollectionInteractiveTest, HandlesStatusWithGroups)
+{
+    const char *const input[] = {
+        "resname RA",
+        ""
+    };
+    loadIndexGroups("simple.ndx");
+    runTest(-1, true, input);
+}
+
+TEST_F(SelectionCollectionInteractiveTest, HandlesStatusWithExistingSelections)
+{
+    const char *const input[] = {
+        "",
+        "bar = resname RC",
+        "resname RA",
+        ""
+    };
+    ASSERT_NO_THROW_GMX(sc_.parseFromString("foo = resname RA"));
+    ASSERT_NO_THROW_GMX(sc_.parseFromString("resname RB"));
+    runTest(-1, true, input);
+}
+
+TEST_F(SelectionCollectionInteractiveTest, HandlesSingleSelectionInputStatus)
+{
+    const char *const input[] = {
+        "foo = resname RA",
+        "",
+        "resname RB"
+    };
+    runTest(1, true, input);
+}
+
+TEST_F(SelectionCollectionInteractiveTest, HandlesTwoSelectionInputStatus)
+{
+    const char *const input[] = {
+        "\"Sel\" resname RA",
+        "",
+        "resname RB"
+    };
+    runTest(2, true, input);
+}
+
+TEST_F(SelectionCollectionInteractiveTest, HandlesMultiSelectionInputStatus)
+{
+    const char *const input[] = {
+        "\"Sel\" resname RA",
+        "\"Sel2\" resname RB",
+        ""
+    };
+    runTest(-1, true, input);
+}
+
+TEST_F(SelectionCollectionInteractiveTest, HandlesNoFinalNewline)
+{
+    // TODO: There is an extra prompt printed after the input is finished; it
+    // would be cleaner not to have it, but it's only a cosmetic issue.
+    const char *const input[] = {
+        "resname RA"
+    };
+    helper_.setLastNewline(false);
+    runTest(-1, true, input);
+}
+
+TEST_F(SelectionCollectionInteractiveTest, HandlesEmptySelections)
+{
+    const char *const input[] = {
+        "resname RA;",
+        "; resname RB;;",
+        " ",
+        ";"
+    };
+    runTest(-1, true, input);
+}
+
+TEST_F(SelectionCollectionInteractiveTest, HandlesMultipleSelectionsOnLine)
+{
+    const char *const input[] = {
+        "resname RA; resname RB and \\",
+        "resname RC"
+    };
+    runTest(2, true, input);
+}
+
+TEST_F(SelectionCollectionInteractiveTest, HandlesNoninteractiveInput)
+{
+    const char *const input[] = {
+        "foo = resname RA",
+        "resname RB",
+        "\"Name\" resname RC"
+    };
+    runTest(-1, false, input);
+}
+
+TEST_F(SelectionCollectionInteractiveTest, HandlesSingleSelectionInputNoninteractively)
+{
+    const char *const input[] = {
+        "foo = resname RA",
+        "resname RA"
+    };
+    runTest(1, false, input);
+}
 
 
 /********************************************************************
@@ -738,6 +925,8 @@ TEST_F(SelectionCollectionDataTest, HandlesCharge)
     {
         top_->atoms.atom[i].q = i / 10.0;
     }
+    //ensure exact representation of 0.5 is used, so the test is always reproducible
+    top_->atoms.atom[5].q = 0.5;
     ASSERT_NO_FATAL_FAILURE(runCompiler());
 }
 
@@ -947,6 +1136,23 @@ TEST_F(SelectionCollectionDataTest, ComputesMassesAndChargesWithoutTopology)
     setFlags(TestFlags() | efTestPositionAtoms
              | efTestPositionMasses | efTestPositionCharges);
     runTest(10, selections);
+}
+
+TEST_F(SelectionCollectionDataTest, HandlesFramesWithAtomSubsets)
+{
+    const int          index[]      = { 0, 1, 2, 3, 4, 5, 9, 10, 11 };
+    const char * const selections[] = {
+        "resnr 1 4",
+        "atomnr 1 2 5 11 and y > 2",
+        "res_cog of atomnr 2 5 11"
+    };
+    setFlags(TestFlags() | efTestEvaluation | efTestPositionAtoms);
+    ASSERT_NO_FATAL_FAILURE(runParser(selections));
+    ASSERT_NO_FATAL_FAILURE(loadTopology("simple.gro"));
+    ASSERT_NO_FATAL_FAILURE(runCompiler());
+    topManager_.initFrameIndices(index);
+    ASSERT_NO_FATAL_FAILURE(runEvaluate());
+    ASSERT_NO_FATAL_FAILURE(runEvaluateFinal());
 }
 
 

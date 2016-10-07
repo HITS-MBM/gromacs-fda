@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014,2015, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -42,8 +42,10 @@
 
 #include <algorithm>
 
-#include "gromacs/legacyheaders/types/commrec.h"
 #include "gromacs/math/vec.h"
+#include "gromacs/mdtypes/commrec.h"
+#include "gromacs/utility/exceptions.h"
+#include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/gmxmpi.h"
 #include "gromacs/utility/smalloc.h"
 
@@ -117,9 +119,13 @@ static void pme_calc_pidx_wrapper(int natoms, matrix recipbox, rvec x[],
 #pragma omp parallel for num_threads(nthread) schedule(static)
     for (thread = 0; thread < nthread; thread++)
     {
-        pme_calc_pidx(natoms* thread   /nthread,
-                      natoms*(thread+1)/nthread,
-                      recipbox, x, atc, atc->count_thread[thread]);
+        try
+        {
+            pme_calc_pidx(natoms* thread   /nthread,
+                          natoms*(thread+1)/nthread,
+                          recipbox, x, atc, atc->count_thread[thread]);
+        }
+        GMX_CATCH_ALL_AND_EXIT_WITH_FATAL_ERROR;
     }
     /* Non-parallel reduction, since nslab is small */
 
@@ -213,7 +219,7 @@ static void pme_dd_sendrecv(pme_atomcomm_t gmx_unused *atc,
                             void gmx_unused *buf_s, int gmx_unused nbyte_s,
                             void gmx_unused *buf_r, int gmx_unused nbyte_r)
 {
-#ifdef GMX_MPI
+#if GMX_MPI
     int        dest, src;
     MPI_Status stat;
 

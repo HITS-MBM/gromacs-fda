@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2012,2013,2014,2015, by the GROMACS development team, led by
+ * Copyright (c) 2012,2013,2014,2015,2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -54,14 +54,10 @@
 #include <string>
 #include <vector>
 
-#include <boost/scoped_ptr.hpp>
-
-#include "thread_mpi/mutex.h"
-
 #include "buildinfo.h"
 #include "gromacs/utility/exceptions.h"
-#include "gromacs/utility/file.h"
 #include "gromacs/utility/gmxassert.h"
+#include "gromacs/utility/mutex.h"
 #include "gromacs/utility/path.h"
 #include "gromacs/utility/stringutil.h"
 
@@ -88,12 +84,12 @@ std::string quoteIfNecessary(const char *str)
 }
 
 /*! \brief
- * Default implementation for ExecutableEnvironmentInterface.
+ * Default implementation for IExecutableEnvironment.
  *
- * Used if ExecutableEnvironmentInterface is not explicitly provided when
+ * Used if IExecutableEnvironment is not explicitly provided when
  * constructing CommandLineProgramContext.
  */
-class DefaultExecutableEnvironment : public ExecutableEnvironmentInterface
+class DefaultExecutableEnvironment : public IExecutableEnvironment
 {
     public:
         //! Allocates a default environment.
@@ -130,13 +126,13 @@ class DefaultExecutableEnvironment : public ExecutableEnvironmentInterface
  * If a binary with the given name cannot be located, \p invokedName is
  * returned.
  */
-std::string findFullBinaryPath(const std::string                    &invokedName,
-                               const ExecutableEnvironmentInterface &env)
+std::string findFullBinaryPath(const std::string            &invokedName,
+                               const IExecutableEnvironment &env)
 {
     std::string searchName = invokedName;
     // On Windows & Cygwin we need to add the .exe extension,
     // or we wont be able to detect that the file exists.
-#if (defined GMX_NATIVE_WINDOWS || defined GMX_CYGWIN)
+#if GMX_NATIVE_WINDOWS || GMX_CYGWIN
     if (!endsWith(searchName, ".exe"))
     {
         searchName.append(".exe");
@@ -151,7 +147,7 @@ std::string findFullBinaryPath(const std::string                    &invokedName
         {
             const std::string &dir      = i->empty() ? env.getWorkingDirectory() : *i;
             std::string        testPath = Path::join(dir, searchName);
-            if (File::exists(testPath))
+            if (File::exists(testPath, File::returnFalseOnError))
             {
                 return testPath;
             }
@@ -175,7 +171,7 @@ std::string findFullBinaryPath(const std::string                    &invokedName
  */
 bool isAcceptableLibraryPath(const std::string &path)
 {
-    return Path::exists(Path::join(path, "gurgle.dat"));
+    return Path::exists(Path::join(path, "residuetypes.dat"));
 }
 
 /*! \brief
@@ -207,7 +203,7 @@ bool isAcceptableLibraryPathPrefix(const std::string &path)
  */
 std::string findFallbackInstallationPrefixPath()
 {
-#ifndef GMX_NATIVE_WINDOWS
+#if !GMX_NATIVE_WINDOWS
     if (!isAcceptableLibraryPathPrefix(CMAKE_INSTALL_PREFIX))
     {
         if (isAcceptableLibraryPathPrefix("/usr/local"))
@@ -322,7 +318,7 @@ class CommandLineProgramContext::Impl
         mutable std::string           fullBinaryPath_;
         mutable std::string           installationPrefix_;
         mutable bool                  bSourceLayout_;
-        mutable tMPI::mutex           binaryPathMutex_;
+        mutable Mutex                 binaryPathMutex_;
 };
 
 CommandLineProgramContext::Impl::Impl()
@@ -332,9 +328,8 @@ CommandLineProgramContext::Impl::Impl()
 
 CommandLineProgramContext::Impl::Impl(int argc, const char *const argv[],
                                       ExecutableEnvironmentPointer env)
-    : executableEnv_(env), bSourceLayout_(false)
+    : executableEnv_(std::move(env)), invokedName_(argc != 0 ? argv[0] : ""), bSourceLayout_(false)
 {
-    invokedName_ = (argc != 0 ? argv[0] : "");
     programName_ = Path::getFilename(invokedName_);
     programName_ = stripSuffixIfPresent(programName_, ".exe");
 
@@ -381,7 +376,7 @@ CommandLineProgramContext::CommandLineProgramContext(
 
 CommandLineProgramContext::CommandLineProgramContext(
         int argc, const char *const argv[], ExecutableEnvironmentPointer env)
-    : impl_(new Impl(argc, argv, env))
+    : impl_(new Impl(argc, argv, move(env)))
 {
 }
 
@@ -415,14 +410,14 @@ const char *CommandLineProgramContext::commandLine() const
 
 const char *CommandLineProgramContext::fullBinaryPath() const
 {
-    tMPI::lock_guard<tMPI::mutex> lock(impl_->binaryPathMutex_);
+    lock_guard<Mutex> lock(impl_->binaryPathMutex_);
     impl_->findBinaryPath();
     return impl_->fullBinaryPath_.c_str();
 }
 
 InstallationPrefixInfo CommandLineProgramContext::installationPrefix() const
 {
-    tMPI::lock_guard<tMPI::mutex> lock(impl_->binaryPathMutex_);
+    lock_guard<Mutex> lock(impl_->binaryPathMutex_);
     if (impl_->installationPrefix_.empty())
     {
         impl_->findBinaryPath();

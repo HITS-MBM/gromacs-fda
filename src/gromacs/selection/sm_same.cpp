@@ -42,8 +42,9 @@
 #include "gmxpre.h"
 
 #include <stdlib.h>
+#include <string.h>
 
-#include "gromacs/legacyheaders/macros.h"
+#include "gromacs/utility/arraysize.h"
 #include "gromacs/utility/exceptions.h"
 #include "gromacs/utility/smalloc.h"
 

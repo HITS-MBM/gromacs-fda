@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014,2015, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -41,19 +41,22 @@
 #include <assert.h>
 #include <stdlib.h>
 
+#include "gromacs/domdec/domdec_struct.h"
+#include "gromacs/domdec/ga2la.h"
 #include "gromacs/fileio/confio.h"
-#include "gromacs/legacyheaders/gmx_ga2la.h"
-#include "gromacs/legacyheaders/macros.h"
-#include "gromacs/legacyheaders/names.h"
-#include "gromacs/legacyheaders/network.h"
-#include "gromacs/legacyheaders/typedefs.h"
-#include "gromacs/legacyheaders/types/commrec.h"
+#include "gromacs/gmxlib/network.h"
+#include "gromacs/math/functions.h"
+#include "gromacs/math/utilities.h"
 #include "gromacs/math/vec.h"
+#include "gromacs/mdtypes/commrec.h"
+#include "gromacs/mdtypes/md_enums.h"
+#include "gromacs/mdtypes/mdatom.h"
 #include "gromacs/pbcutil/pbc.h"
 #include "gromacs/pulling/pull.h"
 #include "gromacs/pulling/pull_internal.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/futil.h"
+#include "gromacs/utility/gmxassert.h"
 #include "gromacs/utility/real.h"
 #include "gromacs/utility/smalloc.h"
 
@@ -71,8 +74,8 @@ static void pull_reduce_real(t_commrec   *cr,
         }
         else
         {
-#ifdef GMX_MPI
-#ifdef MPI_IN_PLACE_EXISTS
+#if GMX_MPI
+#if MPI_IN_PLACE_EXISTS
             MPI_Allreduce(MPI_IN_PLACE, data, n, GMX_MPI_REAL, MPI_SUM,
                           comm->mpi_comm_com);
 #else
@@ -111,8 +114,8 @@ static void pull_reduce_double(t_commrec   *cr,
         }
         else
         {
-#ifdef GMX_MPI
-#ifdef MPI_IN_PLACE_EXISTS
+#if GMX_MPI
+#if MPI_IN_PLACE_EXISTS
             MPI_Allreduce(MPI_IN_PLACE, data, n, MPI_DOUBLE, MPI_SUM,
                           comm->mpi_comm_com);
 #else
@@ -194,12 +197,12 @@ static void make_cyl_refgrps(t_commrec *cr, struct pull_t *pull, t_mdatoms *md,
                              t_pbc *pbc, double t, rvec *x)
 {
     /* The size and stride per coord for the reduction buffer */
-    const int     stride = 9;
-    int           c, i, ii, m, start, end;
-    rvec          g_x, dx, dir;
-    double        inv_cyl_r2;
-    pull_comm_t  *comm;
-    gmx_ga2la_t   ga2la = NULL;
+    const int       stride = 9;
+    int             c, i, ii, m, start, end;
+    rvec            g_x, dx, dir;
+    double          inv_cyl_r2;
+    pull_comm_t    *comm;
+    gmx_ga2la_t    *ga2la = NULL;
 
     comm = &pull->comm;
 
@@ -216,7 +219,7 @@ static void make_cyl_refgrps(t_commrec *cr, struct pull_t *pull, t_mdatoms *md,
     start = 0;
     end   = md->homenr;
 
-    inv_cyl_r2 = 1/dsqr(pull->params.cylinder_r);
+    inv_cyl_r2 = 1.0/gmx::square(pull->params.cylinder_r);
 
     /* loop over all groups to make a reference group for each*/
     for (c = 0; c < pull->ncoord; c++)
@@ -241,7 +244,7 @@ static void make_cyl_refgrps(t_commrec *cr, struct pull_t *pull, t_mdatoms *md,
             pref  = &pull->group[pcrd->params.group[0]];
             pgrp  = &pull->group[pcrd->params.group[1]];
             pdyna = &pull->dyna[c];
-            copy_rvec(pcrd->vec, dir);
+            copy_dvec_to_rvec(pcrd->vec, dir);
             pdyna->nat_loc = 0;
 
             /* We calculate distances with respect to the reference location
@@ -419,6 +422,132 @@ static double atan2_0_2pi(double y, double x)
     return a;
 }
 
+static void sum_com_part(const pull_group_work_t *pgrp,
+                         int ind_start, int ind_end,
+                         const rvec *x, const rvec *xp,
+                         const real *mass,
+                         const t_pbc *pbc,
+                         const rvec x_pbc,
+                         pull_sum_com_t *sum_com)
+{
+    double sum_wm   = 0;
+    double sum_wwm  = 0;
+    dvec   sum_wmx  = { 0, 0, 0 };
+    dvec   sum_wmxp = { 0, 0, 0 };
+
+    for (int i = ind_start; i < ind_end; i++)
+    {
+        int  ii = pgrp->ind_loc[i];
+        real wm;
+        if (pgrp->weight_loc == NULL)
+        {
+            wm      = mass[ii];
+            sum_wm += wm;
+        }
+        else
+        {
+            real w;
+
+            w        = pgrp->weight_loc[i];
+            wm       = w*mass[ii];
+            sum_wm  += wm;
+            sum_wwm += wm*w;
+        }
+        if (pgrp->epgrppbc == epgrppbcNONE)
+        {
+            /* Plain COM: sum the coordinates */
+            for (int d = 0; d < DIM; d++)
+            {
+                sum_wmx[d]      += wm*x[ii][d];
+            }
+            if (xp)
+            {
+                for (int d = 0; d < DIM; d++)
+                {
+                    sum_wmxp[d] += wm*xp[ii][d];
+                }
+            }
+        }
+        else
+        {
+            rvec dx;
+
+            /* Sum the difference with the reference atom */
+            pbc_dx(pbc, x[ii], x_pbc, dx);
+            for (int d = 0; d < DIM; d++)
+            {
+                sum_wmx[d]     += wm*dx[d];
+            }
+            if (xp)
+            {
+                /* For xp add the difference between xp and x to dx,
+                 * such that we use the same periodic image,
+                 * also when xp has a large displacement.
+                 */
+                for (int d = 0; d < DIM; d++)
+                {
+                    sum_wmxp[d] += wm*(dx[d] + xp[ii][d] - x[ii][d]);
+                }
+            }
+        }
+    }
+
+    sum_com->sum_wm  = sum_wm;
+    sum_com->sum_wwm = sum_wwm;
+    copy_dvec(sum_wmx, sum_com->sum_wmx);
+    if (xp)
+    {
+        copy_dvec(sum_wmxp, sum_com->sum_wmxp);
+    }
+}
+
+static void sum_com_part_cosweight(const pull_group_work_t *pgrp,
+                                   int ind_start, int ind_end,
+                                   int cosdim, real twopi_box,
+                                   const rvec *x, const rvec *xp,
+                                   const real *mass,
+                                   pull_sum_com_t *sum_com)
+{
+    /* Cosine weighting geometry */
+    double sum_cm  = 0;
+    double sum_sm  = 0;
+    double sum_ccm = 0;
+    double sum_csm = 0;
+    double sum_ssm = 0;
+    double sum_cmp = 0;
+    double sum_smp = 0;
+
+    for (int i = ind_start; i < ind_end; i++)
+    {
+        int  ii  = pgrp->ind_loc[i];
+        real m   = mass[ii];
+        /* Determine cos and sin sums */
+        real cw  = std::cos(x[ii][cosdim]*twopi_box);
+        real sw  = std::sin(x[ii][cosdim]*twopi_box);
+        sum_cm  += static_cast<double>(cw*m);
+        sum_sm  += static_cast<double>(sw*m);
+        sum_ccm += static_cast<double>(cw*cw*m);
+        sum_csm += static_cast<double>(cw*sw*m);
+        sum_ssm += static_cast<double>(sw*sw*m);
+
+        if (xp != NULL)
+        {
+            real cw  = std::cos(xp[ii][cosdim]*twopi_box);
+            real sw  = std::sin(xp[ii][cosdim]*twopi_box);
+            sum_cmp += static_cast<double>(cw*m);
+            sum_smp += static_cast<double>(sw*m);
+        }
+    }
+
+    sum_com->sum_cm  = sum_cm;
+    sum_com->sum_sm  = sum_sm;
+    sum_com->sum_ccm = sum_ccm;
+    sum_com->sum_csm = sum_csm;
+    sum_com->sum_ssm = sum_ssm;
+    sum_com->sum_cmp = sum_cmp;
+    sum_com->sum_smp = sum_smp;
+}
+
 /* calculates center of mass of selection index from all coordinates x */
 void pull_calc_coms(t_commrec *cr,
                     struct pull_t *pull, t_mdatoms *md, t_pbc *pbc, double t,
@@ -482,15 +611,7 @@ void pull_calc_coms(t_commrec *cr,
         {
             if (pgrp->epgrppbc != epgrppbcCOS)
             {
-                dvec   com, comp;
-                double wmass, wwmass;
                 rvec   x_pbc = { 0, 0, 0 };
-                int    i;
-
-                clear_dvec(com);
-                clear_dvec(comp);
-                wmass  = 0;
-                wwmass = 0;
 
                 if (pgrp->epgrppbc == epgrppbcREFAT)
                 {
@@ -498,147 +619,111 @@ void pull_calc_coms(t_commrec *cr,
                     copy_rvec(comm->rbuf[g], x_pbc);
                 }
 
-                for (i = 0; i < pgrp->nat_loc; i++)
-                {
-                    int  ii, m;
-                    real mass, wm;
+                /* The final sums should end up in sum_com[0] */
+                pull_sum_com_t *sum_com = &pull->sum_com[0];
 
-                    ii   = pgrp->ind_loc[i];
-                    mass = md->massT[ii];
-                    if (pgrp->weight_loc == NULL)
-                    {
-                        wm     = mass;
-                        wmass += wm;
-                    }
-                    else
-                    {
-                        real w;
-
-                        w       = pgrp->weight_loc[i];
-                        wm      = w*mass;
-                        wmass  += wm;
-                        wwmass += wm*w;
-                    }
-                    if (pgrp->epgrppbc == epgrppbcNONE)
-                    {
-                        /* Plain COM: sum the coordinates */
-                        for (m = 0; m < DIM; m++)
-                        {
-                            com[m]    += wm*x[ii][m];
-                        }
-                        if (xp)
-                        {
-                            for (m = 0; m < DIM; m++)
-                            {
-                                comp[m] += wm*xp[ii][m];
-                            }
-                        }
-                    }
-                    else
-                    {
-                        rvec dx;
-
-                        /* Sum the difference with the reference atom */
-                        pbc_dx(pbc, x[ii], x_pbc, dx);
-                        for (m = 0; m < DIM; m++)
-                        {
-                            com[m]    += wm*dx[m];
-                        }
-                        if (xp)
-                        {
-                            /* For xp add the difference between xp and x to dx,
-                             * such that we use the same periodic image,
-                             * also when xp has a large displacement.
-                             */
-                            for (m = 0; m < DIM; m++)
-                            {
-                                comp[m] += wm*(dx[m] + xp[ii][m] - x[ii][m]);
-                            }
-                        }
-                    }
-                }
-
-                /* We do this check after the loop above to avoid more nesting.
-                 * If we have a single-atom group the mass is irrelevant, so
+                /* If we have a single-atom group the mass is irrelevant, so
                  * we can remove the mass factor to avoid division by zero.
                  * Note that with constraint pulling the mass does matter, but
                  * in that case a check group mass != 0 has been done before.
                  */
-                if (pgrp->params.nat == 1 && pgrp->nat_loc == 1 && wmass == 0)
+                if (pgrp->params.nat == 1 &&
+                    pgrp->nat_loc == 1 &&
+                    md->massT[pgrp->ind_loc[0]] == 0)
                 {
-                    int m;
+                    GMX_ASSERT(xp == NULL, "We should not have groups with zero mass with constraints, i.e. xp!=NULL");
 
                     /* Copy the single atom coordinate */
-                    for (m = 0; m < DIM; m++)
+                    for (int d = 0; d < DIM; d++)
                     {
-                        com[m] = x[pgrp->ind_loc[0]][m];
+                        sum_com->sum_wmx[d] = x[pgrp->ind_loc[0]][d];
                     }
                     /* Set all mass factors to 1 to get the correct COM */
-                    wmass  = 1;
-                    wwmass = 1;
+                    sum_com->sum_wm  = 1;
+                    sum_com->sum_wwm = 1;
+                }
+                else if (pgrp->nat_loc <= c_pullMaxNumLocalAtomsSingleThreaded)
+                {
+                    sum_com_part(pgrp, 0, pgrp->nat_loc,
+                                 x, xp, md->massT,
+                                 pbc, x_pbc,
+                                 sum_com);
+                }
+                else
+                {
+#pragma omp parallel for num_threads(pull->nthreads) schedule(static)
+                    for (int t = 0; t < pull->nthreads; t++)
+                    {
+                        int ind_start = (pgrp->nat_loc*(t + 0))/pull->nthreads;
+                        int ind_end   = (pgrp->nat_loc*(t + 1))/pull->nthreads;
+                        sum_com_part(pgrp, ind_start, ind_end,
+                                     x, xp, md->massT,
+                                     pbc, x_pbc,
+                                     &pull->sum_com[t]);
+                    }
+
+                    /* Reduce the thread contributions to sum_com[0] */
+                    for (int t = 1; t < pull->nthreads; t++)
+                    {
+                        sum_com->sum_wm  += pull->sum_com[t].sum_wm;
+                        sum_com->sum_wwm += pull->sum_com[t].sum_wwm;
+                        dvec_inc(sum_com->sum_wmx, pull->sum_com[t].sum_wmx);
+                        dvec_inc(sum_com->sum_wmxp, pull->sum_com[t].sum_wmxp);
+                    }
                 }
 
                 if (pgrp->weight_loc == NULL)
                 {
-                    wwmass = wmass;
+                    sum_com->sum_wwm = sum_com->sum_wm;
                 }
 
                 /* Copy local sums to a buffer for global summing */
-                copy_dvec(com,  comm->dbuf[g*3]);
-                copy_dvec(comp, comm->dbuf[g*3 + 1]);
-                comm->dbuf[g*3 + 2][0] = wmass;
-                comm->dbuf[g*3 + 2][1] = wwmass;
+                copy_dvec(sum_com->sum_wmx,  comm->dbuf[g*3]);
+                copy_dvec(sum_com->sum_wmxp, comm->dbuf[g*3 + 1]);
+                comm->dbuf[g*3 + 2][0] = sum_com->sum_wm;
+                comm->dbuf[g*3 + 2][1] = sum_com->sum_wwm;
                 comm->dbuf[g*3 + 2][2] = 0;
             }
             else
             {
-                /* Cosine weighting geometry */
-                double cm, sm, cmp, smp, ccm, csm, ssm, csw, snw;
-                int    i;
-
-                cm  = 0;
-                sm  = 0;
-                cmp = 0;
-                smp = 0;
-                ccm = 0;
-                csm = 0;
-                ssm = 0;
-
-                for (i = 0; i < pgrp->nat_loc; i++)
+                /* Cosine weighting geometry.
+                 * This uses a slab of the system, thus we always have many
+                 * atoms in the pull groups. Therefore, always use threads.
+                 */
+#pragma omp parallel for num_threads(pull->nthreads) schedule(static)
+                for (int t = 0; t < pull->nthreads; t++)
                 {
-                    int  ii;
-                    real mass;
+                    int ind_start = (pgrp->nat_loc*(t + 0))/pull->nthreads;
+                    int ind_end   = (pgrp->nat_loc*(t + 1))/pull->nthreads;
+                    sum_com_part_cosweight(pgrp, ind_start, ind_end,
+                                           pull->cosdim, twopi_box,
+                                           x, xp, md->massT,
+                                           &pull->sum_com[t]);
+                }
 
-                    ii   = pgrp->ind_loc[i];
-                    mass = md->massT[ii];
-                    /* Determine cos and sin sums */
-                    csw  = cos(x[ii][pull->cosdim]*twopi_box);
-                    snw  = sin(x[ii][pull->cosdim]*twopi_box);
-                    cm  += csw*mass;
-                    sm  += snw*mass;
-                    ccm += csw*csw*mass;
-                    csm += csw*snw*mass;
-                    ssm += snw*snw*mass;
-
-                    if (xp)
-                    {
-                        csw  = cos(xp[ii][pull->cosdim]*twopi_box);
-                        snw  = sin(xp[ii][pull->cosdim]*twopi_box);
-                        cmp += csw*mass;
-                        smp += snw*mass;
-                    }
+                /* Reduce the thread contributions to sum_com[0] */
+                pull_sum_com_t *sum_com = &pull->sum_com[0];
+                for (int t = 1; t < pull->nthreads; t++)
+                {
+                    sum_com->sum_cm  += pull->sum_com[t].sum_cm;
+                    sum_com->sum_sm  += pull->sum_com[t].sum_sm;
+                    sum_com->sum_ccm += pull->sum_com[t].sum_ccm;
+                    sum_com->sum_csm += pull->sum_com[t].sum_csm;
+                    sum_com->sum_ssm += pull->sum_com[t].sum_ssm;
+                    sum_com->sum_cmp += pull->sum_com[t].sum_cmp;
+                    sum_com->sum_smp += pull->sum_com[t].sum_smp;
                 }
 
                 /* Copy local sums to a buffer for global summing */
-                comm->dbuf[g*3  ][0] = cm;
-                comm->dbuf[g*3  ][1] = sm;
-                comm->dbuf[g*3  ][2] = 0;
-                comm->dbuf[g*3+1][0] = ccm;
-                comm->dbuf[g*3+1][1] = csm;
-                comm->dbuf[g*3+1][2] = ssm;
-                comm->dbuf[g*3+2][0] = cmp;
-                comm->dbuf[g*3+2][1] = smp;
-                comm->dbuf[g*3+2][2] = 0;
+                comm->dbuf[g*3    ][0] = sum_com->sum_cm;
+                comm->dbuf[g*3    ][1] = sum_com->sum_sm;
+                comm->dbuf[g*3    ][2] = 0;
+                comm->dbuf[g*3 + 1][0] = sum_com->sum_ccm;
+                comm->dbuf[g*3 + 1][1] = sum_com->sum_csm;
+                comm->dbuf[g*3 + 1][2] = sum_com->sum_ssm;
+                comm->dbuf[g*3 + 2][0] = sum_com->sum_cmp;
+                comm->dbuf[g*3 + 2][1] = sum_com->sum_smp;
+                comm->dbuf[g*3 + 2][2] = 0;
             }
         }
     }

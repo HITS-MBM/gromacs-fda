@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2013,2014,2015, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -40,14 +40,13 @@
  * Declares test fixture for the mdrun multi-simulation functionality
  *
  * \author Mark Abraham <mark.j.abraham@gmail.com>
- * \ingroup module_mdrun
+ * \ingroup module_mdrun_integration_tests
  */
 
+#include <memory>
 #include <string>
 
 #include <gtest/gtest.h>
-
-#include "gromacs/utility/uniqueptr.h"
 
 #include "testutils/cmdlinetest.h"
 
@@ -59,8 +58,16 @@ namespace test
 {
 
 //! Convenience typedef
-typedef gmx_unique_ptr<CommandLine>::type CommandLinePointer;
+typedef std::unique_ptr<CommandLine> CommandLinePointer;
 
+/*! \internal
+ * \brief Test fixture for multi-sim functionality.
+ *
+ * This is intended to be re-used also for tests of functionality that
+ * are derived from multi-sim, e.g. REMD.
+ *
+ * \ingroup module_mdrun_integration_tests
+ */
 class MultiSimTest : public gmx::test::ParameterizedMdrunTestFixture
 {
     public:
@@ -78,9 +85,14 @@ class MultiSimTest : public gmx::test::ParameterizedMdrunTestFixture
          * T, P or (later) lambda as the control variable, by passing a
          * string with "mdp-param = value" such that different paths
          * in init_replica_exchange() are followed.
+         * \param numSteps        Number of MD steps to perform.
          */
-        void organizeMdpFile(const char *controlVariable);
-
+        void organizeMdpFile(const char *controlVariable,
+                             int         numSteps = 2);
+        //! Test that a basic simulation works
+        void runExitsNormallyTest();
+        //! Test that mdrun -maxh and restart works
+        void runMaxhTest();
         //! Number of MPI ranks
         int                size_;
         //! MPI rank of this process

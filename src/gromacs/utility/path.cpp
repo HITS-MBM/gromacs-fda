@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2011,2012,2013,2014,2015, by the GROMACS development team, led by
+ * Copyright (c) 2011,2012,2013,2014,2015,2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -47,14 +47,17 @@
 
 #include <cctype>
 #include <cerrno>
+#include <cstddef>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 
 #include <algorithm>
+#include <string>
 
 #include <sys/stat.h>
 
-#ifdef GMX_NATIVE_WINDOWS
+#if GMX_NATIVE_WINDOWS
 #include <Windows.h>
 #include <direct.h>
 #else
@@ -82,7 +85,7 @@ const char cDirSeparators[] = "/\\";
  * When reading the PATH environment variable, Unix separates entries
  * with colon, while windows uses semicolon.
  */
-#ifdef GMX_NATIVE_WINDOWS
+#if GMX_NATIVE_WINDOWS
 const char cPathSeparator = ';';
 #else
 const char cPathSeparator = ':';
@@ -118,7 +121,7 @@ bool Path::isAbsolute(const char *path)
     {
         return true;
     }
-#ifdef GMX_NATIVE_WINDOWS
+#if GMX_NATIVE_WINDOWS
     return path[0] != '\0' && path[1] == ':' && isDirSeparator(path[2]);
 #else
     return false;
@@ -130,7 +133,7 @@ bool Path::isAbsolute(const std::string &path)
     return isAbsolute(path.c_str());
 }
 
-#ifdef GMX_NATIVE_WINDOWS
+#if GMX_NATIVE_WINDOWS
 namespace
 {
 struct handle_wrapper
@@ -152,7 +155,7 @@ struct handle_wrapper
 bool Path::isEquivalent(const std::string &path1, const std::string &path2)
 {
     //based on boost_1_56_0/libs/filesystem/src/operations.cpp under BSL
-#ifdef GMX_NATIVE_WINDOWS
+#if GMX_NATIVE_WINDOWS
     // Note well: Physical location on external media is part of the
     // equivalence criteria. If there are no open handles, physical location
     // can change due to defragmentation or other relocations. Thus handles
@@ -304,6 +307,31 @@ std::string Path::stripExtension(const std::string &path)
     return path.substr(0, extPos);
 }
 
+std::string Path::concatenateBeforeExtension(const std::string &input, const std::string &stringToAdd)
+{
+    std::string output;
+    size_t      dirSeparatorPosition = input.find_last_of(cDirSeparators);
+    size_t      extSeparatorPosition = input.find_last_of('.');
+    bool        havePath             = (dirSeparatorPosition != std::string::npos);
+    // Make sure that if there's an extension-separator character,
+    // that it follows the last path-separator character (if any),
+    // before we interpret it as an extension separator.
+    bool haveExtension = (extSeparatorPosition != std::string::npos &&
+                          ((!havePath ||
+                            (extSeparatorPosition > dirSeparatorPosition))));
+    if (!haveExtension)
+    {
+        output = input + stringToAdd;
+    }
+    else
+    {
+        output  = input.substr(0, extSeparatorPosition);
+        output += stringToAdd;
+        output += std::string(input, extSeparatorPosition);
+    }
+    return output;
+}
+
 std::string Path::normalize(const std::string &path)
 {
     std::string result(path);
@@ -312,6 +340,42 @@ std::string Path::normalize(const std::string &path)
         std::replace(result.begin(), result.end(), '/', DIR_SEPARATOR);
     }
     return result;
+}
+
+const char *Path::stripSourcePrefix(const char *path)
+{
+    const char *fallback           = path;
+    const char *sep                = path + std::strlen(path);
+    bool        gromacsSubdirFound = false;
+    while (sep > path)
+    {
+        const char *prevSep = sep - 1;
+        while (prevSep >= path && !isDirSeparator(*prevSep))
+        {
+            --prevSep;
+        }
+        const std::ptrdiff_t length = sep - prevSep - 1;
+        if (gromacsSubdirFound)
+        {
+            if (std::strncmp(prevSep + 1, "src", length) == 0)
+            {
+                return prevSep + 1;
+            }
+            return fallback;
+        }
+        if (std::strncmp(prevSep + 1, "gromacs", length) == 0
+            || std::strncmp(prevSep + 1, "programs", length) == 0
+            || std::strncmp(prevSep + 1, "testutils", length) == 0)
+        {
+            gromacsSubdirFound = true;
+        }
+        if (fallback == path)
+        {
+            fallback = prevSep + 1;
+        }
+        sep = prevSep;
+    }
+    return fallback;
 }
 
 bool Path::exists(const char *path)
@@ -349,7 +413,7 @@ void Path::splitPathEnvironment(const std::string        &pathEnv,
 std::vector<std::string> Path::getExecutablePaths()
 {
     std::vector<std::string> result;
-#ifdef GMX_NATIVE_WINDOWS
+#if GMX_NATIVE_WINDOWS
     // Add the local dir since it is not in the path on Windows.
     result.push_back("");
 #endif
@@ -367,7 +431,7 @@ std::string Path::resolveSymlinks(const std::string &path)
      * It doesn't resolve path elements (including "." or ".."), but only
      * resolves the entire path (it does that recursively). */
     std::string result(path);
-#ifndef GMX_NATIVE_WINDOWS
+#if !GMX_NATIVE_WINDOWS
     char        buf[GMX_PATH_MAX];
     int         length;
     while ((length = readlink(result.c_str(), buf, sizeof(buf)-1)) > 0)
@@ -386,6 +450,82 @@ std::string Path::resolveSymlinks(const std::string &path)
     return result;
 }
 
+/********************************************************************
+ * File
+ */
+
+void File::returnFalseOnError(const NotFoundInfo & /*info*/)
+{
+}
+
+void File::throwOnError(const NotFoundInfo &info)
+{
+    if (info.wasError)
+    {
+        const std::string message
+            = formatString("Failed to access file '%s'.\n%s",
+                           info.filename, info.message);
+        GMX_THROW_WITH_ERRNO(FileIOError(message), info.call, info.err);
+    }
+}
+
+void File::throwOnNotFound(const NotFoundInfo &info)
+{
+    throwOnError(info);
+    const std::string message
+        = formatString("File '%s' does not exist or is not accessible.\n%s",
+                       info.filename, info.message);
+    GMX_THROW_WITH_ERRNO(InvalidInputError(message), info.call, info.err);
+}
+
+// static
+bool File::exists(const char *filename, NotFoundHandler onNotFound)
+{
+    if (filename == NULL)
+    {
+        return false;
+    }
+    FILE *test = std::fopen(filename, "r");
+    if (test == NULL)
+    {
+        const bool   wasError = (errno != ENOENT && errno != ENOTDIR);
+        NotFoundInfo info(filename, "The file could not be opened.",
+                          "fopen", wasError, errno);
+        onNotFound(info);
+        return false;
+    }
+    else
+    {
+        std::fclose(test);
+        // Windows doesn't allow fopen of directory, so we don't need to check
+        // this separately.
+#if !GMX_NATIVE_WINDOWS
+        struct stat st_buf;
+        int         status = stat(filename, &st_buf);
+        if (status != 0)
+        {
+            NotFoundInfo info(filename, "File information could not be read.",
+                              "stat", true, errno);
+            onNotFound(info);
+            return false;
+        }
+        if (!S_ISREG(st_buf.st_mode))
+        {
+            NotFoundInfo info(filename, "The file is not a regular file.",
+                              NULL, true, 0);
+            onNotFound(info);
+            return false;
+        }
+#endif
+        return true;
+    }
+}
+
+// static
+bool File::exists(const std::string &filename, NotFoundHandler onNotFound)
+{
+    return exists(filename.c_str(), onNotFound);
+}
 
 /********************************************************************
  * Directory
@@ -397,7 +537,7 @@ int Directory::create(const char *path)
     {
         return 0;
     }
-#ifdef GMX_NATIVE_WINDOWS
+#if GMX_NATIVE_WINDOWS
     if (_mkdir(path))
 #else
     if (mkdir(path, S_IRWXU | S_IRWXG | S_IROTH | S_IWOTH) != 0)
@@ -427,7 +567,7 @@ bool Directory::exists(const char *path)
         }
         return false;
     }
-#ifdef GMX_NATIVE_WINDOWS
+#if GMX_NATIVE_WINDOWS
     return ((_S_IFDIR & info.st_mode) != 0);
 #else
     return S_ISDIR(info.st_mode);

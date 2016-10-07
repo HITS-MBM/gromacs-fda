@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2012,2014, by the GROMACS development team, led by
+ * Copyright (c) 2012,2014,2015,2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -37,6 +37,8 @@
 #ifndef GMX_TOPOLOGY_ATOMS_H
 #define GMX_TOPOLOGY_ATOMS_H
 
+#include <stdio.h>
+
 #include "gromacs/utility/basedefinitions.h"
 #include "gromacs/utility/real.h"
 
@@ -46,10 +48,22 @@ extern "C" {
 
 struct t_symtab;
 
+/* The particle type */
 enum {
     eptAtom, eptNucleus, eptShell, eptBond, eptVSite, eptNR
 };
-/* The particle type */
+
+/* The particle type names */
+extern const char *ptype_str[eptNR+1];
+
+/* Enumerated type for pdb records. The other entries are ignored
+ * when reading a pdb file
+ */
+enum PDB_record {
+    epdbATOM,   epdbHETATM, epdbANISOU, epdbCRYST1, epdbCOMPND,
+    epdbMODEL,  epdbENDMDL, epdbTER,    epdbHEADER, epdbTITLE, epdbREMARK,
+    epdbCONECT, epdbNR
+};
 
 typedef struct t_atom
 {
@@ -59,7 +73,7 @@ typedef struct t_atom
     unsigned short typeB;       /* Atom type for Free Energy calc       */
     int            ptype;       /* Particle type                        */
     int            resind;      /* Index into resinfo (in t_atoms)      */
-    int            atomnumber;  /* Atomic Number or NOTSET              */
+    int            atomnumber;  /* Atomic Number or 0                   */
     char           elem[4];     /* Element name                         */
 } t_atom;
 
@@ -130,7 +144,9 @@ void init_t_atoms(t_atoms *atoms, int natoms, gmx_bool bPdbinfo);
 /* allocate memory for the arrays, set nr to natoms and nres to 0
  * set pdbinfo to NULL or allocate memory for it */
 
-t_atoms *copy_t_atoms(t_atoms *src);
+void gmx_pdbinfo_init_default(t_pdbinfo *pdbinfo);
+
+t_atoms *copy_t_atoms(const t_atoms *src);
 /* copy an atoms struct from src to a new one */
 
 void add_t_atoms(t_atoms *atoms, int natom_extra, int nres_extra);
@@ -143,11 +159,10 @@ void t_atoms_set_resinfo(t_atoms *atoms, int atom_ind, struct t_symtab *symtab,
  * of atom index atom_ind.
  */
 
-void free_t_atoms(t_atoms *atoms, gmx_bool bFreeNames);
-/* Free all the arrays and set the nr and nres to 0.
- * bFreeNames tells if to free the atom and residue name strings,
- * don't free them if they still need to be used in e.g. the topology struct.
- */
+void pr_atoms(FILE *fp, int indent, const char *title, const t_atoms *atoms,
+              gmx_bool bShownumbers);
+void pr_atomtypes(FILE *fp, int indent, const char *title,
+                  const t_atomtypes *atomtypes, gmx_bool bShowNumbers);
 
 #ifdef __cplusplus
 }

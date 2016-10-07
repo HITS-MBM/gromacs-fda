@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2012,2013,2014,2015, by the GROMACS development team, led by
+ * Copyright (c) 2012,2013,2014,2015,2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -46,17 +46,16 @@
 #include <cctype>
 
 #include <algorithm>
+#include <memory>
 #include <string>
 #include <vector>
 
-#include <boost/shared_ptr.hpp>
-
 #include "gromacs/onlinehelp/helpformat.h"
 #include "gromacs/utility/exceptions.h"
-#include "gromacs/utility/file.h"
 #include "gromacs/utility/gmxassert.h"
 #include "gromacs/utility/programcontext.h"
 #include "gromacs/utility/stringutil.h"
+#include "gromacs/utility/textwriter.h"
 
 #include "rstparser.h"
 
@@ -215,10 +214,10 @@ std::string repall(const std::string &s, const t_sandr (&sa)[nsr])
  * Provides an interface that is used to implement different types of output
  * from HelpWriterContext::Impl::processMarkup().
  */
-class WrapperInterface
+class IWrapper
 {
     public:
-        virtual ~WrapperInterface() {}
+        virtual ~IWrapper() {}
 
         /*! \brief
          * Provides the wrapping settings.
@@ -235,7 +234,7 @@ class WrapperInterface
 /*! \brief
  * Wraps markup output into a single string.
  */
-class WrapperToString : public WrapperInterface
+class WrapperToString : public IWrapper
 {
     public:
         //! Creates a wrapper with the given settings.
@@ -263,7 +262,7 @@ class WrapperToString : public WrapperInterface
 /*! \brief
  * Wraps markup output into a vector of string (one line per element).
  */
-class WrapperToVector : public WrapperInterface
+class WrapperToVector : public IWrapper
 {
     public:
         //! Creates a wrapper with the given settings.
@@ -438,9 +437,9 @@ class HelpWriterContext::Impl
         {
             public:
                 //! Initializes the state with the given parameters.
-                SharedState(File *file, HelpOutputFormat format,
+                SharedState(TextWriter *writer, HelpOutputFormat format,
                             const HelpLinks *links)
-                    : file_(*file), format_(format), links_(links)
+                    : file_(*writer), format_(format), links_(links)
                 {
                 }
 
@@ -466,8 +465,8 @@ class HelpWriterContext::Impl
                     return *consoleOptionsFormatter_;
                 }
 
-                //! Output file to which the help is written.
-                File                   &file_;
+                //! Writer for writing the help.
+                TextWriter             &file_;
                 //! Output format for the help output.
                 HelpOutputFormat        format_;
                 //! Links to use.
@@ -475,7 +474,10 @@ class HelpWriterContext::Impl
 
             private:
                 //! Formatter for console output options.
-                mutable boost::scoped_ptr<TextTableFormatter> consoleOptionsFormatter_;
+                // Never releases ownership.
+                mutable std::unique_ptr<TextTableFormatter> consoleOptionsFormatter_;
+
+                GMX_DISALLOW_COPY_AND_ASSIGN(SharedState);
         };
 
         struct ReplaceItem
@@ -490,7 +492,7 @@ class HelpWriterContext::Impl
         };
 
         //! Smart pointer type for managing the shared state.
-        typedef boost::shared_ptr<const SharedState> StatePointer;
+        typedef std::shared_ptr<const SharedState> StatePointer;
         //! Shorthand for a list of markup/other replacements.
         typedef std::vector<ReplaceItem> ReplaceList;
 
@@ -499,6 +501,8 @@ class HelpWriterContext::Impl
             : state_(state), sectionDepth_(sectionDepth)
         {
         }
+        //! Copies the context.
+        Impl(const Impl &)            = default;
 
         //! Adds a new replacement.
         void addReplacement(const std::string &search,
@@ -520,7 +524,7 @@ class HelpWriterContext::Impl
          * or providing an interface for the caller to retrieve the output.
          */
         void processMarkup(const std::string &text,
-                           WrapperInterface  *wrapper) const;
+                           IWrapper          *wrapper) const;
 
         //! Constant state shared by all child context objects.
         StatePointer            state_;
@@ -549,7 +553,7 @@ std::string HelpWriterContext::Impl::replaceLinks(const std::string &input) cons
 }
 
 void HelpWriterContext::Impl::processMarkup(const std::string &text,
-                                            WrapperInterface  *wrapper) const
+                                            IWrapper          *wrapper) const
 {
     std::string result(text);
     for (ReplaceList::const_iterator i = replacements_.begin();
@@ -598,14 +602,14 @@ void HelpWriterContext::Impl::processMarkup(const std::string &text,
  * HelpWriterContext
  */
 
-HelpWriterContext::HelpWriterContext(File *file, HelpOutputFormat format)
-    : impl_(new Impl(Impl::StatePointer(new Impl::SharedState(file, format, NULL)), 0))
+HelpWriterContext::HelpWriterContext(TextWriter *writer, HelpOutputFormat format)
+    : impl_(new Impl(Impl::StatePointer(new Impl::SharedState(writer, format, NULL)), 0))
 {
 }
 
-HelpWriterContext::HelpWriterContext(File *file, HelpOutputFormat format,
+HelpWriterContext::HelpWriterContext(TextWriter *writer, HelpOutputFormat format,
                                      const HelpLinks *links)
-    : impl_(new Impl(Impl::StatePointer(new Impl::SharedState(file, format, links)), 0))
+    : impl_(new Impl(Impl::StatePointer(new Impl::SharedState(writer, format, links)), 0))
 {
     if (links != NULL)
     {
@@ -639,7 +643,7 @@ HelpOutputFormat HelpWriterContext::outputFormat() const
     return impl_->state_->format_;
 }
 
-File &HelpWriterContext::outputFile() const
+TextWriter &HelpWriterContext::outputFile() const
 {
     return impl_->state_->file_;
 }
@@ -676,12 +680,12 @@ void HelpWriterContext::writeTitle(const std::string &title) const
     {
         return;
     }
-    File &file = outputFile();
+    TextWriter &file = outputFile();
+    file.ensureEmptyLine();
     switch (outputFormat())
     {
         case eHelpOutputFormat_Console:
             file.writeLine(toUpperCase(title));
-            file.writeLine();
             break;
         case eHelpOutputFormat_Rst:
             file.writeLine(title);
@@ -692,6 +696,7 @@ void HelpWriterContext::writeTitle(const std::string &title) const
             GMX_THROW(NotImplementedError(
                               "This output format is not implemented"));
     }
+    file.ensureEmptyLine();
 }
 
 void HelpWriterContext::writeTextBlock(const std::string &text) const
@@ -704,6 +709,11 @@ void HelpWriterContext::writeTextBlock(const std::string &text) const
     outputFile().writeLine(substituteMarkupAndWrapToString(settings, text));
 }
 
+void HelpWriterContext::paragraphBreak() const
+{
+    outputFile().ensureEmptyLine();
+}
+
 void HelpWriterContext::writeOptionListStart() const
 {
 }
@@ -714,7 +724,7 @@ void HelpWriterContext::writeOptionItem(const std::string &name,
                                         const std::string &info,
                                         const std::string &description) const
 {
-    File &file = outputFile();
+    TextWriter &file = outputFile();
     switch (outputFormat())
     {
         case eHelpOutputFormat_Console:

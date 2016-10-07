@@ -2,7 +2,7 @@
 #
 # This file is part of the GROMACS molecular simulation package.
 #
-# Copyright (c) 2014,2015, by the GROMACS development team, led by
+# Copyright (c) 2014,2015,2016, by the GROMACS development team, led by
 # Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
 # and including many others, as listed in the AUTHORS file in the
 # top-level source directory and at http://www.gromacs.org.
@@ -164,7 +164,7 @@ class File(object):
         self._lines = None
         self._filter = None
         self._declared_defines = None
-        self._used_define_files = set()
+        self._used_defines = dict()
         directory.add_file(self)
 
     def set_doc_xml(self, rawdoc, sourcetree):
@@ -215,7 +215,7 @@ class File(object):
         """Scan the file contents and initialize information based on it."""
         # TODO: Consider a more robust regex.
         include_re = r'^\s*#\s*include\s+(?P<quote>["<])(?P<path>[^">]*)[">]'
-        define_re = r'^\s*#.*define\s+(\w*)'
+        define_re = r'^\s*#.*define(?:01)?\s+(\w*)'
         current_block = None
         with open(self._abspath, 'r') as scanfile:
             contents = scanfile.read()
@@ -247,7 +247,9 @@ class File(object):
         """Add defines used in this file.
 
         Used internally by find_define_file_uses()."""
-        self._used_define_files.add(define_file)
+        if define_file not in self._used_defines:
+            self._used_defines[define_file] = set()
+        self._used_defines[define_file].update(defines)
 
     def get_reporter_location(self):
         return reporter.Location(self._abspath, None)
@@ -355,11 +357,16 @@ class File(object):
         return self._declared_defines
 
     def get_used_define_files(self):
-        """Return set of defines from config.h that are used in this file.
+        """Return files like config.h whose defines are used in this file.
 
         The return value is empty if find_define_file_uses() has not been called,
         as well as for headers that declare these defines."""
-        return self._used_define_files
+        return set(self._used_defines.iterkeys())
+
+    def get_used_defines(self, define_file):
+        """Return set of defines used in this file for a given file like config.h.
+        """
+        return self._used_defines.get(define_file, set())
 
 class GeneratedFile(File):
     def __init__(self, abspath, relpath, directory):
@@ -417,7 +424,7 @@ class Directory(object):
     def set_doc_xml(self, rawdoc, sourcetree):
         """Assiociate Doxygen documentation entity with the directory."""
         assert self._rawdoc is None
-        assert self._abspath == rawdoc.get_path().rstrip('/')
+        assert rawdoc.get_path().rstrip('/') in (self._abspath, self._relpath)
         self._rawdoc = rawdoc
 
     def set_module(self, module):
@@ -494,6 +501,7 @@ class ModuleDependency(object):
         self._includedfiles = []
         self._cyclesuppression = None
         self._is_test_only_dependency = True
+        self.suppression_used = True
 
     def add_included_file(self, includedfile):
         """Add IncludedFile that is part of this dependency."""
@@ -505,9 +513,11 @@ class ModuleDependency(object):
     def set_cycle_suppression(self):
         """Set suppression on cycles containing this dependency."""
         self._cyclesuppression = True
+        self.suppression_used = False
 
     def is_cycle_suppressed(self):
         """Return whether cycles containing this dependency are suppressed."""
+        self.suppression_used = True
         return self._cyclesuppression is not None
 
     def is_test_only_dependency(self):
@@ -733,8 +743,6 @@ class GromacsTree(object):
                         header = self.get_file(os.path.join(basedir, 'modules', basename + '.h'))
                     if not header and basename.endswith('_tests'):
                         header = self.get_file(os.path.join(basedir, basename[:-6] + '.h'))
-                if not header and fileobj.get_relpath().startswith('src/gromacs'):
-                    header = self._files.get(os.path.join('src/gromacs/legacyheaders', basename + '.h'))
                 if header:
                     fileobj.set_main_header(header)
         rootdir = self._get_dir(os.path.join('src', 'gromacs'))
@@ -837,7 +845,7 @@ class GromacsTree(object):
         self._docset = xml.DocumentationSet(xmldir, self._reporter)
         if only_files:
             if isinstance(only_files, collections.Iterable):
-                filelist = [x.get_abspath() for x in only_files]
+                filelist = [x.get_relpath() for x in only_files]
                 self._docset.load_file_details(filelist)
             else:
                 self._docset.load_file_details()
@@ -863,9 +871,7 @@ class GromacsTree(object):
         """Load Doxygen XML directory information for a single directory."""
         path = dirdoc.get_path().rstrip('/')
         if not os.path.isabs(path):
-            self._reporter.xml_assert(dirdoc.get_xml_path(),
-                    "expected absolute path in Doxygen-produced XML file")
-            return
+            path = os.path.join(self._source_root, path)
         relpath = self._get_rel_path(path)
         dirobj = self._dirs.get(relpath)
         if not dirobj:
@@ -898,9 +904,7 @@ class GromacsTree(object):
                 # the path information is not set for unloaded files.
                 continue
             if not os.path.isabs(path):
-                self._reporter.xml_assert(filedoc.get_xml_path(),
-                        "expected absolute path in Doxygen-produced XML file")
-                continue
+                path = os.path.join(self._source_root, path)
             extension = os.path.splitext(path)[1]
             # We don't care about Markdown files that only produce pages
             # (and fail the directory check below).
@@ -1038,9 +1042,17 @@ class GromacsTree(object):
                     continue
                 for dep in firstmodule.get_dependencies():
                     if dep.get_other_module() == secondmodule:
-                        # TODO: Check that each suppression is actually part of
-                        # a cycle.
                         dep.set_cycle_suppression()
+                        break
+                else:
+                    self._reporter.cyclic_issue("unused cycle suppression: {0}".format(line))
+
+    def report_unused_cycle_suppressions(self, reporter):
+        """Reports unused cycle suppressions."""
+        for module in self.get_modules():
+            for dep in module.get_dependencies():
+                if not dep.suppression_used:
+                    reporter.cyclic_issue("unused cycle suppression: {0} -> {1}".format(module.get_name()[7:], dep.get_other_module().get_name()[7:]))
 
     def get_object(self, docobj):
         """Get tree object for a Doxygen XML object."""

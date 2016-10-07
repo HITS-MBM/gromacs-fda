@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014,2015, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -44,7 +44,9 @@
 #ifndef GMX_LISTED_FORCES_MANAGE_THREADING_H
 #define GMX_LISTED_FORCES_MANAGE_THREADING_H
 
-#include "gromacs/legacyheaders/types/forcerec.h"
+#include <cstdio>
+
+#include "gromacs/mdtypes/forcerec.h"
 #include "gromacs/topology/idef.h"
 
 #ifdef __cplusplus
@@ -60,8 +62,13 @@ extern "C" {
  */
 void setup_bonded_threading(t_forcerec *fr, t_idef *idef);
 
-/*! \brief Initialize the bonded threading data structures */
-void init_bonded_threading(FILE *fplog, t_forcerec *fr, int nenergrp);
+/*! \brief Initialize the bonded threading data structures
+ *
+ * Allocates and initializes a bonded threading data structure.
+ * A pointer to this struct is returned as \p *bb_ptr.
+ */
+void init_bonded_threading(FILE *fplog, int nenergrp,
+                           struct bonded_threading_t **bt_ptr);
 
 #ifdef __cplusplus
 }

@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -45,18 +45,20 @@
 
 #include "testutils/cmdlinetest.h"
 #include "testutils/refdata.h"
+#include "testutils/textblockmatchers.h"
 
 namespace
 {
 
 using gmx::test::CommandLine;
+using gmx::test::ExactTextMatch;
 
 class InsertMoleculesTest : public gmx::test::CommandLineTestBase
 {
     public:
         InsertMoleculesTest()
         {
-            setOutputFile("-o", "out.gro");
+            setOutputFile("-o", "out.gro", ExactTextMatch());
         }
 
         void runTest(const CommandLine &args)
@@ -67,7 +69,7 @@ class InsertMoleculesTest : public gmx::test::CommandLineTestBase
             gmx::test::TestReferenceChecker rootChecker(this->rootChecker());
             rootChecker.checkString(args.toString(), "CommandLine");
 
-            ASSERT_EQ(0, gmx::test::CommandLineTestHelper::runModule(
+            ASSERT_EQ(0, gmx::test::CommandLineTestHelper::runModuleFactory(
                               &gmx::InsertMoleculesInfo::create, &cmdline));
 
             checkOutputFiles();
@@ -77,7 +79,7 @@ class InsertMoleculesTest : public gmx::test::CommandLineTestBase
 TEST_F(InsertMoleculesTest, InsertsMoleculesIntoExistingConfiguration)
 {
     const char *const cmdline[] = {
-        "insert-molecules", "-nmol", "1"
+        "insert-molecules", "-nmol", "1", "-seed", "1997"
     };
     setInputFile("-f", "spc-and-methanol.gro");
     setInputFile("-ci", "x2.gro");
@@ -87,7 +89,7 @@ TEST_F(InsertMoleculesTest, InsertsMoleculesIntoExistingConfiguration)
 TEST_F(InsertMoleculesTest, InsertsMoleculesIntoEmptyBox)
 {
     const char *const cmdline[] = {
-        "insert-molecules", "-box", "4", "-nmol", "5"
+        "insert-molecules", "-box", "4", "-nmol", "5", "-seed", "1997"
     };
     setInputFile("-ci", "x2.gro");
     runTest(CommandLine(cmdline));
@@ -96,9 +98,19 @@ TEST_F(InsertMoleculesTest, InsertsMoleculesIntoEmptyBox)
 TEST_F(InsertMoleculesTest, InsertsMoleculesIntoEnlargedBox)
 {
     const char *const cmdline[] = {
-        "insert-molecules", "-box", "4", "-nmol", "2"
+        "insert-molecules", "-box", "4", "-nmol", "2", "-seed", "1997"
     };
     setInputFile("-f", "spc-and-methanol.gro");
+    setInputFile("-ci", "x.gro");
+    runTest(CommandLine(cmdline));
+}
+
+TEST_F(InsertMoleculesTest, InsertsMoleculesWithReplacement)
+{
+    const char *const cmdline[] = {
+        "insert-molecules", "-nmol", "4", "-replace", "all", "-seed", "1997"
+    };
+    setInputFile("-f", "spc216.gro");
     setInputFile("-ci", "x.gro");
     runTest(CommandLine(cmdline));
 }
@@ -106,7 +118,7 @@ TEST_F(InsertMoleculesTest, InsertsMoleculesIntoEnlargedBox)
 TEST_F(InsertMoleculesTest, InsertsMoleculesIntoFixedPositions)
 {
     const char *const cmdline[] = {
-        "insert-molecules", "-box", "4"
+        "insert-molecules", "-box", "4", "-seed", "1997"
     };
     const char *const positions[] = {
         "0.0  0.0  0.0",

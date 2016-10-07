@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2012,2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2012,2013,2014,2015,2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -73,14 +73,15 @@
 
         for (j = 0; j < UNROLLJ; j++)
         {
-            int  aj;
-            real dx, dy, dz;
-            real rsq, rinv;
-            real rinvsq, rinvsix;
-            real c6, c12;
-            real FrLJ6 = 0, FrLJ12 = 0, frLJ = 0, VLJ = 0;
+            int             aj;
+            real            dx, dy, dz;
+            real            rsq, rinv;
+            real            rinvsq, rinvsix;
+            real            c6, c12;
+            real            FrLJ6 = 0, FrLJ12 = 0, frLJ = 0;
+            real            VLJ gmx_unused;
 #if defined LJ_FORCE_SWITCH || defined LJ_POT_SWITCH
-            real r, rsw;
+            real            r, rsw;
 #endif
 
 #ifdef CALC_COULOMB
@@ -114,12 +115,15 @@
 #ifndef EXCL_FORCES
             skipmask = interact;
 #else
-            skipmask = !(cj == ci_sh && j <= i);
+            skipmask = (cj == ci_sh && j <= i) ? 0.0 : 1.0;
 #endif
 #else
 #define interact 1.0
             skipmask = 1.0;
 #endif
+
+            // cppcheck-suppress unreadVariable
+            VLJ = 0;
 
             aj = cj*UNROLLJ + j;
 
@@ -136,21 +140,15 @@
             skipmask = (rsq >= rcut2) ? 0 : skipmask;
             /* 9 flops for r^2 + cut-off check */
 
-            //printf("skipmask = %30.20f\n", skipmask); fflush(stdout);
-
-#ifdef CHECK_EXCLS
-            /* Excluded atoms are allowed to be on top of each other.
-             * To avoid overflow of rinv, rinvsq and rinvsix
-             * we add a small number to rsq for excluded pairs only.
-             */
-            rsq += (1 - interact)*NBNXN_AVOID_SING_R2_INC;
-#endif
+            // Ensure the distances do not fall below the limit where r^-12 overflows.
+            // This should never happen for normal interactions.
+            rsq = std::max(rsq, NBNXN_MIN_RSQ);
 
 #ifdef COUNT_PAIRS
             npair++;
 #endif
 
-            rinv = gmx_invsqrt(rsq);
+            rinv = gmx::invsqrt(rsq);
             /* 5 flops for invsqrt */
 
             /* Partially enforce the cut-off (and perhaps
@@ -220,7 +218,10 @@
 
 #ifdef LJ_EWALD
                 {
-                    real c6grid, rinvsix_nm, cr2, expmcr2, poly, sh_mask;
+                    real            c6grid, rinvsix_nm, cr2, expmcr2, poly;
+#ifdef CALC_ENERGIES
+                    real            sh_mask;
+#endif
 
 #ifdef LJ_EWALD_COMB_GEOM
                     c6grid       = ljc[type[ai]*2]*ljc[type[aj]*2];
@@ -246,7 +247,7 @@
                     rinvsix_nm   = rinvsix;
 #endif
                     cr2          = lje_coeff2*rsq;
-#ifdef GMX_DOUBLE
+#if GMX_DOUBLE
                     expmcr2      = exp(-cr2);
 #else
                     expmcr2      = expf(-cr2);
@@ -319,7 +320,7 @@
             rs     = rsq*rinv*ic->tabq_scale;
             ri     = (int)rs;
             frac   = rs - ri;
-#ifndef GMX_DOUBLE
+#if !GMX_DOUBLE
             /* fexcl = F_i + frac * (F_(i+1)-F_i) */
             fexcl  = tab_coul_FDV0[ri*4] + frac*tab_coul_FDV0[ri*4+1];
 #else
@@ -329,7 +330,7 @@
             fcoul  = interact*rinvsq - fexcl;
             /* 7 flops for float 1/r-table force */
 #ifdef CALC_ENERGIES
-#ifndef GMX_DOUBLE
+#if !GMX_DOUBLE
             vcoul  = qq*(interact*(rinv - ic->sh_ewald)
                          -(tab_coul_FDV0[ri*4+2]
                            -halfsp*frac*(tab_coul_FDV0[ri*4] + fexcl)));

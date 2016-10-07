@@ -49,14 +49,14 @@
 #include "gromacs/analysisdata/modules/average.h"
 #include "gromacs/analysisdata/modules/histogram.h"
 #include "gromacs/analysisdata/modules/plot.h"
-#include "gromacs/fileio/trx.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/options/basicoptions.h"
 #include "gromacs/options/filenameoption.h"
-#include "gromacs/options/options.h"
+#include "gromacs/options/ioptionscontainer.h"
 #include "gromacs/pbcutil/pbc.h"
 #include "gromacs/selection/selection.h"
 #include "gromacs/selection/selectionoption.h"
+#include "gromacs/trajectory/trajectoryframe.h"
 #include "gromacs/trajectoryanalysis/analysissettings.h"
 #include "gromacs/utility/arrayref.h"
 #include "gromacs/utility/exceptions.h"
@@ -76,7 +76,7 @@ class Distance : public TrajectoryAnalysisModule
     public:
         Distance();
 
-        virtual void initOptions(Options                    *options,
+        virtual void initOptions(IOptionsContainer          *options,
                                  TrajectoryAnalysisSettings *settings);
         virtual void initAnalysis(const TrajectoryAnalysisSettings &settings,
                                   const TopologyInformation        &top);
@@ -109,8 +109,7 @@ class Distance : public TrajectoryAnalysisModule
 };
 
 Distance::Distance()
-    : TrajectoryAnalysisModule(DistanceInfo::name, DistanceInfo::shortDescription),
-      meanLength_(0.1), lengthDev_(1.0), binWidth_(0.001)
+    : meanLength_(0.1), lengthDev_(1.0), binWidth_(0.001)
 {
     summaryStatsModule_.reset(new AnalysisDataAverageModule());
     summaryStatsModule_->setAverageDataSets(true);
@@ -132,7 +131,7 @@ Distance::Distance()
 
 
 void
-Distance::initOptions(Options *options, TrajectoryAnalysisSettings * /*settings*/)
+Distance::initOptions(IOptionsContainer *options, TrajectoryAnalysisSettings *settings)
 {
     static const char *const desc[] = {
         "[THISMODULE] calculates distances between pairs of positions",
@@ -156,7 +155,7 @@ Distance::initOptions(Options *options, TrajectoryAnalysisSettings * /*settings*
         "distances, use [gmx-pairdist]."
     };
 
-    options->setDescription(desc);
+    settings->setHelpText(desc);
 
     options->addOption(FileNameOption("oav").filetype(eftPlot).outputFile()
                            .store(&fnAverage_).defaultBasename("distave")

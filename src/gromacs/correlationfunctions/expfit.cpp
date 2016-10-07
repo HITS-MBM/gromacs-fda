@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014,2015, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -46,22 +46,25 @@
 
 #include "expfit.h"
 
-#include <math.h>
 #include <string.h>
+
+#include <cmath>
 
 #include <algorithm>
 
-#include "external/lmfit/lmcurve.h"
+#include <lmstruct.h>
 
 #include "gromacs/correlationfunctions/integrate.h"
 #include "gromacs/fileio/xvgr.h"
-#include "gromacs/legacyheaders/macros.h"
+#include "gromacs/math/functions.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/futil.h"
 #include "gromacs/utility/gmxassert.h"
 #include "gromacs/utility/real.h"
 #include "gromacs/utility/smalloc.h"
+
+#include "gmx_lmcurve.h"
 
 /*! \brief Number of parameters for each fitting function */
 static const int nfp_ffn[effnNR] = { 0, 1, 2, 3, 5, 7, 9, 2, 4, 3, 6 };
@@ -151,7 +154,7 @@ static double lmc_erffit (double x, const double *a)
     if (a[3] != 0)
     {
         erfarg = (x-a[2])/(a[3]*a[3]);
-        myerf  = gmx_erfd(erfarg);
+        myerf  = std::erf(erfarg);
     }
     else
     {
@@ -202,7 +205,7 @@ static double safe_expm1(double x)
     }
     else
     {
-        return gmx_expm1(x);
+        return std::expm1(x);
     }
 }
 
@@ -482,9 +485,9 @@ static gmx_bool lmfit_exp(int          nfit,
     do
     {
         ochisq = chisq;
-        lmcurve(nparam, parm, nfit, x, y, dy,
-                lmcurves[eFitFn], &control, status);
-        chisq = sqr(status->fnorm);
+        gmx_lmcurve(nparam, parm, nfit, x, y, dy,
+                    lmcurves[eFitFn], &control, status);
+        chisq = gmx::square(status->fnorm);
         if (bVerbose)
         {
             printf("status: fnorm = %g, nfev = %d, userbreak = %d\noutcome = %s\n",
@@ -679,7 +682,7 @@ static void print_chi2_params(FILE        *fp,
     for (i = 0; (i < nfitpnts); i++)
     {
         double yfit = lmcurves[eFitFn](x[i], fitparms);
-        chi2 += sqr(y[i] - yfit);
+        chi2 += gmx::square(y[i] - yfit);
     }
     fprintf(fp, "There are %d data points, %d parameters, %s chi2 = %g\nparams:",
             nfitpnts, effnNparams(eFitFn), label, chi2);
@@ -690,9 +693,8 @@ static void print_chi2_params(FILE        *fp,
     fprintf(fp, "\n");
 }
 
-/*! \brief See description in header file. */
-real do_lmfit(int ndata, real c1[], real sig[], real dt, real x0[],
-              real begintimefit, real endtimefit, const output_env_t oenv,
+real do_lmfit(int ndata, real c1[], real sig[], real dt, real *x0,
+              real begintimefit, real endtimefit, const gmx_output_env_t *oenv,
               gmx_bool bVerbose, int eFitFn, double fitparms[], int fix,
               const char *fn_fitted)
 {
@@ -822,9 +824,9 @@ real do_lmfit(int ndata, real c1[], real sig[], real dt, real x0[],
                 }
                 for (j = 0; (j < nfitpnts); j++)
                 {
-                    real ttt = x0 ? x0[i] : dt*j;
+                    real ttt = x0 ? x0[j] : dt*j;
                     fprintf(fp, "%10.5e  %10.5e  %10.5e\n",
-                            x[j], y[j], lmcurves[eFitFn](ttt, fitparms));
+                            x[j], y[j], (lmcurves[eFitFn])(ttt, fitparms));
                 }
                 xvgrclose(fp);
             }
@@ -838,8 +840,7 @@ real do_lmfit(int ndata, real c1[], real sig[], real dt, real x0[],
     return integral;
 }
 
-/*! See description in header file. */
-real fit_acf(int ncorr, int fitfn, const output_env_t oenv, gmx_bool bVerbose,
+real fit_acf(int ncorr, int fitfn, const gmx_output_env_t *oenv, gmx_bool bVerbose,
              real tbeginfit, real tendfit, real dt, real c1[], real *fit)
 {
     double      fitparm[3];
@@ -861,14 +862,6 @@ real fit_acf(int ncorr, int fitfn, const output_env_t oenv, gmx_bool bVerbose,
     }
     nf_int = std::min(ncorr, (int)(tendfit/dt));
     sum    = print_and_integrate(debug, nf_int, dt, c1, NULL, 1);
-
-    /* Estimate the correlation time for better fitting */
-    ct_estimate = 0.5*c1[0];
-    for (i = 1; (i < ncorr) && (c1[i] > 0); i++)
-    {
-        ct_estimate += c1[i];
-    }
-    ct_estimate *= dt/c1[0];
 
     if (bPrint)
     {

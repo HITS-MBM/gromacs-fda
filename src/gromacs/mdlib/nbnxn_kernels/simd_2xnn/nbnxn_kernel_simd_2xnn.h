@@ -37,15 +37,10 @@
  * kernel type 2xnn.
  */
 
-#include "gromacs/legacyheaders/typedefs.h"
+#include "gromacs/math/vectypes.h"
 #include "gromacs/mdlib/nbnxn_pairlist.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-#if 0
-}
-#endif
+#include "gromacs/mdtypes/interaction_const.h"
+#include "gromacs/utility/real.h"
 
 /*! \brief Run-time dispatcher for nbnxn kernel functions. */
 void
@@ -176,12 +171,3 @@ nbk_func_noener       nbnxn_kernel_ElecEwTwinCut_VdwLJ_F_2xnn;
 nbk_func_noener       nbnxn_kernel_ElecEwTwinCut_VdwLJFSw_F_2xnn;
 nbk_func_noener       nbnxn_kernel_ElecEwTwinCut_VdwLJPSw_F_2xnn;
 nbk_func_noener       nbnxn_kernel_ElecEwTwinCut_VdwLJEwCombGeom_F_2xnn;
-
-
-
-#if 0
-{
-#endif
-#ifdef __cplusplus
-}
-#endif

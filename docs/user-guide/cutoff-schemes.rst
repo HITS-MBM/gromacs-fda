@@ -11,8 +11,8 @@ particles. These groups of particles were originally charge-groups, which were
 necessary with plain cut-off electrostatics. With the use of PME (or
 reaction-field with a buffer), charge groups are no longer necessary
 (and are ignored in the Verlet scheme). In |Gromacs| 4.6 and later, the
-group-based cut-off scheme is still available, but is **deprecated in
-5.0 and 5.1**. It is still available mainly for backwards
+group-based cut-off scheme is still available, but is **deprecated since
+5.0**. It is still available mainly for backwards
 compatibility, to support the algorithms that have not yet been
 converted, and for the few cases where it may allow faster simulations
 with bio-molecular systems dominated by water.
@@ -61,7 +61,6 @@ implicit solvent                      yes          no
 free energy perturbed non-bondeds     yes          yes
 energy group contributions            yes          only on CPU
 energy group exclusions               yes          no
-AdResS multi-scale                    yes          no
 OpenMP multi-threading                only PME     all
 native GPU support                    no           yes
 Coulomb PME                           yes          yes
@@ -69,8 +68,8 @@ Lennard-Jones PME                     yes          yes
 virtual sites                         yes          yes
 User-supplied tabulated interactions  yes          no
 Buckingham VdW interactions           yes          no
-rcoulomb != rvdw                      yes          no
-twin-range                            yes          no
+rcoulomb != rvdw                      yes          yes
+twin-range                            no           no
 ====================================  ============ =======
 
 Performance
@@ -132,7 +131,9 @@ kJ/mol/ns per particle). The effective drift is usually much lower, as
 precision for normal atomistic simulations constraints cause a drift
 somewhere around 0.0001 kJ/mol/ns per particle, so it doesn't make sense
 to go much lower.) Details on how the buffer size is chosen can be
-found in the reference below and in the Reference Manual.
+found in the reference below and in the `reference manual`_.
+
+.. _reference manual: gmx-manual-parent-dir_
 
 For constant-energy (NVE) simulations, the buffer size will be
 inferred from the temperature that corresponds to the velocities
@@ -142,11 +143,11 @@ to -1 and a buffer set manually by specifying :mdp:`rlist` greater than
 the larger of :mdp:`rcoulomb` and :mdp:`rvdw`. The simplest way to get a
 reasonable buffer size is to use an NVT mdp file with the target
 temperature set to what you expect in your NVE simulation, and
-transfer the buffer size printed by grompp to your NVE [.mdp] file.
+transfer the buffer size printed by :ref:`gmx grompp` to your NVE [.mdp] file.
 
-When a GPU is used, nstlist is automatically increased by mdrun,
+When a GPU is used, nstlist is automatically increased by :ref:`gmx mdrun`,
 usually to 20 or more; rlist is increased along to stay below the
-target energy drift. Further information on [running mdrun with
+target energy drift. Further information on [running :ref:`gmx mdrun` with
 GPUs] is available.
 
 Further information

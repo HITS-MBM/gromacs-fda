@@ -83,21 +83,23 @@
 
 #include "gromacs/fft/parallel_3dfft.h"
 #include "gromacs/fileio/pdbio.h"
-#include "gromacs/legacyheaders/network.h"
-#include "gromacs/legacyheaders/nrnb.h"
-#include "gromacs/legacyheaders/types/commrec.h"
-#include "gromacs/legacyheaders/types/enums.h"
-#include "gromacs/legacyheaders/types/forcerec.h"
-#include "gromacs/legacyheaders/types/inputrec.h"
-#include "gromacs/legacyheaders/types/nrnb.h"
+#include "gromacs/gmxlib/network.h"
+#include "gromacs/gmxlib/nrnb.h"
 #include "gromacs/math/gmxcomplex.h"
+#include "gromacs/math/invertmatrix.h"
 #include "gromacs/math/units.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/math/vectypes.h"
+#include "gromacs/mdtypes/commrec.h"
+#include "gromacs/mdtypes/forcerec.h"
+#include "gromacs/mdtypes/inputrec.h"
+#include "gromacs/mdtypes/md_enums.h"
+#include "gromacs/pbcutil/pbc.h"
 #include "gromacs/timing/cyclecounter.h"
 #include "gromacs/timing/wallcycle.h"
 #include "gromacs/timing/walltime_accounting.h"
 #include "gromacs/utility/basedefinitions.h"
+#include "gromacs/utility/exceptions.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/gmxmpi.h"
 #include "gromacs/utility/gmxomp.h"
@@ -214,7 +216,7 @@ static void init_atomcomm(struct gmx_pme_t *pme, pme_atomcomm_t *atc,
     atc->nslab     = 1;
     atc->nodeid    = 0;
     atc->pd_nalloc = 0;
-#ifdef GMX_MPI
+#if GMX_MPI
     if (pme->nnodes > 1)
     {
         atc->mpi_comm = pme->mpi_comm_d[dimind];
@@ -268,7 +270,7 @@ static void init_atomcomm(struct gmx_pme_t *pme, pme_atomcomm_t *atc,
 static void
 init_overlap_comm(pme_overlap_t *  ol,
                   int              norder,
-#ifdef GMX_MPI
+#if GMX_MPI
                   MPI_Comm         comm,
 #endif
                   int              nnodes,
@@ -280,7 +282,7 @@ init_overlap_comm(pme_overlap_t *  ol,
     pme_grid_comm_t *pgc;
     gmx_bool         bCont;
     int              fft_start, fft_end, send_index1, recv_index1;
-#ifdef GMX_MPI
+#if GMX_MPI
     MPI_Status       stat;
 
     ol->mpi_comm = comm;
@@ -382,7 +384,7 @@ init_overlap_comm(pme_overlap_t *  ol,
         pgc->recv_nindex = std::max(0, recv_index1 - pgc->recv_index0);
     }
 
-#ifdef GMX_MPI
+#if GMX_MPI
     /* Communicate the buffer sizes to receive */
     for (b = 0; b < ol->noverlap_nodes; b++)
     {
@@ -490,7 +492,7 @@ int gmx_pme_init(struct gmx_pme_t **pmedata,
     pme->nnodes_major        = nnodes_major;
     pme->nnodes_minor        = nnodes_minor;
 
-#ifdef GMX_MPI
+#if GMX_MPI
     if (nnodes_major*nnodes_minor > 1)
     {
         pme->mpi_comm = cr->mpi_comm_mygroup;
@@ -510,14 +512,14 @@ int gmx_pme_init(struct gmx_pme_t **pmedata,
 
     if (pme->nnodes == 1)
     {
-#ifdef GMX_MPI
+#if GMX_MPI
         pme->mpi_comm_d[0] = MPI_COMM_NULL;
         pme->mpi_comm_d[1] = MPI_COMM_NULL;
 #endif
         pme->ndecompdim   = 0;
         pme->nodeid_major = 0;
         pme->nodeid_minor = 0;
-#ifdef GMX_MPI
+#if GMX_MPI
         pme->mpi_comm_d[0] = pme->mpi_comm_d[1] = MPI_COMM_NULL;
 #endif
     }
@@ -525,7 +527,7 @@ int gmx_pme_init(struct gmx_pme_t **pmedata,
     {
         if (nnodes_minor == 1)
         {
-#ifdef GMX_MPI
+#if GMX_MPI
             pme->mpi_comm_d[0] = pme->mpi_comm;
             pme->mpi_comm_d[1] = MPI_COMM_NULL;
 #endif
@@ -536,7 +538,7 @@ int gmx_pme_init(struct gmx_pme_t **pmedata,
         }
         else if (nnodes_major == 1)
         {
-#ifdef GMX_MPI
+#if GMX_MPI
             pme->mpi_comm_d[0] = MPI_COMM_NULL;
             pme->mpi_comm_d[1] = pme->mpi_comm;
 #endif
@@ -552,7 +554,7 @@ int gmx_pme_init(struct gmx_pme_t **pmedata,
             }
             pme->ndecompdim = 2;
 
-#ifdef GMX_MPI
+#if GMX_MPI
             MPI_Comm_split(pme->mpi_comm, pme->nodeid % nnodes_minor,
                            pme->nodeid, &pme->mpi_comm_d[0]);  /* My communicator along major dimension */
             MPI_Comm_split(pme->mpi_comm, pme->nodeid/nnodes_minor,
@@ -571,7 +573,7 @@ int gmx_pme_init(struct gmx_pme_t **pmedata,
 
     /* Check if any of the PME MPI ranks uses threads */
     use_threads = (pme->nthread > 1 ? 1 : 0);
-#ifdef GMX_MPI
+#if GMX_MPI
     if (pme->nnodes > 1)
     {
         MPI_Allreduce(&use_threads, &sum_use_threads, 1, MPI_INT,
@@ -617,7 +619,7 @@ int gmx_pme_init(struct gmx_pme_t **pmedata,
     {
         double imbal;
 
-#ifdef GMX_MPI
+#if GMX_MPI
         MPI_Type_contiguous(DIM, GMX_MPI_REAL, &(pme->rvec_mpi));
         MPI_Type_commit(&(pme->rvec_mpi));
 #endif
@@ -650,7 +652,7 @@ int gmx_pme_init(struct gmx_pme_t **pmedata,
      * but we do need the overlap in x because of the communication order.
      */
     init_overlap_comm(&pme->overlap[0], pme->pme_order,
-#ifdef GMX_MPI
+#if GMX_MPI
                       pme->mpi_comm_d[0],
 #endif
                       pme->nnodes_major, pme->nodeid_major,
@@ -662,7 +664,7 @@ int gmx_pme_init(struct gmx_pme_t **pmedata,
      * extra for the offset. That's what the (+1)*pme->nkz is for.
      */
     init_overlap_comm(&pme->overlap[1], pme->pme_order,
-#ifdef GMX_MPI
+#if GMX_MPI
                       pme->mpi_comm_d[1],
 #endif
                       pme->nnodes_minor, pme->nodeid_minor,
@@ -959,7 +961,7 @@ int gmx_pme_do(struct gmx_pme_t *pme,
         atc->f = f;
     }
 
-    m_inv_ur0(box, pme->recipbox);
+    gmx::invertBoxMatrix(box, pme->recipbox);
     bFirst = TRUE;
 
     /* For simplicity, we construct the splines for all particles if
@@ -1062,7 +1064,7 @@ int gmx_pme_do(struct gmx_pme_t *pme,
                 wrap_periodic_pmegrid(pme, grid);
 
                 /* sum contributions to local grid from other nodes */
-#ifdef GMX_MPI
+#if GMX_MPI
                 if (pme->nnodes > 1)
                 {
                     gmx_sum_qgrid_dd(pme, grid, GMX_SUM_GRID_FORWARD);
@@ -1089,85 +1091,88 @@ int gmx_pme_do(struct gmx_pme_t *pme,
         /* Here we start a large thread parallel region */
 #pragma omp parallel num_threads(pme->nthread) private(thread)
         {
-            thread = gmx_omp_get_thread_num();
-            if (flags & GMX_PME_SOLVE)
+            try
             {
-                int loop_count;
+                thread = gmx_omp_get_thread_num();
+                if (flags & GMX_PME_SOLVE)
+                {
+                    int loop_count;
 
-                /* do 3d-fft */
-                if (thread == 0)
-                {
-                    wallcycle_start(wcycle, ewcPME_FFT);
-                }
-                gmx_parallel_3dfft_execute(pfft_setup, GMX_FFT_REAL_TO_COMPLEX,
-                                           thread, wcycle);
-                if (thread == 0)
-                {
-                    wallcycle_stop(wcycle, ewcPME_FFT);
-                }
-                where();
-
-                /* solve in k-space for our local cells */
-                if (thread == 0)
-                {
-                    wallcycle_start(wcycle, (grid_index < DO_Q ? ewcPME_SOLVE : ewcLJPME));
-                }
-                if (grid_index < DO_Q)
-                {
-                    loop_count =
-                        solve_pme_yzx(pme, cfftgrid, ewaldcoeff_q,
-                                      box[XX][XX]*box[YY][YY]*box[ZZ][ZZ],
-                                      bCalcEnerVir,
-                                      pme->nthread, thread);
-                }
-                else
-                {
-                    loop_count =
-                        solve_pme_lj_yzx(pme, &cfftgrid, FALSE, ewaldcoeff_lj,
-                                         box[XX][XX]*box[YY][YY]*box[ZZ][ZZ],
-                                         bCalcEnerVir,
-                                         pme->nthread, thread);
-                }
-
-                if (thread == 0)
-                {
-                    wallcycle_stop(wcycle, (grid_index < DO_Q ? ewcPME_SOLVE : ewcLJPME));
-                    where();
-                    inc_nrnb(nrnb, eNR_SOLVEPME, loop_count);
-                }
-            }
-
-            if (bBackFFT)
-            {
-                /* do 3d-invfft */
-                if (thread == 0)
-                {
-                    where();
-                    wallcycle_start(wcycle, ewcPME_FFT);
-                }
-                gmx_parallel_3dfft_execute(pfft_setup, GMX_FFT_COMPLEX_TO_REAL,
-                                           thread, wcycle);
-                if (thread == 0)
-                {
-                    wallcycle_stop(wcycle, ewcPME_FFT);
-
-                    where();
-
-                    if (pme->nodeid == 0)
+                    /* do 3d-fft */
+                    if (thread == 0)
                     {
-                        real ntot = pme->nkx*pme->nky*pme->nkz;
-                        npme  = static_cast<int>(ntot*log(ntot)/log(2.0));
-                        inc_nrnb(nrnb, eNR_FFT, 2*npme);
+                        wallcycle_start(wcycle, ewcPME_FFT);
+                    }
+                    gmx_parallel_3dfft_execute(pfft_setup, GMX_FFT_REAL_TO_COMPLEX,
+                                               thread, wcycle);
+                    if (thread == 0)
+                    {
+                        wallcycle_stop(wcycle, ewcPME_FFT);
+                    }
+                    where();
+
+                    /* solve in k-space for our local cells */
+                    if (thread == 0)
+                    {
+                        wallcycle_start(wcycle, (grid_index < DO_Q ? ewcPME_SOLVE : ewcLJPME));
+                    }
+                    if (grid_index < DO_Q)
+                    {
+                        loop_count =
+                            solve_pme_yzx(pme, cfftgrid, ewaldcoeff_q,
+                                          box[XX][XX]*box[YY][YY]*box[ZZ][ZZ],
+                                          bCalcEnerVir,
+                                          pme->nthread, thread);
+                    }
+                    else
+                    {
+                        loop_count =
+                            solve_pme_lj_yzx(pme, &cfftgrid, FALSE, ewaldcoeff_lj,
+                                             box[XX][XX]*box[YY][YY]*box[ZZ][ZZ],
+                                             bCalcEnerVir,
+                                             pme->nthread, thread);
                     }
 
-                    /* Note: this wallcycle region is closed below
-                       outside an OpenMP region, so take care if
-                       refactoring code here. */
-                    wallcycle_start(wcycle, ewcPME_SPREADGATHER);
+                    if (thread == 0)
+                    {
+                        wallcycle_stop(wcycle, (grid_index < DO_Q ? ewcPME_SOLVE : ewcLJPME));
+                        where();
+                        inc_nrnb(nrnb, eNR_SOLVEPME, loop_count);
+                    }
                 }
 
-                copy_fftgrid_to_pmegrid(pme, fftgrid, grid, grid_index, pme->nthread, thread);
-            }
+                if (bBackFFT)
+                {
+                    /* do 3d-invfft */
+                    if (thread == 0)
+                    {
+                        where();
+                        wallcycle_start(wcycle, ewcPME_FFT);
+                    }
+                    gmx_parallel_3dfft_execute(pfft_setup, GMX_FFT_COMPLEX_TO_REAL,
+                                               thread, wcycle);
+                    if (thread == 0)
+                    {
+                        wallcycle_stop(wcycle, ewcPME_FFT);
+
+                        where();
+
+                        if (pme->nodeid == 0)
+                        {
+                            real ntot = pme->nkx*pme->nky*pme->nkz;
+                            npme  = static_cast<int>(ntot*std::log(ntot)/std::log(2.0));
+                            inc_nrnb(nrnb, eNR_FFT, 2*npme);
+                        }
+
+                        /* Note: this wallcycle region is closed below
+                           outside an OpenMP region, so take care if
+                           refactoring code here. */
+                        wallcycle_start(wcycle, ewcPME_SPREADGATHER);
+                    }
+
+                    copy_fftgrid_to_pmegrid(pme, fftgrid, grid, grid_index, pme->nthread, thread);
+                }
+            } GMX_CATCH_ALL_AND_EXIT_WITH_FATAL_ERROR;
         }
         /* End of thread parallel section.
          * With MPI we have to synchronize here before gmx_sum_qgrid_dd.
@@ -1176,7 +1181,7 @@ int gmx_pme_do(struct gmx_pme_t *pme,
         if (bBackFFT)
         {
             /* distribute local grid to all nodes */
-#ifdef GMX_MPI
+#if GMX_MPI
             if (pme->nnodes > 1)
             {
                 gmx_sum_qgrid_dd(pme, grid, GMX_SUM_GRID_BACKWARD);
@@ -1202,9 +1207,13 @@ int gmx_pme_do(struct gmx_pme_t *pme,
 #pragma omp parallel for num_threads(pme->nthread) schedule(static)
             for (thread = 0; thread < pme->nthread; thread++)
             {
-                gather_f_bsplines(pme, grid, bClearF, atc,
-                                  &atc->spline[thread],
-                                  pme->bFEP ? (grid_index % 2 == 0 ? 1.0-lambda : lambda) : 1.0);
+                try
+                {
+                    gather_f_bsplines(pme, grid, bClearF, atc,
+                                      &atc->spline[thread],
+                                      pme->bFEP ? (grid_index % 2 == 0 ? 1.0-lambda : lambda) : 1.0);
+                }
+                GMX_CATCH_ALL_AND_EXIT_WITH_FATAL_ERROR;
             }
 
             where();
@@ -1336,7 +1345,7 @@ int gmx_pme_do(struct gmx_pme_t *pme,
                     {
                         wrap_periodic_pmegrid(pme, grid);
                         /* sum contributions to local grid from other nodes */
-#ifdef GMX_MPI
+#if GMX_MPI
                         if (pme->nnodes > 1)
                         {
                             gmx_sum_qgrid_dd(pme, grid, GMX_SUM_GRID_FORWARD);
@@ -1350,23 +1359,27 @@ int gmx_pme_do(struct gmx_pme_t *pme,
                 /*Here we start a large thread parallel region*/
 #pragma omp parallel num_threads(pme->nthread) private(thread)
                 {
-                    thread = gmx_omp_get_thread_num();
-                    if (flags & GMX_PME_SOLVE)
+                    try
                     {
-                        /* do 3d-fft */
-                        if (thread == 0)
+                        thread = gmx_omp_get_thread_num();
+                        if (flags & GMX_PME_SOLVE)
                         {
-                            wallcycle_start(wcycle, ewcPME_FFT);
-                        }
+                            /* do 3d-fft */
+                            if (thread == 0)
+                            {
+                                wallcycle_start(wcycle, ewcPME_FFT);
+                            }
 
-                        gmx_parallel_3dfft_execute(pfft_setup, GMX_FFT_REAL_TO_COMPLEX,
-                                                   thread, wcycle);
-                        if (thread == 0)
-                        {
-                            wallcycle_stop(wcycle, ewcPME_FFT);
+                            gmx_parallel_3dfft_execute(pfft_setup, GMX_FFT_REAL_TO_COMPLEX,
+                                                       thread, wcycle);
+                            if (thread == 0)
+                            {
+                                wallcycle_stop(wcycle, ewcPME_FFT);
+                            }
+                            where();
                         }
-                        where();
                     }
+                    GMX_CATCH_ALL_AND_EXIT_WITH_FATAL_ERROR;
                 }
                 bFirst = FALSE;
             }
@@ -1375,24 +1388,28 @@ int gmx_pme_do(struct gmx_pme_t *pme,
                 /* solve in k-space for our local cells */
 #pragma omp parallel num_threads(pme->nthread) private(thread)
                 {
-                    int loop_count;
-                    thread = gmx_omp_get_thread_num();
-                    if (thread == 0)
+                    try
                     {
-                        wallcycle_start(wcycle, ewcLJPME);
-                    }
+                        int loop_count;
+                        thread = gmx_omp_get_thread_num();
+                        if (thread == 0)
+                        {
+                            wallcycle_start(wcycle, ewcLJPME);
+                        }
 
-                    loop_count =
-                        solve_pme_lj_yzx(pme, &pme->cfftgrid[2], TRUE, ewaldcoeff_lj,
-                                         box[XX][XX]*box[YY][YY]*box[ZZ][ZZ],
-                                         bCalcEnerVir,
-                                         pme->nthread, thread);
-                    if (thread == 0)
-                    {
-                        wallcycle_stop(wcycle, ewcLJPME);
-                        where();
-                        inc_nrnb(nrnb, eNR_SOLVEPME, loop_count);
+                        loop_count =
+                            solve_pme_lj_yzx(pme, &pme->cfftgrid[2], TRUE, ewaldcoeff_lj,
+                                             box[XX][XX]*box[YY][YY]*box[ZZ][ZZ],
+                                             bCalcEnerVir,
+                                             pme->nthread, thread);
+                        if (thread == 0)
+                        {
+                            wallcycle_stop(wcycle, ewcLJPME);
+                            where();
+                            inc_nrnb(nrnb, eNR_SOLVEPME, loop_count);
+                        }
                     }
+                    GMX_CATCH_ALL_AND_EXIT_WITH_FATAL_ERROR;
                 }
             }
 
@@ -1419,37 +1436,40 @@ int gmx_pme_do(struct gmx_pme_t *pme,
                     where();
 #pragma omp parallel num_threads(pme->nthread) private(thread)
                     {
-                        thread = gmx_omp_get_thread_num();
-                        /* do 3d-invfft */
-                        if (thread == 0)
+                        try
                         {
-                            where();
-                            wallcycle_start(wcycle, ewcPME_FFT);
-                        }
-
-                        gmx_parallel_3dfft_execute(pfft_setup, GMX_FFT_COMPLEX_TO_REAL,
-                                                   thread, wcycle);
-                        if (thread == 0)
-                        {
-                            wallcycle_stop(wcycle, ewcPME_FFT);
-
-                            where();
-
-                            if (pme->nodeid == 0)
+                            thread = gmx_omp_get_thread_num();
+                            /* do 3d-invfft */
+                            if (thread == 0)
                             {
-                                real ntot = pme->nkx*pme->nky*pme->nkz;
-                                npme  = static_cast<int>(ntot*log(ntot)/log(2.0));
-                                inc_nrnb(nrnb, eNR_FFT, 2*npme);
+                                where();
+                                wallcycle_start(wcycle, ewcPME_FFT);
                             }
-                            wallcycle_start(wcycle, ewcPME_SPREADGATHER);
+
+                            gmx_parallel_3dfft_execute(pfft_setup, GMX_FFT_COMPLEX_TO_REAL,
+                                                       thread, wcycle);
+                            if (thread == 0)
+                            {
+                                wallcycle_stop(wcycle, ewcPME_FFT);
+
+                                where();
+
+                                if (pme->nodeid == 0)
+                                {
+                                    real ntot = pme->nkx*pme->nky*pme->nkz;
+                                    npme  = static_cast<int>(ntot*std::log(ntot)/std::log(2.0));
+                                    inc_nrnb(nrnb, eNR_FFT, 2*npme);
+                                }
+                                wallcycle_start(wcycle, ewcPME_SPREADGATHER);
+                            }
+
+                            copy_fftgrid_to_pmegrid(pme, fftgrid, grid, grid_index, pme->nthread, thread);
                         }
-
-                        copy_fftgrid_to_pmegrid(pme, fftgrid, grid, grid_index, pme->nthread, thread);
-
+                        GMX_CATCH_ALL_AND_EXIT_WITH_FATAL_ERROR;
                     } /*#pragma omp parallel*/
 
                     /* distribute local grid to all nodes */
-#ifdef GMX_MPI
+#if GMX_MPI
                     if (pme->nnodes > 1)
                     {
                         gmx_sum_qgrid_dd(pme, grid, GMX_SUM_GRID_BACKWARD);
@@ -1466,13 +1486,19 @@ int gmx_pme_do(struct gmx_pme_t *pme,
                         bClearF = (bFirst && PAR(cr));
                         scale   = pme->bFEP ? (fep_state < 1 ? 1.0-lambda_lj : lambda_lj) : 1.0;
                         scale  *= lb_scale_factor[grid_index-2];
+
 #pragma omp parallel for num_threads(pme->nthread) schedule(static)
                         for (thread = 0; thread < pme->nthread; thread++)
                         {
-                            gather_f_bsplines(pme, grid, bClearF, &pme->atc[0],
-                                              &pme->atc[0].spline[thread],
-                                              scale);
+                            try
+                            {
+                                gather_f_bsplines(pme, grid, bClearF, &pme->atc[0],
+                                                  &pme->atc[0].spline[thread],
+                                                  scale);
+                            }
+                            GMX_CATCH_ALL_AND_EXIT_WITH_FATAL_ERROR;
                         }
+
                         where();
 
                         inc_nrnb(nrnb, eNR_GATHERFBSP,

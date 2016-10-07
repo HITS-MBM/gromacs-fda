@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014,2015, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -38,13 +38,17 @@
 #ifndef GMX_GMXPREPROCESS_READIR_H
 #define GMX_GMXPREPROCESS_READIR_H
 
+#include "gromacs/fileio/readinp.h"
 #include "gromacs/gmxpreprocess/grompp-impl.h"
-#include "gromacs/legacyheaders/readinp.h"
-#include "gromacs/legacyheaders/typedefs.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+struct gmx_groups_t;
+struct gmx_mtop_t;
+struct gmx_output_env_t;
+struct pull_params_t;
+struct pull_t;
+struct t_grpopts;
+struct t_inputrec;
+struct t_rot;
 
 enum {
     eshNONE, eshHBONDS, eshALLBONDS, eshHANGLES, eshALLANGLES, eshNR
@@ -117,11 +121,8 @@ void do_index(const char* mdparin,
               gmx_mtop_t *mtop,
               gmx_bool    bVerbose,
               t_inputrec *ir,
-              rvec       *v,
               warninp_t   wi);
 /* Read the index file and assign grp numbers to atoms.
- * If v is not NULL, the velocities will be scaled to the correct number
- * of degrees of freedom.
  */
 
 /* Routines In readpull.c */
@@ -139,20 +140,17 @@ void make_pull_groups(pull_params_t *pull,
 void make_pull_coords(pull_params_t *pull);
 /* Process the pull coordinates after reading the pull groups */
 
-void set_pull_init(t_inputrec *ir, gmx_mtop_t *mtop, rvec *x, matrix box, real lambda,
-                   const output_env_t oenv);
+pull_t *set_pull_init(t_inputrec *ir, const gmx_mtop_t *mtop,
+                      rvec *x, matrix box, real lambda,
+                      const gmx_output_env_t *oenv);
 /* Prints the initial pull group distances in x.
  * If requested, adds the current distance to the initial reference location.
+ * Returns the pull_t pull work struct. This should be passed to finish_pull()
+ * after all modules have registered their external potentials, if present.
  */
 
 //int str_nelem(const char *str, int maxptr, char *ptr[]);
 /* helper function from readir.c to convert strings */
-
-void read_adressparams(int *ninp_p, t_inpfile **inp_p, t_adress *adress, warninp_t wi);
-/* Reads in AdResS related parameters */
-
-void do_adress_index(t_adress *adress, gmx_groups_t *groups, char **gnames, t_grpopts *opts, warninp_t wi);
-/* Generate adress groups */
 
 char **read_rotparams(int *ninp_p, t_inpfile **inp, t_rot *rot, warninp_t wi);
 /* Reads enforced rotation parameters, returns a list of the rot group names */
@@ -163,9 +161,5 @@ void make_rotation_groups(t_rot *rot, char **rotgnames,
 
 void set_reference_positions(t_rot *rot, rvec *x, matrix box,
                              const char *fn, gmx_bool bSet, warninp_t wi);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

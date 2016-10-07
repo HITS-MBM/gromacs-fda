@@ -57,19 +57,19 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "gromacs/commandline/filenm.h"
 #include "gromacs/commandline/pargs.h"
-#include "gromacs/fileio/filenm.h"
-#include "gromacs/legacyheaders/macros.h"
-#include "gromacs/legacyheaders/main.h"
-#include "gromacs/legacyheaders/mdrun.h"
-#include "gromacs/legacyheaders/network.h"
-#include "gromacs/legacyheaders/readinp.h"
-#include "gromacs/legacyheaders/typedefs.h"
-#include "gromacs/legacyheaders/types/commrec.h"
+#include "gromacs/fileio/readinp.h"
+#include "gromacs/gmxlib/network.h"
+#include "gromacs/mdlib/main.h"
+#include "gromacs/mdlib/mdrun.h"
 #include "gromacs/mdrunutility/handlerestart.h"
+#include "gromacs/mdtypes/commrec.h"
+#include "gromacs/utility/arraysize.h"
 #include "gromacs/utility/fatalerror.h"
 
 #include "mdrun_main.h"
+#include "runner.h"
 
 /*! \brief Return whether either of the command-line parameters that
  *  will trigger a multi-simulation is set */
@@ -205,17 +205,18 @@ int gmx_mdrun(int argc, char *argv[])
         "terminated only when the time limit set by [TT]-maxh[tt] is reached (if any)"
         "or upon receiving a signal."
         "[PAR]",
-        "When [TT]mdrun[tt] receives a TERM signal, it will set nsteps to the current",
-        "step plus one. When [TT]mdrun[tt] receives an INT signal (e.g. when ctrl+C is",
-        "pressed), it will stop after the next neighbor search step ",
-        "(with nstlist=0 at the next step).",
+        "When [TT]mdrun[tt] receives a TERM signal, it will stop as soon as",
+        "checkpoint file can be written, i.e. after the next global communication step.",
+        "When [TT]mdrun[tt] receives an INT signal (e.g. when ctrl+C is",
+        "pressed), it will stop at the next neighbor search step or at the",
+        "second global communication step, whichever happens later.",
         "In both cases all the usual output will be written to file.",
         "When running with MPI, a signal to one of the [TT]mdrun[tt] ranks",
         "is sufficient, this signal should not be sent to mpirun or",
         "the [TT]mdrun[tt] process that is the parent of the others.",
         "[PAR]",
         "Interactive molecular dynamics (IMD) can be activated by using at least one",
-        "of the three IMD switches: The [TT]-imdterm[tt] switch allows to terminate",
+        "of the three IMD switches: The [TT]-imdterm[tt] switch allows one to terminate",
         "the simulation from the molecular viewer (e.g. VMD). With [TT]-imdwait[tt],",
         "[TT]mdrun[tt] pauses whenever no IMD client is connected. Pulling from the",
         "IMD remote can be turned on by [TT]-imdpull[tt].",
@@ -238,7 +239,6 @@ int gmx_mdrun(int argc, char *argv[])
         { efXVG, "-dhdl",   "dhdl",     ffOPTWR },
         { efXVG, "-field",  "field",    ffOPTWR },
         { efXVG, "-table",  "table",    ffOPTRD },
-        { efXVG, "-tabletf", "tabletf",    ffOPTRD },
         { efXVG, "-tablep", "tablep",   ffOPTRD },
         { efXVG, "-tableb", "table",    ffOPTRDMULT },
         { efTRX, "-rerun",  "rerun",    ffOPTRD },
@@ -263,7 +263,6 @@ int gmx_mdrun(int argc, char *argv[])
         { efLOG, "-rs",     "rotslabs", ffOPTWR },
         { efLOG, "-rt",     "rottorque", ffOPTWR },
         { efMTX, "-mtx",    "nm",       ffOPTWR },
-        { efNDX, "-dn",     "dipole",   ffOPTWR },
         { efRND, "-multidir", NULL,      ffOPTRDMULT},
         { efDAT, "-membed", "membed",   ffOPTRD },
         { efTOP, "-mp",     "membed",   ffOPTRD },
@@ -274,46 +273,45 @@ int gmx_mdrun(int argc, char *argv[])
     const int     NFILE = asize(fnm);
 
     /* Command line options ! */
-    gmx_bool        bDDBondCheck  = TRUE;
-    gmx_bool        bDDBondComm   = TRUE;
-    gmx_bool        bTunePME      = TRUE;
-    gmx_bool        bVerbose      = FALSE;
-    gmx_bool        bCompact      = TRUE;
-    gmx_bool        bRerunVSite   = FALSE;
-    gmx_bool        bConfout      = TRUE;
-    gmx_bool        bReproducible = FALSE;
-    gmx_bool        bIMDwait      = FALSE;
-    gmx_bool        bIMDterm      = FALSE;
-    gmx_bool        bIMDpull      = FALSE;
+    gmx_bool          bDDBondCheck  = TRUE;
+    gmx_bool          bDDBondComm   = TRUE;
+    gmx_bool          bTunePME      = TRUE;
+    gmx_bool          bVerbose      = FALSE;
+    gmx_bool          bRerunVSite   = FALSE;
+    gmx_bool          bConfout      = TRUE;
+    gmx_bool          bReproducible = FALSE;
+    gmx_bool          bIMDwait      = FALSE;
+    gmx_bool          bIMDterm      = FALSE;
+    gmx_bool          bIMDpull      = FALSE;
 
-    int             npme          = -1;
-    int             nstlist       = 0;
-    int             nmultisim     = 0;
-    int             nstglobalcomm = -1;
-    int             repl_ex_nst   = 0;
-    int             repl_ex_seed  = -1;
-    int             repl_ex_nex   = 0;
-    int             nstepout      = 100;
-    int             resetstep     = -1;
-    gmx_int64_t     nsteps        = -2;   /* the value -2 means that the mdp option will be used */
-    int             imdport       = 8888; /* can be almost anything, 8888 is easy to remember */
+    int               npme          = -1;
+    int               nstlist       = 0;
+    int               nmultisim     = 0;
+    int               nstglobalcomm = -1;
+    int               repl_ex_nst   = 0;
+    int               repl_ex_seed  = -1;
+    int               repl_ex_nex   = 0;
+    int               nstepout      = 100;
+    int               resetstep     = -1;
+    gmx_int64_t       nsteps        = -2;   /* the value -2 means that the mdp option will be used */
+    int               imdport       = 8888; /* can be almost anything, 8888 is easy to remember */
 
-    rvec            realddxyz          = {0, 0, 0};
-    const char     *ddno_opt[ddnoNR+1] =
+    rvec              realddxyz                   = {0, 0, 0};
+    const char       *ddrank_opt[ddrankorderNR+1] =
     { NULL, "interleave", "pp_pme", "cartesian", NULL };
-    const char     *dddlb_opt[] =
+    const char       *dddlb_opt[] =
     { NULL, "auto", "no", "yes", NULL };
-    const char     *thread_aff_opt[threadaffNR+1] =
+    const char       *thread_aff_opt[threadaffNR+1] =
     { NULL, "auto", "on", "off", NULL };
-    const char     *nbpu_opt[] =
+    const char       *nbpu_opt[] =
     { NULL, "auto", "cpu", "gpu", "gpu_cpu", NULL };
-    real            rdd                   = 0.0, rconstr = 0.0, dlb_scale = 0.8, pforce = -1;
-    char           *ddcsx                 = NULL, *ddcsy = NULL, *ddcsz = NULL;
-    real            cpt_period            = 15.0, max_hours = -1;
-    gmx_bool        bTryToAppendFiles     = TRUE;
-    gmx_bool        bKeepAndNumCPT        = FALSE;
-    gmx_bool        bResetCountersHalfWay = FALSE;
-    output_env_t    oenv                  = NULL;
+    real              rdd                   = 0.0, rconstr = 0.0, dlb_scale = 0.8, pforce = -1;
+    char             *ddcsx                 = NULL, *ddcsy = NULL, *ddcsz = NULL;
+    real              cpt_period            = 15.0, max_hours = -1;
+    gmx_bool          bTryToAppendFiles     = TRUE;
+    gmx_bool          bKeepAndNumCPT        = FALSE;
+    gmx_bool          bResetCountersHalfWay = FALSE;
+    gmx_output_env_t *oenv                  = NULL;
 
     /* Non transparent initialization of a complex gmx_hw_opt_t struct.
      * But unfortunately we are not allowed to call a function here,
@@ -328,7 +326,7 @@ int gmx_mdrun(int argc, char *argv[])
 
         { "-dd",      FALSE, etRVEC, {&realddxyz},
           "Domain decomposition grid, 0 is optimize" },
-        { "-ddorder", FALSE, etENUM, {ddno_opt},
+        { "-ddorder", FALSE, etENUM, {ddrank_opt},
           "DD rank order" },
         { "-npme",    FALSE, etINT, {&npme},
           "Number of separate ranks to be used for PME, -1 is guess" },
@@ -383,8 +381,6 @@ int gmx_mdrun(int argc, char *argv[])
           "Optimize PME load between PP/PME ranks or GPU/CPU" },
         { "-v",       FALSE, etBOOL, {&bVerbose},
           "Be loud and noisy" },
-        { "-compact", FALSE, etBOOL, {&bCompact},
-          "Write a compact log file" },
         { "-pforce",  FALSE, etREAL, {&pforce},
           "Print all forces larger than this (kJ/mol nm)" },
         { "-reprod",  FALSE, etBOOL, {&bReproducible},
@@ -428,7 +424,7 @@ int gmx_mdrun(int argc, char *argv[])
     };
     unsigned long   Flags;
     ivec            ddxyz;
-    int             dd_node_order;
+    int             dd_rank_order;
     gmx_bool        bDoAppendFiles, bStartFromCpt;
     FILE           *fplog;
     int             rc;
@@ -465,12 +461,7 @@ int gmx_mdrun(int argc, char *argv[])
     }
 
 
-    /* we set these early because they might be used in init_multisystem()
-       Note that there is the potential for npme>nnodes until the number of
-       threads is set later on, if there's thread parallelization. That shouldn't
-       lead to problems. */
-    dd_node_order = nenum(ddno_opt);
-    cr->npmenodes = npme;
+    dd_rank_order = nenum(ddrank_opt);
 
     hw_opt.thread_affinity = nenum(thread_aff_opt);
 
@@ -497,17 +488,31 @@ int gmx_mdrun(int argc, char *argv[])
 
     if (nmultisim >= 1)
     {
-#ifndef GMX_THREAD_MPI
-        gmx_bool bParFn = (multidir == NULL);
-        init_multisystem(cr, nmultisim, multidir, NFILE, fnm, bParFn);
+#if !GMX_THREAD_MPI
+        init_multisystem(cr, nmultisim, multidir, NFILE, fnm);
 #else
         gmx_fatal(FARGS, "mdrun -multi or -multidir are not supported with the thread-MPI library. "
                   "Please compile GROMACS with a proper external MPI library.");
 #endif
     }
 
-    handleRestart(cr, bTryToAppendFiles, NFILE, fnm,
-                  &bDoAppendFiles, &bStartFromCpt);
+    if (!opt2bSet("-cpi", NFILE, fnm))
+    {
+        // If we are not starting from a checkpoint we never allow files to be appended
+        // to, since that has caused a ton of strange behaviour and bugs in the past.
+        if (opt2parg_bSet("-append", asize(pa), pa))
+        {
+            // If the user explicitly used the -append option, explain that it is not possible.
+            gmx_fatal(FARGS, "GROMACS can only append to files when restarting from a checkpoint.");
+        }
+        else
+        {
+            // If the user did not say anything explicit, just disable appending.
+            bTryToAppendFiles = FALSE;
+        }
+    }
+
+    handleRestart(cr, bTryToAppendFiles, NFILE, fnm, &bDoAppendFiles, &bStartFromCpt);
 
     Flags = opt2bSet("-rerun", NFILE, fnm) ? MD_RERUN : 0;
     Flags = Flags | (bDDBondCheck  ? MD_DDBONDCHECK  : 0);
@@ -516,7 +521,7 @@ int gmx_mdrun(int argc, char *argv[])
     Flags = Flags | (bConfout      ? MD_CONFOUT      : 0);
     Flags = Flags | (bRerunVSite   ? MD_RERUN_VSITE  : 0);
     Flags = Flags | (bReproducible ? MD_REPRODUCIBLE : 0);
-    Flags = Flags | (bDoAppendFiles ? MD_APPENDFILES  : 0);
+    Flags = Flags | (bDoAppendFiles  ? MD_APPENDFILES  : 0);
     Flags = Flags | (opt2parg_bSet("-append", asize(pa), pa) ? MD_APPENDFILESSET : 0);
     Flags = Flags | (bKeepAndNumCPT ? MD_KEEPANDNUMCPT : 0);
     Flags = Flags | (bStartFromCpt ? MD_STARTFROMCPT : 0);
@@ -543,13 +548,13 @@ int gmx_mdrun(int argc, char *argv[])
     ddxyz[YY] = (int)(realddxyz[YY] + 0.5);
     ddxyz[ZZ] = (int)(realddxyz[ZZ] + 0.5);
 
-    rc = mdrunner(&hw_opt, fplog, cr, NFILE, fnm, oenv, bVerbose, bCompact,
-                  nstglobalcomm, ddxyz, dd_node_order, rdd, rconstr,
-                  dddlb_opt[0], dlb_scale, ddcsx, ddcsy, ddcsz,
-                  nbpu_opt[0], nstlist,
-                  nsteps, nstepout, resetstep,
-                  nmultisim, repl_ex_nst, repl_ex_nex, repl_ex_seed,
-                  pforce, cpt_period, max_hours, imdport, Flags);
+    rc = gmx::mdrunner(&hw_opt, fplog, cr, NFILE, fnm, oenv, bVerbose,
+                       nstglobalcomm, ddxyz, dd_rank_order, npme, rdd, rconstr,
+                       dddlb_opt[0], dlb_scale, ddcsx, ddcsy, ddcsz,
+                       nbpu_opt[0], nstlist,
+                       nsteps, nstepout, resetstep,
+                       nmultisim, repl_ex_nst, repl_ex_nex, repl_ex_seed,
+                       pforce, cpt_period, max_hours, imdport, Flags);
 
     /* Log file has to be closed in mdrunner if we are appending to it
        (fplog not set here) */

@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -45,12 +45,16 @@
 
 #include <cstring>
 
-#include "gromacs/fileio/tpxio.h"
-#include "gromacs/fileio/trx.h"
+#include <algorithm>
+
+#include "gromacs/fileio/confio.h"
 #include "gromacs/fileio/trxio.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/topology/atoms.h"
 #include "gromacs/topology/topology.h"
+#include "gromacs/trajectory/trajectoryframe.h"
+#include "gromacs/utility/arrayref.h"
+#include "gromacs/utility/cstringutil.h"
 #include "gromacs/utility/gmxassert.h"
 #include "gromacs/utility/smalloc.h"
 
@@ -70,7 +74,6 @@ TopologyManager::~TopologyManager()
 {
     if (top_ != NULL)
     {
-        free_t_atoms(&top_->atoms, TRUE);
         done_top(top_);
         sfree(top_);
     }
@@ -80,6 +83,7 @@ TopologyManager::~TopologyManager()
         sfree(frame_->x);
         sfree(frame_->v);
         sfree(frame_->f);
+        sfree(frame_->index);
         sfree(frame_);
     }
 }
@@ -118,7 +122,6 @@ void TopologyManager::requestForces()
 
 void TopologyManager::loadTopology(const char *filename)
 {
-    char    title[STRLEN];
     int     ePBC;
     rvec   *xtop = NULL;
     matrix  box;
@@ -126,12 +129,11 @@ void TopologyManager::loadTopology(const char *filename)
     GMX_RELEASE_ASSERT(top_ == NULL, "Topology initialized more than once");
     snew(top_, 1);
     read_tps_conf(gmx::test::TestFileManager::getInputFilePath(filename).c_str(),
-                  title, top_, &ePBC, frame_ != NULL ? &xtop : NULL,
+                  top_, &ePBC, frame_ != NULL ? &xtop : NULL,
                   NULL, box, FALSE);
 
     if (frame_ != NULL)
     {
-        frame_->flags  = TRX_NEED_X;
         frame_->natoms = top_->atoms.nr;
         frame_->bX     = TRUE;
         snew(frame_->x, frame_->natoms);
@@ -154,7 +156,6 @@ void TopologyManager::initAtoms(int count)
     }
     if (frame_ != NULL)
     {
-        frame_->flags  = TRX_NEED_X;
         frame_->natoms = count;
         frame_->bX     = TRUE;
         snew(frame_->x, count);
@@ -169,18 +170,19 @@ void TopologyManager::initAtoms(int count)
     }
 }
 
-void TopologyManager::initAtomTypes(int count, const char *const types[])
+void TopologyManager::initAtomTypes(const ConstArrayRef<const char *> &types)
 {
     GMX_RELEASE_ASSERT(top_ != NULL, "Topology not initialized");
-    atomtypes_.reserve(count);
-    for (int i = 0; i < count; ++i)
+    atomtypes_.reserve(types.size());
+    for (const char *type : types)
     {
-        atomtypes_.push_back(gmx_strdup(types[i]));
+        atomtypes_.push_back(gmx_strdup(type));
     }
     snew(top_->atoms.atomtype, top_->atoms.nr);
-    for (int i = 0, j = 0; i < top_->atoms.nr; ++i, ++j)
+    size_t j = 0;
+    for (int i = 0; i < top_->atoms.nr; ++i, ++j)
     {
-        if (j == count)
+        if (j == types.size())
         {
             j = 0;
         }
@@ -216,6 +218,18 @@ void TopologyManager::initUniformMolecules(int moleculeSize)
         index += moleculeSize;
     }
     top_->mols.index[top_->mols.nr] = top_->atoms.nr;
+}
+
+void TopologyManager::initFrameIndices(const ConstArrayRef<int> &index)
+{
+    GMX_RELEASE_ASSERT(frame_ != nullptr, "Frame not initialized");
+    GMX_RELEASE_ASSERT(!frame_->bIndex, "Frame atom indices can only be set once");
+
+    frame_->bIndex = TRUE;
+    snew(frame_->index, index.size());
+    std::copy(index.begin(), index.end(), frame_->index);
+
+    frame_->natoms = index.size();
 }
 
 } // namespace test

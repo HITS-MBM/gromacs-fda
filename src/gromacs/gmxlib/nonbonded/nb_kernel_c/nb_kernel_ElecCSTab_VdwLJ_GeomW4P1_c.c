@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2012,2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2012,2013,2014.2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -39,11 +39,10 @@
 #include "config.h"
 #include <math.h>
 
-#include "gromacs/gmxlib/nonbonded/nb_kernel.h"
-#include "gromacs/legacyheaders/nrnb.h"
+#include "../nb_kernel.h"
+#include "gromacs/gmxlib/nrnb.h"
 #include "gromacs/legacyheaders/pf_interactions.h"
 #include "gromacs/legacyheaders/types/pf_array.h"
-#include "gromacs/legacyheaders/types/simple.h"
 #include "gromacs/math/vec.h"
 
 /*
@@ -205,9 +204,9 @@ nb_kernel_ElecCSTab_VdwLJ_GeomW4P1_VF_c
             rsq20            = dx20*dx20+dy20*dy20+dz20*dz20;
             rsq30            = dx30*dx30+dy30*dy30+dz30*dz30;
 
-            rinv10           = gmx_invsqrt(rsq10);
-            rinv20           = gmx_invsqrt(rsq20);
-            rinv30           = gmx_invsqrt(rsq30);
+            rinv10           = 1.0/sqrt(rsq10);
+            rinv20           = 1.0/sqrt(rsq20);
+            rinv30           = 1.0/sqrt(rsq30);
 
             rinvsq00         = 1.0/rsq00;
 
@@ -599,9 +598,9 @@ nb_kernel_ElecCSTab_VdwLJ_GeomW4P1_F_c
             rsq20            = dx20*dx20+dy20*dy20+dz20*dz20;
             rsq30            = dx30*dx30+dy30*dy30+dz30*dz30;
 
-            rinv10           = gmx_invsqrt(rsq10);
-            rinv20           = gmx_invsqrt(rsq20);
-            rinv30           = gmx_invsqrt(rsq30);
+            rinv10           = 1.0/sqrt(rsq10);
+            rinv20           = 1.0/sqrt(rsq20);
+            rinv30           = 1.0/sqrt(rsq30);
 
             rinvsq00         = 1.0/rsq00;
 

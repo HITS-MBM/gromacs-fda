@@ -43,24 +43,25 @@
 #ifndef GMX_COMMANDLINE_CMDLINEMODULEMANAGER_H
 #define GMX_COMMANDLINE_CMDLINEMODULEMANAGER_H
 
-#include "gromacs/onlinehelp/helptopicinterface.h"
+#include <memory>
+
+#include "gromacs/onlinehelp/ihelptopic.h"
 #include "gromacs/utility/classhelpers.h"
-#include "gromacs/utility/uniqueptr.h"
 
 namespace gmx
 {
 
 class CommandLineModuleGroup;
 class CommandLineModuleGroupData;
-class CommandLineModuleInterface;
 class CommandLineProgramContext;
-class FileOutputRedirectorInterface;
+class ICommandLineModule;
+class IFileOutputRedirector;
 
 //! \addtogroup module_commandline
 //! \{
 
-//! Smart pointer type for managing a CommandLineModuleInterface.
-typedef gmx_unique_ptr<CommandLineModuleInterface>::type
+//! Smart pointer type for managing a ICommandLineModule.
+typedef std::unique_ptr<ICommandLineModule>
     CommandLineModulePointer;
 
 /*! \libinternal \brief
@@ -127,7 +128,7 @@ class CommandLineModuleManager
          * Does not throw.  All exceptions are caught and handled internally.
          */
         static int runAsMainSingleModule(int argc, char *argv[],
-                                         CommandLineModuleInterface *module);
+                                         ICommandLineModule *module);
         /*! \brief
          * Implements a main() method that runs a given function.
          *
@@ -206,7 +207,7 @@ class CommandLineModuleManager
          * For tests, there should only be need to call this a single time,
          * right after creating the manager.
          */
-        void setOutputRedirector(FileOutputRedirectorInterface *output);
+        void setOutputRedirector(IFileOutputRedirector *output);
 
         /*! \brief
          * Makes the manager always run a single module.
@@ -217,7 +218,7 @@ class CommandLineModuleManager
          * directly passes all command-line arguments to \p module.
          * Help arguments are an exception: these are still recognized by the
          * manager and translated into a call to
-         * CommandLineModuleInterface::writeHelp().
+         * ICommandLineModule::writeHelp().
          *
          * This is public mainly for unit testing purposes; for other code,
          * runAsMainSingleModule() typically provides the desired
@@ -225,7 +226,7 @@ class CommandLineModuleManager
          *
          * Does not throw.
          */
-        void setSingleModule(CommandLineModuleInterface *module);
+        void setSingleModule(ICommandLineModule *module);
         /*! \brief
          * Adds a given module to this manager.
          *
@@ -266,7 +267,7 @@ class CommandLineModuleManager
          * \throws  std::bad_alloc if out of memory.
          *
          * \p Module must be default-constructible and implement
-         * CommandLineModuleInterface.
+         * ICommandLineModule.
          *
          * This method is provided as a convenient alternative to addModule()
          * for cases where each module is implemented by a different type

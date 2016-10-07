@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2013,2014,2015, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -32,11 +32,17 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-/*! \libinternal
- * \defgroup module_mdrun_integration_tests Integration test utilities
+/*! \defgroup module_mdrun_integration_tests Integration test utilities
  * \ingroup group_mdrun
  *
  * \brief Functionality for testing mdrun as a whole
+ */
+/*! \internal \file
+ * \brief
+ * Declares test fixtures for general mdrun functionality.
+ *
+ * \author Mark Abraham <mark.j.abraham@gmail.com>
+ * \ingroup module_mdrun_integration_tests
  */
 #ifndef GMX_MDRUN_TESTS_MODULETEST_H
 #define GMX_MDRUN_TESTS_MODULETEST_H
@@ -52,7 +58,8 @@ namespace gmx
 namespace test
 {
 
-/*! \libinternal \brief Helper object for running grompp and mdrun in
+/*! \internal
+ * \brief Helper object for running grompp and mdrun in
  * integration tests of mdrun functionality
  *
  * Objects of this class are intended to be owned by
@@ -67,6 +74,12 @@ namespace test
  * left over from tests.
  *
  * Any method in this class may throw std::bad_alloc if out of memory.
+ *
+ * By default, the convenience methods callGrompp() and callMdrun()
+ * just prepare and run a default call to mdrun. If there is a need to
+ * customize the command-line for grompp or mdrun (e.g. to invoke
+ * -maxwarn n, or -reprod), then make a CommandLine object with the
+ * appropriate flags and pass that into the routines that accept such.
  *
  * \ingroup module_mdrun_integration_tests
  */
@@ -89,9 +102,13 @@ class SimulationRunner
         void useTopGroAndNdxFromDatabase(const char *name);
         //! Use a standard .gro file as input to grompp
         void useGroFromDatabase(const char *name);
-        //! Calls grompp (on rank 0) to prepare for the mdrun test
+        //! Calls grompp (on rank 0, with a customized command line) to prepare for the mdrun test
+        int callGrompp(const CommandLine &callerRef);
+        //! Convenience wrapper for a default call to \c callGrompp
         int callGrompp();
-        //! Calls grompp (on this rank) to prepare for the mdrun test
+        //! Calls grompp (on this rank, with a customized command line) to prepare for the mdrun test
+        int callGromppOnThisRank(const CommandLine &callerRef);
+        //! Convenience wrapper for a default call to \c callGromppOnThisRank
         int callGromppOnThisRank();
         //! Calls mdrun for testing with a customized command line
         int callMdrun(const CommandLine &callerRef);
@@ -131,7 +148,8 @@ class SimulationRunner
         //@}
 };
 
-/*! \libinternal \brief Declares test fixture base class for
+/*! \internal
+ * \brief Declares test fixture base class for
  * integration tests of mdrun functionality
  *
  * Derived fixture classes (or individual test cases) that might have
@@ -161,7 +179,8 @@ class MdrunTestFixtureBase : public IntegrationTestFixture
         virtual ~MdrunTestFixtureBase();
 };
 
-/*! \libinternal \brief Declares test fixture class for integration
+/*! \internal
+ * \brief Declares test fixture class for integration
  * tests of mdrun functionality that use a single call of mdrun
  *
  * Any method in this class may throw std::bad_alloc if out of memory.
@@ -178,7 +197,8 @@ class MdrunTestFixture : public IntegrationTestFixture
         SimulationRunner runner_;
 };
 
-/*! \libinternal \brief
+/*! \internal
+ * \brief
  * Parameterized test fixture for mdrun integration tests
  */
 class ParameterizedMdrunTestFixture : public gmx::test::MdrunTestFixture,

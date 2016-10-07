@@ -1,7 +1,7 @@
 #
 # This file is part of the GROMACS molecular simulation package.
 #
-# Copyright (c) 2010,2011,2012,2013,2014,2015, by the GROMACS development team, led by
+# Copyright (c) 2010,2011,2012,2013,2014,2015,2016, by the GROMACS development team, led by
 # Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
 # and including many others, as listed in the AUTHORS file in the
 # top-level source directory and at http://www.gromacs.org.
@@ -32,7 +32,7 @@
 # To help us fund GROMACS development, we humbly ask that you cite
 # the research papers on the package. Check out http://www.gromacs.org.
 
-file(GLOB MDRUN_SOURCES mdrun/*.c mdrun/*.cpp)
+file(GLOB MDRUN_SOURCES mdrun/*.cpp)
 # make an "object library" that we can re-use for multiple targets
 add_library(mdrun_objlib OBJECT ${MDRUN_SOURCES})
 
@@ -43,7 +43,7 @@ if(GMX_FAHCORE)
     add_library(fahcore $<TARGET_OBJECTS:mdrun_objlib>)
 elseif(GMX_BUILD_MDRUN_ONLY)
     add_executable(mdrun $<TARGET_OBJECTS:mdrun_objlib> mdrun_main.cpp)
-    target_link_libraries(mdrun libgromacs ${GMX_EXE_LINKER_FLAGS})
+    target_link_libraries(mdrun libgromacs ${GMX_EXE_LINKER_FLAGS} ${GMX_STDLIB_LIBRARIES})
     set(BINARY_NAME "mdrun${GMX_BINARY_SUFFIX}")
     set_target_properties(mdrun PROPERTIES
         OUTPUT_NAME "${BINARY_NAME}"
@@ -65,7 +65,7 @@ else()
         ${GMX_MAIN_SOURCES}
         $<TARGET_OBJECTS:mdrun_objlib>
         $<TARGET_OBJECTS:view_objlib>)
-    target_link_libraries(gmx libgromacs ${GMX_EXE_LINKER_FLAGS})
+    target_link_libraries(gmx libgromacs ${GMX_EXE_LINKER_FLAGS} ${GMX_STDLIB_LIBRARIES})
     if(GMX_X11)
         target_link_libraries(gmx ${X11_LIBRARIES})
     endif()

@@ -132,6 +132,10 @@ Performance and Run Control
         to performance loss due to a known CUDA driver bug present in API v5.0 NVIDIA drivers (pre-30x.xx).
         Cannot be set simultaneously with ``GMX_NO_CUDA_STREAMSYNC``.
 
+``GMX_DISABLE_CUDALAUNCH``
+        disable the use of the lower-latency cudaLaunchKernel API even when supported (CUDA >=v7.0).
+        Should only be used for benchmarking purposes.
+
 ``GMX_CYCLE_ALL``
         times all code during runs.  Incompatible with threads.
 
@@ -159,11 +163,6 @@ Performance and Run Control
 
 ``GMX_DD_RECORD_LOAD``
         record DD load statistics for reporting at end of the run (default 1, meaning on)
-
-``GMX_DD_NST_SORT_CHARGE_GROUPS``
-        number of steps that elapse between re-sorting of the charge
-        groups (default 1). This only takes effect during domain decomposition, so should typically
-        be 0 (never), 1 (to mean at every domain decomposition), or a multiple of :mdp:`nstlist`.
 
 ``GMX_DETAILED_PERF_STATS``
         when set, print slightly more detailed performance information
@@ -228,9 +227,10 @@ Performance and Run Control
 ``GMX_NB_MIN_CI``
         neighbor list balancing parameter used when running on GPU. Sets the
         target minimum number pair-lists in order to improve multi-processor load-balance for better
-        performance with small simulation systems. Must be set to a positive integer, the default value
-        is optimized for NVIDIA Fermi and Kepler GPUs, therefore changing it is not necessary for
-        normal usage, but it can be useful on future architectures.
+        performance with small simulation systems. Must be set to a non-negative integer,
+        the 0 value disables list splitting.
+        The default value is optimized for supported GPUs (NVIDIA Fermi to Maxwell),
+        therefore changing it is not necessary for normal usage, but it can be useful on future architectures.
 
 ``GMX_NBLISTCG``
         use neighbor list and kernels based on charge groups.
@@ -261,6 +261,10 @@ Performance and Run Control
         used in initializing domain decomposition communicators. Rank reordering
         is default, but can be switched off with this environment variable.
 
+``GMX_NO_LJ_COMB_RULE``
+        force the use of LJ paremeter lookup instead of using combination rules
+        in the non-bonded kernels.
+
 ``GMX_NO_CUDA_STREAMSYNC``
         the opposite of ``GMX_CUDA_STREAMSYNC``. Disables the use of the
         standard cudaStreamSynchronize-based GPU waiting to improve performance when using CUDA driver API
@@ -280,10 +284,6 @@ Performance and Run Control
 
 ``GMX_NO_PULLVIR``
         when set, do not add virial contribution to COM pull forces.
-
-``GMX_NOCHARGEGROUPS``
-        disables multi-atom charge groups, i.e. each atom
-        in all non-solvent molecules is assigned its own charge group.
 
 ``GMX_NOPREDICT``
         shell positions are not predicted.
@@ -336,6 +336,13 @@ Performance and Run Control
         resolution of buffer size in Verlet cutoff scheme.  The default value is
         0.001, but can be overridden with this environment variable.
 
+``HWLOC_XMLFILE``
+        Not strictly a |Gromacs| environment variable, but on large machines
+        the hwloc detection can take a few seconds if you have lots of MPI processes.
+        If you run the hwloc command `lstopo out.xml` and set this environment
+        variable to point to the location of this file, the hwloc library will use
+        the cached information instead, which can be faster.
+
 ``MPIRUN``
         the ``mpirun`` command used by :ref:`gmx tune_pme`.
 
@@ -364,6 +371,11 @@ compilation of OpenCL kernels, but they are also used in device selection.
         kernels from previous runs. Currently, caching is always
         disabled, until we solve concurrency issues.
 
+``GMX_OCL_GENCACHE``
+        Enable OpenCL binary caching. Only intended to be used for
+        development and (expert) testing as neither concurrency
+        nor cache invalidation is implemented safely!
+
 ``GMX_OCL_NOFASTGEN``
         If set, generate and compile all algorithm flavors, otherwise
         only the flavor required for the simulation is generated and
@@ -375,17 +387,9 @@ compilation of OpenCL kernels, but they are also used in device selection.
         the same will happen with the OpenCL version soon)
 
 ``GMX_OCL_DUMP_LOG``
-        If defined, the OpenCL build log is always written to file.
-        The file is saved in the current directory with the name
-        ``OpenCL_kernel_file_name.build_status`` where
-        ``OpenCL_kernel_file_name`` is the name of the file containing the
-        OpenCL source code (usually ``nbnxn_ocl_kernels.cl``) and
-        build_status can be either SUCCEEDED or FAILED. If this
-        environment variable is not defined, the default behavior is
-        the following:
-
-           - Debug build: build log is always written to file
-	   - Release build: build log is written to file only in case of errors.
+        If defined, the OpenCL build log is always written to the
+        mdrun log file. Otherwise, the build log is written to the
+        log file only when an error occurs.
 
 ``GMX_OCL_VERBOSE``
         If defined, it enables verbose mode for OpenCL kernel build.
@@ -419,6 +423,14 @@ compilation of OpenCL kernels, but they are also used in device selection.
         exists only for debugging purposes. Do not expect |Gromacs| to
         function properly with this option on, it is solely for the
         simplicity of stepping in a kernel and see what is happening.
+
+``GMX_OCL_DISABLE_I_PREFETCH``
+        Disables i-atom data (type or LJ parameter) prefetch allowig
+        testing.
+
+``GMX_OCL_ENABLE_I_PREFETCH``
+        Enables i-atom data (type or LJ parameter) prefetch allowig
+        testing on platforms where this behavior is not default.
 
 ``GMX_OCL_NB_ANA_EWALD``
         Forces the use of analytical Ewald kernels. Equivalent of

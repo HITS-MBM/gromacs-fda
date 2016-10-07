@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2010,2011,2012,2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2010,2011,2012,2013,2014,2015,2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -43,10 +43,9 @@
 #ifndef GMX_OPTIONS_OPTIONSTORAGETEMPLATE_H
 #define GMX_OPTIONS_OPTIONSTORAGETEMPLATE_H
 
+#include <memory>
 #include <string>
 #include <vector>
-
-#include <boost/scoped_ptr.hpp>
 
 #include "gromacs/options/abstractoption.h"
 #include "gromacs/options/abstractoptionstorage.h"
@@ -96,7 +95,10 @@ class OptionStorageTemplate : public AbstractOptionStorage
 
         // No implementation in this class for the pure virtual methods, but
         // the declarations are still included for clarity.
+        // The various copydoc calls are needed with Doxygen 1.8.10, although
+        // things work without with 1.8.5...
         virtual std::string typeString() const = 0;
+        //! \copydoc gmx::AbstractOptionStorage::valueCount()
         virtual int valueCount() const { return static_cast<int>(values_->size()); }
         /*! \copydoc gmx::AbstractOptionStorage::formatValue()
          *
@@ -119,8 +121,18 @@ class OptionStorageTemplate : public AbstractOptionStorage
         template <class U>
         explicit OptionStorageTemplate(const OptionTemplate<T, U> &settings,
                                        OptionFlags staticFlags = OptionFlags());
+        /*! \brief
+         * Initializes the storage from base option settings.
+         *
+         * \param[in] settings  Option settings.
+         * \throws  APIError if invalid settings have been provided.
+         *
+         * This constructor works for cases where there is no matching
+         * OptionTemplate (e.g., EnumOption).
+         */
+        explicit OptionStorageTemplate(const AbstractOption &settings);
 
-
+        //! \copydoc gmx::AbstractOptionStorage::clearSet()
         virtual void clearSet();
         /*! \copydoc gmx::AbstractOptionStorage::convertValue()
          *
@@ -208,7 +220,8 @@ class OptionStorageTemplate : public AbstractOptionStorage
          * If this function succeeds, values added with addValue() since the
          * previous clearSet() are added to the storage for the option.
          * Only throws in out-of-memory conditions, and provides the strong
-         * exception safety guarantee.
+         * exception safety guarantee as long as the copy constructor of `T`
+         * does not throw.
          *
          * See addValue() for cases where this method should be used in derived
          * classes.
@@ -283,8 +296,9 @@ class OptionStorageTemplate : public AbstractOptionStorage
         ValueList                   *values_;
         T                           *store_;
         int                         *countptr_;
-        boost::scoped_ptr<ValueList> ownedValues_;
-        boost::scoped_ptr<T>         defaultValueIfSet_;
+        // These never release ownership.
+        std::unique_ptr<ValueList>   ownedValues_;
+        std::unique_ptr<T>           defaultValueIfSet_;
 
         // Copy and assign disallowed by base.
 };
@@ -343,6 +357,17 @@ OptionStorageTemplate<T>::OptionStorageTemplate(const OptionTemplate<T, U> &sett
             setDefaultValueIfSet(*settings.defaultValueIfSet_);
         }
     }
+}
+
+
+template <typename T>
+// cppcheck-suppress uninitMemberVar
+OptionStorageTemplate<T>::OptionStorageTemplate(const AbstractOption &settings)
+    : AbstractOptionStorage(settings, OptionFlags()),
+      store_(NULL), countptr_(NULL),
+      ownedValues_(new std::vector<T>())
+{
+    values_ = ownedValues_.get();
 }
 
 
@@ -419,6 +444,7 @@ void OptionStorageTemplate<T>::commitValues()
     }
     else
     {
+        values_->reserve(values_->size() + setValues_.size());
         values_->insert(values_->end(), setValues_.begin(), setValues_.end());
     }
     clearSet();

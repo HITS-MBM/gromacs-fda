@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2012, The GROMACS development team.
- * Copyright (c) 2012,2013,2014,2015, by the GROMACS development team, led by
+ * Copyright (c) 2012,2013,2014,2015,2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -46,16 +46,19 @@
 #ifndef NBNXN_CUDA_TYPES_H
 #define NBNXN_CUDA_TYPES_H
 
-#include "config.h"
-
-#include "gromacs/gmxlib/cuda_tools/cudautils.cuh"
-#include "gromacs/legacyheaders/types/interaction_const.h"
+#include "gromacs/gpu_utils/cudautils.cuh"
+#include "gromacs/mdlib/nbnxn_consts.h"
 #include "gromacs/mdlib/nbnxn_pairlist.h"
+#include "gromacs/mdtypes/interaction_const.h"
+#include "gromacs/timing/gpu_timing.h"
 
-#ifndef HAVE_CUDA_TEXOBJ_SUPPORT
-/** This typedef allows us to define only one version of struct cu_nbparam */
-typedef int cudaTextureObject_t;
-#endif
+
+/* TODO: consider moving this to kernel_utils */
+/* Convenience defines */
+/*! \brief number of clusters per supercluster. */
+static const int c_numClPerSupercl = c_nbnxnGpuNumClusterPerSupercluster;
+/*! \brief cluster size = number of atoms per cluster. */
+static const int c_clSize          = c_nbnxnGpuClusterSize;
 
 #ifdef __cplusplus
 extern "C" {
@@ -89,7 +92,7 @@ enum eelCu {
  * should match the order of enumerated types below.
  */
 enum evdwCu {
-    evdwCuCUT, evdwCuFSWITCH, evdwCuPSWITCH, evdwCuEWALDGEOM, evdwCuEWALDLB, evdwCuNR
+    evdwCuCUT, evdwCuCUTCOMBGEOM, evdwCuCUTCOMBLB, evdwCuFSWITCH, evdwCuPSWITCH, evdwCuEWALDGEOM, evdwCuEWALDLB, evdwCuNR
 };
 
 /* All structs prefixed with "cu_" hold data used in GPU calculations and
@@ -135,6 +138,7 @@ struct cu_atomdata
 
     int      ntypes;            /**< number of atom types                         */
     int     *atom_types;        /**< atom type indices, size natoms               */
+    float2  *lj_comb;           /**< sqrt(c6),sqrt(c12) size natoms               */
 
     float3  *shift_vec;         /**< shifts                                       */
     bool     bShiftVecUploaded; /**< true if the shift vector has been uploaded   */
@@ -230,8 +234,6 @@ struct gmx_nbnxn_cuda_t
 {
     struct gmx_device_info_t *dev_info;       /**< CUDA device information                              */
     bool                      bUseTwoStreams; /**< true if doing both local/non-local NB work on GPU    */
-    bool                      bUseStreamSync; /**< true if the standard cudaStreamSynchronize is used
-                                                   and not memory polling-based waiting                 */
     cu_atomdata_t            *atdat;          /**< atom data                                            */
     cu_nbparam_t             *nbparam;        /**< parameters required for the non-bonded calc.         */
     cu_plist_t               *plist[2];       /**< pair-list data structures (local and non-local)      */

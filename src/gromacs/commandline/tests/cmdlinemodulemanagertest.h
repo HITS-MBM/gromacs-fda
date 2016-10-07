@@ -60,13 +60,14 @@ namespace test
 
 class CommandLine;
 class MockHelpTopic;
+class TestFileOutputRedirector;
 
 /*! \internal \brief
- * Mock implementation of gmx::CommandLineModuleInterface.
+ * Mock implementation of gmx::ICommandLineModule.
  *
  * \ingroup module_commandline
  */
-class MockModule : public gmx::CommandLineModuleInterface
+class MockModule : public gmx::ICommandLineModule
 {
     public:
         //! Creates a mock module with the given name and description.
@@ -96,19 +97,19 @@ class MockModule : public gmx::CommandLineModuleInterface
 };
 
 /*! \internal \brief
- * Mock implementation of gmx::CommandLineOptionsModuleInterface.
+ * Mock implementation of gmx::ICommandLineOptionsModule.
  *
  * \ingroup module_commandline
  */
-class MockOptionsModule : public gmx::CommandLineOptionsModuleInterface
+class MockOptionsModule : public gmx::ICommandLineOptionsModule
 {
     public:
         MockOptionsModule();
         ~MockOptionsModule();
 
         MOCK_METHOD1(init, void(gmx::CommandLineModuleSettings *settings));
-        MOCK_METHOD1(initOptions, void(gmx::Options *options));
-        MOCK_METHOD1(optionsFinished, void(gmx::Options *options));
+        MOCK_METHOD2(initOptions, void(gmx::IOptionsContainer *options, gmx::ICommandLineOptionsModuleSettings *settings));
+        MOCK_METHOD0(optionsFinished, void());
         MOCK_METHOD0(run, int());
 };
 
@@ -140,16 +141,14 @@ class CommandLineModuleManagerTestBase : public gmx::test::StringTestBase
         CommandLineModuleManager &manager();
 
         /*! \brief
-         * Redirects all manager output to files.
+         * Checks all output from the manager using reference data.
          *
-         * Can be used to silence tests that would otherwise print out
-         * something, and/or checkRedirectedFileContents() from the base class
-         * can be used to check the output.
+         * Both output to `stdout` and to files is checked.
          *
          * The manager is put into quiet mode by default, so the manager will
          * only print out information if, e.g., help is explicitly requested.
          */
-        void redirectManagerOutput();
+        void checkRedirectedOutput();
 
     private:
         class Impl;

@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2009,2010,2012,2013,2014,2015, by the GROMACS development team, led by
+ * Copyright (c) 2009,2010,2012,2013,2014,2015,2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -47,6 +47,7 @@
 
 #include <algorithm>
 
+#include "gromacs/utility/exceptions.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/gmxmpi.h"
 #include "gromacs/utility/smalloc.h"
@@ -54,14 +55,14 @@
 #ifdef NOGMX
 #define GMX_PARALLEL_ENV_INITIALIZED 1
 #else
-#ifdef GMX_MPI
+#if GMX_MPI
 #define GMX_PARALLEL_ENV_INITIALIZED 1
 #else
 #define GMX_PARALLEL_ENV_INITIALIZED 0
 #endif
 #endif
 
-#ifdef GMX_OPENMP
+#if GMX_OPENMP
 /* TODO: Do we still need this? Are we still planning ot use fftw + OpenMP? */
 #define FFT5D_THREADS
 /* requires fftw compiled with openmp */
@@ -77,18 +78,18 @@
 FILE* debug = 0;
 #endif
 
-#ifdef GMX_FFT_FFTW3
-#include "thread_mpi/mutex.h"
+#if GMX_FFT_FFTW3
 
 #include "gromacs/utility/exceptions.h"
+#include "gromacs/utility/mutex.h"
 /* none of the fftw3 calls, except execute(), are thread-safe, so
    we need to serialize them with this mutex. */
-static tMPI::mutex big_fftw_mutex;
+static gmx::Mutex big_fftw_mutex;
 #define FFTW_LOCK try { big_fftw_mutex.lock(); } GMX_CATCH_ALL_AND_EXIT_WITH_FATAL_ERROR
 #define FFTW_UNLOCK try { big_fftw_mutex.unlock(); } GMX_CATCH_ALL_AND_EXIT_WITH_FATAL_ERROR
 #endif /* GMX_FFT_FFTW3 */
 
-#ifdef GMX_MPI
+#if GMX_MPI
 /* largest factor smaller than sqrt */
 static int lfactor(int z)
 {
@@ -131,8 +132,8 @@ static int lpfactor(int z)
     return std::max(lpfactor(f), lpfactor(z/f));
 }
 
-#ifndef GMX_MPI
-#ifdef HAVE_GETTIMEOFDAY
+#if !GMX_MPI
+#if HAVE_GETTIMEOFDAY
 #include <sys/time.h>
 double MPI_Wtime()
 {
@@ -182,7 +183,7 @@ fft5d_plan fft5d_plan_3d(int NG, int MG, int KG, MPI_Comm comm[2], int flags, t_
     int        s;
 
     /* comm, prank and P are in the order of the decomposition (plan->cart is in the order of transposes) */
-#ifdef GMX_MPI
+#if GMX_MPI
     if (GMX_PARALLEL_ENV_INITIALIZED && comm[0] != MPI_COMM_NULL)
     {
         MPI_Comm_size(comm[0], &P[0]);
@@ -194,7 +195,7 @@ fft5d_plan fft5d_plan_3d(int NG, int MG, int KG, MPI_Comm comm[2], int flags, t_
         P[0]     = 1;
         prank[0] = 0;
     }
-#ifdef GMX_MPI
+#if GMX_MPI
     if (GMX_PARALLEL_ENV_INITIALIZED && comm[1] != MPI_COMM_NULL)
     {
         MPI_Comm_size(comm[1], &P[1]);
@@ -452,7 +453,7 @@ fft5d_plan fft5d_plan_3d(int NG, int MG, int KG, MPI_Comm comm[2], int flags, t_
         fprintf(debug, "Running on %d threads\n", nthreads);
     }
 
-#ifdef GMX_FFT_FFTW3
+#if GMX_FFT_FFTW3
     /* Don't add more stuff here! We have already had at least one bug because we are reimplementing
      * the low-level FFT interface instead of using the Gromacs FFT module. If we need more
      * generic functionality it is far better to extend the interface so we can use it for
@@ -600,21 +601,25 @@ fft5d_plan fft5d_plan_3d(int NG, int MG, int KG, MPI_Comm comm[2], int flags, t_
         {
 #pragma omp ordered
             {
-                int tsize = ((t+1)*pM[s]*pK[s]/nthreads)-(t*pM[s]*pK[s]/nthreads);
+                try
+                {
+                    int tsize = ((t+1)*pM[s]*pK[s]/nthreads)-(t*pM[s]*pK[s]/nthreads);
 
-                if ((flags&FFT5D_REALCOMPLEX) && ((!(flags&FFT5D_BACKWARD) && s == 0) || ((flags&FFT5D_BACKWARD) && s == 2)))
-                {
-                    gmx_fft_init_many_1d_real( &plan->p1d[s][t], rC[s], tsize, (flags&FFT5D_NOMEASURE) ? GMX_FFT_FLAG_CONSERVATIVE : 0 );
+                    if ((flags&FFT5D_REALCOMPLEX) && ((!(flags&FFT5D_BACKWARD) && s == 0) || ((flags&FFT5D_BACKWARD) && s == 2)))
+                    {
+                        gmx_fft_init_many_1d_real( &plan->p1d[s][t], rC[s], tsize, (flags&FFT5D_NOMEASURE) ? GMX_FFT_FLAG_CONSERVATIVE : 0 );
+                    }
+                    else
+                    {
+                        gmx_fft_init_many_1d     ( &plan->p1d[s][t],  C[s], tsize, (flags&FFT5D_NOMEASURE) ? GMX_FFT_FLAG_CONSERVATIVE : 0 );
+                    }
                 }
-                else
-                {
-                    gmx_fft_init_many_1d     ( &plan->p1d[s][t],  C[s], tsize, (flags&FFT5D_NOMEASURE) ? GMX_FFT_FLAG_CONSERVATIVE : 0 );
-                }
+                GMX_CATCH_ALL_AND_EXIT_WITH_FATAL_ERROR;
             }
         }
     }
 
-#ifdef GMX_FFT_FFTW3
+#if GMX_FFT_FFTW3
 }
 #endif
     if ((flags&FFT5D_ORDER_YZ))   /*plan->cart is in the order of transposes */
@@ -942,7 +947,7 @@ static void print_localdata(const t_complex* lin, const char* txt, int s, fft5d_
     int  xs[3], xl[3], xc[3], NG[3];
     int  ll = (plan->flags&FFT5D_REALCOMPLEX) ? 1 : 2;
     compute_offsets(plan, xs, xl, xc, NG, s);
-    fprintf(debug, txt, coor[0], coor[1], s);
+    fprintf(debug, txt, coor[0], coor[1]);
     /*printf("xs: %d %d %d, xl: %d %d %d\n",xs[0],xs[1],xs[2],xl[0],xl[1],xl[2]);*/
     for (z = 0; z < xl[2]; z++)
     {
@@ -974,7 +979,7 @@ void fft5d_execute(fft5d_plan plan, int thread, fft5d_time times)
 #ifdef FFT5D_MPI_TRANSPOSE
     FFTW(plan) *mpip = plan->mpip;
 #endif
-#ifdef GMX_MPI
+#if GMX_MPI
     MPI_Comm *cart = plan->cart;
 #endif
 #ifdef NOGMX
@@ -985,7 +990,7 @@ void fft5d_execute(fft5d_plan plan, int thread, fft5d_time times)
     int    s = 0, tstart, tend, bParallelDim;
 
 
-#ifdef GMX_FFT_FFTW3
+#if GMX_FFT_FFTW3
     if (plan->p3d)
     {
         if (thread == 0)
@@ -1019,7 +1024,7 @@ void fft5d_execute(fft5d_plan plan, int thread, fft5d_time times)
     for (s = 0; s < 2; s++)  /*loop over first two FFT steps (corner rotations)*/
 
     {
-#ifdef GMX_MPI
+#if GMX_MPI
         if (GMX_PARALLEL_ENV_INITIALIZED && cart[s] != MPI_COMM_NULL && P[s] > 1)
         {
             bParallelDim = 1;
@@ -1119,7 +1124,7 @@ void fft5d_execute(fft5d_plan plan, int thread, fft5d_time times)
 #ifdef FFT5D_MPI_TRANSPOSE
                 FFTW(execute)(mpip[s]);
 #else
-#ifdef GMX_MPI
+#if GMX_MPI
                 if ((s == 0 && !(plan->flags&FFT5D_ORDER_YZ)) || (s == 1 && (plan->flags&FFT5D_ORDER_YZ)))
                 {
                     MPI_Alltoall((real *)lout2, N[s]*pM[s]*K[s]*sizeof(t_complex)/sizeof(real), GMX_MPI_REAL, (real *)lout3, N[s]*pM[s]*K[s]*sizeof(t_complex)/sizeof(real), GMX_MPI_REAL, cart[s]);
@@ -1277,7 +1282,7 @@ void fft5d_destroy(fft5d_plan plan)
             plan->oNout[s] = 0;
         }
     }
-#ifdef GMX_FFT_FFTW3
+#if GMX_FFT_FFTW3
     FFTW_LOCK;
 #ifdef FFT5D_MPI_TRANSPOS
     for (s = 0; s < 2; s++)
@@ -1330,7 +1335,7 @@ void fft5d_local_size(fft5d_plan plan, int* N1, int* M0, int* K0, int* K1, int**
 fft5d_plan fft5d_plan_3d_cart(int NG, int MG, int KG, MPI_Comm comm, int P0, int flags, t_complex** rlin, t_complex** rlout, t_complex** rlout2, t_complex** rlout3, int nthreads)
 {
     MPI_Comm cart[2] = {0};
-#ifdef GMX_MPI
+#if GMX_MPI
     int      size = 1, prank = 0;
     int      P[2];
     int      coor[2];

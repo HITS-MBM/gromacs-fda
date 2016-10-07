@@ -76,8 +76,8 @@ class CommandLineHelpContext
          *
          * Wraps the constructor of HelpWriterContext.
          */
-        CommandLineHelpContext(File *file, HelpOutputFormat format,
-                               const HelpLinks *links,
+        CommandLineHelpContext(TextWriter *writer,
+                               HelpOutputFormat format, const HelpLinks *links,
                                const std::string &programName);
         //! Creates a context for a particular HelpWriterContext.
         explicit CommandLineHelpContext(const HelpWriterContext &writerContext);
@@ -87,6 +87,10 @@ class CommandLineHelpContext
         explicit CommandLineHelpContext(ShellCompletionWriter *writer);
         //! Creates a copy of the context.
         explicit CommandLineHelpContext(const CommandLineHelpContext &other);
+        //! Moves the context.
+        CommandLineHelpContext(CommandLineHelpContext &&other);
+        //! Move-assigns the context.
+        CommandLineHelpContext &operator=(CommandLineHelpContext &&other);
         ~CommandLineHelpContext();
 
         /*! \brief

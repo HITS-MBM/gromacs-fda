@@ -49,9 +49,9 @@
 #include "gromacs/onlinehelp/helpformat.h"
 #include "gromacs/onlinehelp/helpwritercontext.h"
 #include "gromacs/utility/exceptions.h"
-#include "gromacs/utility/file.h"
 #include "gromacs/utility/gmxassert.h"
 #include "gromacs/utility/stringutil.h"
+#include "gromacs/utility/textwriter.h"
 
 namespace gmx
 {
@@ -65,7 +65,7 @@ bool AbstractSimpleHelpTopic::hasSubTopics() const
     return false;
 }
 
-const HelpTopicInterface *
+const IHelpTopic *
 AbstractSimpleHelpTopic::findSubTopic(const char * /* name */) const
 {
     return NULL;
@@ -91,7 +91,7 @@ class AbstractCompositeHelpTopic::Impl
         //! Container for subtopics.
         typedef std::vector<HelpTopicPointer> SubTopicList;
         //! Container for mapping subtopic names to help topic objects.
-        typedef std::map<std::string, const HelpTopicInterface *> SubTopicMap;
+        typedef std::map<std::string, const IHelpTopic *> SubTopicMap;
 
         /*! \brief
          * Subtopics in the order they were added.
@@ -125,7 +125,7 @@ bool AbstractCompositeHelpTopic::hasSubTopics() const
     return !impl_->subTopics_.empty();
 }
 
-const HelpTopicInterface *
+const IHelpTopic *
 AbstractCompositeHelpTopic::findSubTopic(const char *name) const
 {
     Impl::SubTopicMap::const_iterator topic = impl_->subTopicMap_.find(name);
@@ -154,7 +154,7 @@ AbstractCompositeHelpTopic::writeSubTopicList(const HelpWriterContext &context,
             const char *const title = (*topic)->title();
             if (!isNullOrEmpty(title))
             {
-                context.outputFile().writeLine();
+                context.paragraphBreak();
                 HelpWriterContext subContext(context);
                 subContext.enterSubSection(title);
                 (*topic)->writeHelp(subContext);
@@ -180,7 +180,7 @@ AbstractCompositeHelpTopic::writeSubTopicList(const HelpWriterContext &context,
     {
         return false;
     }
-    File              &file = context.outputFile();
+    TextWriter        &file = context.outputFile();
     TextTableFormatter formatter;
     formatter.addColumn(NULL, maxNameLength + 1, false);
     formatter.addColumn(NULL, 72 - maxNameLength, true);
@@ -205,10 +205,10 @@ void AbstractCompositeHelpTopic::addSubTopic(HelpTopicPointer topic)
 {
     GMX_ASSERT(impl_->subTopicMap_.find(topic->name()) == impl_->subTopicMap_.end(),
                "Attempted to register a duplicate help topic name");
-    const HelpTopicInterface *topicPtr = topic.get();
+    const IHelpTopic *topicPtr = topic.get();
     impl_->subTopics_.reserve(impl_->subTopics_.size() + 1);
     impl_->subTopicMap_.insert(std::make_pair(std::string(topicPtr->name()), topicPtr));
-    impl_->subTopics_.push_back(move(topic));
+    impl_->subTopics_.push_back(std::move(topic));
 }
 
 } // namespace gmx

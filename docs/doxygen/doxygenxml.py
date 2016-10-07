@@ -2,7 +2,7 @@
 #
 # This file is part of the GROMACS molecular simulation package.
 #
-# Copyright (c) 2014, by the GROMACS development team, led by
+# Copyright (c) 2014,2015,2016, by the GROMACS development team, led by
 # Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
 # and including many others, as listed in the AUTHORS file in the
 # top-level source directory and at http://www.gromacs.org.
@@ -587,7 +587,7 @@ class Compound(Entity):
         self._groups = set()
         self._loaded = False
 
-    def _get_xml_path(self):
+    def get_xml_path(self):
         """Return path to the details XML file for this compound."""
         return os.path.join(self._docset.get_xmlroot(), self.get_id() + '.xml')
 
@@ -620,7 +620,7 @@ class Compound(Entity):
         if self._loaded:
             return
         reporter = self._get_reporter()
-        xmlpath = self._get_xml_path()
+        xmlpath = self.get_xml_path()
         compoundtree = ET.parse(xmlpath)
         root = compoundtree.getroot()
         if len(root) > 1:
@@ -692,7 +692,7 @@ class Compound(Entity):
     def _unexpected_inner_compound(self, typename, compound):
         """Report a parsing error for an unexpected inner compound reference."""
         reporter = self._get_reporter()
-        xmlpath = self._get_xml_path()
+        xmlpath = self.get_xml_path()
         reporter.xml_assert(xmlpath,
                 "unexpected inner {0}: {1}".format(typename, compound))
 
@@ -1121,9 +1121,8 @@ class DocumentationSet(object):
         """Load detailed XML files for all files and possible parents of files.
 
         If filelist is set, it should be a list of file paths, and details will
-        be loaded only for files in those paths.  The path format should match
-        what Doxygen writes into the files (with Gromacs setup, it seems to be
-        absolute paths)."""
+        be loaded only for files in those paths.  The paths should be relative
+        to the root of the Gromacs source tree."""
         for compound in self._compounds.itervalues():
             if isinstance(compound, (Directory, Group)):
                 compound.load_details()
@@ -1133,16 +1132,16 @@ class DocumentationSet(object):
         if filelist:
             # We can't access the full path from the File object before the
             # details are loaded, because Doxygen does not write that into
-            # index.xml.  But we can use the Directory objects (which were
-            # loaded above) to get the path.
+            # index.xml.  But we can use the Directory objects (where the name
+            # is the relative path) to get the path.
             for compound in self._compounds.itervalues():
                 if isinstance(compound, File):
                     dirobj = compound.get_directory()
                     if not dirobj:
                         continue
-                    abspath = compound.get_directory().get_path()
-                    abspath = os.path.join(abspath, compound.get_name())
-                    if abspath in filelist:
+                    relpath = compound.get_directory().get_name()
+                    relpath = os.path.join(relpath, compound.get_name())
+                    if relpath in filelist:
                         compound.load_details()
                         self._files[compound.get_path()] = compound
 

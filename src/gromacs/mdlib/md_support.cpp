@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014,2015,2016 by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -37,67 +37,67 @@
 
 #include "gmxpre.h"
 
-#include "gromacs/legacyheaders/md_support.h"
+#include "md_support.h"
+
+#include <climits>
 
 #include <algorithm>
 
 #include "gromacs/domdec/domdec.h"
-#include "gromacs/legacyheaders/macros.h"
-#include "gromacs/legacyheaders/md_logging.h"
-#include "gromacs/legacyheaders/mdrun.h"
-#include "gromacs/legacyheaders/names.h"
-#include "gromacs/legacyheaders/nrnb.h"
-#include "gromacs/legacyheaders/typedefs.h"
-#include "gromacs/legacyheaders/vcm.h"
-#include "gromacs/legacyheaders/types/commrec.h"
+#include "gromacs/gmxlib/md_logging.h"
+#include "gromacs/gmxlib/network.h"
+#include "gromacs/gmxlib/nrnb.h"
 #include "gromacs/math/vec.h"
-#include "gromacs/mdlib/mdrun_signalling.h"
+#include "gromacs/mdlib/mdrun.h"
+#include "gromacs/mdlib/sim_util.h"
+#include "gromacs/mdlib/simulationsignal.h"
+#include "gromacs/mdlib/tgroup.h"
+#include "gromacs/mdlib/update.h"
+#include "gromacs/mdlib/vcm.h"
+#include "gromacs/mdtypes/commrec.h"
+#include "gromacs/mdtypes/df_history.h"
+#include "gromacs/mdtypes/energyhistory.h"
+#include "gromacs/mdtypes/group.h"
+#include "gromacs/mdtypes/inputrec.h"
+#include "gromacs/mdtypes/md_enums.h"
+#include "gromacs/mdtypes/state.h"
+#include "gromacs/pbcutil/pbc.h"
 #include "gromacs/timing/wallcycle.h"
 #include "gromacs/topology/mtop_util.h"
+#include "gromacs/trajectory/trajectoryframe.h"
 #include "gromacs/utility/arrayref.h"
 #include "gromacs/utility/cstringutil.h"
+#include "gromacs/utility/fatalerror.h"
+#include "gromacs/utility/gmxassert.h"
 #include "gromacs/utility/smalloc.h"
 #include "gromacs/utility/snprintf.h"
 
-/* check which of the multisim simulations has the shortest number of
-   steps and return that number of nsteps */
-gmx_int64_t get_multisim_nsteps(const t_commrec *cr,
-                                gmx_int64_t      nsteps)
+// TODO move this to multi-sim module
+bool multisim_int_all_are_equal(const gmx_multisim_t *ms,
+                                gmx_int64_t           value)
 {
-    gmx_int64_t steps_out;
+    bool         allValuesAreEqual = true;
+    gmx_int64_t *buf;
 
-    if (MASTER(cr))
+    GMX_RELEASE_ASSERT(ms, "Invalid use of multi-simulation pointer");
+
+    snew(buf, ms->nsim);
+    /* send our value to all other master ranks, receive all of theirs */
+    buf[ms->sim] = value;
+    gmx_sumli_sim(ms->nsim, buf, ms);
+
+    for (int s = 0; s < ms->nsim; s++)
     {
-        gmx_int64_t     *buf;
-        int              s;
-
-        snew(buf, cr->ms->nsim);
-
-        buf[cr->ms->sim] = nsteps;
-        gmx_sumli_sim(cr->ms->nsim, buf, cr->ms);
-
-        steps_out = -1;
-        for (s = 0; s < cr->ms->nsim; s++)
+        if (buf[s] != value)
         {
-            /* find the smallest positive number */
-            if (buf[s] >= 0 && ((steps_out < 0) || (buf[s] < steps_out)) )
-            {
-                steps_out = buf[s];
-            }
-        }
-        sfree(buf);
-
-        /* if we're the limiting simulation, don't do anything */
-        if (steps_out >= 0 && steps_out < nsteps)
-        {
-            char strbuf[255];
-            snprintf(strbuf, 255, "Will stop simulation %%d after %s steps (another simulation will end then).\n", "%" GMX_PRId64);
-            fprintf(stderr, strbuf, cr->ms->sim, steps_out);
+            allValuesAreEqual = false;
+            break;
         }
     }
-    /* broadcast to non-masters */
-    gmx_bcast(sizeof(gmx_int64_t), &steps_out, cr);
-    return steps_out;
+
+    sfree(buf);
+
+    return allValuesAreEqual;
 }
 
 int multisim_min(const gmx_multisim_t *ms, int nmin, int n)
@@ -146,33 +146,6 @@ int multisim_min(const gmx_multisim_t *ms, int nmin, int n)
     return nmin;
 }
 
-int multisim_nstsimsync(const t_commrec *cr,
-                        const t_inputrec *ir, int repl_ex_nst)
-{
-    int nmin;
-
-    if (MASTER(cr))
-    {
-        nmin = INT_MAX;
-        nmin = multisim_min(cr->ms, nmin, ir->nstlist);
-        nmin = multisim_min(cr->ms, nmin, ir->nstcalcenergy);
-        nmin = multisim_min(cr->ms, nmin, repl_ex_nst);
-        if (nmin == INT_MAX)
-        {
-            gmx_fatal(FARGS, "Can not find an appropriate interval for inter-simulation communication, since nstlist, nstcalcenergy and -replex are all <= 0");
-        }
-        /* Avoid inter-simulation communication at every (second) step */
-        if (nmin <= 2)
-        {
-            nmin = 10;
-        }
-    }
-
-    gmx_bcast(sizeof(int), &nmin, cr);
-
-    return nmin;
-}
-
 void copy_coupling_state(t_state *statea, t_state *stateb,
                          gmx_ekindata_t *ekinda, gmx_ekindata_t *ekindb, t_grpopts* opts)
 {
@@ -185,8 +158,11 @@ void copy_coupling_state(t_state *statea, t_state *stateb,
     if (statea->nalloc > stateb->nalloc)
     {
         stateb->nalloc = statea->nalloc;
-        srenew(stateb->x, stateb->nalloc);
-        srenew(stateb->v, stateb->nalloc);
+        /* We need to allocate one element extra, since we might use
+         * (unaligned) 4-wide SIMD loads to access rvec entries.
+         */
+        srenew(stateb->x, stateb->nalloc + 1);
+        srenew(stateb->v, stateb->nalloc + 1);
     }
 
     stateb->natoms     = statea->natoms;
@@ -257,14 +233,16 @@ real compute_conserved_from_auxiliary(t_inputrec *ir, t_state *state, t_extmass 
     return quantity;
 }
 
-void compute_globals(FILE *fplog, gmx_global_stat_t gstat, t_commrec *cr, t_inputrec *ir,
+/* TODO Specialize this routine into init-time and loop-time versions?
+   e.g. bReadEkin is only true when restoring from checkpoint */
+void compute_globals(FILE *fplog, gmx_global_stat *gstat, t_commrec *cr, t_inputrec *ir,
                      t_forcerec *fr, gmx_ekindata_t *ekind,
-                     t_state *state, t_state *state_global, t_mdatoms *mdatoms,
+                     t_state *state, t_mdatoms *mdatoms,
                      t_nrnb *nrnb, t_vcm *vcm, gmx_wallcycle_t wcycle,
                      gmx_enerdata_t *enerd, tensor force_vir, tensor shake_vir, tensor total_vir,
                      tensor pres, rvec mu_tot, gmx_constr_t constr,
-                     struct gmx_signalling_t *gs, gmx_bool bInterSimGS,
-                     matrix box, gmx_mtop_t *top_global,
+                     gmx::SimulationSignaller *signalCoordinator,
+                     matrix box, int *totalNumberOfBondedInteractions,
                      gmx_bool *bSumEkinhOld, int flags)
 {
     tensor   corr_vir, corr_pres;
@@ -303,17 +281,10 @@ void compute_globals(FILE *fplog, gmx_global_stat_t gstat, t_commrec *cr, t_inpu
         {
             accumulate_u(cr, &(ir->opts), ekind);
         }
-        debug_gmx();
-        if (bReadEkin)
-        {
-            restore_ekinstate_from_state(cr, ekind, &state_global->ekinstate);
-        }
-        else
+        if (!bReadEkin)
         {
             calc_ke_part(state, &(ir->opts), mdatoms, ekind, nrnb, bEkinAveVel);
         }
-
-        debug_gmx();
     }
 
     /* Calculate center of mass velocity if necessary, also parallellized */
@@ -335,18 +306,18 @@ void compute_globals(FILE *fplog, gmx_global_stat_t gstat, t_commrec *cr, t_inpu
         }
         else
         {
-            gmx::ArrayRef<real> signalBuffer = prepareSignalBuffer(gs);
+            gmx::ArrayRef<real> signalBuffer = signalCoordinator->getCommunicationBuffer();
             if (PAR(cr))
             {
                 wallcycle_start(wcycle, ewcMoveE);
-                global_stat(fplog, gstat, cr, enerd, force_vir, shake_vir, mu_tot,
+                global_stat(gstat, cr, enerd, force_vir, shake_vir, mu_tot,
                             ir, ekind, constr, bStopCM ? vcm : NULL,
                             signalBuffer.size(), signalBuffer.data(),
-                            top_global, state,
+                            totalNumberOfBondedInteractions,
                             *bSumEkinhOld, flags);
                 wallcycle_stop(wcycle, ewcMoveE);
             }
-            handleSignals(gs, cr, bInterSimGS);
+            signalCoordinator->finalizeSignals();
             *bSumEkinhOld = FALSE;
         }
     }
@@ -377,7 +348,7 @@ void compute_globals(FILE *fplog, gmx_global_stat_t gstat, t_commrec *cr, t_inpu
     if (bTemp)
     {
         /* Sum the kinetic energies of the groups & calc temp */
-        /* compute full step kinetic energies if vv, or if vv-avek and we are computing the pressure with IR_NPT_TROTTER */
+        /* compute full step kinetic energies if vv, or if vv-avek and we are computing the pressure with inputrecNptTrotter */
         /* three maincase:  VV with AveVel (md-vv), vv with AveEkin (md-vv-avek), leap with AveEkin (md).
            Leap with AveVel is not supported; it's not clear that it will actually work.
            bEkinAveVel: If TRUE, we simply multiply ekin by ekinscale to get a full step kinetic energy.
@@ -394,7 +365,7 @@ void compute_globals(FILE *fplog, gmx_global_stat_t gstat, t_commrec *cr, t_inpu
 
     if (bEner || bPres || bConstrain)
     {
-        calc_dispcorr(ir, fr, top_global->natoms, box, state->lambda[efptVDW],
+        calc_dispcorr(ir, fr, box, state->lambda[efptVDW],
                       corr_pres, corr_vir, &prescorr, &enercorr, &dvdlcorr);
     }
 
@@ -552,7 +523,7 @@ static int lcd4(int i1, int i2, int i3, int i4)
     min_zero(&nst, i4);
     if (nst == 0)
     {
-        gmx_incons("All 4 inputs for determininig nstglobalcomm are <= 0");
+        gmx_incons("All 4 inputs for determining nstglobalcomm are <= 0");
     }
 
     while (nst > 1 && ((i1 > 0 && i1 % nst != 0)  ||
@@ -576,11 +547,15 @@ int check_nstglobalcomm(FILE *fplog, t_commrec *cr,
 
     if (nstglobalcomm == -1)
     {
+        // Set up the default behaviour
         if (!(ir->nstcalcenergy > 0 ||
               ir->nstlist > 0 ||
               ir->etc != etcNO ||
               ir->epc != epcNO))
         {
+            /* The user didn't choose the period for anything
+               important, so we just make sure we can send signals and
+               write output suitably. */
             nstglobalcomm = 10;
             if (ir->nstenergy > 0 && ir->nstenergy < nstglobalcomm)
             {
@@ -589,8 +564,14 @@ int check_nstglobalcomm(FILE *fplog, t_commrec *cr,
         }
         else
         {
-            /* Ensure that we do timely global communication for
-             * (possibly) each of the four following options.
+            /* The user has made a choice (perhaps implicitly), so we
+             * ensure that we do timely intra-simulation communication
+             * for (possibly) each of the four parts that care.
+             *
+             * TODO Does the Verlet scheme (+ DD) need any
+             * communication at nstlist steps? Is the use of nstlist
+             * here a leftover of the twin-range scheme? Can we remove
+             * nstlist when we remove the group scheme?
              */
             nstglobalcomm = lcd4(ir->nstcalcenergy,
                                  ir->nstlist,
@@ -600,6 +581,7 @@ int check_nstglobalcomm(FILE *fplog, t_commrec *cr,
     }
     else
     {
+        // Check that the user's choice of mdrun -gcom will work
         if (ir->nstlist > 0 &&
             nstglobalcomm > ir->nstlist && nstglobalcomm % ir->nstlist != 0)
         {
@@ -636,50 +618,11 @@ int check_nstglobalcomm(FILE *fplog, t_commrec *cr,
         ir->nstcomm = nstglobalcomm;
     }
 
+    if (fplog)
+    {
+        fprintf(fplog, "Intra-simulation communication will occur every %d steps.\n", nstglobalcomm);
+    }
     return nstglobalcomm;
-}
-
-void check_ir_old_tpx_versions(t_commrec *cr, FILE *fplog,
-                               t_inputrec *ir, gmx_mtop_t *mtop)
-{
-    /* Check required for old tpx files */
-    if (IR_TWINRANGE(*ir) && ir->nstlist > 1 &&
-        ir->nstcalcenergy % ir->nstlist != 0)
-    {
-        md_print_warn(cr, fplog, "Old tpr file with twin-range settings: modifying energy calculation and/or T/P-coupling frequencies\n");
-
-        if (gmx_mtop_ftype_count(mtop, F_CONSTR) +
-            gmx_mtop_ftype_count(mtop, F_CONSTRNC) > 0 &&
-            ir->eConstrAlg == econtSHAKE)
-        {
-            md_print_warn(cr, fplog, "With twin-range cut-off's and SHAKE the virial and pressure are incorrect\n");
-            if (ir->epc != epcNO)
-            {
-                gmx_fatal(FARGS, "Can not do pressure coupling with twin-range cut-off's and SHAKE");
-            }
-        }
-        check_nst_param(fplog, cr, "nstlist", ir->nstlist,
-                        "nstcalcenergy", &ir->nstcalcenergy);
-        if (ir->epc != epcNO)
-        {
-            check_nst_param(fplog, cr, "nstlist", ir->nstlist,
-                            "nstpcouple", &ir->nstpcouple);
-        }
-        check_nst_param(fplog, cr, "nstcalcenergy", ir->nstcalcenergy,
-                        "nstenergy", &ir->nstenergy);
-        check_nst_param(fplog, cr, "nstcalcenergy", ir->nstcalcenergy,
-                        "nstlog", &ir->nstlog);
-        if (ir->efep != efepNO)
-        {
-            check_nst_param(fplog, cr, "nstcalcenergy", ir->nstcalcenergy,
-                            "nstdhdl", &ir->fepvals->nstdhdl);
-        }
-    }
-
-    if (EI_VV(ir->eI) && IR_TWINRANGE(*ir) && ir->nstlist > 1)
-    {
-        gmx_fatal(FARGS, "Twin-range multiple time stepping does not work with integrator %s.", ei_names[ir->eI]);
-    }
 }
 
 void rerun_parallel_comm(t_commrec *cr, t_trxframe *fr,
@@ -719,23 +662,17 @@ void set_state_entries(t_state *state, const t_inputrec *ir)
     }
     if (state->x == NULL)
     {
-        snew(state->x, state->nalloc);
+        /* We need to allocate one element extra, since we might use
+         * (unaligned) 4-wide SIMD loads to access rvec entries.
+         */
+        snew(state->x, state->nalloc + 1);
     }
     if (EI_DYNAMICS(ir->eI))
     {
         state->flags |= (1<<estV);
         if (state->v == NULL)
         {
-            snew(state->v, state->nalloc);
-        }
-    }
-    if (ir->eI == eiSD2)
-    {
-        state->flags |= (1<<estSDX);
-        if (state->sd_X == NULL)
-        {
-            /* sd_X is not stored in the tpx file, so we need to allocate it */
-            snew(state->sd_X, state->nalloc);
+            snew(state->v, state->nalloc + 1);
         }
     }
     if (ir->eI == eiCG)
@@ -744,7 +681,7 @@ void set_state_entries(t_state *state, const t_inputrec *ir)
         if (state->cg_p == NULL)
         {
             /* cg_p is not stored in the tpx file, so we need to allocate it */
-            snew(state->cg_p, state->nalloc);
+            snew(state->cg_p, state->nalloc + 1);
         }
     }
 
@@ -752,7 +689,7 @@ void set_state_entries(t_state *state, const t_inputrec *ir)
     if (ir->ePBC != epbcNONE)
     {
         state->flags |= (1<<estBOX);
-        if (PRESERVE_SHAPE(*ir))
+        if (inputrecPreserveShape(ir))
         {
             state->flags |= (1<<estBOX_REL);
         }
@@ -762,7 +699,7 @@ void set_state_entries(t_state *state, const t_inputrec *ir)
         }
         if (ir->epc != epcNO)
         {
-            if (IR_NPT_TROTTER(ir) || (IR_NPH_TROTTER(ir)))
+            if (inputrecNptTrotter(ir) || (inputrecNphTrotter(ir)))
             {
                 state->nnhpres = 1;
                 state->flags  |= (1<<estNHPRES_XI);
@@ -792,8 +729,8 @@ void set_state_entries(t_state *state, const t_inputrec *ir)
 
     init_gtc_state(state, state->ngtc, state->nnhpres, ir->opts.nhchainlength); /* allocate the space for nose-hoover chains */
     init_ekinstate(&state->ekinstate, ir);
-
-    init_energyhistory(&state->enerhist);
+    snew(state->enerhist, 1);
+    init_energyhistory(state->enerhist);
     init_df_history(&state->dfhist, ir->fepvals->n_lambda);
     state->swapstate.eSwapCoords = ir->eSwapCoords;
 }

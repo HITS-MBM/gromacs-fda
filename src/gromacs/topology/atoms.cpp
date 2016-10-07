@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -38,10 +38,18 @@
 
 #include "atoms.h"
 
+#include <cstdio>
 #include <cstring>
+
+#include <algorithm>
 
 #include "gromacs/topology/symtab.h"
 #include "gromacs/utility/smalloc.h"
+#include "gromacs/utility/txtdump.h"
+
+const char *ptype_str[eptNR+1] = {
+    "Atom", "Nucleus", "Shell", "Bond", "VSite", NULL
+};
 
 void init_atom(t_atoms *at)
 {
@@ -67,17 +75,13 @@ void init_atomtypes(t_atomtypes *at)
 
 void done_atom(t_atoms *at)
 {
-    at->nr       = 0;
-    at->nres     = 0;
     sfree(at->atom);
     sfree(at->resinfo);
     sfree(at->atomname);
     sfree(at->atomtype);
     sfree(at->atomtypeB);
-    if (at->pdbinfo)
-    {
-        sfree(at->pdbinfo);
-    }
+    sfree(at->pdbinfo);
+    init_atom(at);
 }
 
 void done_atomtypes(t_atomtypes *atype)
@@ -160,7 +164,19 @@ void init_t_atoms(t_atoms *atoms, int natoms, gmx_bool bPdbinfo)
     }
 }
 
-t_atoms *copy_t_atoms(t_atoms *src)
+void gmx_pdbinfo_init_default(t_pdbinfo *pdbinfo)
+{
+    pdbinfo->type         = epdbATOM;
+    pdbinfo->atomnr       = 0;
+    pdbinfo->altloc       = ' ';
+    pdbinfo->atomnm[0]    = '\0';
+    pdbinfo->occup        = 1.0;
+    pdbinfo->bfac         = 0.0;
+    pdbinfo->bAnisotropic = FALSE;
+    std::fill(pdbinfo->uij, pdbinfo->uij+6, 0.0);
+}
+
+t_atoms *copy_t_atoms(const t_atoms *src)
 {
     t_atoms *dst;
     int      i;
@@ -223,66 +239,90 @@ void t_atoms_set_resinfo(t_atoms *atoms, int atom_ind, t_symtab *symtab,
     ri->chainid  = chainid;
 }
 
-void free_t_atoms(t_atoms *atoms, gmx_bool bFreeNames)
+static void pr_atom(FILE *fp, int indent, const char *title, const t_atom *atom, int n)
 {
     int i;
 
-    if (bFreeNames && atoms->atomname != NULL)
+    if (available(fp, atom, indent, title))
     {
-        for (i = 0; i < atoms->nr; i++)
+        indent = pr_title_n(fp, indent, title, n);
+        for (i = 0; i < n; i++)
         {
-            if (atoms->atomname[i] != NULL)
-            {
-                sfree(*atoms->atomname[i]);
-                *atoms->atomname[i] = NULL;
-            }
+            pr_indent(fp, indent);
+            fprintf(fp, "%s[%6d]={type=%3hu, typeB=%3hu, ptype=%8s, m=%12.5e, "
+                    "q=%12.5e, mB=%12.5e, qB=%12.5e, resind=%5d, atomnumber=%3d}\n",
+                    title, i, atom[i].type, atom[i].typeB, ptype_str[atom[i].ptype],
+                    atom[i].m, atom[i].q, atom[i].mB, atom[i].qB,
+                    atom[i].resind, atom[i].atomnumber);
         }
     }
-    if (bFreeNames && atoms->resinfo != NULL)
+}
+
+static void pr_strings2(FILE *fp, int indent, const char *title,
+                        char ***nm, char ***nmB, int n, gmx_bool bShowNumbers)
+{
+    int i;
+
+    if (available(fp, nm, indent, title))
     {
-        for (i = 0; i < atoms->nres; i++)
+        indent = pr_title_n(fp, indent, title, n);
+        for (i = 0; i < n; i++)
         {
-            if (atoms->resinfo[i].name != NULL)
-            {
-                sfree(*atoms->resinfo[i].name);
-                *atoms->resinfo[i].name = NULL;
-            }
+            pr_indent(fp, indent);
+            fprintf(fp, "%s[%d]={name=\"%s\",nameB=\"%s\"}\n",
+                    title, bShowNumbers ? i : -1, *(nm[i]), *(nmB[i]));
         }
     }
-    if (bFreeNames && atoms->atomtype != NULL)
+}
+
+static void pr_resinfo(FILE *fp, int indent, const char *title, const t_resinfo *resinfo, int n,
+                       gmx_bool bShowNumbers)
+{
+    int i;
+
+    if (available(fp, resinfo, indent, title))
     {
-        for (i = 0; i < atoms->nr; i++)
+        indent = pr_title_n(fp, indent, title, n);
+        for (i = 0; i < n; i++)
         {
-            if (atoms->atomtype[i] != NULL)
-            {
-                sfree(*atoms->atomtype[i]);
-                *atoms->atomtype[i] = NULL;
-            }
+            pr_indent(fp, indent);
+            fprintf(fp, "%s[%d]={name=\"%s\", nr=%d, ic='%c'}\n",
+                    title, bShowNumbers ? i : -1,
+                    *(resinfo[i].name), resinfo[i].nr,
+                    (resinfo[i].ic == '\0') ? ' ' : resinfo[i].ic);
         }
     }
-    if (bFreeNames && atoms->atomtypeB != NULL)
+}
+
+void pr_atoms(FILE *fp, int indent, const char *title, const t_atoms *atoms,
+              gmx_bool bShownumbers)
+{
+    if (available(fp, atoms, indent, title))
     {
-        for (i = 0; i < atoms->nr; i++)
+        indent = pr_title(fp, indent, title);
+        pr_atom(fp, indent, "atom", atoms->atom, atoms->nr);
+        pr_strings(fp, indent, "atom", atoms->atomname, atoms->nr, bShownumbers);
+        pr_strings2(fp, indent, "type", atoms->atomtype, atoms->atomtypeB, atoms->nr, bShownumbers);
+        pr_resinfo(fp, indent, "residue", atoms->resinfo, atoms->nres, bShownumbers);
+    }
+}
+
+
+void pr_atomtypes(FILE *fp, int indent, const char *title, const t_atomtypes *atomtypes,
+                  gmx_bool bShowNumbers)
+{
+    int i;
+    if (available(fp, atomtypes, indent, title))
+    {
+        indent = pr_title(fp, indent, title);
+        for (i = 0; i < atomtypes->nr; i++)
         {
-            if (atoms->atomtypeB[i] != NULL)
-            {
-                sfree(*atoms->atomtypeB[i]);
-                *atoms->atomtypeB[i] = NULL;
-            }
+            pr_indent(fp, indent);
+            fprintf(fp,
+                    "atomtype[%3d]={radius=%12.5e, volume=%12.5e, gb_radius=%12.5e, surftens=%12.5e, atomnumber=%4d, S_hct=%12.5e)}\n",
+                    bShowNumbers ? i : -1, atomtypes->radius[i], atomtypes->vol[i],
+                    atomtypes->gb_radius[i],
+                    atomtypes->surftens[i], atomtypes->atomnumber[i], atomtypes->S_hct[i]);
         }
     }
-    sfree(atoms->atomname);
-    sfree(atoms->atomtype);
-    sfree(atoms->atomtypeB);
-    sfree(atoms->resinfo);
-    sfree(atoms->atom);
-    sfree(atoms->pdbinfo);
-    atoms->nr        = 0;
-    atoms->nres      = 0;
-    atoms->atomname  = NULL;
-    atoms->atomtype  = NULL;
-    atoms->atomtypeB = NULL;
-    atoms->resinfo   = NULL;
-    atoms->atom      = NULL;
-    atoms->pdbinfo   = NULL;
 }

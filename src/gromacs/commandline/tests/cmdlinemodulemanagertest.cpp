@@ -43,20 +43,21 @@
 
 #include "cmdlinemodulemanagertest.h"
 
+#include <memory>
 #include <string>
 
-#include <boost/scoped_ptr.hpp>
 #include <gmock/gmock.h>
 
 #include "gromacs/commandline/cmdlinehelpcontext.h"
 #include "gromacs/commandline/cmdlinemodule.h"
 #include "gromacs/commandline/cmdlinemodulemanager.h"
 #include "gromacs/commandline/cmdlineprogramcontext.h"
+#include "gromacs/utility/gmxassert.h"
 #include "gromacs/utility/stringutil.h"
 
 #include "gromacs/onlinehelp/tests/mock_helptopic.h"
 #include "testutils/cmdlinetest.h"
-#include "testutils/testfilemanager.h"
+#include "testutils/testfileredirector.h"
 
 namespace gmx
 {
@@ -131,13 +132,21 @@ MockOptionsModule::~MockOptionsModule()
 class CommandLineModuleManagerTestBase::Impl
 {
     public:
-        boost::scoped_ptr<CommandLineProgramContext> programContext_;
-        boost::scoped_ptr<CommandLineModuleManager>  manager_;
-        TestFileManager                              fileManager_;
+        Impl(const CommandLine &args, const char *realBinaryName)
+            : programContext_(args.argc(), args.argv()),
+              manager_(realBinaryName, &programContext_)
+        {
+            manager_.setQuiet(true);
+            manager_.setOutputRedirector(&redirector_);
+        }
+
+        TestFileOutputRedirector   redirector_;
+        CommandLineProgramContext  programContext_;
+        CommandLineModuleManager   manager_;
 };
 
 CommandLineModuleManagerTestBase::CommandLineModuleManagerTestBase()
-    : impl_(new Impl)
+    : impl_(nullptr)
 {
 }
 
@@ -148,12 +157,8 @@ CommandLineModuleManagerTestBase::~CommandLineModuleManagerTestBase()
 void CommandLineModuleManagerTestBase::initManager(
         const CommandLine &args, const char *realBinaryName)
 {
-    impl_->manager_.reset();
-    impl_->programContext_.reset(
-            new gmx::CommandLineProgramContext(args.argc(), args.argv()));
-    impl_->manager_.reset(new gmx::CommandLineModuleManager(
-                                  realBinaryName, impl_->programContext_.get()));
-    impl_->manager_->setQuiet(true);
+    GMX_RELEASE_ASSERT(impl_ == nullptr, "initManager() called more than once in test");
+    impl_.reset(new Impl(args, realBinaryName));
 }
 
 MockModule &
@@ -167,9 +172,10 @@ CommandLineModuleManagerTestBase::addModule(const char *name, const char *descri
 MockOptionsModule &
 CommandLineModuleManagerTestBase::addOptionsModule(const char *name, const char *description)
 {
-    MockOptionsModule *module = new MockOptionsModule();
-    gmx::CommandLineOptionsModuleInterface::registerModule(
-            &manager(), name, description, module);
+    std::unique_ptr<MockOptionsModule>  modulePtr(new MockOptionsModule());
+    MockOptionsModule                  *module = modulePtr.get();
+    gmx::ICommandLineOptionsModule::registerModuleDirect(
+            &manager(), name, description, std::move(modulePtr));
     return *module;
 }
 
@@ -183,12 +189,14 @@ CommandLineModuleManagerTestBase::addHelpTopic(const char *name, const char *tit
 
 CommandLineModuleManager &CommandLineModuleManagerTestBase::manager()
 {
-    return *impl_->manager_;
+    GMX_RELEASE_ASSERT(impl_ != nullptr, "initManager() not called");
+    return impl_->manager_;
 }
 
-void CommandLineModuleManagerTestBase::redirectManagerOutput()
+void CommandLineModuleManagerTestBase::checkRedirectedOutput()
 {
-    impl_->manager_->setOutputRedirector(&initOutputRedirector(&impl_->fileManager_));
+    GMX_RELEASE_ASSERT(impl_ != nullptr, "initManager() not called");
+    impl_->redirector_.checkRedirectedFiles(&checker());
 }
 
 } // namespace test

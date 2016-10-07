@@ -38,15 +38,16 @@
 
 #include "long-range-correction.h"
 
-#include <math.h>
+#include <cmath>
 
-#include "gromacs/legacyheaders/macros.h"
-#include "gromacs/legacyheaders/names.h"
-#include "gromacs/legacyheaders/types/commrec.h"
-#include "gromacs/legacyheaders/types/forcerec.h"
+#include "gromacs/math/functions.h"
 #include "gromacs/math/units.h"
 #include "gromacs/math/utilities.h"
 #include "gromacs/math/vec.h"
+#include "gromacs/mdtypes/commrec.h"
+#include "gromacs/mdtypes/forcerec.h"
+#include "gromacs/mdtypes/md_enums.h"
+#include "gromacs/utility/fatalerror.h"
 
 /* There's nothing special to do here if just masses are perturbed,
  * but if either charge or type is perturbed then the implementation
@@ -75,7 +76,7 @@ void ewald_LRcorrection(int start, int end,
                         real *dvdlambda_q, real *dvdlambda_lj)
 {
     int         i, i1, i2, j, k, m, iv, jv, q;
-    atom_id    *AA;
+    int        *AA;
     double      Vexcl_q, dvdl_excl_q, dvdl_excl_lj; /* Necessary for precision */
     double      Vexcl_lj;
     real        one_4pi_eps;
@@ -99,7 +100,7 @@ void ewald_LRcorrection(int start, int end,
     vr0_q         = ewc_q*M_2_SQRTPI;
     if (EVDW_PME(fr->vdwtype))
     {
-        vr0_lj    = -pow(ewc_lj, 6)/6.0;
+        vr0_lj    = -gmx::power6(ewc_lj)/6.0;
     }
 
     AA           = excl->a;
@@ -191,7 +192,7 @@ void ewald_LRcorrection(int start, int end,
                             c6A  = c6Ai * C6A[k];
                             if (bDoingLBRule)
                             {
-                                c6A *= pow(0.5*(sigmaA[i]+sigmaA[k]), 6)*sigma3A[k];
+                                c6A *= gmx::power6(0.5*(sigmaA[i]+sigmaA[k]))*sigma3A[k];
                             }
                         }
                         if (qqA != 0.0 || c6A != 0.0)
@@ -218,7 +219,7 @@ void ewald_LRcorrection(int start, int end,
                              */
                             if (dr2 != 0)
                             {
-                                rinv              = gmx_invsqrt(dr2);
+                                rinv              = gmx::invsqrt(dr2);
                                 rinv2             = rinv*rinv;
                                 if (qqA != 0.0)
                                 {
@@ -226,9 +227,9 @@ void ewald_LRcorrection(int start, int end,
 
                                     dr       = 1.0/rinv;
                                     ewcdr    = ewc_q*dr;
-                                    vc       = qqA*gmx_erf(ewcdr)*rinv;
+                                    vc       = qqA*std::erf(ewcdr)*rinv;
                                     Vexcl_q += vc;
-#ifdef GMX_DOUBLE
+#if GMX_DOUBLE
                                     /* Relative accuracy at R_ERF_R_INACC of 3e-10 */
 #define       R_ERF_R_INACC 0.006
 #else
@@ -349,8 +350,8 @@ void ewald_LRcorrection(int start, int end,
                             c6B = c6Bi*C6B[k];
                             if (bDoingLBRule)
                             {
-                                c6A *= pow(0.5*(sigmaA[i]+sigmaA[k]), 6)*sigma3A[k];
-                                c6B *= pow(0.5*(sigmaB[i]+sigmaB[k]), 6)*sigma3B[k];
+                                c6A *= gmx::power6(0.5*(sigmaA[i]+sigmaA[k]))*sigma3A[k];
+                                c6B *= gmx::power6(0.5*(sigmaB[i]+sigmaB[k]))*sigma3B[k];
                             }
                         }
                         if (qqA != 0.0 || qqB != 0.0 || c6A != 0.0 || c6B != 0.0)
@@ -381,14 +382,14 @@ void ewald_LRcorrection(int start, int end,
                             dr2 = norm2(dx);
                             if (dr2 != 0)
                             {
-                                rinv    = gmx_invsqrt(dr2);
+                                rinv    = gmx::invsqrt(dr2);
                                 rinv2   = rinv*rinv;
                                 if (qqA != 0.0 || qqB != 0.0)
                                 {
                                     real dr;
 
                                     dr           = 1.0/rinv;
-                                    v            = gmx_erf(ewc_q*dr)*rinv;
+                                    v            = std::erf(ewc_q*dr)*rinv;
                                     vc           = qqL*v;
                                     Vexcl_q     += vc;
                                     /* fscal is the scalar force pre-multiplied by rinv,

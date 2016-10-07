@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2012,2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2012,2013,2014,2015,2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -53,14 +53,13 @@
 
 #include <stdio.h>
 
-#ifndef GMX_NATIVE_WINDOWS
+#if !GMX_NATIVE_WINDOWS
 /* Ugly hack because the openmp implementation below hacks into the SIMD
  * settings to decide when to use _mm_pause(). This should eventually be
  * changed into proper detection of the intrinsics uses, not SIMD.
  */
-#if (defined GMX_SIMD_X86_SSE2) || (defined GMX_SIMD_X86_SSE4_1) || \
-    (defined GMX_SIMD_X86_AVX_128_FMA) || (defined GMX_SIMD_X86_AVX_256) || \
-    (defined GMX_SIMD_X86_AVX2_256)
+#if GMX_SIMD_X86_SSE2 || GMX_SIMD_X86_SSE4_1 || GMX_SIMD_X86_AVX_128_FMA || \
+    GMX_SIMD_X86_AVX_256 || GMX_SIMD_X86_AVX2_256
 #    include <xmmintrin.h>
 #endif
 #else
@@ -116,20 +115,9 @@ void gmx_omp_set_num_threads(int num_threads);
  * \param[out] message  Receives the message to be shown to the user.
  * \returns `true` if we can set thread affinity ourselves.
  *
- * While GNU OpenMP does not set affinity by default, the Intel OpenMP library
- * does.  This conflicts with the internal affinity (especially thread-MPI)
- * setting, results in incorrectly locked threads, and causes dreadful performance.
- *
  * The KMP_AFFINITY environment variable is used by Intel, GOMP_CPU_AFFINITY
  * by the GNU compilers (Intel also honors it well).  If any of the variables
  * is set, we should honor it and disable the internal pinning.
- * When using Intel OpenMP, we will disable affinity if the user did not set it
- * manually through one of the aforementioned environment variables.
- *
- * Note that the Intel OpenMP affinity disabling will only take effect if this
- * function is called before the OpenMP library gets initialized, which happens
- * when the first call is made into a compilation unit that contains OpenMP
- * pragmas.
  *
  * If this function returns `false`, the caller is responsible to disable the
  * pinning, show the message from \p *message to the user, and free the memory
@@ -148,9 +136,8 @@ static gmx_inline void gmx_pause()
      * settings to decide when to use _mm_pause(). This should eventually be
      * changed into proper detection of the intrinsics uses, not SIMD.
      */
-#if ((defined GMX_SIMD_X86_SSE2) || (defined GMX_SIMD_X86_SSE4_1) || \
-    (defined GMX_SIMD_X86_AVX_128_FMA) || (defined GMX_SIMD_X86_AVX_256) || \
-    (defined GMX_SIMD_X86_AVX2_256)) && !defined(__MINGW32__)
+#if (GMX_SIMD_X86_SSE2 || GMX_SIMD_X86_SSE4_1 || GMX_SIMD_X86_AVX_128_FMA || \
+     GMX_SIMD_X86_AVX_256 || GMX_SIMD_X86_AVX2_256) && !defined(__MINGW32__)
     /* Replace with tbb::internal::atomic_backoff when/if we use TBB */
     _mm_pause();
 #elif defined __MIC__

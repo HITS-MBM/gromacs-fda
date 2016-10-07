@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -45,17 +45,16 @@
 
 #include <algorithm>
 
-#include "gromacs/fileio/gmxfio.h"
-#include "gromacs/fileio/strdb.h"
-#include "gromacs/legacyheaders/macros.h"
-#include "gromacs/legacyheaders/txtdump.h"
 #include "gromacs/topology/atoms.h"
 #include "gromacs/topology/block.h"
 #include "gromacs/topology/invblock.h"
 #include "gromacs/topology/residuetypes.h"
+#include "gromacs/utility/arraysize.h"
 #include "gromacs/utility/cstringutil.h"
 #include "gromacs/utility/fatalerror.h"
+#include "gromacs/utility/futil.h"
 #include "gromacs/utility/smalloc.h"
+#include "gromacs/utility/strdb.h"
 
 static gmx_bool gmx_ask_yesno(gmx_bool bASK)
 {
@@ -82,7 +81,7 @@ void write_index(const char *outf, t_blocka *b, char **gnames, gmx_bool bDuplica
     FILE *out;
     int   i, j, k;
 
-    out = gmx_fio_fopen(outf, "w");
+    out = gmx_ffopen(outf, "w");
     /* fprintf(out,"%5d  %5d\n",b->nr,b->nra); */
     for (i = 0; (i < b->nr); i++)
     {
@@ -117,10 +116,10 @@ void write_index(const char *outf, t_blocka *b, char **gnames, gmx_bool bDuplica
         }
     }
 
-    gmx_fio_fclose(out);
+    gmx_ffclose(out);
 }
 
-void add_grp(t_blocka *b, char ***gnames, int nra, atom_id a[], const char *name)
+void add_grp(t_blocka *b, char ***gnames, int nra, int a[], const char *name)
 {
     int i;
 
@@ -139,7 +138,7 @@ void add_grp(t_blocka *b, char ***gnames, int nra, atom_id a[], const char *name
 
 /* compare index in `a' with group in `b' at `index',
    when `index'<0 it is relative to end of `b' */
-static gmx_bool grp_cmp(t_blocka *b, int nra, atom_id a[], int index)
+static gmx_bool grp_cmp(t_blocka *b, int nra, int a[], int index)
 {
     int i;
 
@@ -201,11 +200,11 @@ p_status(const char *const *restype, int nres,
 }
 
 
-static atom_id *
-mk_aid(t_atoms *atoms, const char ** restype, const char * typestring, int *nra, gmx_bool bMatch)
-/* Make an array of atom_ids for all atoms with residuetypes matching typestring, or the opposite if bMatch is false */
+static int *
+mk_aid(const t_atoms *atoms, const char ** restype, const char * typestring, int *nra, gmx_bool bMatch)
+/* Make an array of ints for all atoms with residuetypes matching typestring, or the opposite if bMatch is false */
 {
-    atom_id *a;
+    int     *a;
     int      i;
     int      res;
 
@@ -233,13 +232,13 @@ typedef struct {
     char    *gname;
 } restp_t;
 
-static void analyse_other(const char ** restype, t_atoms *atoms,
+static void analyse_other(const char ** restype, const t_atoms *atoms,
                           t_blocka *gb, char ***gn, gmx_bool bASK, gmx_bool bVerb)
 {
     restp_t *restp = NULL;
     char   **attp  = NULL;
     char    *rname, *aname;
-    atom_id *aid, *aaid;
+    int     *aid, *aaid;
     int      i, j, k, l, resind, naid, naaid, natp, nrestp = 0;
 
     for (i = 0; (i < atoms->nres); i++)
@@ -266,6 +265,7 @@ static void analyse_other(const char ** restype, t_atoms *atoms,
 
                 for (l = 0; (l < nrestp); l++)
                 {
+                    assert(restp);
                     if (strcmp(restp[l].rname, rname) == 0)
                     {
                         break;
@@ -375,7 +375,7 @@ typedef struct gmx_help_make_index_group
     int compareto;
 } t_gmx_help_make_index_group;
 
-static void analyse_prot(const char ** restype, t_atoms *atoms,
+static void analyse_prot(const char ** restype, const t_atoms *atoms,
                          t_blocka *gb, char ***gn, gmx_bool bASK, gmx_bool bVerb)
 {
     /* lists of atomnames to be used in constructing index groups: */
@@ -407,7 +407,7 @@ static void analyse_prot(const char ** restype, t_atoms *atoms,
     const int   num_index_groups = asize(constructing_data);
 
     int         n, j;
-    atom_id    *aid;
+    int        *aid;
     int         nra, npres;
     gmx_bool    match;
     char        ndx_name[STRLEN], *atnm;
@@ -573,11 +573,11 @@ static void analyse_prot(const char ** restype, t_atoms *atoms,
 }
 
 
-void analyse(t_atoms *atoms, t_blocka *gb, char ***gn, gmx_bool bASK, gmx_bool bVerb)
+void analyse(const t_atoms *atoms, t_blocka *gb, char ***gn, gmx_bool bASK, gmx_bool bVerb)
 {
     gmx_residuetype_t*rt = NULL;
     char             *resnm;
-    atom_id          *aid;
+    int              *aid;
     const char    **  restype;
     int               nra;
     int               i, k;
@@ -607,24 +607,35 @@ void analyse(t_atoms *atoms, t_blocka *gb, char ***gn, gmx_bool bASK, gmx_bool b
     snew(restype, atoms->nres);
     ntypes     = 0;
     p_typename = NULL;
-    for (i = 0; i < atoms->nres; i++)
+    if (atoms->nres > 0)
     {
+        int i = 0;
+
         resnm = *atoms->resinfo[i].name;
         gmx_residuetype_get_type(rt, resnm, &(restype[i]));
+        snew(p_typename, ntypes+1);
+        p_typename[ntypes] = gmx_strdup(restype[i]);
+        ntypes++;
 
-        /* Note that this does not lead to a N*N loop, but N*K, where
-         * K is the number of residue _types_, which is small and independent of N.
-         */
-        found = 0;
-        for (k = 0; k < ntypes && !found; k++)
+        for (i = 1; i < atoms->nres; i++)
         {
-            assert(p_typename != NULL);
-            found = !strcmp(restype[i], p_typename[k]);
-        }
-        if (!found)
-        {
-            srenew(p_typename, ntypes+1);
-            p_typename[ntypes++] = gmx_strdup(restype[i]);
+            resnm = *atoms->resinfo[i].name;
+            gmx_residuetype_get_type(rt, resnm, &(restype[i]));
+
+            /* Note that this does not lead to a N*N loop, but N*K, where
+             * K is the number of residue _types_, which is small and independent of N.
+             */
+            found = 0;
+            for (k = 0; k < ntypes && !found; k++)
+            {
+                found = !strcmp(restype[i], p_typename[k]);
+            }
+            if (!found)
+            {
+                srenew(p_typename, ntypes+1);
+                p_typename[ntypes] = gmx_strdup(restype[i]);
+                ntypes++;
+            }
         }
     }
 
@@ -729,7 +740,7 @@ void analyse(t_atoms *atoms, t_blocka *gb, char ***gn, gmx_bool bASK, gmx_bool b
 }
 
 
-void check_index(char *gname, int n, atom_id index[], char *traj, int natoms)
+void check_index(char *gname, int n, int index[], char *traj, int natoms)
 {
     int i;
 
@@ -757,7 +768,7 @@ t_blocka *init_index(const char *gfile, char ***grpname)
     int        i, j;
     char       line[STRLEN], *pt, str[STRLEN];
 
-    in = gmx_fio_fopen(gfile, "r");
+    in = gmx_ffopen(gfile, "r");
     snew(b, 1);
     b->nr      = 0;
     b->index   = NULL;
@@ -802,7 +813,7 @@ t_blocka *init_index(const char *gfile, char ***grpname)
             }
         }
     }
-    gmx_fio_fclose(in);
+    gmx_ffclose(in);
 
     for (i = 0; (i < b->nr); i++)
     {
@@ -833,23 +844,22 @@ static void minstring(char *str)
     }
 }
 
-int find_group(char s[], int ngrps, char **grpname)
+int find_group(const char *s, int ngrps, char **grpname)
 {
     int      aa, i, n;
     char     string[STRLEN];
     gmx_bool bMultiple;
-
     bMultiple = FALSE;
     n         = strlen(s);
-    aa        = NOTSET;
+    aa        = -1;
     /* first look for whole name match */
-    if (aa == NOTSET)
+    if (aa == -1)
     {
         for (i = 0; i < ngrps; i++)
         {
             if (gmx_strcasecmp_min(s, grpname[i]) == 0)
             {
-                if (aa != NOTSET)
+                if (aa != -1)
                 {
                     bMultiple = TRUE;
                 }
@@ -858,13 +868,13 @@ int find_group(char s[], int ngrps, char **grpname)
         }
     }
     /* second look for first string match */
-    if (aa == NOTSET)
+    if (aa == -1)
     {
         for (i = 0; i < ngrps; i++)
         {
             if (gmx_strncasecmp_min(s, grpname[i], n) == 0)
             {
-                if (aa != NOTSET)
+                if (aa != -1)
                 {
                     bMultiple = TRUE;
                 }
@@ -873,18 +883,21 @@ int find_group(char s[], int ngrps, char **grpname)
         }
     }
     /* last look for arbitrary substring match */
-    if (aa == NOTSET)
+    if (aa == -1)
     {
-        upstring(s);
-        minstring(s);
+        char key[STRLEN];
+        strncpy(key, s, sizeof(key)-1);
+        key[STRLEN-1] = '\0';
+        upstring(key);
+        minstring(key);
         for (i = 0; i < ngrps; i++)
         {
             strcpy(string, grpname[i]);
             upstring(string);
             minstring(string);
-            if (strstr(string, s) != NULL)
+            if (strstr(string, key) != NULL)
             {
-                if (aa != NOTSET)
+                if (aa != -1)
                 {
                     bMultiple = TRUE;
                 }
@@ -895,7 +908,7 @@ int find_group(char s[], int ngrps, char **grpname)
     if (bMultiple)
     {
         printf("Error: Multiple groups '%s' selected\n", s);
-        aa = NOTSET;
+        aa = -1;
     }
     return aa;
 }
@@ -937,7 +950,7 @@ static int qgroup(int *a, int ngrps, char **grpname)
 }
 
 static void rd_groups(t_blocka *grps, char **grpname, char *gnames[],
-                      int ngrps, int isize[], atom_id *index[], int grpnr[])
+                      int ngrps, int isize[], int *index[], int grpnr[])
 {
     int i, j, gnr1;
 
@@ -980,7 +993,7 @@ static void rd_groups(t_blocka *grps, char **grpname, char *gnames[],
 }
 
 void rd_index(const char *statfile, int ngrps, int isize[],
-              atom_id *index[], char *grpnames[])
+              int *index[], char *grpnames[])
 {
     char    **gnames;
     t_blocka *grps;
@@ -996,7 +1009,7 @@ void rd_index(const char *statfile, int ngrps, int isize[],
 }
 
 void rd_index_nrs(char *statfile, int ngrps, int isize[],
-                  atom_id *index[], char *grpnames[], int grpnr[])
+                  int *index[], char *grpnames[], int grpnr[])
 {
     char    **gnames;
     t_blocka *grps;
@@ -1010,8 +1023,8 @@ void rd_index_nrs(char *statfile, int ngrps, int isize[],
     rd_groups(grps, gnames, grpnames, ngrps, isize, index, grpnr);
 }
 
-void get_index(t_atoms *atoms, const char *fnm, int ngrps,
-               int isize[], atom_id *index[], char *grpnames[])
+void get_index(const t_atoms *atoms, const char *fnm, int ngrps,
+               int isize[], int *index[], char *grpnames[])
 {
     char    ***gnames;
     t_blocka  *grps = NULL;

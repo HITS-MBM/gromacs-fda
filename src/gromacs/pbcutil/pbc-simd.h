@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2015, by the GROMACS development team, led by
+ * Copyright (c) 2015,2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -49,45 +49,28 @@
 
 #include "gromacs/pbcutil/pbc.h"
 #include "gromacs/simd/simd.h"
-#include "gromacs/utility/fatalerror.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+using namespace gmx; // TODO: Remove when this file is moved into gmx namespace
 
-/*! \cond INTERNAL */
-
-/*! \brief Structure containing the PBC setup for SIMD PBC calculations.
- *
- * Without SIMD this is a dummy struct, so it can be declared and passed.
- * This can avoid some ifdef'ing.
- */
-typedef struct {
-#ifdef GMX_SIMD_HAVE_REAL
-    gmx_simd_real_t inv_bzz; /**< 1/box[ZZ][ZZ] */
-    gmx_simd_real_t inv_byy; /**< 1/box[YY][YY] */
-    gmx_simd_real_t inv_bxx; /**< 1/box[XX][XX] */
-    gmx_simd_real_t bzx;     /**< box[ZZ][XX] */
-    gmx_simd_real_t bzy;     /**< box[ZZ][YY] */
-    gmx_simd_real_t bzz;     /**< box[ZZ][ZZ] */
-    gmx_simd_real_t byx;     /**< box[YY][XX] */
-    gmx_simd_real_t byy;     /**< box[YY][YY] */
-    gmx_simd_real_t bxx;     /**< bo[XX][XX] */
-#else
-    int             dum;     /**< Dummy variable to avoid empty struct */
-#endif
-} pbc_simd_t;
-
-/*! \endcond */
+struct gmx_domdec_t;
 
 /*! \brief Set the SIMD PBC data from a normal t_pbc struct.
  *
- * NULL can be passed for \p pbc, then no PBC will be used.
+ * \param pbc        Type of periodic boundary,
+ *                   NULL can be passed for then no PBC will be used.
+ * \param pbc_simd   Pointer to aligned memory with (DIM + DIM*(DIM+1)/2)
+ *                   GMX_SIMD_REAL_WIDTH reals describing the box vectors
+ *                   unrolled by GMX_SIMD_REAL_WIDTH.
+ *                   These are sorted in a slightly non-standard
+ *                   order so that we always issue the memory loads in order
+ *                   (to improve prefetching) in pbc_correct_dx_simd().
+ *                   The order is inv_bzz, bzx, bzy, bzz, inv_byy, byx, byy,
+ *                   inv_bxx, and bxx.
  */
 void set_pbc_simd(const t_pbc *pbc,
-                  pbc_simd_t  *pbc_simd);
+                  real        *pbc_simd);
 
-#if defined GMX_SIMD_HAVE_REAL
+#if GMX_SIMD_HAVE_REAL
 
 /*! \brief Correct SIMD distance vector *dx,*dy,*dz for PBC using SIMD.
  *
@@ -101,38 +84,51 @@ void set_pbc_simd(const t_pbc *pbc,
  * routine should be low. On e.g. Intel Haswell/Broadwell it takes 8 cycles.
  */
 static gmx_inline void gmx_simdcall
-pbc_correct_dx_simd(gmx_simd_real_t  *dx,
-                    gmx_simd_real_t  *dy,
-                    gmx_simd_real_t  *dz,
-                    const pbc_simd_t *pbc)
+pbc_correct_dx_simd(SimdReal         *dx,
+                    SimdReal         *dy,
+                    SimdReal         *dz,
+                    const real       *pbc_simd)
 {
-    gmx_simd_real_t shz, shy, shx;
+    SimdReal shz, shy, shx;
 
-#if defined _MSC_VER && _MSC_VER < 1700 && !defined(__ICL)
-    /* The caller side should make sure we never end up here.
-     * TODO Black-list _MSC_VER < 1700 when it's old enough, so we can rid
-     * of this code complication.
-     */
-    gmx_incons("pbc_correct_dx_simd was called for code compiled with MSVC 2010 or older, which produces incorrect code (probably corrupts memory) and therefore this function should not have been called");
-#endif
+    shz = round(*dz * load(pbc_simd+0*GMX_SIMD_REAL_WIDTH)); // load inv_bzz
+    *dx = *dx - shz * load(pbc_simd+1*GMX_SIMD_REAL_WIDTH);  // load bzx
+    *dy = *dy - shz * load(pbc_simd+2*GMX_SIMD_REAL_WIDTH);  // load bzy
+    *dz = *dz - shz * load(pbc_simd+3*GMX_SIMD_REAL_WIDTH);  // load bzz
 
-    shz = gmx_simd_round_r(gmx_simd_mul_r(*dz, pbc->inv_bzz));
-    *dx = gmx_simd_fnmadd_r(shz, pbc->bzx, *dx);
-    *dy = gmx_simd_fnmadd_r(shz, pbc->bzy, *dy);
-    *dz = gmx_simd_fnmadd_r(shz, pbc->bzz, *dz);
+    shy = round(*dy * load(pbc_simd+4*GMX_SIMD_REAL_WIDTH)); // load inv_byy
+    *dx = *dx - shy * load(pbc_simd+5*GMX_SIMD_REAL_WIDTH);  // load byx
+    *dy = *dy - shy * load(pbc_simd+6*GMX_SIMD_REAL_WIDTH);  // load byy
 
-    shy = gmx_simd_round_r(gmx_simd_mul_r(*dy, pbc->inv_byy));
-    *dx = gmx_simd_fnmadd_r(shy, pbc->byx, *dx);
-    *dy = gmx_simd_fnmadd_r(shy, pbc->byy, *dy);
+    shx = round(*dx * load(pbc_simd+7*GMX_SIMD_REAL_WIDTH)); // load inv_bxx
+    *dx = *dx - shx * load(pbc_simd+8*GMX_SIMD_REAL_WIDTH);  // load bxx
 
-    shx = gmx_simd_round_r(gmx_simd_mul_r(*dx, pbc->inv_bxx));
-    *dx = gmx_simd_fnmadd_r(shx, pbc->bxx, *dx);
+}
+
+/*! \brief Calculates the PBC corrected distance between SIMD coordinates.
+ *
+ * \param pbc_simd  SIMD formatted PBC information
+ * \param x1        Packed coordinates of atom1, size 3*GMX_SIMD_REAL_WIDTH
+ * \param x2        Packed coordinates of atom2, size 3*GMX_SIMD_REAL_WIDTH
+ * \param dx        The PBC corrected distance x1 - x2
+ *
+ * This routine only returns the shortest distance correctd for PBC
+ * when all atoms are in the unit-cell (aiuc).
+ * This is the SIMD equivalent of the scalar version declared in pbc.h.
+ */
+static gmx_inline void gmx_simdcall
+pbc_dx_aiuc(const real       *pbc_simd,
+            const SimdReal   *x1,
+            const SimdReal   *x2,
+            SimdReal         *dx)
+{
+    for (int d = 0; d < DIM; d++)
+    {
+        dx[d] = x1[d] - x2[d];
+    }
+    pbc_correct_dx_simd(&dx[XX], &dx[YY], &dx[ZZ], pbc_simd);
 }
 
 #endif /* GMX_SIMD_HAVE_REAL */
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

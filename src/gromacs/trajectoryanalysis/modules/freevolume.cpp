@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2013,2014,2015, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -48,22 +48,25 @@
 #include "gromacs/analysisdata/analysisdata.h"
 #include "gromacs/analysisdata/modules/average.h"
 #include "gromacs/analysisdata/modules/plot.h"
-#include "gromacs/fileio/trx.h"
-#include "gromacs/legacyheaders/copyrite.h"
+#include "gromacs/math/functions.h"
+#include "gromacs/math/units.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/options/basicoptions.h"
 #include "gromacs/options/filenameoption.h"
-#include "gromacs/options/options.h"
+#include "gromacs/options/ioptionscontainer.h"
 #include "gromacs/pbcutil/pbc.h"
-#include "gromacs/random/random.h"
+#include "gromacs/random/threefry.h"
+#include "gromacs/random/uniformrealdistribution.h"
 #include "gromacs/selection/nbsearch.h"
 #include "gromacs/selection/selection.h"
 #include "gromacs/selection/selectionoption.h"
 #include "gromacs/topology/atomprop.h"
 #include "gromacs/topology/topology.h"
+#include "gromacs/trajectory/trajectoryframe.h"
 #include "gromacs/trajectoryanalysis/analysissettings.h"
 #include "gromacs/utility/arrayref.h"
 #include "gromacs/utility/exceptions.h"
+#include "gromacs/utility/pleasecite.h"
 
 namespace gmx
 {
@@ -85,28 +88,16 @@ namespace
 class FreeVolume : public TrajectoryAnalysisModule
 {
     public:
-        //! Constructor
         FreeVolume();
+        virtual ~FreeVolume() {};
 
-        //! Destructor
-        virtual ~FreeVolume();
-
-        //! Set the options and setting
-        virtual void initOptions(Options                    *options,
+        virtual void initOptions(IOptionsContainer          *options,
                                  TrajectoryAnalysisSettings *settings);
-
-        //! First routine called by the analysis framework
         virtual void initAnalysis(const TrajectoryAnalysisSettings &settings,
                                   const TopologyInformation        &top);
-
-        //! Call for each frame of the trajectory
         virtual void analyzeFrame(int frnr, const t_trxframe &fr, t_pbc *pbc,
                                   TrajectoryAnalysisModuleData *pdata);
-
-        //! Last routine called by the analysis framework
         virtual void finishAnalysis(int nframes);
-
-        //! Routine to write output, that is additional over the built-in
         virtual void writeOutput();
 
     private:
@@ -119,7 +110,7 @@ class FreeVolume : public TrajectoryAnalysisModule
         double                            mtot_;
         double                            cutoff_;
         double                            probeRadius_;
-        gmx_rng_t                         rng_;
+        gmx::DefaultRandomEngine          rng_;
         int                               seed_, ninsert_;
         AnalysisNeighborhood              nb_;
         //! The van der Waals radius per atom
@@ -133,36 +124,23 @@ class FreeVolume : public TrajectoryAnalysisModule
 // one. The type of this depends on what kind of tool you need.
 // Here we only have simple value/time kind of data.
 FreeVolume::FreeVolume()
-    : TrajectoryAnalysisModule(FreeVolumeInfo::name, FreeVolumeInfo::shortDescription),
-      adata_(new AnalysisDataAverageModule())
+    : adata_(new AnalysisDataAverageModule())
 {
     // We only compute two numbers per frame
     data_.setColumnCount(0, 2);
     // Tell the analysis framework that this component exists
     registerAnalysisDataset(&data_, "freevolume");
-    rng_         = NULL;
     nmol_        = 0;
     mtot_        = 0;
     cutoff_      = 0;
     probeRadius_ = 0;
-    seed_        = -1;
+    seed_        = 0;
     ninsert_     = 1000;
 }
 
 
-FreeVolume::~FreeVolume()
-{
-    // Destroy C structures where there is no automatic memory release
-    // C++ takes care of memory in classes (hopefully)
-    if (NULL != rng_)
-    {
-        gmx_rng_destroy(rng_);
-    }
-}
-
-
 void
-FreeVolume::initOptions(Options                    *options,
+FreeVolume::initOptions(IOptionsContainer          *options,
                         TrajectoryAnalysisSettings *settings)
 {
     static const char *const desc[] = {
@@ -196,8 +174,7 @@ FreeVolume::initOptions(Options                    *options,
         "the terminal."
     };
 
-    // Add the descriptive text (program help text) to the options
-    options->setDescription(desc);
+    settings->setHelpText(desc);
 
     // Add option for optional output file
     options->addOption(FileNameOption("o").filetype(eftPlot).outputFile()
@@ -217,7 +194,7 @@ FreeVolume::initOptions(Options                    *options,
     // Add option for the random number seed and initialize it to
     // generate a value automatically
     options->addOption(IntegerOption("seed").store(&seed_)
-                           .description("Seed for random number generator."));
+                           .description("Seed for random number generator (0 means generate)."));
 
     // Add option to determine number of insertion trials per frame
     options->addOption(IntegerOption("ninsert").store(&ninsert_)
@@ -313,6 +290,11 @@ FreeVolume::initAnalysis(const TrajectoryAnalysisSettings &settings,
         fprintf(stderr, "Could not determine VDW radius for %d particles. These were set to zero.\n", nnovdw);
     }
 
+    if (seed_ == 0)
+    {
+        seed_ = static_cast<int>(gmx::makeRandomSeed());
+    }
+
     // Print parameters to output. Maybe should make dependent on
     // verbosity flag?
     printf("cutoff       = %g nm\n", cutoff_);
@@ -321,7 +303,7 @@ FreeVolume::initAnalysis(const TrajectoryAnalysisSettings &settings,
     printf("ninsert      = %d probes per nm^3\n", ninsert_);
 
     // Initiate the random number generator
-    rng_ = gmx_rng_init(seed_);
+    rng_.seed(seed_);
 
     // Initiate the neighborsearching code
     nb_.setCutoff(cutoff_);
@@ -331,8 +313,9 @@ void
 FreeVolume::analyzeFrame(int frnr, const t_trxframe &fr, t_pbc *pbc,
                          TrajectoryAnalysisModuleData *pdata)
 {
-    AnalysisDataHandle       dh   = pdata->dataHandle(data_);
-    const Selection         &sel  = pdata->parallelSelection(sel_);
+    AnalysisDataHandle                   dh   = pdata->dataHandle(data_);
+    const Selection                     &sel  = pdata->parallelSelection(sel_);
+    gmx::UniformRealDistribution<real>   dist;
 
     GMX_RELEASE_ASSERT(NULL != pbc, "You have no periodic boundary conditions");
 
@@ -355,7 +338,8 @@ FreeVolume::analyzeFrame(int frnr, const t_trxframe &fr, t_pbc *pbc,
         for (int m = 0; (m < DIM); m++)
         {
             // Generate random number between 0 and 1
-            rand[m] = gmx_rng_uniform_real(rng_);
+            // cppcheck-suppress uninitvar
+            rand[m] = dist(rng_);
         }
         // Generate random 3D position within the box
         mvmul(fr.box, rand, ins);
@@ -419,7 +403,7 @@ FreeVolume::writeOutput()
 
     printf("Number of molecules %d total mass %.2f Dalton\n", nmol_, mtot_);
     double RhoAver  = mtot_ / (Vaver * 1e-24 * AVOGADRO);
-    double RhoError = sqr(RhoAver / Vaver)*Verror;
+    double RhoError = gmx::square(RhoAver / Vaver)*Verror;
     printf("Average molar mass: %.2f Dalton\n", mtot_/nmol_);
 
     double VmAver  = Vaver/nmol_;

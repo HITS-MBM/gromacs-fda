@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2012,2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2012,2013,2014,2015,2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -47,7 +47,7 @@
 #ifndef GMX_UTILITY_CLASSHELPERS_H
 #define GMX_UTILITY_CLASSHELPERS_H
 
-#include <boost/scoped_ptr.hpp>
+#include <memory>
 
 namespace gmx
 {
@@ -60,9 +60,8 @@ namespace gmx
  * \ingroup module_utility
  */
 #define GMX_DISALLOW_COPY_AND_ASSIGN(ClassName) \
-    private: \
-        ClassName &operator=(const ClassName &); \
-        ClassName(const ClassName &)
+    ClassName &operator=(const ClassName &) = delete;   \
+    ClassName(const ClassName &)            = delete
 /*! \brief
  * Macro to declare a class non-assignable.
  *
@@ -71,14 +70,32 @@ namespace gmx
  * \ingroup module_utility
  */
 #define GMX_DISALLOW_ASSIGN(ClassName) \
-    private: \
-        ClassName &operator=(const ClassName &)
+    ClassName &operator=(const ClassName &) = delete
+
+#ifdef DOXYGEN
+/*! \brief
+ * Macro to declare default constructors
+ *
+ * Intended for copyable interfaces or bases classes which require to create custom
+ * destructor (e.g. protected or virtual) but need the default constructors.
+ *
+ * \ingroup module_utility
+ */
+#define GMX_DEFAULT_CONSTRUCTORS(ClassName)
+#else
+#define GMX_DEFAULT_CONSTRUCTORS(ClassName) \
+    ClassName()                                             = default;    \
+    ClassName                 &operator=(const ClassName &) = default;    \
+    ClassName(const ClassName &)                            = default;    \
+    ClassName                 &operator=(ClassName &&)      = default;    \
+    ClassName(ClassName &&)                                 = default
+#endif
 
 /*! \brief
  * Helper class to manage a pointer to a private implementation class.
  *
  * This helper provides the following benefits (all but the last could also be
- * achieved with boost::scoped_ptr):
+ * achieved with std::unique_ptr):
  *  - Automatic memory management: the implementation pointer is freed in
  *    the destructor automatically.  If the destructor is not declared or is
  *    defined inline in the header file, a compilation error occurs instead
@@ -90,6 +107,9 @@ namespace gmx
  *    constructor and/or assignment operator is not provided.
  *  - Compiler helps to manage const-correctness: in const methods, it is not
  *    possible to change the implementation class.
+ *
+ * Move construction and assignment are also disallowed, but can be enabled by
+ * providing explicit move constructor and/or assignment.
  *
  * Intended use:
  * \code
@@ -129,14 +149,25 @@ template <class Impl>
 class PrivateImplPointer
 {
     public:
+        //! Allow implicit initialization from nullptr to support comparison.
+        PrivateImplPointer(std::nullptr_t) : ptr_(nullptr) {}
         //! Initialize with the given implementation class.
         explicit PrivateImplPointer(Impl *ptr) : ptr_(ptr) {}
-        ~PrivateImplPointer() {}
+        //! \cond
+        // Explicitly declared to work around MSVC problems.
+        PrivateImplPointer(PrivateImplPointer &&other) : ptr_(std::move(other.ptr_)) {}
+        PrivateImplPointer &operator=(PrivateImplPointer &&other)
+        {
+            ptr_ = std::move(other.ptr_);
+            return *this;
+        }
+        //! \endcond
 
         /*! \brief
          * Sets a new implementation class and destructs the previous one.
          *
-         * Needed, e.g., to implement assignable classes.
+         * Needed, e.g., to implement lazily initializable or copy-assignable
+         * classes.
          */
         void reset(Impl *ptr) { ptr_.reset(ptr); }
         //! Access the raw pointer.
@@ -145,17 +176,23 @@ class PrivateImplPointer
         Impl *operator->() { return ptr_.get(); }
         //! Access the implementation class as with a raw pointer.
         Impl &operator*() { return *ptr_; }
-        //! Access the raw pointer.
-        const Impl *get() const { return ptr_.get(); }
         //! Access the implementation class as with a raw pointer.
         const Impl *operator->() const { return ptr_.get(); }
         //! Access the implementation class as with a raw pointer.
         const Impl &operator*() const { return *ptr_; }
 
-    private:
-        boost::scoped_ptr<Impl> ptr_;
+        //! Allows testing whether the implementation is initialized.
+        explicit operator bool() const { return ptr_ != nullptr; }
 
-        // Copy and assign disabled by the scoped_ptr member.
+        //! Tests for equality (mainly useful against nullptr).
+        bool operator==(const PrivateImplPointer &other) const { return ptr_ == other.ptr_; }
+        //! Tests for inequality (mainly useful against nullptr).
+        bool operator!=(const PrivateImplPointer &other) const { return ptr_ != other.ptr_; }
+
+    private:
+        std::unique_ptr<Impl> ptr_;
+
+        // Copy construction and assignment disabled by the unique_ptr member.
 };
 
 } // namespace gmx

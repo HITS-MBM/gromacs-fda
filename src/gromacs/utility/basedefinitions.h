@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014,2015, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -78,39 +78,37 @@ typedef int gmx_bool;
  * types from C99 headers `stdint.h` and `inttypes.h`.  These headers are also
  * there in C++11.  The types and macros from here should be used instead of
  * `int32_t` etc.
- * MSVC doesn't support these before Visual Studio 2013.
+ *
+ * (MSVC 2015 still doesn't support the format strings.)
  */
 /*! \{ */
+typedef int32_t gmx_int32_t;
+typedef int64_t gmx_int64_t;
+typedef uint32_t gmx_uint32_t;
+typedef uint64_t gmx_uint64_t;
+
 #ifdef _MSC_VER
-typedef __int32 gmx_int32_t;
 #define GMX_PRId32 "I32d"
 #define GMX_SCNd32 "I32d"
 
-typedef __int64 gmx_int64_t;
 #define GMX_PRId64 "I64d"
 #define GMX_SCNd64 "I64d"
 
-typedef unsigned __int32 gmx_uint32_t;
 #define GMX_PRIu32 "I32u"
 #define GMX_SCNu32 "I32u"
 
-typedef unsigned __int64 gmx_uint64_t;
 #define GMX_PRIu64 "I64u"
 #define GMX_SCNu64 "I64u"
 #else
-typedef int32_t gmx_int32_t;
 #define GMX_PRId32 PRId32
 #define GMX_SCNd32 SCNd32
 
-typedef int64_t gmx_int64_t;
 #define GMX_PRId64 PRId64
 #define GMX_SCNd64 SCNd64
 
-typedef uint32_t gmx_uint32_t;
 #define GMX_PRIu32 PRIu32
 #define GMX_SCNu32 SCNu32
 
-typedef uint64_t gmx_uint64_t;
 #define GMX_PRIu64 PRIu64
 #define GMX_SCNu64 SCNu64
 #endif
@@ -155,20 +153,26 @@ typedef uint64_t gmx_uint64_t;
  */
 #define gmx_restrict __restrict
 
-/*! \def gmx_cxx_const
+/*! \def GMX_CXX11_COMPILATION
  * \brief
- * Keyword to work around C/C++ differences in possible const keyword usage.
+ * Defined to 1 when compiling as C++11.
  *
- * Some functions that do not modify their input parameters cannot declare
- * those parameters as `const` and compile warning/error-free on both C and C++
- * compilers because of differences in `const` semantics.  This macro can be
- * used in cases where C++ allows `const`, but C does not like it, to make the
- * same declaration work for both.
+ * While \Gromacs only supports C++11 compilation, there are some parts of the
+ * code that are compiled with other tools than the actual C++ compiler, and
+ * these may not support C++11.  Most notable such case is all of CUDA code
+ * (with CUDA versions older than 6.5), but other types of kernels might also
+ * have similar limitations in the future.
+ *
+ * The define is intended for conditional compilation in low-level headers that
+ * need to support inclusion from such non-C++11 files, but get significant
+ * benefit (e.g., for correctness checking or more convenient use) from C++11.
+ * It should only be used for features that do not influence the ABI of the
+ * header; e.g., static_asserts or additional helper methods.
  */
-#ifdef __cplusplus
-#define gmx_cxx_const const
+#if defined __cplusplus && __cplusplus >= 201103L
+#    define GMX_CXX11_COMPILATION 1
 #else
-#define gmx_cxx_const
+#    define GMX_CXX11_COMPILATION 0
 #endif
 
 /*! \def gmx_unused
@@ -222,9 +226,21 @@ typedef uint64_t gmx_uint64_t;
 #endif
 #endif
 
-/*! \def GMX_ALIGNMENT
- * \brief
- * Supports aligned variables */
+/*! \def gmx_constexpr
+ * \brief C++11 constexpr everywhere except MSVC 2013, where it is empty.
+ *
+ * Support for constexpr was not added until MSVC 2015, and it still
+ * seems to be unreliable. Since interacting with parts of libc++ and
+ * libstdc++ depend on it (for instance the min/max calls in our
+ * random engines), we need to specify it for other compilers.
+ */
+#ifndef gmx_constexpr
+#if !defined(_MSC_VER)
+#    define gmx_constexpr constexpr
+#else
+#    define gmx_constexpr
+#endif
+#endif
 
 /*! \def GMX_ALIGNED(type, alignment)
  * \brief
@@ -238,19 +254,19 @@ typedef uint64_t gmx_uint64_t;
    GMX_ALIGNED(real, GMX_SIMD_REAL_WIDTH) buf[...];
    \endcode
  */
-/* alignas(x) is not used even with GMX-CXX11 because it isn't in the list of
-   tested features and thus might not be supported.
-   MSVC before 2015 has align but doesn't support sizeof inside. */
-#if defined(_MSC_VER) && (_MSC_VER > 1800 || defined(__ICL))
-#  define GMX_ALIGNMENT 1
-#  define GMX_ALIGNED(type, alignment) __declspec(align(alignment*sizeof(type))) type
-#elif defined(__GNUC__) || defined(__clang__)
-#  define GMX_ALIGNMENT 1
-#  define GMX_ALIGNED(type, alignment) __attribute__ ((__aligned__(alignment*sizeof(type)))) type
+
+#if (defined(__GNUC__) && !defined(__clang__)) || defined(__ibmxl__) || defined(__xlC__) || defined(__PATHCC__)
+// Gcc-4.6.4 does not support alignas, but both gcc, pathscale and xlc
+// support the standard GNU alignment attributes. PGI also sets __GNUC__ now,
+// and mostly supports it. clang 3.2 does not support the GCC alignment attribute.
+#    define GMX_ALIGNED(type, alignment) __attribute__ ((aligned(alignment*sizeof(type)))) type
 #else
-#  define GMX_ALIGNMENT 0
-#  define GMX_ALIGNED(type, alignment)
+// If nothing else works we rely on C++11. This will for instance work for MSVC2015 and later.
+// If you get an error here, find out what attribute to use to get your compiler to align
+// data properly and add it as a case.
+#    define GMX_ALIGNED(type, alignment) alignas(alignment*alignof(type)) type
 #endif
+
 
 /*! \brief
  * Macro to explicitly ignore an unused value.

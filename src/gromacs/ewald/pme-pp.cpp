@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014,2015, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -53,12 +53,14 @@
 #include <string.h>
 
 #include "gromacs/domdec/domdec.h"
+#include "gromacs/domdec/domdec_struct.h"
 #include "gromacs/ewald/pme.h"
-#include "gromacs/legacyheaders/network.h"
-#include "gromacs/legacyheaders/sighandler.h"
-#include "gromacs/legacyheaders/typedefs.h"
-#include "gromacs/legacyheaders/types/commrec.h"
+#include "gromacs/gmxlib/network.h"
 #include "gromacs/math/vec.h"
+#include "gromacs/mdlib/gmx_omp_nthreads.h"
+#include "gromacs/mdlib/sighandler.h"
+#include "gromacs/mdtypes/commrec.h"
+#include "gromacs/mdtypes/md_enums.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/gmxmpi.h"
 #include "gromacs/utility/smalloc.h"
@@ -102,7 +104,7 @@ enum {
 
 /*! \brief Master PP-PME communication data structure */
 struct gmx_pme_pp {
-#ifdef GMX_MPI
+#if GMX_MPI
     MPI_Comm     mpi_comm_mysim; /**< MPI communicator for this simulation */
 #endif
     int          nnode;          /**< The number of PP node to communicate with  */
@@ -122,7 +124,7 @@ struct gmx_pme_pp {
     rvec        *x;             /**< Vector of atom coordinates to transfer to PME ranks */
     rvec        *f;             /**< Vector of atom forces received from PME ranks */
     int          nalloc;        /**< Allocation size of transfer vectors (>= \p nat) */
-#ifdef GMX_MPI
+#if GMX_MPI
     //@{
     /**< Vectors of MPI objects used in non-blocking communication between multiple PP ranks per PME rank */
     MPI_Request *req;
@@ -132,7 +134,7 @@ struct gmx_pme_pp {
 };
 
 /*! \brief Helper struct for PP-PME communication of parameters */
-typedef struct gmx_pme_comm_n_box {
+struct gmx_pme_comm_n_box_t {
     int             natoms;     /**< Number of atoms */
     matrix          box;        /**< Box */
     int             maxshift_x; /**< Maximum shift in x direction */
@@ -147,7 +149,7 @@ typedef struct gmx_pme_comm_n_box {
     real            ewaldcoeff_q;
     real            ewaldcoeff_lj;
     //@}
-} gmx_pme_comm_n_box_t;
+};
 
 /*! \brief Helper struct for PP-PME communication of virial and energy */
 typedef struct {
@@ -170,7 +172,7 @@ gmx_pme_pp_t gmx_pme_pp_init(t_commrec *cr)
 
     snew(pme_pp, 1);
 
-#ifdef GMX_MPI
+#if GMX_MPI
     int rank;
 
     pme_pp->mpi_comm_mysim = cr->mpi_comm_mysim;
@@ -195,7 +197,7 @@ gmx_pme_pp_t gmx_pme_pp_init(t_commrec *cr)
 
 static void gmx_pme_send_coeffs_coords_wait(gmx_domdec_t gmx_unused *dd)
 {
-#ifdef GMX_MPI
+#if GMX_MPI
     if (dd->nreq_pme)
     {
         MPI_Waitall(dd->nreq_pme, dd->req_pme, MPI_STATUSES_IGNORE);
@@ -225,10 +227,10 @@ static void gmx_pme_send_coeffs_coords(t_commrec *cr, int flags,
     {
         fprintf(debug, "PP rank %d sending to PME rank %d: %d%s%s%s%s\n",
                 cr->sim_nodeid, dd->pme_nodeid, n,
-                flags & PP_PME_CHARGE ? " charges" : "",
-                flags & PP_PME_SQRTC6 ? " sqrtC6" : "",
-                flags & PP_PME_SIGMA  ? " sigma" : "",
-                flags & PP_PME_COORD  ? " coordinates" : "");
+                (flags & PP_PME_CHARGE) ? " charges" : "",
+                (flags & PP_PME_SQRTC6) ? " sqrtC6" : "",
+                (flags & PP_PME_SIGMA)  ? " sigma" : "",
+                (flags & PP_PME_COORD)  ? " coordinates" : "");
     }
 
 #ifdef GMX_PME_DELAYED_WAIT
@@ -256,7 +258,7 @@ static void gmx_pme_send_coeffs_coords(t_commrec *cr, int flags,
         {
             copy_mat(box, cnb->box);
         }
-#ifdef GMX_MPI
+#if GMX_MPI
         MPI_Isend(cnb, sizeof(*cnb), MPI_BYTE,
                   dd->pme_nodeid, eCommType_CNB, cr->mpi_comm_mysim,
                   &dd->req_pme[dd->nreq_pme++]);
@@ -264,7 +266,7 @@ static void gmx_pme_send_coeffs_coords(t_commrec *cr, int flags,
     }
     else if (flags & (PP_PME_CHARGE | PP_PME_SQRTC6 | PP_PME_SIGMA))
     {
-#ifdef GMX_MPI
+#if GMX_MPI
         /* Communicate only the number of atoms */
         MPI_Isend(&n, sizeof(n), MPI_BYTE,
                   dd->pme_nodeid, eCommType_CNB, cr->mpi_comm_mysim,
@@ -272,7 +274,7 @@ static void gmx_pme_send_coeffs_coords(t_commrec *cr, int flags,
 #endif
     }
 
-#ifdef GMX_MPI
+#if GMX_MPI
     if (n > 0)
     {
         if (flags & PP_PME_CHARGE)
@@ -400,7 +402,7 @@ void gmx_pme_send_switchgrid(t_commrec gmx_unused *cr,
                              real gmx_unused       ewaldcoeff_q,
                              real gmx_unused       ewaldcoeff_lj)
 {
-#ifdef GMX_MPI
+#if GMX_MPI
     gmx_pme_comm_n_box_t cnb;
 
     /* Only let one PP node signal each PME node */
@@ -420,7 +422,7 @@ void gmx_pme_send_switchgrid(t_commrec gmx_unused *cr,
 
 void gmx_pme_send_resetcounters(t_commrec gmx_unused *cr, gmx_int64_t gmx_unused step)
 {
-#ifdef GMX_MPI
+#if GMX_MPI
     gmx_pme_comm_n_box_t cnb;
 
     /* Only let one PP node signal each PME node */
@@ -463,7 +465,7 @@ int gmx_pme_recv_coeffs_coords(struct gmx_pme_pp *pme_pp,
     int                  nat = 0, status;
 
     *pme_flags = 0;
-#ifdef GMX_MPI
+#if GMX_MPI
     gmx_pme_comm_n_box_t cnb;
     int                  messages;
 
@@ -717,7 +719,7 @@ static void receive_virial_energy(t_commrec *cr,
                     "PP rank %d receiving from PME rank %d: virial and energy\n",
                     cr->sim_nodeid, cr->dd->pme_nodeid);
         }
-#ifdef GMX_MPI
+#if GMX_MPI
         MPI_Recv(&cve, sizeof(cve), MPI_BYTE, cr->dd->pme_nodeid, 1, cr->mpi_comm_mysim,
                  MPI_STATUS_IGNORE);
 #else
@@ -751,14 +753,12 @@ void gmx_pme_receive_f(t_commrec *cr,
                        real *dvdlambda_q, real *dvdlambda_lj,
                        float *pme_cycles)
 {
-    int natoms, i;
-
 #ifdef GMX_PME_DELAYED_WAIT
     /* Wait for the x request to finish */
     gmx_pme_send_coeffs_coords_wait(cr->dd);
 #endif
 
-    natoms = cr->dd->nat_home;
+    int natoms = cr->dd->nat_home;
 
     if (natoms > cr->dd->pme_recv_f_alloc)
     {
@@ -766,18 +766,34 @@ void gmx_pme_receive_f(t_commrec *cr,
         srenew(cr->dd->pme_recv_f_buf, cr->dd->pme_recv_f_alloc);
     }
 
-#ifdef GMX_MPI
+#if GMX_MPI
     MPI_Recv(cr->dd->pme_recv_f_buf[0],
              natoms*sizeof(rvec), MPI_BYTE,
              cr->dd->pme_nodeid, 0, cr->mpi_comm_mysim,
              MPI_STATUS_IGNORE);
 #endif
 
-    for (i = 0; i < natoms; i++)
-    {
-        rvec_inc(f[i], cr->dd->pme_recv_f_buf[i]);
-    }
+    int nt = gmx_omp_nthreads_get_simple_rvec_task(emntDefault, natoms);
 
+    /* Note that we would like to avoid this conditional by putting it
+     * into the omp pragma instead, but then we still take the full
+     * omp parallel for overhead (at least with gcc5).
+     */
+    if (nt == 1)
+    {
+        for (int i = 0; i < natoms; i++)
+        {
+            rvec_inc(f[i], cr->dd->pme_recv_f_buf[i]);
+        }
+    }
+    else
+    {
+#pragma omp parallel for num_threads(nt) schedule(static)
+        for (int i = 0; i < natoms; i++)
+        {
+            rvec_inc(f[i], cr->dd->pme_recv_f_buf[i]);
+        }
+    }
 
     receive_virial_energy(cr, vir_q, energy_q, vir_lj, energy_lj, dvdlambda_q, dvdlambda_lj, pme_cycles);
 }
@@ -789,7 +805,7 @@ void gmx_pme_send_force_vir_ener(struct gmx_pme_pp *pme_pp,
                                  real dvdlambda_q, real dvdlambda_lj,
                                  float cycles)
 {
-#ifdef GMX_MPI
+#if GMX_MPI
     gmx_pme_comm_vir_ene_t cve;
     int                    messages, ind_start, ind_end;
     cve.cycles = cycles;
