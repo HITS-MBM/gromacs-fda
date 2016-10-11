@@ -7,7 +7,7 @@
 #ifndef pf_utils_h
 #define pf_utils_h
 
-#include "gromacs/fileio/filenm.h"
+#include "gromacs/commandline/filenm.h"
 #include "gromacs/topology/topology.h"
 #include "types/pf_array.h"
 

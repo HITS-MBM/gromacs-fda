@@ -3,7 +3,7 @@ set(exename "fda-graph-test")
 
 gmx_add_gtest_executable(
     ${exename}
-    FDABoostGraphTest.cpp
+    BoostGraphTest.cpp
     FDAGetStressTest.cpp
     FDAGraphTest.cpp
     FDAShortestPathTest.cpp

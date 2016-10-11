@@ -1,19 +1,15 @@
 /*
- * FDABoostGraphTest.cpp
+ * BoostGraphTest.cpp
  *
  *  Created on: Feb 19, 2015
  *      Author: Bernd Doser, HITS gGmbH
  */
 
 #include <gtest/gtest.h>
-
 #include "testutils/EqualArrays.h"
-#include "gromacs/gmxana/fda/BoostGraph.h"
 
-using namespace fda_analysis;
-
-//! Test for FDA BoostGraph
-TEST(FDABoostGraphTest, Dijkstra1)
+//! Test for BoostGraph
+TEST(BoostGraphTest, Dijkstra1)
 {
 	const int N = 4;
 	std::vector<double> f(N*N);
@@ -35,8 +31,8 @@ TEST(FDABoostGraphTest, Dijkstra1)
 	EXPECT_EQ(graph.distance(shortestPath), 3.0);
 }
 
-//! Test for FDA BoostGraph
-TEST(FDABoostGraphTest, Dijkstra2)
+//! Test for BoostGraph
+TEST(BoostGraphTest, Dijkstra2)
 {
 	const int N = 6;
 	std::vector<double> f(N*N);
@@ -62,8 +58,8 @@ TEST(FDABoostGraphTest, Dijkstra2)
 	EXPECT_EQ(graph.distance(shortestPath), 5.0);
 }
 
-//! Test for FDA BoostGraph
-TEST(FDABoostGraphTest, Yen1)
+//! Test for BoostGraph
+TEST(BoostGraphTest, Yen1)
 {
 	const int N = 6;
 	std::vector<double> f(N*N);
@@ -90,8 +86,8 @@ TEST(FDABoostGraphTest, Yen1)
     }
 }
 
-//! Test for FDA BoostGraph
-TEST(FDABoostGraphTest, Yen2)
+//! Test for BoostGraph
+TEST(BoostGraphTest, Yen2)
 {
 	const int N = 6;
 	std::vector<double> f(N*N);
