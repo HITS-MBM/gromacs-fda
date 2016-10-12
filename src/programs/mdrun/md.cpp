@@ -54,6 +54,8 @@
 #include "gromacs/domdec/domdec_struct.h"
 #include "gromacs/ewald/pme.h"
 #include "gromacs/ewald/pme-load-balancing.h"
+#include "gromacs/fda/pf_io.h"
+#include "gromacs/fda/pf_utils.h"
 #include "gromacs/fileio/trxio.h"
 #include "gromacs/gmxlib/md_logging.h"
 #include "gromacs/gmxlib/network.h"

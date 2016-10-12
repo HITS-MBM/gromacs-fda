@@ -5,21 +5,21 @@
  *      Author: Bernd Doser, HITS gGmbH
  */
 
-#include <stdbool.h>
-#include <stdio.h>
-#include <string.h>
-#include <limits.h>
-#include "gromacs/fileio/filenm.h"
-#include "gromacs/utility/fatalerror.h"
+#include <algorithm>
+#include <climits>
+#include <cstdio>
+#include <cstring>
+#include "gromacs/fda/pf_interactions.h"
+#include "gromacs/fda/pf_utils.h"
+#include "gromacs/fileio/readinp.h"
+#include "gromacs/fileio/warninp.h"
+#include "gromacs/topology/block.h"
 #include "gromacs/topology/index.h"
-#include "gromacs/legacyheaders/macros.h"
-#include "gromacs/legacyheaders/readinp.h"
-#include "gromacs/legacyheaders/warninp.h"
-#include "gromacs/utility/cstringutil.h"
+#include "gromacs/topology/topology.h"
+#include "gromacs/utility/basedefinitions.h"
+#include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/smalloc.h"
 #include "pf_exclusions.h"
-#include "../../gromacs/fda/pf_interactions.h"
-#include "../../gromacs/fda/pf_utils.h"
 
 void pf_global_data_init(int nfile, const t_filenm fnm[])
 {
@@ -279,7 +279,7 @@ void pf_modify_energy_group_exclusions(gmx_mtop_t *mtop, t_inputrec *inputrec)
 		// Determine start index of energy groups
 		int startIdx = UCHAR_MAX;
 		for (i = 0; i < mtop->groups.grps[egcENER].nr; ++i) {
-			startIdx = min(startIdx, mtop->groups.grps[egcENER].nm_ind[i]);
+			startIdx = std::min(startIdx, mtop->groups.grps[egcENER].nm_ind[i]);
 		}
 
 		#ifdef FDA_PRINT_DEBUG_ON
