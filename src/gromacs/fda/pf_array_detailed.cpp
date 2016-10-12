@@ -6,14 +6,15 @@
 
 #include <stddef.h>
 
-#include "gromacs/fda/pf_interactions.h"
-#include "gromacs/fda/types/pf_array_detailed.h"
-#include "gromacs/fda/types/pf_array.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/math/vectypes.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/real.h"
 #include "gromacs/utility/smalloc.h"
+#include "pf_array_detailed.h"
+#include "pf_interactions.h"
+#include "types/pf_array_detailed.h"
+#include "types/pf_array.h"
 
 #ifdef HAVE_CONFIG_H
   #include <config.h>

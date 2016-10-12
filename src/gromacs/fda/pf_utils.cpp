@@ -6,18 +6,7 @@
 
 #include <stdio.h>
 
-#include "gromacs/fda/pf_array.h"
-#include "gromacs/fda/pf_array_detailed.h"
-#include "gromacs/fda/pf_array_scalar.h"
-#include "gromacs/fda/pf_array_summed.h"
-#include "gromacs/fda/pf_interactions.h"
-#include "gromacs/fda/pf_per_atom.h"
-#include "gromacs/fda/pf_utils.h"
-#include "gromacs/fda/types/pf_array_scalar.h"
-#include "gromacs/fda/types/pf_array_summed.h"
-#include "gromacs/legacyheaders/macros.h"
-#include "gromacs/legacyheaders/readinp.h"
-#include "gromacs/legacyheaders/warninp.h"
+#include "gromacs/fileio/readinp.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/math/vectypes.h"
 #include "gromacs/topology/atoms.h"
@@ -25,11 +14,21 @@
 #include "gromacs/topology/index.h"
 #include "gromacs/topology/mtop_util.h"
 #include "gromacs/topology/topology.h"
+#include "gromacs/utility/arraysize.h"
 #include "gromacs/utility/basedefinitions.h"
 #include "gromacs/utility/cstringutil.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/real.h"
 #include "gromacs/utility/smalloc.h"
+#include "pf_array.h"
+#include "pf_array_detailed.h"
+#include "pf_array_scalar.h"
+#include "pf_array_summed.h"
+#include "pf_interactions.h"
+#include "pf_per_atom.h"
+#include "pf_utils.h"
+#include "types/pf_array_scalar.h"
+#include "types/pf_array_summed.h"
 
 #ifdef HAVE_CONFIG_H
   #include <config.h>
@@ -175,14 +174,14 @@ real pf_vector2signedscalar(const rvec v, const rvec xi, const rvec xj, int Vect
   }
 }
 
-/* allocates and fills with NO_ATID the indexing table real atom nr. to pf number */
+/* allocates and fills with -1 the indexing table real atom nr. to pf number */
 int *pf_init_sys2pf(int syslen) {
   int *sys2pf;
   int i;
 
   snew(sys2pf, syslen);
   for (i = 0; i < syslen; i++) {
-    sys2pf[i] = NO_ATID;
+    sys2pf[i] = -1;
   }
   return sys2pf;
 }
@@ -192,7 +191,7 @@ void pf_fill_sys2pf(int *sys2pf, int *len, t_pf_int_list *p) {
   int i;
 
   for (i = 0; i < p->len; i++) {
-    if (sys2pf[p->list[i]] == NO_ATID) {
+    if (sys2pf[p->list[i]] == -1) {
       sys2pf[p->list[i]] = *len;
       (*len)++;
     }
@@ -290,13 +289,13 @@ void pf_fill_atom2residue(t_pf_global *pf_global, gmx_mtop_t *top_global) {
   snew(a2r_renum, top_global->natoms);
   /* get the maximum number of residues in any molecule block;
    * any residue nr. obtained via atoms->resinfo[].nr is guaranteed to be smaller than this;
-   * this will be used for residue nr. collision detection - initialized to NO_ATID,
+   * this will be used for residue nr. collision detection - initialized to -1,
    * will be set to the renumbered value on the first encounter, then a new renumbered value means a collision */
   resnrmax = gmx_mtop_maxresnr(top_global, 0);
   snew(resnr2renum, resnrmax + 1);
   //fprintf(stderr, "resnrmax=%d\n",resnrmax);
   for (i = 0; i <= resnrmax; i++)
-    resnr2renum[i] = NO_ATID;
+    resnr2renum[i] = -1;
   atom_global_index = 0;
   renum = 0;
   for (moltype_index = 0; moltype_index < top_global->nmolblock; moltype_index++) {	//enum all molecule types
@@ -309,7 +308,7 @@ void pf_fill_atom2residue(t_pf_global *pf_global, gmx_mtop_t *top_global) {
         renum = pf_get_global_residue_number(top_global, atom_global_index);
         //fprintf(stderr, "atom=%d, resnr=%d, renum=%d\n", atom_global_index, resnr, renum);
         //fprintf(stderr, "pair %d:%d\n", resnr, resnr2renum[resnr]);
-        if ((resnr2renum[resnr] != renum) && (resnr2renum[resnr] != NO_ATID)) {
+        if ((resnr2renum[resnr] != renum) && (resnr2renum[resnr] != -1)) {
           bResnrCollision = TRUE;
           //fprintf(stderr, "Renumbering because %d:%d should be %d:%d\n", resnr, renum, resnr, resnr2renum[resnr]);
         }
@@ -507,13 +506,13 @@ void pf_atoms_alloc(int OnePair, t_pf_atoms *atoms, int syslen, char *name) {
     case PF_ONEPAIR_DETAILED:
       snew(atoms->detailed, atoms->len);
       for (i = 0; i < syslen; i++)
-        if (atoms->sys2pf[i] != NO_ATID)
+        if (atoms->sys2pf[i] != -1)
           atoms->detailed[atoms->sys2pf[i]].nr = i;
       break;
     case PF_ONEPAIR_SUMMED:
       snew(atoms->summed, atoms->len);
       for (i = 0; i < syslen; i++)
-        if (atoms->sys2pf[i] != NO_ATID)
+        if (atoms->sys2pf[i] != -1)
           atoms->summed[atoms->sys2pf[i]].nr = i;
       break;
     default:
@@ -553,7 +552,7 @@ void pf_atoms_scalar_alloc(t_pf_atoms *atoms, int syslen, char *name) {
   fprintf(stderr, "Allocating space for scalar pairwise forces of %d %s.\n", atoms->len, name);
   snew(atoms->scalar, atoms->len);
   for (i = 0; i < syslen; i++)
-    if (atoms->sys2pf[i] != NO_ATID)
+    if (atoms->sys2pf[i] != -1)
       atoms->scalar[atoms->sys2pf[i]].nr = i;
 }
 
