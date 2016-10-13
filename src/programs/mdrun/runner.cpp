@@ -59,6 +59,7 @@
 #include "gromacs/domdec/domdec_struct.h"
 #include "gromacs/essentialdynamics/edsam.h"
 #include "gromacs/ewald/pme.h"
+#include "gromacs/fda/pf_exclusions.h"
 #include "gromacs/fileio/checkpoint.h"
 #include "gromacs/fileio/oenv.h"
 #include "gromacs/fileio/tpxio.h"
@@ -118,7 +119,8 @@
 #include "corewrap.h"
 #endif
 
-#include "pf_exclusions.h"
+//! FDA global object
+t_pf_global_data pf_global_data;
 
 //! First step used in pressure scaling
 gmx_int64_t         deform_init_init_step_tpx;

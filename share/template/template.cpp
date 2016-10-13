@@ -35,7 +35,11 @@
 #include <string>
 #include <vector>
 
-#include <gromacs/trajectoryanalysis.h>
+#include "gromacs/trajectoryanalysis.h"
+#include "gromacs/fda/pf_exclusions.h"
+
+//! FDA global object
+t_pf_global_data pf_global_data;
 
 using namespace gmx;
 

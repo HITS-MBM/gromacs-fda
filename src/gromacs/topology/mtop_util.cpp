@@ -42,6 +42,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "../fda/pf_exclusions.h"
 #include "gromacs/fda/pf_interactions.h"
 #include "gromacs/math/vectypes.h"
 #include "gromacs/topology/atoms.h"
@@ -53,7 +54,6 @@
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/real.h"
 #include "gromacs/utility/smalloc.h"
-#include "programs/mdrun/pf_exclusions.h"
 
 int gmx_mtop_maxresnr(const gmx_mtop_t *mtop, int maxres_renum)
 {

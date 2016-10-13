@@ -5,6 +5,8 @@
  *      Author: Bernd Doser, HITS gGmbH
  */
 
+#include "../../gromacs/fda/pf_exclusions.h"
+
 #include <algorithm>
 #include <climits>
 #include <cstdio>
@@ -19,7 +21,6 @@
 #include "gromacs/utility/basedefinitions.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/smalloc.h"
-#include "pf_exclusions.h"
 
 void pf_global_data_init(int nfile, const t_filenm fnm[])
 {

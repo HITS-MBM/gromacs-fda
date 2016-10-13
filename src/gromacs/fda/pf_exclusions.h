@@ -51,7 +51,7 @@ typedef struct {
 //! In the current implementation a second global object (real global instead of pf_global)
 //! is used only for the data needed by the exclusion code.
 //! For the future both global object should be merged.
-t_pf_global_data pf_global_data;
+extern t_pf_global_data pf_global_data;
 
 #ifdef __cplusplus
 extern "C" {
