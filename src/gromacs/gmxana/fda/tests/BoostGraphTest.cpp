@@ -6,7 +6,10 @@
  */
 
 #include <gtest/gtest.h>
+#include "gromacs/gmxana/fda/BoostGraph.h"
 #include "testutils/EqualArrays.h"
+
+using namespace fda_analysis;
 
 //! Test for BoostGraph
 TEST(BoostGraphTest, Dijkstra1)

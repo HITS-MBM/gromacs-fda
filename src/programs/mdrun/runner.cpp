@@ -119,9 +119,6 @@
 #include "corewrap.h"
 #endif
 
-//! FDA global object
-t_pf_global_data pf_global_data;
-
 //! First step used in pressure scaling
 gmx_int64_t         deform_init_init_step_tpx;
 //! Initial box for pressure scaling

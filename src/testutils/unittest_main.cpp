@@ -39,10 +39,10 @@
  * \author Teemu Murtola <teemu.murtola@gmail.com>
  * \ingroup module_testutils
  */
-#include "gmxpre.h"
 
 #include <gtest/gtest.h>
-
+#include "gmxpre.h"
+#include "gromacs/fda/pf_exclusions.h"
 #include "testutils/testinit.h"
 
 #ifndef TEST_DATA_PATH
@@ -59,6 +59,9 @@
 //! Whether the test expects/supports running with multiple MPI ranks.
 #define TEST_USES_MPI false
 #endif
+
+//! FDA global object
+t_pf_global_data pf_global_data;
 
 /*! \brief
  * Initializes unit testing for \ref module_testutils.

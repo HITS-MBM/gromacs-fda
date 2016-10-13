@@ -41,11 +41,15 @@
 
 #include "gromacs/commandline/cmdlineinit.h"
 #include "gromacs/commandline/cmdlinemodulemanager.h"
+#include "gromacs/fda/pf_exclusions.h"
 #include "gromacs/selection/selhelp.h"
 #include "gromacs/trajectoryanalysis/modules.h"
 #include "gromacs/utility/exceptions.h"
 
 #include "legacymodules.h"
+
+//! FDA global object
+t_pf_global_data pf_global_data;
 
 int
 main(int argc, char *argv[])

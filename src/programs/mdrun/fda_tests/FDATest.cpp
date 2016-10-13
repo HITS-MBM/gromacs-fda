@@ -5,19 +5,20 @@
  *      Author: Bernd Doser, HITS gGmbH
  */
 
+#include <iostream>
+#include <string>
+#include <vector>
+#include <gtest/gtest.h>
 #include "gromacs/options/filenameoption.h"
 #include "gromacs/utility/futil.h"
 #include "gromacs/utility/path.h"
+#include "gromacs/utility/real.h"
 #include "gromacs/gmxpreprocess/grompp.h"
 #include "programs/mdrun/mdrun_main.h"
 #include "testutils/cmdlinetest.h"
 #include "testutils/integrationtests.h"
 #include "testutils/TextSplitter.h"
 #include "testutils/LogicallyErrorComparer.h"
-#include <gtest/gtest.h>
-#include <iostream>
-#include <string>
-#include <vector>
 
 namespace {
 
