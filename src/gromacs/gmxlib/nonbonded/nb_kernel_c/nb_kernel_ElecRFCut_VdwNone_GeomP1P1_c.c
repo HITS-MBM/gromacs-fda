@@ -40,8 +40,8 @@
 #include <math.h>
 
 #include "../nb_kernel.h"
+#include "gromacs/fda/pf_array.h"
 #include "gromacs/fda/pf_interactions.h"
-#include "gromacs/fda/types/pf_array.h"
 #include "gromacs/gmxlib/nrnb.h"
 
 /*
