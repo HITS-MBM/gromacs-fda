@@ -2,7 +2,7 @@
 
 stage 'Checkout'
 node {
-    git url: "https://github.com/HITS-MBM/gromacs-fda.git", branch: 'fda'
+    git url: "https://github.com/HITS-MBM/gromacs-fda.git", branch: 'release-2016-fda'
 }
     
 stage 'Build'
