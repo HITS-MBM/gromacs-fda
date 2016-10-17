@@ -234,7 +234,6 @@ rvec *pf_residues_com(t_pf_global *pf_global, gmx_mtop_t *top_global, const rvec
   t_atoms *atoms;
   t_atom *atom_info;
   gmx_molblock_t *mb;
-  gmx_moltype_t *mt;
   rvec r;
   real *mass;
   rvec *com;
@@ -349,7 +348,6 @@ void pf_write_frame_scalar(t_pf_atoms *atoms, FILE* f, int *framenr) {
 }
 
 void pf_write_frame(t_pf_global *pf_global, const rvec *x,  gmx_mtop_t *top_global) {
-  FILE *f;
   rvec *com = NULL;	/* for residue based summation */
 
   /* this function is called from md.c, needs to check whether PF was initialized... */
@@ -362,11 +360,19 @@ void pf_write_frame(t_pf_global *pf_global, const rvec *x,  gmx_mtop_t *top_glob
   switch (pf_global->OnePair) {
     case PF_ONEPAIR_DETAILED:
       switch (pf_global->AtomBased) {
+        case FILE_OUT_NONE:
+          break;
         case FILE_OUT_PAIRWISE_FORCES_VECTOR:
           pf_write_frame_detailed(pf_global->atoms, pf_global->of_atoms, &pf_global->nsteps_atoms, x, TRUE, pf_global->Vector2Scalar);
           break;
         case FILE_OUT_PAIRWISE_FORCES_SCALAR:
           pf_write_frame_detailed(pf_global->atoms, pf_global->of_atoms, &pf_global->nsteps_atoms, x, FALSE, pf_global->Vector2Scalar);
+          break;
+        case FILE_OUT_VIRIAL_STRESS:
+          gmx_fatal(FARGS, "Per atom detailed output not supported for virial stress.\n");
+          break;
+        case FILE_OUT_VIRIAL_STRESS_VON_MISES:
+          gmx_fatal(FARGS, "Per atom detailed output not supported for virial stress von mises.\n");
           break;
         case FILE_OUT_COMPAT_BIN:
           break;
@@ -378,11 +384,19 @@ void pf_write_frame(t_pf_global *pf_global, const rvec *x,  gmx_mtop_t *top_glob
           break;
       }
       switch (pf_global->ResidueBased) {
+        case FILE_OUT_NONE:
+          break;
         case FILE_OUT_PAIRWISE_FORCES_VECTOR:
           pf_write_frame_detailed(pf_global->residues, pf_global->of_residues, &pf_global->nsteps_residues, (const rvec*)com, TRUE, pf_global->Vector2Scalar);
           break;
         case FILE_OUT_PAIRWISE_FORCES_SCALAR:
           pf_write_frame_detailed(pf_global->residues, pf_global->of_residues, &pf_global->nsteps_residues, (const rvec*)com, FALSE, pf_global->Vector2Scalar);
+          break;
+        case FILE_OUT_VIRIAL_STRESS:
+          gmx_fatal(FARGS, "Per residue detailed output not supported for virial stress.\n");
+          break;
+        case FILE_OUT_VIRIAL_STRESS_VON_MISES:
+          gmx_fatal(FARGS, "Per residue detailed output not supported for virial stress von mises.\n");
           break;
         case FILE_OUT_COMPAT_BIN:
           break;
@@ -396,39 +410,59 @@ void pf_write_frame(t_pf_global *pf_global, const rvec *x,  gmx_mtop_t *top_glob
       break; /* PF_ONEPAIR_DETAILED */
     case PF_ONEPAIR_SUMMED:
       switch (pf_global->AtomBased) {
+        case FILE_OUT_NONE:
+          break;
         case FILE_OUT_PAIRWISE_FORCES_VECTOR:
           pf_write_frame_summed(pf_global->atoms, pf_global->of_atoms, &pf_global->nsteps_atoms, x, TRUE, pf_global->Vector2Scalar);
           break;
         case FILE_OUT_PAIRWISE_FORCES_SCALAR:
           pf_write_frame_summed(pf_global->atoms, pf_global->of_atoms, &pf_global->nsteps_atoms, x, FALSE, pf_global->Vector2Scalar);
           break;
-        case FILE_OUT_COMPAT_BIN:
-        case FILE_OUT_COMPAT_ASCII:
-          pf_write_frame_atoms_summed_compat(pf_global->atoms, pf_global->of_atoms, &pf_global->nsteps_atoms, x, (pf_global->AtomBased == FILE_OUT_COMPAT_ASCII), pf_global->Vector2Scalar);
-          break;
         case FILE_OUT_PUNCTUAL_STRESS:
           pf_per_atom_sum(pf_global->per_atom_real, pf_global->atoms->summed, pf_global->atoms->len, x, pf_global->Vector2Scalar);
           pf_per_atom_real_write_frame(pf_global->of_atoms, pf_global->per_atom_real->force, pf_global->per_atom_real->len, pf_global->no_end_zeros);
           break;
+        case FILE_OUT_VIRIAL_STRESS:
+          pf_write_atom_virial_sum(pf_global->of_atoms, pf_global->atom_vir, pf_global->syslen_atoms);
+          break;
+        case FILE_OUT_VIRIAL_STRESS_VON_MISES:
+          pf_write_atom_virial_sum_von_mises(pf_global->of_atoms, pf_global->atom_vir, pf_global->syslen_atoms);
+          break;
+        case FILE_OUT_COMPAT_BIN:
+          break;
+        case FILE_OUT_COMPAT_ASCII:
+          pf_write_frame_atoms_summed_compat(pf_global->atoms, pf_global->of_atoms, &pf_global->nsteps_atoms, x, (pf_global->AtomBased == FILE_OUT_COMPAT_ASCII), pf_global->Vector2Scalar);
+          break;
         default:
+          gmx_fatal(FARGS, "Per atom summed output not implemented.\n");
           break;
       }
       switch (pf_global->ResidueBased) {
+        case FILE_OUT_NONE:
+          break;
         case FILE_OUT_PAIRWISE_FORCES_VECTOR:
           pf_write_frame_summed(pf_global->residues, pf_global->of_residues, &pf_global->nsteps_residues, (const rvec*)com, TRUE, pf_global->Vector2Scalar);
           break;
         case FILE_OUT_PAIRWISE_FORCES_SCALAR:
           pf_write_frame_summed(pf_global->residues, pf_global->of_residues, &pf_global->nsteps_residues, (const rvec *)com, FALSE, pf_global->Vector2Scalar);
           break;
-        case FILE_OUT_COMPAT_BIN:
-        case FILE_OUT_COMPAT_ASCII:
-          pf_write_frame_atoms_summed_compat(pf_global->residues, pf_global->of_residues, &pf_global->nsteps_residues, (const rvec*)com, (pf_global->ResidueBased == FILE_OUT_COMPAT_ASCII), pf_global->Vector2Scalar);
-          break;
         case FILE_OUT_PUNCTUAL_STRESS:
           pf_per_atom_sum(pf_global->per_residue_real, pf_global->residues->summed, pf_global->residues->len, (const rvec*)com, pf_global->Vector2Scalar);
           pf_per_atom_real_write_frame(pf_global->of_residues, pf_global->per_residue_real->force, pf_global->per_residue_real->len, pf_global->no_end_zeros);
           break;
+        case FILE_OUT_VIRIAL_STRESS:
+          gmx_fatal(FARGS, "Per residue summed output not supported for virial stress.\n");
+          break;
+        case FILE_OUT_VIRIAL_STRESS_VON_MISES:
+          gmx_fatal(FARGS, "Per residue summed output not supported for virial stress von mises.\n");
+          break;
+        case FILE_OUT_COMPAT_BIN:
+          break;
+        case FILE_OUT_COMPAT_ASCII:
+          pf_write_frame_atoms_summed_compat(pf_global->residues, pf_global->of_residues, &pf_global->nsteps_residues, (const rvec*)com, (pf_global->ResidueBased == FILE_OUT_COMPAT_ASCII), pf_global->Vector2Scalar);
+          break;
         default:
+          gmx_fatal(FARGS, "Per residue summed output not implemented.\n");
           break;
       }
       break; /* PF_ONEPAIR_SUMMED */
@@ -436,13 +470,7 @@ void pf_write_frame(t_pf_global *pf_global, const rvec *x,  gmx_mtop_t *top_glob
       break;
   }
 
-  if (pf_global->AtomBased == FILE_OUT_VIRIAL_STRESS)
-      pf_write_atom_virial_sum(pf_global->of_atoms, pf_global->atom_vir, pf_global->syslen_atoms);
-  else if (pf_global->AtomBased == FILE_OUT_VIRIAL_STRESS_VON_MISES)
-      pf_write_atom_virial_sum_von_mises(pf_global->of_atoms, pf_global->atom_vir, pf_global->syslen_atoms);
-
-  if (pf_file_out_PF_or_PS(pf_global->ResidueBased))
-    sfree(com);
+  if (pf_file_out_PF_or_PS(pf_global->ResidueBased)) sfree(com);
 }
 
 /* writes a header as in original PF implementation;
