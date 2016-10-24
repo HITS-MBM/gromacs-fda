@@ -466,6 +466,13 @@ include(gmxManageSharedLibraries)
 # Find external packages                                               #
 ########################################################################
 
+# Boost template libraries
+set(Boost_USE_STATIC_LIBS ON)
+set(Boost_USE_MULTITHREADED ON)
+set(Boost_USE_STATIC_RUNTIME OFF)
+find_package(Boost COMPONENTS graph REQUIRED)
+include_directories(${Boost_INCLUDE_DIRS})
+
 # TNG wants zlib if it is available. And static libxml2 might have a dependency
 find_package(ZLIB QUIET)
 include(gmxTestZLib)
