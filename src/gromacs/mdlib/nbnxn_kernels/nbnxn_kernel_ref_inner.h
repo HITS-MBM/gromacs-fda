@@ -96,7 +96,10 @@
             real vcoul;
 #endif
 #endif
-            real fscal,fvdw;
+            real fscal;
+#ifdef CALC_COULOMB
+			real fvdw;
+#endif
             real fx, fy, fz;
 
             /* A multiply mask used to zero an interaction
