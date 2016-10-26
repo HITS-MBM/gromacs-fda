@@ -50,7 +50,7 @@ t_pf_interactions_type pf_interactions_type[] = {
 };
 #define PF_INTERACTIONS_NR asize(pf_interactions_type)
 
-/* these arrays should correspond to the defines in include/types/pf_array.h */
+/* these arrays should correspond to the defines in include/fda.h */
 /* they are used both for reading input from user and in output for confirmation */
 const char *pf_file_out_atom_option[FILE_OUT_NR+1] = {
   "no",

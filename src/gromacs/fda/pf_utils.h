@@ -9,7 +9,7 @@
 
 #include "gromacs/commandline/filenm.h"
 #include "gromacs/topology/topology.h"
-#include "types/pf_array.h"
+#include "fda.h"
 
 t_pf_int_list *pf_int_list_alloc(int len);
 void pf_int_list_free(t_pf_int_list *p);

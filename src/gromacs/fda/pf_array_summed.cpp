@@ -12,7 +12,7 @@
 #include "gromacs/utility/real.h"
 #include "gromacs/utility/smalloc.h"
 #include "pf_array_summed.h"
-#include "types/pf_array.h"
+#include "fda.h"
 #include "types/pf_array_summed.h"
 
 #ifdef HAVE_CONFIG_H

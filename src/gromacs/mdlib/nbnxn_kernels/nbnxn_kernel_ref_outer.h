@@ -34,7 +34,7 @@
  */
 
 #include "gromacs/fda/pf_interactions.h"
-#include "gromacs/fda/types/pf_array.h"
+#include "gromacs/fda/fda.h"
 
 #define UNROLLI    NBNXN_CPU_CLUSTER_I_SIZE
 #define UNROLLJ    NBNXN_CPU_CLUSTER_I_SIZE

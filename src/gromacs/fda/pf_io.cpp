@@ -9,7 +9,7 @@
 #include "gromacs/fda/pf_interactions.h"
 #include "gromacs/fda/pf_per_atom.h"
 #include "gromacs/fda/pf_utils.h"
-#include "gromacs/fda/types/pf_array.h"
+#include "gromacs/fda/fda.h"
 #include "gromacs/fileio/gmxfio.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/math/vectypes.h"

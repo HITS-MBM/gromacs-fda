@@ -47,7 +47,7 @@
 
 #include <algorithm>
 
-#include "gromacs/fda/types/pf_array.h"
+#include "gromacs/fda/fda.h"
 #include "gromacs/gmxlib/network.h"
 #include "gromacs/math/functions.h"
 #include "gromacs/math/vec.h"

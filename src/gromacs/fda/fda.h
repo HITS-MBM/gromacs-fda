@@ -36,8 +36,8 @@
  * Copyright Bogdan Costescu 2010-2013
  */
 
-#ifndef pf_types_array_h
-#define pf_types_array_h
+#ifndef GMX_FDA_FDA_H
+#define GMX_FDA_FDA_H
 
 #include <stdio.h>
 
@@ -86,7 +86,10 @@ typedef struct {
   rvec *com;                    /* averaged residue COM coordinates over steps, needed for COM calculations; only initialized when pf_global->ResidueBased is non-zero */
 } t_pf_time_averages;
 
-typedef struct {
+//class ForceDistribution
+typedef struct t_pf_global
+{
+//public:
   gmx_bool bInitialized;        /* TRUE if pairwise forces should be written out, FALSE otherwise; if FALSE, many of the following structure members will not be initialized */
   /* AtomBased & ResidueBased below are not boolean, to allow expressing preferences not only for storing in memory but also about the format they are written in:
    * value | value in fi file | meaning
@@ -189,4 +192,4 @@ enum {
 /* the initial number of items allocated for an array */
 #define PF_ARRAY_INITSIZE	8
 
-#endif  /* pf_types_array_h */
+#endif  /* GMX_FDA_FDA_H */

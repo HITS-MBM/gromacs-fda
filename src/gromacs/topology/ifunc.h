@@ -37,7 +37,7 @@
 #ifndef GMX_TOPOLOGY_IFUNC_H
 #define GMX_TOPOLOGY_IFUNC_H
 
-#include "gromacs/fda/types/pf_array.h"
+#include "gromacs/fda/fda.h"
 #include "gromacs/topology/idef.h"
 
 #ifdef __cplusplus

@@ -10,7 +10,7 @@
 #include "pf_array_detailed.h"
 #include "pf_array_summed.h"
 #include "pf_interactions.h"
-#include "types/pf_array.h"
+#include "fda.h"
 
 #ifdef HAVE_CONFIG_H
   #include <config.h>
