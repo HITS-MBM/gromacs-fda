@@ -242,7 +242,6 @@ char *pf_make_sys_in_group(int syslen, t_pf_int_list *p) {
 int pf_get_global_residue_number(const gmx_mtop_t *mtop, const int atnr_global) {
   int mb;
   int a_start, a_end, maxresnr, at_loc;
-  gmx_molblock_t *molb;
   t_atoms *atoms=NULL;
 
   mb = -1;
@@ -277,7 +276,6 @@ void pf_fill_atom2residue(t_pf_global *pf_global, gmx_mtop_t *top_global) {
   t_atoms *atoms;
   t_atom *atom_info;
   gmx_molblock_t *mb;
-  gmx_moltype_t *mt;
   int *a2r_resnr, *a2r_renum;       /* atom 2 residue correspondence tables, both are filled, one will be used in the end */
   int *resnr2renum;                 /* residue nr. to renumbered nr. corespondence */
   int resnr;                            /* residue nr.; set to atoms->resinfo[].nr => type int */
@@ -376,7 +374,7 @@ t_pf_int_list *pf_group2atoms(int len, int *list){
  * this is slightly more complex than needed to allow the residue numbers to retain the ordering given to atoms
  */
 t_pf_int_list *pf_groupatoms2residues(t_pf_int_list *atoms, t_pf_global *pf_global) {
-  int i, j, r;
+  int i, r;
   int nr_residues_in_g = 0;
   int *group_residues;
   gmx_bool *in_g;
@@ -410,12 +408,9 @@ t_pf_int_list *pf_groupatoms2residues(t_pf_int_list *atoms, t_pf_global *pf_glob
 void pf_read_group(t_pf_global *pf_global, const char *ndxfile, char *groupname, char **sys_in_g) {
   t_blocka *groups;
   char** groupnames;
-  int i, k;
-  int j;
+  int i;
   t_pf_int_list *groupatoms, *groupresidues;
-  int nr_residues_in_g = 0;
   int *residues_in_g;
-  gmx_bool residue_in_g;
 
   groups = init_index(ndxfile, &groupnames);
   if(groups->nr == 0)

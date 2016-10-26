@@ -5,12 +5,11 @@
  *      Author: Bernd Doser, HITS gGmbH
  */
 
-#include "../../gromacs/fda/pf_exclusions.h"
-
 #include <algorithm>
 #include <climits>
 #include <cstdio>
 #include <cstring>
+#include "gromacs/fda/pf_exclusions.h"
 #include "gromacs/fda/pf_interactions.h"
 #include "gromacs/fda/pf_utils.h"
 #include "gromacs/fileio/readinp.h"

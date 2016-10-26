@@ -101,15 +101,8 @@ void pf_atom_add_bonded_nocheck(t_pf_global *pf_global, int i, int j, int type, 
   }
 }
 
-void pf_atom_add_bonded(t_pf_global *pf_global, int i, int j, int type, rvec force) {
-  t_pf_atoms *atoms;
-  t_pf_atoms *residues;
-  int ai = 0, aj = 0;       /* initialized to get rid of compiler warning, as they are only initialized later if AtomBased is non-zero */
-  int ri = 0, rj = 0;       /* initialized to get rid of compiler warning, as they are only initialized later if ResidueBased is non-zero */
-  rvec force_atom, force_residue;
-  gmx_bool atom_add = FALSE;
-  gmx_bool residue_add = FALSE;
-
+void pf_atom_add_bonded(t_pf_global *pf_global, int i, int j, int type, rvec force)
+{
   /* leave early if the interaction is not interesting */
   if (!(pf_global->type & type))
     return;
@@ -117,7 +110,6 @@ void pf_atom_add_bonded(t_pf_global *pf_global, int i, int j, int type, rvec for
 	//fprintf(stderr, "Warning: Unneeded pair in pf_atom_add_bonded i=%i, j=%i\n", i, j); fflush(stderr);
     return;
   }
-
   pf_atom_add_bonded_nocheck(pf_global, i, j, type, force);
 }
 

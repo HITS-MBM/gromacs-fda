@@ -29,7 +29,6 @@ void pf_per_atom_real_set(t_pf_per_atom_real *per_atom_real, real val) {
 
 void pf_per_atom_real_init(t_pf_per_atom_real **per_atom_real, int len, real val) {
   t_pf_per_atom_real *p;
-  int i;
 
   snew(p, 1);
   p->len = len;
@@ -49,7 +48,6 @@ void pf_per_atom_real_int_set(t_pf_per_atom_real_int *per_atom_real_int, real va
 
 void pf_per_atom_real_int_init(t_pf_per_atom_real_int **per_atom_real_int, int len, real val_real, int val_int) {
   t_pf_per_atom_real_int *p;
-  int i;
 
   snew(p, 1);
   p->len = len;

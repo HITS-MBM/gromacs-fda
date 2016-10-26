@@ -145,7 +145,6 @@ void pf_atom_detailed_merge(t_pf_atom_detailed *dst, t_pf_atom_detailed *src) {
 /* divides all forces by the given number; useful for calculating averages together with the pf_atom_*_merge() functions */
 void pf_atom_detailed_real_divide(t_pf_atom_detailed *atom, real divisor) {
   t_pf_interaction_array_detailed *ia;
-  t_pf_interaction_detailed *i;
   int type;
   int j;
 
