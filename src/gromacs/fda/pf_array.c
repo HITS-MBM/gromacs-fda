@@ -4,26 +4,26 @@
  * Copyright Bogdan Costescu 2010-2012
  */
 
+#include "fda.h"
 #include "gromacs/math/vectypes.h"
 #include "gromacs/utility/basedefinitions.h"
 #include "gromacs/utility/real.h"
 #include "pf_array_detailed.h"
 #include "pf_array_summed.h"
 #include "pf_interactions.h"
-#include "fda.h"
 
 #ifdef HAVE_CONFIG_H
   #include <config.h>
 #endif
 
-static const real HALF    =  0.5;
+static const real HALF = 0.5;
 
 /* check whether i and j are both in groups */
-static inline gmx_bool pf_atoms_in_groups(int i, int j, t_pf_global *pf_global) {
+static inline gmx_bool pf_atoms_in_groups(int i, int j, struct t_pf_global *pf_global) {
   return ((pf_global->sys_in_g1[i] && pf_global->sys_in_g2[j]) || (pf_global->sys_in_g1[j] && pf_global->sys_in_g2[i]));
 }
 
-void pf_atom_add_nonbonded_single(t_pf_global *pf_global, int i, int j, int type, real force, real dx, real dy, real dz) {
+void pf_atom_add_nonbonded_single(struct t_pf_global *pf_global, int i, int j, int type, real force, real dx, real dy, real dz) {
   rvec force_v;			/* vector force for interaction */
 
   /* first check that the interaction is interesting before doing computation and lookups */
@@ -40,7 +40,7 @@ void pf_atom_add_nonbonded_single(t_pf_global *pf_global, int i, int j, int type
   pf_atom_add_bonded_nocheck(pf_global, i, j, type, force_v);
 }
 
-void pf_atom_add_nonbonded(t_pf_global *pf_global, int i, int j, real pf_coul, real pf_lj, real dx, real dy, real dz) {
+void pf_atom_add_nonbonded(struct t_pf_global *pf_global, int i, int j, real pf_coul, real pf_lj, real dx, real dy, real dz) {
   t_pf_atoms *atoms;
   t_pf_atoms *residues;
   int ri = 0, rj = 0;
@@ -149,7 +149,7 @@ void pf_atom_add_nonbonded(t_pf_global *pf_global, int i, int j, real pf_coul, r
   }
 }
 
-void pf_atom_virial_add(t_pf_global *pf_global, int ai, tensor v, real s)
+void pf_atom_virial_add(struct t_pf_global *pf_global, int ai, tensor v, real s)
 {
     tensor *atom_vir = pf_global->atom_vir;
     atom_vir[ai][XX][XX] += s * v[XX][XX];
@@ -160,7 +160,7 @@ void pf_atom_virial_add(t_pf_global *pf_global, int ai, tensor v, real s)
     atom_vir[ai][YY][ZZ] += s * v[YY][ZZ];
 }
 
-void pf_atom_virial_bond(t_pf_global *pf_global, int ai, int aj, real f, real dx, real dy, real dz)
+void pf_atom_virial_bond(struct t_pf_global *pf_global, int ai, int aj, real f, real dx, real dy, real dz)
 {
 	tensor v;
 	v[XX][XX] = dx * dx * f;

@@ -91,7 +91,7 @@ nb_kernel_ElecRFCut_VdwNone_GeomW3W3_VF_c
     real             velec,felec,velecsum,facel,crf,krf,krf2;
     real             *charge;
 
-    t_pf_global * pf_global = fr->pf_global;
+    struct t_pf_global *pf_global = fr->pf_global;
 
     x                = xx[0];
     f                = ff[0];
@@ -661,7 +661,7 @@ nb_kernel_ElecRFCut_VdwNone_GeomW3W3_F_c
     real             velec,felec,velecsum,facel,crf,krf,krf2;
     real             *charge;
 
-    t_pf_global * pf_global = fr->pf_global;
+    struct t_pf_global *pf_global = fr->pf_global;
 
     x                = xx[0];
     f                = ff[0];

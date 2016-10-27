@@ -82,7 +82,7 @@ nb_kernel_ElecEw_VdwLJ_GeomP1P1_VF_c
     real             ewtabscale,eweps,sh_ewald,ewrt,ewtabhalfspace;
     real             *ewtab;
 
-    t_pf_global * pf_global = fr->pf_global;
+    struct t_pf_global *pf_global = fr->pf_global;
 
     x                = xx[0];
     f                = ff[0];
@@ -294,7 +294,7 @@ nb_kernel_ElecEw_VdwLJ_GeomP1P1_F_c
     real             ewtabscale,eweps,sh_ewald,ewrt,ewtabhalfspace;
     real             *ewtab;
 
-    t_pf_global * pf_global = fr->pf_global;
+    struct t_pf_global *pf_global = fr->pf_global;
 
     x                = xx[0];
     f                = ff[0];

@@ -86,10 +86,12 @@ typedef struct {
   rvec *com;                    /* averaged residue COM coordinates over steps, needed for COM calculations; only initialized when pf_global->ResidueBased is non-zero */
 } t_pf_time_averages;
 
-//class ForceDistribution
-typedef struct t_pf_global
-{
-//public:
+#ifdef __cplusplus
+class t_pf_global {
+public:
+#else
+struct t_pf_global {
+#endif
   gmx_bool bInitialized;        /* TRUE if pairwise forces should be written out, FALSE otherwise; if FALSE, many of the following structure members will not be initialized */
   /* AtomBased & ResidueBased below are not boolean, to allow expressing preferences not only for storing in memory but also about the format they are written in:
    * value | value in fi file | meaning
@@ -147,7 +149,7 @@ typedef struct t_pf_global
   t_pf_per_atom_real_int *per_residue_real_int; /* only initialized if required by user */
   gmx_bool no_end_zeros;	/* if True, trim the line such that the zeros at the end are not written; if False (default), all per atom/residue data is written */
   tensor *atom_vir;
-} t_pf_global;
+};
 
 /* values for OnePair */
 enum {

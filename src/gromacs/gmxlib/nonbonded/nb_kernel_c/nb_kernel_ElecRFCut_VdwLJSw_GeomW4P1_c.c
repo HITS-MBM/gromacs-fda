@@ -89,7 +89,7 @@ nb_kernel_ElecRFCut_VdwLJSw_GeomW4P1_VF_c
     real             *vdwparam;
     real             rswitch,swV3,swV4,swV5,swF2,swF3,swF4,d,d2,sw,dsw;
 
-    t_pf_global * pf_global = fr->pf_global;
+    struct t_pf_global *pf_global = fr->pf_global;
 
     x                = xx[0];
     f                = ff[0];
@@ -492,7 +492,7 @@ nb_kernel_ElecRFCut_VdwLJSw_GeomW4P1_F_c
     real             *vdwparam;
     real             rswitch,swV3,swV4,swV5,swF2,swF3,swF4,d,d2,sw,dsw;
 
-    t_pf_global * pf_global = fr->pf_global;
+    struct t_pf_global *pf_global = fr->pf_global;
 
     x                = xx[0];
     f                = ff[0];

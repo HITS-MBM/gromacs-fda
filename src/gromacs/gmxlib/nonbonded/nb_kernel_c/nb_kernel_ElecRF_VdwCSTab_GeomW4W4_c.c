@@ -103,7 +103,7 @@ nb_kernel_ElecRF_VdwCSTab_GeomW4W4_VF_c
     real             rt,vfeps,vftabscale,Y,F,Geps,Heps2,Fp,VV,FF;
     real             *vftab;
 
-    t_pf_global * pf_global = fr->pf_global;
+    struct t_pf_global *pf_global = fr->pf_global;
 
     x                = xx[0];
     f                = ff[0];
@@ -727,7 +727,7 @@ nb_kernel_ElecRF_VdwCSTab_GeomW4W4_F_c
     real             rt,vfeps,vftabscale,Y,F,Geps,Heps2,Fp,VV,FF;
     real             *vftab;
 
-    t_pf_global * pf_global = fr->pf_global;
+    struct t_pf_global *pf_global = fr->pf_global;
 
     x                = xx[0];
     f                = ff[0];

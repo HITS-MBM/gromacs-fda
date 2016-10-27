@@ -80,7 +80,7 @@ nb_kernel_ElecNone_VdwLJEw_GeomP1P1_VF_c
     real             ewclj,ewclj2,ewclj6,ewcljrsq,poly,exponent,sh_lj_ewald;
     real	     *vdwgridparam;
 
-    t_pf_global * pf_global = fr->pf_global;
+    struct t_pf_global *pf_global = fr->pf_global;
 
     x                = xx[0];
     f                = ff[0];
@@ -273,7 +273,7 @@ nb_kernel_ElecNone_VdwLJEw_GeomP1P1_F_c
     real             ewclj,ewclj2,ewclj6,ewcljrsq,poly,exponent,sh_lj_ewald;
     real	     *vdwgridparam;
 
-    t_pf_global * pf_global = fr->pf_global;
+    struct t_pf_global *pf_global = fr->pf_global;
 
     x                = xx[0];
     f                = ff[0];

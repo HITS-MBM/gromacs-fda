@@ -100,7 +100,7 @@ nb_kernel_ElecRFCut_VdwBhamSh_GeomW4W4_VF_c
     int              *vdwtype;
     real             *vdwparam;
 
-    t_pf_global * pf_global = fr->pf_global;
+    struct t_pf_global *pf_global = fr->pf_global;
 
     x                = xx[0];
     f                = ff[0];
@@ -754,7 +754,7 @@ nb_kernel_ElecRFCut_VdwBhamSh_GeomW4W4_F_c
     int              *vdwtype;
     real             *vdwparam;
 
-    t_pf_global * pf_global = fr->pf_global;
+    struct t_pf_global *pf_global = fr->pf_global;
 
     x                = xx[0];
     f                = ff[0];
