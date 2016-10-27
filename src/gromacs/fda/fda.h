@@ -90,9 +90,30 @@ typedef struct {
 class t_pf_global {
 public:
 
-  gmx_bool atoms_in_groups(int i, int j) {
+  gmx_bool atoms_in_groups(int i, int j) const {
 	return ((sys_in_g1[i] && sys_in_g2[j]) || (sys_in_g1[j] && sys_in_g2[i]));
   }
+
+  void add_bonded_nocheck(int i, int j, int type, rvec force);
+
+  void add_bonded(int i, int j, int type, rvec force);
+
+  /**
+   *  Translate to origin on the middle (j) atom:
+   *  vir = ri*Fi + rj*Fj + rk*Fk
+   *      = (ri-rj)*Fi + (rk-rj)*Fk
+   *      = r_ij[dim1]*f_i[dim2] + r_kj[dim1]*f_k[dim2]
+   */
+  void add_virial_angle(int ai, int aj, int ak, rvec r_ij, rvec r_kj, rvec f_i, rvec f_k);
+
+  /**
+   *  Translate to origin on the second (j) atom:
+   *  vir = ri*Fi + rj*Fj + rk*Fk + rl*Fl
+   *      = (ri-rj)*Fi + (rk-rj)*Fk + (rl-rj)*Fl
+   *      = (ri-rj)*Fi + (rk-rj)*Fk + ((rl-rk) + (rk-rj))*Fl
+   *      = r_ij[dim1]*f_i[dim2] + r_kj[dim1]*f_k[dim2] + (r_kj-r_kl)[dim1]*f_l[dim2]
+   */
+  void add_virial_dihedral(int i, int j, int k, int l, rvec f_i, rvec f_k, rvec f_l, rvec r_ij, rvec r_kj, rvec r_kl);
 
 #else
 struct t_pf_global {

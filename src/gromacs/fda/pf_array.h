@@ -50,14 +50,6 @@ void pf_atom_virial_bond(struct t_pf_global *pf_global, int ai, int aj, real fbo
 void pf_atom_add_bonded(struct t_pf_global *pf_global, int i, int j, int type, rvec force);
 
 /**
- *  Translate to origin on the middle (j) atom:
- *  vir = ri*Fi + rj*Fj + rk*Fk
- *      = (ri-rj)*Fi + (rk-rj)*Fk
- *      = r_ij[dim1]*f_i[dim2] + r_kj[dim1]*f_k[dim2]
- */
-void pf_atom_virial_angle(struct t_pf_global *pf_global, int ai, int aj, int ak, rvec r_ij, rvec r_kj, rvec f_i, rvec f_k);
-
-/**
  *  Translate to origin on the second (j) atom:
  *  vir = ri*Fi + rj*Fj + rk*Fk + rl*Fl
  *      = (ri-rj)*Fi + (rk-rj)*Fk + (rl-rj)*Fl

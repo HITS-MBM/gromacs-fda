@@ -108,35 +108,65 @@ void pf_atom_add_bonded(t_pf_global *pf_global, int i, int j, int type, rvec for
   pf_atom_add_bonded_nocheck(pf_global, i, j, type, force);
 }
 
-void pf_atom_virial_angle(t_pf_global *pf_global, int ai, int aj, int ak,
-	rvec r_ij, rvec r_kj, rvec f_i, rvec f_k)
+void t_pf_global::add_bonded(int i, int j, int type, rvec force)
 {
-	tensor v;
-	v[XX][XX] = r_ij[XX] * f_i[XX] + r_kj[XX] * f_k[XX];
-	v[YY][YY] = r_ij[YY] * f_i[YY] + r_kj[YY] * f_k[YY];
-	v[ZZ][ZZ] = r_ij[ZZ] * f_i[ZZ] + r_kj[ZZ] * f_k[ZZ];
-	v[XX][YY] = r_ij[XX] * f_i[YY] + r_kj[XX] * f_k[YY];
-	v[XX][ZZ] = r_ij[XX] * f_i[ZZ] + r_kj[XX] * f_k[ZZ];
-	v[YY][ZZ] = r_ij[YY] * f_i[ZZ] + r_kj[YY] * f_k[ZZ];
-	pf_atom_virial_add(pf_global, ai, v, THIRD);
-	pf_atom_virial_add(pf_global, aj, v, THIRD);
-	pf_atom_virial_add(pf_global, ak, v, THIRD);
+  /* leave early if the interaction is not interesting */
+  if (!(this->type & type))
+    return;
+  if (!this->atoms_in_groups(i, j)) {
+	//fprintf(stderr, "Warning: Unneeded pair in pf_atom_add_bonded i=%i, j=%i\n", i, j); fflush(stderr);
+    return;
+  }
+  pf_atom_add_bonded_nocheck(this, i, j, type, force);
+}
+
+void t_pf_global::add_virial_angle(int ai, int aj, int ak,
+  rvec r_ij, rvec r_kj, rvec f_i, rvec f_k)
+{
+  tensor v;
+  v[XX][XX] = r_ij[XX] * f_i[XX] + r_kj[XX] * f_k[XX];
+  v[YY][YY] = r_ij[YY] * f_i[YY] + r_kj[YY] * f_k[YY];
+  v[ZZ][ZZ] = r_ij[ZZ] * f_i[ZZ] + r_kj[ZZ] * f_k[ZZ];
+  v[XX][YY] = r_ij[XX] * f_i[YY] + r_kj[XX] * f_k[YY];
+  v[XX][ZZ] = r_ij[XX] * f_i[ZZ] + r_kj[XX] * f_k[ZZ];
+  v[YY][ZZ] = r_ij[YY] * f_i[ZZ] + r_kj[YY] * f_k[ZZ];
+  pf_atom_virial_add(this, ai, v, THIRD);
+  pf_atom_virial_add(this, aj, v, THIRD);
+  pf_atom_virial_add(this, ak, v, THIRD);
 }
 
 void pf_atom_virial_dihedral(t_pf_global *pf_global, int i, int j, int k, int l,
-	rvec f_i, rvec f_k, rvec f_l, rvec r_ij, rvec r_kj, rvec r_kl)
+  rvec f_i, rvec f_k, rvec f_l, rvec r_ij, rvec r_kj, rvec r_kl)
 {
-	rvec r_lj;
-	tensor v;
-	rvec_sub(r_kj, r_kl, r_lj);
-	v[XX][XX] = r_ij[XX] * f_i[XX] + r_kj[XX] * f_k[XX] + r_lj[XX] * f_l[XX];
-	v[YY][YY] = r_ij[YY] * f_i[YY] + r_kj[YY] * f_k[YY] + r_lj[YY] * f_l[YY];
-	v[ZZ][ZZ] = r_ij[ZZ] * f_i[ZZ] + r_kj[ZZ] * f_k[ZZ] + r_lj[ZZ] * f_l[ZZ];
-	v[XX][YY] = r_ij[XX] * f_i[YY] + r_kj[XX] * f_k[YY] + r_lj[XX] * f_l[YY];
-	v[XX][ZZ] = r_ij[XX] * f_i[ZZ] + r_kj[XX] * f_k[ZZ] + r_lj[XX] * f_l[ZZ];
-	v[YY][ZZ] = r_ij[YY] * f_i[ZZ] + r_kj[YY] * f_k[ZZ] + r_lj[YY] * f_l[ZZ];
-	pf_atom_virial_add(pf_global, i, v, QUARTER);
-	pf_atom_virial_add(pf_global, j, v, QUARTER);
-	pf_atom_virial_add(pf_global, k, v, QUARTER);
-	pf_atom_virial_add(pf_global, l, v, QUARTER);
+  rvec r_lj;
+  tensor v;
+  rvec_sub(r_kj, r_kl, r_lj);
+  v[XX][XX] = r_ij[XX] * f_i[XX] + r_kj[XX] * f_k[XX] + r_lj[XX] * f_l[XX];
+  v[YY][YY] = r_ij[YY] * f_i[YY] + r_kj[YY] * f_k[YY] + r_lj[YY] * f_l[YY];
+  v[ZZ][ZZ] = r_ij[ZZ] * f_i[ZZ] + r_kj[ZZ] * f_k[ZZ] + r_lj[ZZ] * f_l[ZZ];
+  v[XX][YY] = r_ij[XX] * f_i[YY] + r_kj[XX] * f_k[YY] + r_lj[XX] * f_l[YY];
+  v[XX][ZZ] = r_ij[XX] * f_i[ZZ] + r_kj[XX] * f_k[ZZ] + r_lj[XX] * f_l[ZZ];
+  v[YY][ZZ] = r_ij[YY] * f_i[ZZ] + r_kj[YY] * f_k[ZZ] + r_lj[YY] * f_l[ZZ];
+  pf_atom_virial_add(pf_global, i, v, QUARTER);
+  pf_atom_virial_add(pf_global, j, v, QUARTER);
+  pf_atom_virial_add(pf_global, k, v, QUARTER);
+  pf_atom_virial_add(pf_global, l, v, QUARTER);
+}
+
+void t_pf_global::add_virial_dihedral(int i, int j, int k, int l,
+  rvec f_i, rvec f_k, rvec f_l, rvec r_ij, rvec r_kj, rvec r_kl)
+{
+  rvec r_lj;
+  tensor v;
+  rvec_sub(r_kj, r_kl, r_lj);
+  v[XX][XX] = r_ij[XX] * f_i[XX] + r_kj[XX] * f_k[XX] + r_lj[XX] * f_l[XX];
+  v[YY][YY] = r_ij[YY] * f_i[YY] + r_kj[YY] * f_k[YY] + r_lj[YY] * f_l[YY];
+  v[ZZ][ZZ] = r_ij[ZZ] * f_i[ZZ] + r_kj[ZZ] * f_k[ZZ] + r_lj[ZZ] * f_l[ZZ];
+  v[XX][YY] = r_ij[XX] * f_i[YY] + r_kj[XX] * f_k[YY] + r_lj[XX] * f_l[YY];
+  v[XX][ZZ] = r_ij[XX] * f_i[ZZ] + r_kj[XX] * f_k[ZZ] + r_lj[XX] * f_l[ZZ];
+  v[YY][ZZ] = r_ij[YY] * f_i[ZZ] + r_kj[YY] * f_k[ZZ] + r_lj[YY] * f_l[ZZ];
+  pf_atom_virial_add(this, i, v, QUARTER);
+  pf_atom_virial_add(this, j, v, QUARTER);
+  pf_atom_virial_add(this, k, v, QUARTER);
+  pf_atom_virial_add(this, l, v, QUARTER);
 }

@@ -1029,7 +1029,7 @@ real angles(int nbonds,
             }
 
             if (pf_global->PFPS) pf_atom_add_angle(pf_global, ai, aj, ak, f_i, f_j, f_k);
-            if (pf_global->VS) pf_atom_virial_angle(pf_global, ai, aj, ak, r_ij, r_kj, f_i, f_k);
+            if (pf_global->VS) pf_global->add_virial_angle(ai, aj, ak, r_ij, r_kj, f_i, f_k);
 
             if (g != NULL)
             {
@@ -1246,7 +1246,7 @@ real linear_angles(int nbonds,
         }
 
         if (pf_global->PFPS) pf_atom_add_angle(pf_global, ai, aj, ak, f_i, f_j, f_k);
-        if (pf_global->VS) pf_atom_virial_angle(pf_global, ai, aj, ak, r_ij, r_kj, f_i, f_k);
+        if (pf_global->VS) pf_global->add_virial_angle(ai, aj, ak, r_ij, r_kj, f_i, f_k);
 
         va          = 0.5*klin*dr2;
         *dvdlambda += 0.5*(kB-kA)*dr2 + klin*(aB-aA)*iprod(dx, r_ik);
@@ -1347,7 +1347,7 @@ real urey_bradley(int nbonds,
             }
 
             if (pf_global->PFPS) pf_atom_add_angle(pf_global, ai, aj, ak, f_i, f_j, f_k);
-            if (pf_global->VS) pf_atom_virial_angle(pf_global, ai, aj, ak, r_ij, r_kj, f_i, f_k);
+            if (pf_global->VS) pf_global->add_virial_angle(ai, aj, ak, r_ij, r_kj, f_i, f_k);
 
             if (g)
             {
@@ -1469,7 +1469,7 @@ real quartic_angles(int nbonds,
             }
 
             if (pf_global->PFPS) pf_atom_add_angle(pf_global, ai, aj, ak, f_i, f_j, f_k);
-            if (pf_global->VS) pf_atom_virial_angle(pf_global, ai, aj, ak, r_ij, r_kj, f_i, f_k);
+            if (pf_global->VS) pf_global->add_virial_angle(ai, aj, ak, r_ij, r_kj, f_i, f_k);
 
             if (g)
             {
@@ -3691,7 +3691,7 @@ real g96angles(int nbonds,
         }
 
         if (pf_global->PFPS) pf_atom_add_angle(pf_global, ai, aj, ak, f_i, f_j, f_k);
-        if (pf_global->VS) pf_atom_virial_angle(pf_global, ai, aj, ak, r_ij, r_kj, f_i, f_k);
+        if (pf_global->VS) pf_global->add_virial_angle(ai, aj, ak, r_ij, r_kj, f_i, f_k);
 
         if (g)
         {
@@ -3767,7 +3767,7 @@ real cross_bond_bond(int nbonds,
         }
 
         if (pf_global->PFPS) pf_atom_add_angle(pf_global, ai, aj, ak, f_i, f_j, f_k);
-        if (pf_global->VS) pf_atom_virial_angle(pf_global, ai, aj, ak, r_ij, r_kj, f_i, f_k);
+        if (pf_global->VS) pf_global->add_virial_angle(ai, aj, ak, r_ij, r_kj, f_i, f_k);
 
         /* Virial stuff */
         if (g)
@@ -3854,7 +3854,7 @@ real cross_bond_angle(int nbonds,
         }
 
         if (pf_global->PFPS) pf_atom_add_angle(pf_global, ai, aj, ak, f_i, f_j, f_k);
-        if (pf_global->VS) pf_atom_virial_angle(pf_global, ai, aj, ak, r_ij, r_kj, f_i, f_k);
+        if (pf_global->VS) pf_global->add_virial_angle(ai, aj, ak, r_ij, r_kj, f_i, f_k);
 
         /* Virial stuff */
         if (g)
@@ -4052,7 +4052,7 @@ real tab_angles(int nbonds,
             }
 
             if (pf_global->PFPS) pf_atom_add_angle(pf_global, ai, aj, ak, f_i, f_j, f_k);
-            if (pf_global->VS) pf_atom_virial_angle(pf_global, ai, aj, ak, r_ij, r_kj, f_i, f_k);
+            if (pf_global->VS) pf_global->add_virial_angle(ai, aj, ak, r_ij, r_kj, f_i, f_k);
 
             if (g)
             {
