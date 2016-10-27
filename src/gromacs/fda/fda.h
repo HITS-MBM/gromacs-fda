@@ -89,11 +89,21 @@ typedef struct {
 #ifdef __cplusplus
 class t_pf_global {
 public:
+
+  gmx_bool atoms_in_groups(int i, int j) {
+	return ((sys_in_g1[i] && sys_in_g2[j]) || (sys_in_g1[j] && sys_in_g2[i]));
+  }
+
 #else
 struct t_pf_global {
 #endif
-  gmx_bool bInitialized;        /* TRUE if pairwise forces should be written out, FALSE otherwise; if FALSE, many of the following structure members will not be initialized */
-  /* AtomBased & ResidueBased below are not boolean, to allow expressing preferences not only for storing in memory but also about the format they are written in:
+
+  /// TRUE if pairwise forces should be written out, FALSE otherwise;
+  /// if FALSE, many of the following structure members will not be initialized
+  gmx_bool bInitialized;
+
+  /**
+   * AtomBased & ResidueBased below are not boolean, to allow expressing preferences not only for storing in memory but also about the format they are written in:
    * value | value in fi file | meaning
    * 0     | no               | no storing (default)
    * 1     | scalar           | store as vectors, write as scalars
@@ -104,6 +114,7 @@ struct t_pf_global {
    */
   int AtomBased;
   int ResidueBased;
+
   // Helper flag for pairwise forces or punctual stress
   int PFPS;
   // Helper flag for virial stress

@@ -18,13 +18,8 @@
   #include <config.h>
 #endif
 
-static const real THIRD   =  1.0 / 3.0;
-static const real QUARTER =  0.25;
-
-/* check whether i and j are both in groups */
-static inline gmx_bool pf_atoms_in_groups(int i, int j, t_pf_global *pf_global) {
-  return ((pf_global->sys_in_g1[i] && pf_global->sys_in_g2[j]) || (pf_global->sys_in_g1[j] && pf_global->sys_in_g2[i]));
-}
+static const real THIRD   = 1.0 / 3.0;
+static const real QUARTER = 0.25;
 
 void pf_atom_add_bonded_nocheck(t_pf_global *pf_global, int i, int j, int type, rvec force) {
   t_pf_atoms *atoms;
@@ -106,7 +101,7 @@ void pf_atom_add_bonded(t_pf_global *pf_global, int i, int j, int type, rvec for
   /* leave early if the interaction is not interesting */
   if (!(pf_global->type & type))
     return;
-  if (!pf_atoms_in_groups(i, j, pf_global)) {
+  if (!pf_global->atoms_in_groups(i, j)) {
 	//fprintf(stderr, "Warning: Unneeded pair in pf_atom_add_bonded i=%i, j=%i\n", i, j); fflush(stderr);
     return;
   }
