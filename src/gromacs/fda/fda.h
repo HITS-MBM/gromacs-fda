@@ -40,13 +40,17 @@
 #define GMX_FDA_FDA_H
 
 #include <stdio.h>
-
 #include "gromacs/math/vectypes.h"
 #include "gromacs/utility/basedefinitions.h"
 #include "pf_array_detailed.h"
 #include "pf_array_scalar.h"
 #include "pf_array_summed.h"
 #include "pf_per_atom.h"
+
+#ifdef __cplusplus
+#include "gromacs/commandline/filenm.h"
+#include "gromacs/topology/topology.h"
+#endif
 
 #ifdef HAVE_CONFIG_H
   #include <config.h>
@@ -90,6 +94,10 @@ typedef struct {
 class t_pf_global {
 public:
 
+  /// Constructor
+  t_pf_global(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global);
+
+  /// Returns true if atoms i and j are in fda groups
   gmx_bool atoms_in_groups(int i, int j) const {
 	return ((sys_in_g1[i] && sys_in_g2[j]) || (sys_in_g1[j] && sys_in_g2[i]));
   }

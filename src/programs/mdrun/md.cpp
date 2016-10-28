@@ -679,7 +679,7 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
         fprintf(fplog, "\n");
     }
 
-    fr->pf_global = pf_init(nfile, fnm, top_global);
+    fr->pf_global = new t_pf_global(nfile, fnm, top_global);
     if ((fr->pf_global) && PAR(cr))
       gmx_fatal(FARGS, "PF2 doesn't work in parallel ! Please start with '-nt 1' on the mdrun command line\n");
     pf_open(fr->pf_global);

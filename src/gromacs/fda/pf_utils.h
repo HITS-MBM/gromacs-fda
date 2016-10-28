@@ -7,9 +7,9 @@
 #ifndef pf_utils_h
 #define pf_utils_h
 
+#include "fda.h"
 #include "gromacs/commandline/filenm.h"
 #include "gromacs/topology/topology.h"
-#include "fda.h"
 
 t_pf_int_list *pf_int_list_alloc(int len);
 void pf_int_list_free(t_pf_int_list *p);
@@ -32,6 +32,5 @@ void pf_atoms_init(int OnePair, t_pf_atoms *atoms);
 void pf_atoms_scalar_alloc(t_pf_atoms *atoms, int syslen, char *name);
 void pf_atoms_scalar_init(t_pf_atoms *atoms);
 void pf_atoms_and_residues_init(t_pf_global *pf_global);
-t_pf_global *pf_init(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global);
 
 #endif  /* pf_utils_h */
