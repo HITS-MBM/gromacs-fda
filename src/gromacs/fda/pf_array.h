@@ -47,15 +47,4 @@ void pf_atom_virial_bond(struct t_pf_global *pf_global, int ai, int aj, real fbo
 }
 #endif
 
-void pf_atom_add_bonded(struct t_pf_global *pf_global, int i, int j, int type, rvec force);
-
-/**
- *  Translate to origin on the second (j) atom:
- *  vir = ri*Fi + rj*Fj + rk*Fk + rl*Fl
- *      = (ri-rj)*Fi + (rk-rj)*Fk + (rl-rj)*Fl
- *      = (ri-rj)*Fi + (rk-rj)*Fk + ((rl-rk) + (rk-rj))*Fl
- *      = r_ij[dim1]*f_i[dim2] + r_kj[dim1]*f_k[dim2] + (r_kj-r_kl)[dim1]*f_l[dim2]
- */
-void pf_atom_virial_dihedral(struct t_pf_global *pf_global, int i, int j, int k, int l, rvec f_i, rvec f_k, rvec f_l, rvec r_ij, rvec r_kj, rvec r_kl);
-
 #endif  /* pf_array_h */

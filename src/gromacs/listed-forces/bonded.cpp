@@ -199,7 +199,7 @@ real morse_bonds(int nbonds,
             pf_forcevector[m]   = fij;
         }
 
-        if (pf_global->PFPS) pf_atom_add_bonded(pf_global, ai, aj, PF_INTER_BOND, pf_forcevector);
+        if (pf_global->PFPS) pf_global->add_bonded(ai, aj, PF_INTER_BOND, pf_forcevector);
         if (pf_global->VS) pf_atom_virial_bond(pf_global, ai, aj, fbond, dx[XX], dx[YY], dx[ZZ]);
     }                                         /*  83 TOTAL    */
     return vtot;
@@ -266,7 +266,7 @@ real cubic_bonds(int nbonds,
             pf_forcevector[m]   = fij;
         }
 
-        if (pf_global->PFPS) pf_atom_add_bonded(pf_global, ai, aj, PF_INTER_BOND, pf_forcevector);
+        if (pf_global->PFPS) pf_global->add_bonded(ai, aj, PF_INTER_BOND, pf_forcevector);
         if (pf_global->VS) pf_atom_virial_bond(pf_global, ai, aj, fbond, dx[XX], dx[YY], dx[ZZ]);
 
     }                                         /*  54 TOTAL    */
@@ -340,7 +340,7 @@ real FENE_bonds(int nbonds,
             pf_forcevector[m]   = fij;
         }
 
-        if (pf_global->PFPS) pf_atom_add_bonded(pf_global, ai, aj, PF_INTER_BOND, pf_forcevector);
+        if (pf_global->PFPS) pf_global->add_bonded(ai, aj, PF_INTER_BOND, pf_forcevector);
         if (pf_global->VS) pf_atom_virial_bond(pf_global, ai, aj, fbond, dx[XX], dx[YY], dx[ZZ]);
 
     }                                         /*  58 TOTAL    */
@@ -434,7 +434,7 @@ real bonds(int nbonds,
             pf_forcevector[m]   = fij;
         }
 
-        if (pf_global->PFPS) pf_atom_add_bonded(pf_global, ai, aj, PF_INTER_BOND, pf_forcevector);
+        if (pf_global->PFPS) pf_global->add_bonded(ai, aj, PF_INTER_BOND, pf_forcevector);
         if (pf_global->VS) pf_atom_virial_bond(pf_global, ai, aj, fbond, dx[XX], dx[YY], dx[ZZ]);
 
     }               /* 59 TOTAL	*/
@@ -540,7 +540,7 @@ real restraint_bonds(int nbonds,
             pf_forcevector[m]   = fij;
         }
 
-        if (pf_global->PFPS) pf_atom_add_bonded(pf_global, ai, aj, PF_INTER_BOND, pf_forcevector);
+        if (pf_global->PFPS) pf_global->add_bonded(ai, aj, PF_INTER_BOND, pf_forcevector);
         if (pf_global->VS) pf_atom_virial_bond(pf_global, ai, aj, fbond, dx[XX], dx[YY], dx[ZZ]);
 
     }                   /* 59 TOTAL	*/
@@ -602,7 +602,7 @@ real polarize(int nbonds,
             pf_forcevector[m]   = fij;
         }
 
-        if (pf_global->PFPS) pf_atom_add_bonded(pf_global, ai, aj, PF_INTER_POLAR, pf_forcevector);
+        if (pf_global->PFPS) pf_global->add_bonded(ai, aj, PF_INTER_POLAR, pf_forcevector);
         if (pf_global->VS) pf_atom_virial_bond(pf_global, ai, aj, fbond, dx[XX], dx[YY], dx[ZZ]);
 
     }               /* 59 TOTAL	*/
@@ -673,7 +673,7 @@ real anharm_polarize(int nbonds,
             pf_forcevector[m]   = fij;
         }
 
-        if (pf_global->PFPS) pf_atom_add_bonded(pf_global, ai, aj, PF_INTER_POLAR, pf_forcevector);
+        if (pf_global->PFPS) pf_global->add_bonded(ai, aj, PF_INTER_POLAR, pf_forcevector);
         if (pf_global->VS) pf_atom_virial_bond(pf_global, ai, aj, fbond, dx[XX], dx[YY], dx[ZZ]);
 
     }               /* 72 TOTAL	*/
@@ -818,7 +818,7 @@ real water_pol(int nbonds,
             	pf_forcevector[m]   = fij;
             }
 
-            if (pf_global->PFPS) pf_atom_add_bonded(pf_global, aS, aD, PF_INTER_POLAR, pf_forcevector);
+            if (pf_global->PFPS) pf_global->add_bonded(aS, aD, PF_INTER_POLAR, pf_forcevector);
             if (pf_global->VS)
                 for (m = 0; (m < DIM); m++)
             	    pf_atom_virial_bond(pf_global, aS, aD, nW[m] * dHH[m] * dOD[m], kdx[XX], kdx[YY], kdx[ZZ]);
@@ -868,7 +868,7 @@ static real do_1_thole(const rvec xi, const rvec xj, rvec fi, rvec fj,
         pf_forcevector[m]   = fff;
     }             /* 15 */
 
-    if (pf_global->PFPS) pf_atom_add_bonded(pf_global, ai, aj, PF_INTER_POLAR, pf_forcevector);
+    if (pf_global->PFPS) pf_global->add_bonded(ai, aj, PF_INTER_POLAR, pf_forcevector);
     if (pf_global->VS) pf_atom_virial_bond(pf_global, ai, aj, fscal, r12[XX], r12[YY], r12[ZZ]);
 
     return v0*v1; /* 1 */
@@ -936,9 +936,9 @@ void pf_atom_add_angle(t_pf_global *pf_global, int ai, int aj, int ak, rvec f_i,
 	//fprintf(stderr, "f_j_i=%8f %8f %8f f_j_k=%8f %8f %8f, norm(f_j_i)=%8f, norm(f_j_k)=%8f\n", f_j_i[0], f_j_i[1], f_j_i[2], f_j_k[0], f_j_k[1], f_j_k[2], norm(f_j_i), norm(f_j_k));
 	//fprintf(stderr, "f_i_k=%8f %8f %8f f_k_i=%8f %8f %8f\n", f_i_k[0], f_i_k[1], f_i_k[2], f_k_i[0], f_k_i[1], f_k_i[2]);
 	//fprintf(stderr, "angle(urik, f_i_k)=%8f\n", acos(cos_angle(urik, f_i_k))*RAD2DEG);
-	pf_atom_add_bonded(pf_global, aj, ai, PF_INTER_ANGLE, f_j_i);
-	pf_atom_add_bonded(pf_global, ai, ak, PF_INTER_ANGLE, f_i_k);
-	pf_atom_add_bonded(pf_global, aj, ak, PF_INTER_ANGLE, f_j_k);
+	pf_global->add_bonded(aj, ai, PF_INTER_ANGLE, f_j_i);
+	pf_global->add_bonded(ai, ak, PF_INTER_ANGLE, f_i_k);
+	pf_global->add_bonded(aj, ak, PF_INTER_ANGLE, f_j_k);
 }
 
 real bond_angle(const rvec xi, const rvec xj, const rvec xk, const t_pbc *pbc,
@@ -1386,7 +1386,7 @@ real urey_bradley(int nbonds,
             pf_forcevector[m]   = fik;
         }
 
-        if (pf_global->PFPS) pf_atom_add_bonded(pf_global, ai, ak, PF_INTER_BOND, pf_forcevector);
+        if (pf_global->PFPS) pf_global->add_bonded(ai, ak, PF_INTER_BOND, pf_forcevector);
         if (pf_global->VS) pf_atom_virial_bond(pf_global, ai, ak, fbond, r_ik[XX], r_ik[YY], r_ik[ZZ]);
 
     }
@@ -1749,12 +1749,12 @@ void pf_atom_add_dihedral(t_pf_global *pf_global,
     print_vec("f_jpk_l", f_jpk_l);
     print_vec("f_j_k", f_j_k);
     print_vec("f_k_j", f_k_j);*/
-    pf_atom_add_bonded(pf_global, j, i, PF_INTER_DIHEDRAL, f_j_i);
-    pf_atom_add_bonded(pf_global, k, i, PF_INTER_DIHEDRAL, f_k_i);
-    pf_atom_add_bonded(pf_global, l, i, PF_INTER_DIHEDRAL, f_l_i);
-    pf_atom_add_bonded(pf_global, j, k, PF_INTER_DIHEDRAL, f_j_k);
-    pf_atom_add_bonded(pf_global, j, l, PF_INTER_DIHEDRAL, f_j_l);
-    pf_atom_add_bonded(pf_global, k, l, PF_INTER_DIHEDRAL, f_k_l);
+    pf_global->add_bonded(j, i, PF_INTER_DIHEDRAL, f_j_i);
+    pf_global->add_bonded(k, i, PF_INTER_DIHEDRAL, f_k_i);
+    pf_global->add_bonded(l, i, PF_INTER_DIHEDRAL, f_l_i);
+    pf_global->add_bonded(j, k, PF_INTER_DIHEDRAL, f_j_k);
+    pf_global->add_bonded(j, l, PF_INTER_DIHEDRAL, f_j_l);
+    pf_global->add_bonded(k, l, PF_INTER_DIHEDRAL, f_k_l);
 }
 
 void do_dih_fup(int i, int j, int k, int l, real ddphi,
@@ -1800,7 +1800,7 @@ void do_dih_fup(int i, int j, int k, int l, real ddphi,
         /* check the pointer first, do_dih_fup is called from several places, sometimes with pf_global=NULL */
         if (pf_global) {
         	if (pf_global->PFPS) pf_atom_add_dihedral(pf_global, i, j, k, l, f_i, f_j, f_k, f_l);
-        	if (pf_global->VS) pf_atom_virial_dihedral(pf_global, i, j, k, l, f_i, f_k, f_l, r_ij, r_kj, r_kl);
+        	if (pf_global->VS) pf_global->add_virial_dihedral(i, j, k, l, f_i, f_k, f_l, r_ij, r_kj, r_kl);
         }
 
         if (g)
@@ -2474,12 +2474,12 @@ static real low_angres(int nbonds,
             }
 
             if (pf_global->PFPS) {
-				pf_atom_add_bonded(pf_global, ai, aj, PF_INTER_ANGLE, f_i);
-				pf_atom_add_bonded(pf_global, aj, ai, PF_INTER_ANGLE, n_f_i);
+            	pf_global->add_bonded(ai, aj, PF_INTER_ANGLE, f_i);
+            	pf_global->add_bonded(aj, ai, PF_INTER_ANGLE, n_f_i);
 				if (!bZAxis)
 				{
-					pf_atom_add_bonded(pf_global, ak, al, PF_INTER_ANGLE, f_k);
-					pf_atom_add_bonded(pf_global, al, ak, PF_INTER_ANGLE, n_f_k);
+					pf_global->add_bonded(ak, al, PF_INTER_ANGLE, f_k);
+					pf_global->add_bonded(al, ak, PF_INTER_ANGLE, n_f_k);
 				}
             }
             if (pf_global->VS) gmx_fatal(FARGS, "Not implemented yet.");
@@ -3613,7 +3613,7 @@ real g96bonds(int nbonds,
             pf_forcevector[m]   = fij;
         }
 
-        if (pf_global->PFPS) pf_atom_add_bonded(pf_global, ai, aj, PF_INTER_BOND, pf_forcevector);
+        if (pf_global->PFPS) pf_global->add_bonded(ai, aj, PF_INTER_BOND, pf_forcevector);
         if (pf_global->VS) pf_atom_virial_bond(pf_global, ai, aj, fbond, dx[XX], dx[YY], dx[ZZ]);
 
     }               /* 44 TOTAL	*/
@@ -3976,7 +3976,7 @@ real tab_bonds(int nbonds,
             pf_forcevector[m]   = fij;
         }
 
-        if (pf_global->PFPS) pf_atom_add_bonded(pf_global, ai, aj, PF_INTER_BOND, pf_forcevector);
+        if (pf_global->PFPS) pf_global->add_bonded(ai, aj, PF_INTER_BOND, pf_forcevector);
         if (pf_global->VS) pf_atom_virial_bond(pf_global, ai, aj, fbond, dx[XX], dx[YY], dx[ZZ]);
 
     }               /* 62 TOTAL	*/

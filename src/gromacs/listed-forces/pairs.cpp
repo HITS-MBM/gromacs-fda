@@ -518,7 +518,7 @@ do_pairs_general(int ftype, int nbonds,
         rvec_dec(f[aj], dx);
 
         if (pf_global->bInitialized)
-            pf_atom_add_bonded(pf_global, ai, aj, PF_INTER_NB14, dx);
+        	pf_global->add_bonded(ai, aj, PF_INTER_NB14, dx);
 
         if (g)
         {
