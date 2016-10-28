@@ -679,10 +679,10 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
         fprintf(fplog, "\n");
     }
 
-    fr->pf_global = new t_pf_global(nfile, fnm, top_global);
-    if ((fr->pf_global) && PAR(cr))
+    fr->fda = new FDA(nfile, fnm, top_global);
+    if ((fr->fda) && PAR(cr))
       gmx_fatal(FARGS, "PF2 doesn't work in parallel ! Please start with '-nt 1' on the mdrun command line\n");
-    pf_open(fr->pf_global);
+    pf_open(fr->fda);
 
     walltime_accounting_start(walltime_accounting);
     wallcycle_start(wcycle, ewcRUN);
@@ -996,7 +996,7 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
             }
         }
 
-        pf_atoms_and_residues_init(fr->pf_global);
+        pf_atoms_and_residues_init(fr->fda);
 
         if (MASTER(cr) && do_log)
         {
@@ -1259,10 +1259,10 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
         /* ########  If doing VV, we now have v(dt) ###### */
 
         /* this test could be done inside pf_save_and_write_scalar_averages(), but is left here explicitly to be replaced with a more general mechanism */
-        if (fr->pf_global->time_averages->period != 1)
-          pf_save_and_write_scalar_time_averages(fr->pf_global, state->x, top_global);
+        if (fr->fda->time_averages->period != 1)
+          pf_save_and_write_scalar_time_averages(fr->fda, state->x, top_global);
         else
-          pf_write_frame(fr->pf_global, state->x, top_global);
+          pf_write_frame(fr->fda, state->x, top_global);
 
         if (bDoExpanded)
         {
@@ -1818,9 +1818,9 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
         close_trj(status);
     }
 
-    if (fr->pf_global->time_averages->period != 1)
-      pf_write_scalar_time_averages(fr->pf_global);
-    pf_close(fr->pf_global);
+    if (fr->fda->time_averages->period != 1)
+      pf_write_scalar_time_averages(fr->fda);
+    pf_close(fr->fda);
 
     if (!(cr->duty & DUTY_PME))
     {

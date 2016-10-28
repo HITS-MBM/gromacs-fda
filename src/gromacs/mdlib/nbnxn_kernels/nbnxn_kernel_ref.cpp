@@ -75,7 +75,7 @@ typedef void (*p_nbk_func_ener)(const nbnxn_pairlist_t     *nbl,
                                 real                       *fshift,
                                 real                       *Vvdw,
                                 real                       *Vc,
-                                t_pf_global                *pf_global,
+                                FDA                *fda,
                                 int                        *cellInv);
 
 /* Analytical reaction-field kernels */
@@ -187,7 +187,7 @@ nbnxn_kernel_ref(const nbnxn_pairlist_set_t *nbl_list,
                  real                       *fshift,
                  real                       *Vc,
                  real                       *Vvdw,
-                 t_pf_global                *pf_global,
+                 FDA                *fda,
                  int                        *cellInv)
 {
     int                nnbl;
@@ -306,7 +306,7 @@ nbnxn_kernel_ref(const nbnxn_pairlist_set_t *nbl_list,
                                       fshift_p,
                                       out->Vvdw,
                                       out->Vc,
-                                      pf_global,
+                                      fda,
                                       cellInv);
         }
         else
@@ -330,7 +330,7 @@ nbnxn_kernel_ref(const nbnxn_pairlist_set_t *nbl_list,
                                          fshift_p,
                                          out->Vvdw,
                                          out->Vc,
-                                         pf_global,
+                                         fda,
                                          cellInv);
         }
     }

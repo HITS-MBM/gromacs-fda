@@ -133,7 +133,7 @@ real morse_bonds(int nbonds,
                  const t_pbc *pbc, const t_graph *g,
                  real lambda, real *dvdlambda,
                  const t_mdatoms gmx_unused *md, t_fcdata gmx_unused *fcd,
-                 int gmx_unused *global_atom_index, t_pf_global *pf_global)
+                 int gmx_unused *global_atom_index, FDA *fda)
 {
     const real one = 1.0;
     const real two = 2.0;
@@ -199,8 +199,8 @@ real morse_bonds(int nbonds,
             pf_forcevector[m]   = fij;
         }
 
-        if (pf_global->PFPS) pf_global->add_bonded(ai, aj, PF_INTER_BOND, pf_forcevector);
-        if (pf_global->VS) pf_atom_virial_bond(pf_global, ai, aj, fbond, dx[XX], dx[YY], dx[ZZ]);
+        if (fda->PFPS) fda->add_bonded(ai, aj, PF_INTER_BOND, pf_forcevector);
+        if (fda->VS) pf_atom_virial_bond(fda, ai, aj, fbond, dx[XX], dx[YY], dx[ZZ]);
     }                                         /*  83 TOTAL    */
     return vtot;
 }
@@ -212,7 +212,7 @@ real cubic_bonds(int nbonds,
                  const t_pbc *pbc, const t_graph *g,
                  real gmx_unused lambda, real gmx_unused *dvdlambda,
                  const t_mdatoms gmx_unused *md, t_fcdata gmx_unused *fcd,
-                 int gmx_unused *global_atom_index, t_pf_global *pf_global)
+                 int gmx_unused *global_atom_index, FDA *fda)
 {
     const real three = 3.0;
     const real two   = 2.0;
@@ -266,8 +266,8 @@ real cubic_bonds(int nbonds,
             pf_forcevector[m]   = fij;
         }
 
-        if (pf_global->PFPS) pf_global->add_bonded(ai, aj, PF_INTER_BOND, pf_forcevector);
-        if (pf_global->VS) pf_atom_virial_bond(pf_global, ai, aj, fbond, dx[XX], dx[YY], dx[ZZ]);
+        if (fda->PFPS) fda->add_bonded(ai, aj, PF_INTER_BOND, pf_forcevector);
+        if (fda->VS) pf_atom_virial_bond(fda, ai, aj, fbond, dx[XX], dx[YY], dx[ZZ]);
 
     }                                         /*  54 TOTAL    */
     return vtot;
@@ -279,7 +279,7 @@ real FENE_bonds(int nbonds,
                 const t_pbc *pbc, const t_graph *g,
                 real gmx_unused lambda, real gmx_unused *dvdlambda,
                 const t_mdatoms gmx_unused *md, t_fcdata gmx_unused *fcd,
-                int *global_atom_index, t_pf_global *pf_global)
+                int *global_atom_index, FDA *fda)
 {
     const real half = 0.5;
     const real one  = 1.0;
@@ -340,8 +340,8 @@ real FENE_bonds(int nbonds,
             pf_forcevector[m]   = fij;
         }
 
-        if (pf_global->PFPS) pf_global->add_bonded(ai, aj, PF_INTER_BOND, pf_forcevector);
-        if (pf_global->VS) pf_atom_virial_bond(pf_global, ai, aj, fbond, dx[XX], dx[YY], dx[ZZ]);
+        if (fda->PFPS) fda->add_bonded(ai, aj, PF_INTER_BOND, pf_forcevector);
+        if (fda->VS) pf_atom_virial_bond(fda, ai, aj, fbond, dx[XX], dx[YY], dx[ZZ]);
 
     }                                         /*  58 TOTAL    */
     return vtot;
@@ -380,7 +380,7 @@ real bonds(int nbonds,
            const t_pbc *pbc, const t_graph *g,
            real lambda, real *dvdlambda,
            const t_mdatoms gmx_unused *md, t_fcdata gmx_unused *fcd,
-           int gmx_unused *global_atom_index, t_pf_global *pf_global)
+           int gmx_unused *global_atom_index, FDA *fda)
 {
     int  i, m, ki, ai, aj, type;
     real dr, dr2, fbond, vbond, fij, vtot;
@@ -434,8 +434,8 @@ real bonds(int nbonds,
             pf_forcevector[m]   = fij;
         }
 
-        if (pf_global->PFPS) pf_global->add_bonded(ai, aj, PF_INTER_BOND, pf_forcevector);
-        if (pf_global->VS) pf_atom_virial_bond(pf_global, ai, aj, fbond, dx[XX], dx[YY], dx[ZZ]);
+        if (fda->PFPS) fda->add_bonded(ai, aj, PF_INTER_BOND, pf_forcevector);
+        if (fda->VS) pf_atom_virial_bond(fda, ai, aj, fbond, dx[XX], dx[YY], dx[ZZ]);
 
     }               /* 59 TOTAL	*/
     return vtot;
@@ -447,7 +447,7 @@ real restraint_bonds(int nbonds,
                      const t_pbc *pbc, const t_graph *g,
                      real lambda, real *dvdlambda,
                      const t_mdatoms gmx_unused *md, t_fcdata gmx_unused *fcd,
-                     int gmx_unused *global_atom_index, t_pf_global *pf_global)
+                     int gmx_unused *global_atom_index, FDA *fda)
 {
     int  i, m, ki, ai, aj, type;
     real dr, dr2, fbond, vbond, fij, vtot;
@@ -540,8 +540,8 @@ real restraint_bonds(int nbonds,
             pf_forcevector[m]   = fij;
         }
 
-        if (pf_global->PFPS) pf_global->add_bonded(ai, aj, PF_INTER_BOND, pf_forcevector);
-        if (pf_global->VS) pf_atom_virial_bond(pf_global, ai, aj, fbond, dx[XX], dx[YY], dx[ZZ]);
+        if (fda->PFPS) fda->add_bonded(ai, aj, PF_INTER_BOND, pf_forcevector);
+        if (fda->VS) pf_atom_virial_bond(fda, ai, aj, fbond, dx[XX], dx[YY], dx[ZZ]);
 
     }                   /* 59 TOTAL	*/
 
@@ -554,7 +554,7 @@ real polarize(int nbonds,
               const t_pbc *pbc, const t_graph *g,
               real lambda, real *dvdlambda,
               const t_mdatoms *md, t_fcdata gmx_unused *fcd,
-              int gmx_unused *global_atom_index, t_pf_global *pf_global)
+              int gmx_unused *global_atom_index, FDA *fda)
 {
     int  i, m, ki, ai, aj, type;
     real dr, dr2, fbond, vbond, fij, vtot, ksh;
@@ -602,8 +602,8 @@ real polarize(int nbonds,
             pf_forcevector[m]   = fij;
         }
 
-        if (pf_global->PFPS) pf_global->add_bonded(ai, aj, PF_INTER_POLAR, pf_forcevector);
-        if (pf_global->VS) pf_atom_virial_bond(pf_global, ai, aj, fbond, dx[XX], dx[YY], dx[ZZ]);
+        if (fda->PFPS) fda->add_bonded(ai, aj, PF_INTER_POLAR, pf_forcevector);
+        if (fda->VS) pf_atom_virial_bond(fda, ai, aj, fbond, dx[XX], dx[YY], dx[ZZ]);
 
     }               /* 59 TOTAL	*/
     return vtot;
@@ -615,7 +615,7 @@ real anharm_polarize(int nbonds,
                      const t_pbc *pbc, const t_graph *g,
                      real lambda, real *dvdlambda,
                      const t_mdatoms *md, t_fcdata gmx_unused *fcd,
-                     int gmx_unused *global_atom_index, t_pf_global *pf_global)
+                     int gmx_unused *global_atom_index, FDA *fda)
 {
     int  i, m, ki, ai, aj, type;
     real dr, dr2, fbond, vbond, fij, vtot, ksh, khyp, drcut, ddr, ddr3;
@@ -673,8 +673,8 @@ real anharm_polarize(int nbonds,
             pf_forcevector[m]   = fij;
         }
 
-        if (pf_global->PFPS) pf_global->add_bonded(ai, aj, PF_INTER_POLAR, pf_forcevector);
-        if (pf_global->VS) pf_atom_virial_bond(pf_global, ai, aj, fbond, dx[XX], dx[YY], dx[ZZ]);
+        if (fda->PFPS) fda->add_bonded(ai, aj, PF_INTER_POLAR, pf_forcevector);
+        if (fda->VS) pf_atom_virial_bond(fda, ai, aj, fbond, dx[XX], dx[YY], dx[ZZ]);
 
     }               /* 72 TOTAL	*/
     return vtot;
@@ -686,7 +686,7 @@ real water_pol(int nbonds,
                const t_pbc gmx_unused *pbc, const t_graph gmx_unused *g,
                real gmx_unused lambda, real gmx_unused *dvdlambda,
                const t_mdatoms gmx_unused *md, t_fcdata gmx_unused *fcd,
-               int gmx_unused *global_atom_index, t_pf_global *pf_global)
+               int gmx_unused *global_atom_index, FDA *fda)
 {
     /* This routine implements anisotropic polarizibility for water, through
      * a shell connected to a dummy with spring constant that differ in the
@@ -818,10 +818,10 @@ real water_pol(int nbonds,
             	pf_forcevector[m]   = fij;
             }
 
-            if (pf_global->PFPS) pf_global->add_bonded(aS, aD, PF_INTER_POLAR, pf_forcevector);
-            if (pf_global->VS)
+            if (fda->PFPS) fda->add_bonded(aS, aD, PF_INTER_POLAR, pf_forcevector);
+            if (fda->VS)
                 for (m = 0; (m < DIM); m++)
-            	    pf_atom_virial_bond(pf_global, aS, aD, nW[m] * dHH[m] * dOD[m], kdx[XX], kdx[YY], kdx[ZZ]);
+            	    pf_atom_virial_bond(fda, aS, aD, nW[m] * dHH[m] * dOD[m], kdx[XX], kdx[YY], kdx[ZZ]);
 
 #ifdef DEBUG
             if (debug)
@@ -838,7 +838,7 @@ real water_pol(int nbonds,
 static real do_1_thole(const rvec xi, const rvec xj, rvec fi, rvec fj,
                        const t_pbc *pbc, real qq,
                        rvec fshift[], real afac,
-        		       t_pf_global *pf_global, int ai, int aj)
+        		       FDA *fda, int ai, int aj)
 {
     rvec r12, pf_forcevector;
     real r12sq, r12_1, r12bar, v0, v1, fscal, ebar, fff;
@@ -868,8 +868,8 @@ static real do_1_thole(const rvec xi, const rvec xj, rvec fi, rvec fj,
         pf_forcevector[m]   = fff;
     }             /* 15 */
 
-    if (pf_global->PFPS) pf_global->add_bonded(ai, aj, PF_INTER_POLAR, pf_forcevector);
-    if (pf_global->VS) pf_atom_virial_bond(pf_global, ai, aj, fscal, r12[XX], r12[YY], r12[ZZ]);
+    if (fda->PFPS) fda->add_bonded(ai, aj, PF_INTER_POLAR, pf_forcevector);
+    if (fda->VS) pf_atom_virial_bond(fda, ai, aj, fscal, r12[XX], r12[YY], r12[ZZ]);
 
     return v0*v1; /* 1 */
     /* 54 */
@@ -881,7 +881,7 @@ real thole_pol(int nbonds,
                const t_pbc *pbc, const t_graph gmx_unused *g,
                real gmx_unused lambda, real gmx_unused *dvdlambda,
                const t_mdatoms *md, t_fcdata gmx_unused *fcd,
-               int gmx_unused *global_atom_index, t_pf_global *pf_global)
+               int gmx_unused *global_atom_index, FDA *fda)
 {
     /* Interaction between two pairs of particles with opposite charge */
     int        i, type, a1, da1, a2, da2;
@@ -902,16 +902,16 @@ real thole_pol(int nbonds,
         al2   = forceparams[type].thole.alpha2;
         qq    = q1*q2;
         afac  = a*gmx::invsixthroot(al1*al2);
-        V    += do_1_thole(x[a1], x[a2], f[a1], f[a2], pbc, qq, fshift, afac, pf_global, a1, a2);
-        V    += do_1_thole(x[da1], x[a2], f[da1], f[a2], pbc, -qq, fshift, afac, pf_global, a1, a2);
-        V    += do_1_thole(x[a1], x[da2], f[a1], f[da2], pbc, -qq, fshift, afac, pf_global, a1, a2);
-        V    += do_1_thole(x[da1], x[da2], f[da1], f[da2], pbc, qq, fshift, afac, pf_global, a1, a2);
+        V    += do_1_thole(x[a1], x[a2], f[a1], f[a2], pbc, qq, fshift, afac, fda, a1, a2);
+        V    += do_1_thole(x[da1], x[a2], f[da1], f[a2], pbc, -qq, fshift, afac, fda, a1, a2);
+        V    += do_1_thole(x[a1], x[da2], f[a1], f[da2], pbc, -qq, fshift, afac, fda, a1, a2);
+        V    += do_1_thole(x[da1], x[da2], f[da1], f[da2], pbc, qq, fshift, afac, fda, a1, a2);
     }
     /* 290 flops */
     return V;
 }
 
-void pf_atom_add_angle(t_pf_global *pf_global, int ai, int aj, int ak, rvec f_i, rvec f_j, rvec f_k)
+void pf_atom_add_angle(FDA *fda, int ai, int aj, int ak, rvec f_i, rvec f_j, rvec f_k)
 {
 	rvec uf_i, uf_j, uf_k, f_j_i, f_j_k, f_i_k;
 	//rvec wf, urik, rik;
@@ -936,9 +936,9 @@ void pf_atom_add_angle(t_pf_global *pf_global, int ai, int aj, int ak, rvec f_i,
 	//fprintf(stderr, "f_j_i=%8f %8f %8f f_j_k=%8f %8f %8f, norm(f_j_i)=%8f, norm(f_j_k)=%8f\n", f_j_i[0], f_j_i[1], f_j_i[2], f_j_k[0], f_j_k[1], f_j_k[2], norm(f_j_i), norm(f_j_k));
 	//fprintf(stderr, "f_i_k=%8f %8f %8f f_k_i=%8f %8f %8f\n", f_i_k[0], f_i_k[1], f_i_k[2], f_k_i[0], f_k_i[1], f_k_i[2]);
 	//fprintf(stderr, "angle(urik, f_i_k)=%8f\n", acos(cos_angle(urik, f_i_k))*RAD2DEG);
-	pf_global->add_bonded(aj, ai, PF_INTER_ANGLE, f_j_i);
-	pf_global->add_bonded(ai, ak, PF_INTER_ANGLE, f_i_k);
-	pf_global->add_bonded(aj, ak, PF_INTER_ANGLE, f_j_k);
+	fda->add_bonded(aj, ai, PF_INTER_ANGLE, f_j_i);
+	fda->add_bonded(ai, ak, PF_INTER_ANGLE, f_i_k);
+	fda->add_bonded(aj, ak, PF_INTER_ANGLE, f_j_k);
 }
 
 real bond_angle(const rvec xi, const rvec xj, const rvec xk, const t_pbc *pbc,
@@ -964,7 +964,7 @@ real angles(int nbonds,
             const t_pbc *pbc, const t_graph *g,
             real lambda, real *dvdlambda,
             const t_mdatoms gmx_unused *md, t_fcdata gmx_unused *fcd,
-            int gmx_unused *global_atom_index, t_pf_global *pf_global)
+            int gmx_unused *global_atom_index, FDA *fda)
 {
     int  i, ai, aj, ak, t1, t2, type;
     rvec r_ij, r_kj;
@@ -1028,8 +1028,8 @@ real angles(int nbonds,
                 f[ak][m] += f_k[m];
             }
 
-            if (pf_global->PFPS) pf_atom_add_angle(pf_global, ai, aj, ak, f_i, f_j, f_k);
-            if (pf_global->VS) pf_global->add_virial_angle(ai, aj, ak, r_ij, r_kj, f_i, f_k);
+            if (fda->PFPS) pf_atom_add_angle(fda, ai, aj, ak, f_i, f_j, f_k);
+            if (fda->VS) fda->add_virial_angle(ai, aj, ak, r_ij, r_kj, f_i, f_k);
 
             if (g != NULL)
             {
@@ -1201,7 +1201,7 @@ real linear_angles(int nbonds,
                    const t_pbc *pbc, const t_graph *g,
                    real lambda, real *dvdlambda,
                    const t_mdatoms gmx_unused *md, t_fcdata gmx_unused *fcd,
-                   int gmx_unused *global_atom_index, t_pf_global *pf_global)
+                   int gmx_unused *global_atom_index, FDA *fda)
 {
     int  i, m, ai, aj, ak, t1, t2, type;
     rvec f_i, f_j, f_k;
@@ -1245,8 +1245,8 @@ real linear_angles(int nbonds,
             f[ak][m] += f_k[m];
         }
 
-        if (pf_global->PFPS) pf_atom_add_angle(pf_global, ai, aj, ak, f_i, f_j, f_k);
-        if (pf_global->VS) pf_global->add_virial_angle(ai, aj, ak, r_ij, r_kj, f_i, f_k);
+        if (fda->PFPS) pf_atom_add_angle(fda, ai, aj, ak, f_i, f_j, f_k);
+        if (fda->VS) fda->add_virial_angle(ai, aj, ak, r_ij, r_kj, f_i, f_k);
 
         va          = 0.5*klin*dr2;
         *dvdlambda += 0.5*(kB-kA)*dr2 + klin*(aB-aA)*iprod(dx, r_ik);
@@ -1275,7 +1275,7 @@ real urey_bradley(int nbonds,
                   const t_pbc *pbc, const t_graph *g,
                   real lambda, real *dvdlambda,
                   const t_mdatoms gmx_unused *md, t_fcdata gmx_unused *fcd,
-                  int gmx_unused *global_atom_index, t_pf_global *pf_global)
+                  int gmx_unused *global_atom_index, FDA *fda)
 {
     int  i, m, ai, aj, ak, t1, t2, type, ki;
     rvec r_ij, r_kj, r_ik, pf_forcevector;
@@ -1346,8 +1346,8 @@ real urey_bradley(int nbonds,
                 f[ak][m] += f_k[m];
             }
 
-            if (pf_global->PFPS) pf_atom_add_angle(pf_global, ai, aj, ak, f_i, f_j, f_k);
-            if (pf_global->VS) pf_global->add_virial_angle(ai, aj, ak, r_ij, r_kj, f_i, f_k);
+            if (fda->PFPS) pf_atom_add_angle(fda, ai, aj, ak, f_i, f_j, f_k);
+            if (fda->VS) fda->add_virial_angle(ai, aj, ak, r_ij, r_kj, f_i, f_k);
 
             if (g)
             {
@@ -1386,8 +1386,8 @@ real urey_bradley(int nbonds,
             pf_forcevector[m]   = fik;
         }
 
-        if (pf_global->PFPS) pf_global->add_bonded(ai, ak, PF_INTER_BOND, pf_forcevector);
-        if (pf_global->VS) pf_atom_virial_bond(pf_global, ai, ak, fbond, r_ik[XX], r_ik[YY], r_ik[ZZ]);
+        if (fda->PFPS) fda->add_bonded(ai, ak, PF_INTER_BOND, pf_forcevector);
+        if (fda->VS) pf_atom_virial_bond(fda, ai, ak, fbond, r_ik[XX], r_ik[YY], r_ik[ZZ]);
 
     }
     return vtot;
@@ -1399,7 +1399,7 @@ real quartic_angles(int nbonds,
                     const t_pbc *pbc, const t_graph *g,
                     real gmx_unused lambda, real gmx_unused *dvdlambda,
                     const t_mdatoms gmx_unused *md, t_fcdata gmx_unused *fcd,
-                    int gmx_unused *global_atom_index, t_pf_global *pf_global)
+                    int gmx_unused *global_atom_index, FDA *fda)
 {
     int  i, j, ai, aj, ak, t1, t2, type;
     rvec r_ij, r_kj;
@@ -1468,8 +1468,8 @@ real quartic_angles(int nbonds,
                 f[ak][m] += f_k[m];
             }
 
-            if (pf_global->PFPS) pf_atom_add_angle(pf_global, ai, aj, ak, f_i, f_j, f_k);
-            if (pf_global->VS) pf_global->add_virial_angle(ai, aj, ak, r_ij, r_kj, f_i, f_k);
+            if (fda->PFPS) pf_atom_add_angle(fda, ai, aj, ak, f_i, f_j, f_k);
+            if (fda->VS) fda->add_virial_angle(ai, aj, ak, r_ij, r_kj, f_i, f_k);
 
             if (g)
             {
@@ -1633,7 +1633,7 @@ void print_vec(char *s, rvec x) {
   fprintf(stderr, "%s %f %f %f\n", s, x[0], x[1], x[2]);
 }
 
-void pf_atom_add_dihedral(t_pf_global *pf_global,
+void pf_atom_add_dihedral(FDA *fda,
 			              int i, int j, int k, int l,
 			              rvec f_i, rvec f_j, rvec f_k, rvec f_l)
 {
@@ -1749,19 +1749,19 @@ void pf_atom_add_dihedral(t_pf_global *pf_global,
     print_vec("f_jpk_l", f_jpk_l);
     print_vec("f_j_k", f_j_k);
     print_vec("f_k_j", f_k_j);*/
-    pf_global->add_bonded(j, i, PF_INTER_DIHEDRAL, f_j_i);
-    pf_global->add_bonded(k, i, PF_INTER_DIHEDRAL, f_k_i);
-    pf_global->add_bonded(l, i, PF_INTER_DIHEDRAL, f_l_i);
-    pf_global->add_bonded(j, k, PF_INTER_DIHEDRAL, f_j_k);
-    pf_global->add_bonded(j, l, PF_INTER_DIHEDRAL, f_j_l);
-    pf_global->add_bonded(k, l, PF_INTER_DIHEDRAL, f_k_l);
+    fda->add_bonded(j, i, PF_INTER_DIHEDRAL, f_j_i);
+    fda->add_bonded(k, i, PF_INTER_DIHEDRAL, f_k_i);
+    fda->add_bonded(l, i, PF_INTER_DIHEDRAL, f_l_i);
+    fda->add_bonded(j, k, PF_INTER_DIHEDRAL, f_j_k);
+    fda->add_bonded(j, l, PF_INTER_DIHEDRAL, f_j_l);
+    fda->add_bonded(k, l, PF_INTER_DIHEDRAL, f_k_l);
 }
 
 void do_dih_fup(int i, int j, int k, int l, real ddphi,
                 rvec r_ij, rvec r_kj, rvec r_kl,
                 rvec m, rvec n, rvec4 f[], rvec fshift[],
                 const t_pbc *pbc, const t_graph *g,
-                const rvec x[], int t1, int t2, int t3, t_pf_global *pf_global)
+                const rvec x[], int t1, int t2, int t3, FDA *fda)
 {
     /* 143 FLOPS */
     rvec f_i, f_j, f_k, f_l;
@@ -1797,10 +1797,10 @@ void do_dih_fup(int i, int j, int k, int l, real ddphi,
         rvec_dec(f[k], f_k);          /*  3	*/
         rvec_inc(f[l], f_l);          /*  3	*/
 
-        /* check the pointer first, do_dih_fup is called from several places, sometimes with pf_global=NULL */
-        if (pf_global) {
-        	if (pf_global->PFPS) pf_atom_add_dihedral(pf_global, i, j, k, l, f_i, f_j, f_k, f_l);
-        	if (pf_global->VS) pf_global->add_virial_dihedral(i, j, k, l, f_i, f_k, f_l, r_ij, r_kj, r_kl);
+        /* check the pointer first, do_dih_fup is called from several places, sometimes with fda=NULL */
+        if (fda) {
+        	if (fda->PFPS) pf_atom_add_dihedral(fda, i, j, k, l, f_i, f_j, f_k, f_l);
+        	if (fda->VS) fda->add_virial_dihedral(i, j, k, l, f_i, f_k, f_l, r_ij, r_kj, r_kl);
         }
 
         if (g)
@@ -1971,7 +1971,7 @@ real pdihs(int nbonds,
            const t_pbc *pbc, const t_graph *g,
            real lambda, real *dvdlambda,
            const t_mdatoms gmx_unused *md, t_fcdata gmx_unused *fcd,
-           int gmx_unused *global_atom_index, t_pf_global *pf_global)
+           int gmx_unused *global_atom_index, FDA *fda)
 {
     int  i, type, ai, aj, ak, al;
     int  t1, t2, t3;
@@ -1999,7 +1999,7 @@ real pdihs(int nbonds,
 
         vtot += vpd;
         do_dih_fup(ai, aj, ak, al, ddphi, r_ij, r_kj, r_kl, m, n,
-                   f, fshift, pbc, g, x, t1, t2, t3, pf_global); /* 112		*/
+                   f, fshift, pbc, g, x, t1, t2, t3, fda); /* 112		*/
 
 #ifdef DEBUG
         fprintf(debug, "pdih: (%d,%d,%d,%d) phi=%g\n",
@@ -2331,7 +2331,7 @@ real idihs(int nbonds,
            const t_pbc *pbc, const t_graph *g,
            real lambda, real *dvdlambda,
            const t_mdatoms gmx_unused *md, t_fcdata gmx_unused *fcd,
-           int gmx_unused *global_atom_index, t_pf_global *pf_global)
+           int gmx_unused *global_atom_index, FDA *fda)
 {
     int  i, type, ai, aj, ak, al;
     int  t1, t2, t3;
@@ -2381,7 +2381,7 @@ real idihs(int nbonds,
         dvdl_term += 0.5*(kB - kA)*dp2 - kk*dphi0*dp;
 
         do_dih_fup(ai, aj, ak, al, -ddphi, r_ij, r_kj, r_kl, m, n,
-                   f, fshift, pbc, g, x, t1, t2, t3, pf_global); /* 112		*/
+                   f, fshift, pbc, g, x, t1, t2, t3, fda); /* 112		*/
         /* 218 TOTAL	*/
 #ifdef DEBUG
         if (debug)
@@ -2401,7 +2401,7 @@ static real low_angres(int nbonds,
                        const rvec x[], rvec4 f[], rvec fshift[],
                        const t_pbc *pbc, const t_graph *g,
                        real lambda, real *dvdlambda,
-                       gmx_bool bZAxis, t_pf_global *pf_global)
+                       gmx_bool bZAxis, FDA *fda)
 {
     int  i, m, type, ai, aj, ak, al;
     int  t1, t2;
@@ -2473,16 +2473,16 @@ static real low_angres(int nbonds,
                 }
             }
 
-            if (pf_global->PFPS) {
-            	pf_global->add_bonded(ai, aj, PF_INTER_ANGLE, f_i);
-            	pf_global->add_bonded(aj, ai, PF_INTER_ANGLE, n_f_i);
+            if (fda->PFPS) {
+            	fda->add_bonded(ai, aj, PF_INTER_ANGLE, f_i);
+            	fda->add_bonded(aj, ai, PF_INTER_ANGLE, n_f_i);
 				if (!bZAxis)
 				{
-					pf_global->add_bonded(ak, al, PF_INTER_ANGLE, f_k);
-					pf_global->add_bonded(al, ak, PF_INTER_ANGLE, n_f_k);
+					fda->add_bonded(ak, al, PF_INTER_ANGLE, f_k);
+					fda->add_bonded(al, ak, PF_INTER_ANGLE, n_f_k);
 				}
             }
-            if (pf_global->VS) gmx_fatal(FARGS, "Not implemented yet.");
+            if (fda->VS) gmx_fatal(FARGS, "Not implemented yet.");
 
             if (g)
             {
@@ -2513,10 +2513,10 @@ real angres(int nbonds,
             const t_pbc *pbc, const t_graph *g,
             real lambda, real *dvdlambda,
             const t_mdatoms gmx_unused *md, t_fcdata gmx_unused *fcd,
-            int gmx_unused *global_atom_index, t_pf_global *pf_global)
+            int gmx_unused *global_atom_index, FDA *fda)
 {
     return low_angres(nbonds, forceatoms, forceparams, x, f, fshift, pbc, g,
-                      lambda, dvdlambda, FALSE, pf_global);
+                      lambda, dvdlambda, FALSE, fda);
 }
 
 real angresz(int nbonds,
@@ -2525,10 +2525,10 @@ real angresz(int nbonds,
              const t_pbc *pbc, const t_graph *g,
              real lambda, real *dvdlambda,
              const t_mdatoms gmx_unused *md, t_fcdata gmx_unused *fcd,
-             int gmx_unused *global_atom_index, t_pf_global *pf_global)
+             int gmx_unused *global_atom_index, FDA *fda)
 {
     return low_angres(nbonds, forceatoms, forceparams, x, f, fshift, pbc, g,
-                      lambda, dvdlambda, TRUE, pf_global);
+                      lambda, dvdlambda, TRUE, fda);
 }
 
 real dihres(int nbonds,
@@ -2537,7 +2537,7 @@ real dihres(int nbonds,
             const t_pbc *pbc, const t_graph *g,
             real lambda, real *dvdlambda,
             const t_mdatoms gmx_unused *md, t_fcdata gmx_unused *fcd,
-            int gmx_unused  *global_atom_index, t_pf_global *pf_global)
+            int gmx_unused  *global_atom_index, FDA *fda)
 {
     real vtot = 0;
     int  ai, aj, ak, al, i, k, type, t1, t2, t3;
@@ -2619,7 +2619,7 @@ real dihres(int nbonds,
                 *dvdlambda += kfac*ddp*((dphiB - dphiA)-(phi0B - phi0A));
             }
             do_dih_fup(ai, aj, ak, al, ddphi, r_ij, r_kj, r_kl, m, n,
-                       f, fshift, pbc, g, x, t1, t2, t3, pf_global);      /* 112		*/
+                       f, fshift, pbc, g, x, t1, t2, t3, fda);      /* 112		*/
         }
     }
     return vtot;
@@ -2632,7 +2632,7 @@ real unimplemented(int gmx_unused nbonds,
                    const t_pbc gmx_unused *pbc, const t_graph  gmx_unused *g,
                    real gmx_unused lambda, real gmx_unused *dvdlambda,
                    const t_mdatoms  gmx_unused *md, t_fcdata gmx_unused *fcd,
-                   int gmx_unused *global_atom_index, t_pf_global gmx_unused *pf_global)
+                   int gmx_unused *global_atom_index, FDA gmx_unused *fda)
 {
     gmx_impl("*** you are using a not implemented function");
 
@@ -2645,7 +2645,7 @@ real restrangles(int nbonds,
                  const t_pbc *pbc, const t_graph *g,
                  real gmx_unused lambda, real gmx_unused *dvdlambda,
                  const t_mdatoms gmx_unused *md, t_fcdata gmx_unused *fcd,
-                 int gmx_unused *global_atom_index, t_pf_global *pf_global)
+                 int gmx_unused *global_atom_index, FDA *fda)
 {
     int  i, d, ai, aj, ak, type, m;
     int  t1, t2;
@@ -2712,8 +2712,8 @@ real restrangles(int nbonds,
             f_k[d] = prefactor * (delta_ante[d] - ratio_post * delta_post[d]);
         }
 
-        if (pf_global->PFPS) pf_atom_add_angle(pf_global, ai, aj, ak, f_i, f_j, f_k);
-        if (pf_global->VS) gmx_fatal(FARGS, "Not implemented yet.");
+        if (fda->PFPS) pf_atom_add_angle(fda, ai, aj, ak, f_i, f_j, f_k);
+        if (fda->VS) gmx_fatal(FARGS, "Not implemented yet.");
 
         /*   Computation of potential energy   */
 
@@ -2751,7 +2751,7 @@ real restrdihs(int nbonds,
                const t_pbc *pbc, const t_graph *g,
                real gmx_unused lambda, real gmx_unused *dvlambda,
                const t_mdatoms gmx_unused *md, t_fcdata gmx_unused *fcd,
-               int gmx_unused *global_atom_index, t_pf_global *pf_global)
+               int gmx_unused *global_atom_index, FDA *fda)
 {
     int  i, d, type, ai, aj, ak, al;
     rvec f_i, f_j, f_k, f_l;
@@ -2810,10 +2810,10 @@ real restrdihs(int nbonds,
         }
         /*      Computation of the energy */
 
-        /* check the pointer first, do_dih_fup is called from several places, sometimes with pf_global=NULL */
-        if (pf_global) {
-        	if (pf_global->PFPS) pf_atom_add_dihedral(pf_global, ai, aj, ak, al, f_i, f_j, f_k, f_l);
-        	if (pf_global->VS) gmx_fatal(FARGS, "Not implemented yet.");
+        /* check the pointer first, do_dih_fup is called from several places, sometimes with fda=NULL */
+        if (fda) {
+        	if (fda->PFPS) pf_atom_add_dihedral(fda, ai, aj, ak, al, f_i, f_j, f_k, f_l);
+        	if (fda->VS) gmx_fatal(FARGS, "Not implemented yet.");
         }
 
         vtot += v;
@@ -2865,7 +2865,7 @@ real cbtdihs(int nbonds,
              const t_pbc *pbc, const t_graph *g,
              real gmx_unused lambda, real gmx_unused *dvdlambda,
              const t_mdatoms gmx_unused *md, t_fcdata gmx_unused *fcd,
-             int gmx_unused *global_atom_index, t_pf_global *pf_global)
+             int gmx_unused *global_atom_index, FDA *fda)
 {
     int  type, ai, aj, ak, al, i, d;
     int  t1, t2, t3;
@@ -2926,10 +2926,10 @@ real cbtdihs(int nbonds,
             f_l[d] = f_phi_al[d] + f_theta_post_al[d];
         }
 
-        /* check the pointer first, do_dih_fup is called from several places, sometimes with pf_global=NULL */
-        if (pf_global != NULL) {
-        	if (pf_global->PFPS) pf_atom_add_dihedral(pf_global, ai, aj, ak, al, f_i, f_j, f_k, f_l);
-        	if (pf_global->VS) gmx_fatal(FARGS, "Not implemented yet.");
+        /* check the pointer first, do_dih_fup is called from several places, sometimes with fda=NULL */
+        if (fda != NULL) {
+        	if (fda->PFPS) pf_atom_add_dihedral(fda, ai, aj, ak, al, f_i, f_j, f_k, f_l);
+        	if (fda->VS) gmx_fatal(FARGS, "Not implemented yet.");
         }
 
         /*      Compute the potential energy */
@@ -2979,7 +2979,7 @@ real rbdihs(int nbonds,
             const t_pbc *pbc, const t_graph *g,
             real lambda, real *dvdlambda,
             const t_mdatoms gmx_unused *md, t_fcdata gmx_unused *fcd,
-            int gmx_unused *global_atom_index, t_pf_global *pf_global)
+            int gmx_unused *global_atom_index, FDA *fda)
 {
     const real c0 = 0.0, c1 = 1.0, c2 = 2.0, c3 = 3.0, c4 = 4.0, c5 = 5.0;
     int        type, ai, aj, ak, al, i, j;
@@ -3069,7 +3069,7 @@ real rbdihs(int nbonds,
         ddphi = -ddphi*sin_phi;         /*  11		*/
 
         do_dih_fup(ai, aj, ak, al, ddphi, r_ij, r_kj, r_kl, m, n,
-                   f, fshift, pbc, g, x, t1, t2, t3, pf_global); /* 112		*/
+                   f, fshift, pbc, g, x, t1, t2, t3, fda); /* 112		*/
         vtot += v;
     }
     *dvdlambda += dvdl_term;
@@ -3128,7 +3128,7 @@ cmap_dihs(int nbonds,
           const struct t_pbc *pbc, const struct t_graph *g,
           real gmx_unused lambda, real gmx_unused *dvdlambda,
           const t_mdatoms gmx_unused *md, t_fcdata gmx_unused *fcd,
-          int  gmx_unused *global_atom_index, t_pf_global *pf_global)
+          int  gmx_unused *global_atom_index, FDA *fda)
 {
     int         i, j, k, n, idx;
     int         ai, aj, ak, al, am;
@@ -3445,9 +3445,9 @@ cmap_dihs(int nbonds,
             f[a1l][i] = f[a1l][i] + f1_l[i]; /* h1[i] */
         }
 
-		if (pf_global) {
-			if (pf_global->PFPS) pf_atom_add_dihedral(pf_global, a1i, a1j, a1k, a1l, f1_i, f1_j, f1_k, f1_l);
-        	if (pf_global->VS) gmx_fatal(FARGS, "Not implemented yet.");
+		if (fda) {
+			if (fda->PFPS) pf_atom_add_dihedral(fda, a1i, a1j, a1k, a1l, f1_i, f1_j, f1_k, f1_l);
+        	if (fda->VS) gmx_fatal(FARGS, "Not implemented yet.");
 		}
 
         /* Do forces - second torsion */
@@ -3479,9 +3479,9 @@ cmap_dihs(int nbonds,
             f[a2l][i] = f[a2l][i] + f2_l[i]; /* - h2[i] */
         }
 
-		if (pf_global) {
-		    if (pf_global->PFPS) pf_atom_add_dihedral(pf_global, a2i, a2j, a2k, a2l, f2_i, f2_j, f2_k, f2_l);
-    	    if (pf_global->VS) gmx_fatal(FARGS, "Not implemented yet.");
+		if (fda) {
+		    if (fda->PFPS) pf_atom_add_dihedral(fda, a2i, a2j, a2k, a2l, f2_i, f2_j, f2_k, f2_l);
+    	    if (fda->VS) gmx_fatal(FARGS, "Not implemented yet.");
         }
 
         /* Shift forces */
@@ -3566,7 +3566,7 @@ real g96bonds(int nbonds,
               const t_pbc *pbc, const t_graph *g,
               real lambda, real *dvdlambda,
               const t_mdatoms gmx_unused *md, t_fcdata gmx_unused *fcd,
-              int gmx_unused *global_atom_index, t_pf_global *pf_global)
+              int gmx_unused *global_atom_index, FDA *fda)
 {
     int  i, m, ki, ai, aj, type;
     real dr2, fbond, vbond, fij, vtot;
@@ -3613,8 +3613,8 @@ real g96bonds(int nbonds,
             pf_forcevector[m]   = fij;
         }
 
-        if (pf_global->PFPS) pf_global->add_bonded(ai, aj, PF_INTER_BOND, pf_forcevector);
-        if (pf_global->VS) pf_atom_virial_bond(pf_global, ai, aj, fbond, dx[XX], dx[YY], dx[ZZ]);
+        if (fda->PFPS) fda->add_bonded(ai, aj, PF_INTER_BOND, pf_forcevector);
+        if (fda->VS) pf_atom_virial_bond(fda, ai, aj, fbond, dx[XX], dx[YY], dx[ZZ]);
 
     }               /* 44 TOTAL	*/
     return vtot;
@@ -3641,7 +3641,7 @@ real g96angles(int nbonds,
                const t_pbc *pbc, const t_graph *g,
                real lambda, real *dvdlambda,
                const t_mdatoms gmx_unused *md, t_fcdata gmx_unused *fcd,
-               int gmx_unused *global_atom_index, t_pf_global *pf_global)
+               int gmx_unused *global_atom_index, FDA *fda)
 {
     int  i, ai, aj, ak, type, m, t1, t2;
     rvec r_ij, r_kj;
@@ -3690,8 +3690,8 @@ real g96angles(int nbonds,
             f[ak][m] += f_k[m];
         }
 
-        if (pf_global->PFPS) pf_atom_add_angle(pf_global, ai, aj, ak, f_i, f_j, f_k);
-        if (pf_global->VS) pf_global->add_virial_angle(ai, aj, ak, r_ij, r_kj, f_i, f_k);
+        if (fda->PFPS) pf_atom_add_angle(fda, ai, aj, ak, f_i, f_j, f_k);
+        if (fda->VS) fda->add_virial_angle(ai, aj, ak, r_ij, r_kj, f_i, f_k);
 
         if (g)
         {
@@ -3716,7 +3716,7 @@ real cross_bond_bond(int nbonds,
                      const t_pbc *pbc, const t_graph *g,
                      real gmx_unused lambda, real gmx_unused *dvdlambda,
                      const t_mdatoms gmx_unused *md, t_fcdata gmx_unused  *fcd,
-                     int gmx_unused *global_atom_index, t_pf_global *pf_global)
+                     int gmx_unused *global_atom_index, FDA *fda)
 {
     /* Potential from Lawrence and Skimmer, Chem. Phys. Lett. 372 (2003)
      * pp. 842-847
@@ -3766,8 +3766,8 @@ real cross_bond_bond(int nbonds,
             f[ak][m] += f_k[m];
         }
 
-        if (pf_global->PFPS) pf_atom_add_angle(pf_global, ai, aj, ak, f_i, f_j, f_k);
-        if (pf_global->VS) pf_global->add_virial_angle(ai, aj, ak, r_ij, r_kj, f_i, f_k);
+        if (fda->PFPS) pf_atom_add_angle(fda, ai, aj, ak, f_i, f_j, f_k);
+        if (fda->VS) fda->add_virial_angle(ai, aj, ak, r_ij, r_kj, f_i, f_k);
 
         /* Virial stuff */
         if (g)
@@ -3793,7 +3793,7 @@ real cross_bond_angle(int nbonds,
                       const t_pbc *pbc, const t_graph *g,
                       real gmx_unused lambda, real gmx_unused *dvdlambda,
                       const t_mdatoms gmx_unused *md, t_fcdata gmx_unused *fcd,
-                      int gmx_unused *global_atom_index, t_pf_global *pf_global)
+                      int gmx_unused *global_atom_index, FDA *fda)
 {
     /* Potential from Lawrence and Skimmer, Chem. Phys. Lett. 372 (2003)
      * pp. 842-847
@@ -3853,8 +3853,8 @@ real cross_bond_angle(int nbonds,
             f[ak][m] += f_k[m];
         }
 
-        if (pf_global->PFPS) pf_atom_add_angle(pf_global, ai, aj, ak, f_i, f_j, f_k);
-        if (pf_global->VS) pf_global->add_virial_angle(ai, aj, ak, r_ij, r_kj, f_i, f_k);
+        if (fda->PFPS) pf_atom_add_angle(fda, ai, aj, ak, f_i, f_j, f_k);
+        if (fda->VS) fda->add_virial_angle(ai, aj, ak, r_ij, r_kj, f_i, f_k);
 
         /* Virial stuff */
         if (g)
@@ -3920,7 +3920,7 @@ real tab_bonds(int nbonds,
                const t_pbc *pbc, const t_graph *g,
                real lambda, real *dvdlambda,
                const t_mdatoms gmx_unused *md, t_fcdata *fcd,
-               int gmx_unused  *global_atom_index, t_pf_global *pf_global)
+               int gmx_unused  *global_atom_index, FDA *fda)
 {
     int  i, m, ki, ai, aj, type, table;
     real dr, dr2, fbond, vbond, fij, vtot;
@@ -3976,8 +3976,8 @@ real tab_bonds(int nbonds,
             pf_forcevector[m]   = fij;
         }
 
-        if (pf_global->PFPS) pf_global->add_bonded(ai, aj, PF_INTER_BOND, pf_forcevector);
-        if (pf_global->VS) pf_atom_virial_bond(pf_global, ai, aj, fbond, dx[XX], dx[YY], dx[ZZ]);
+        if (fda->PFPS) fda->add_bonded(ai, aj, PF_INTER_BOND, pf_forcevector);
+        if (fda->VS) pf_atom_virial_bond(fda, ai, aj, fbond, dx[XX], dx[YY], dx[ZZ]);
 
     }               /* 62 TOTAL	*/
     return vtot;
@@ -3989,7 +3989,7 @@ real tab_angles(int nbonds,
                 const t_pbc *pbc, const t_graph *g,
                 real lambda, real *dvdlambda,
                 const t_mdatoms gmx_unused  *md, t_fcdata *fcd,
-                int gmx_unused *global_atom_index, t_pf_global *pf_global)
+                int gmx_unused *global_atom_index, FDA *fda)
 {
     int  i, ai, aj, ak, t1, t2, type, table;
     rvec r_ij, r_kj;
@@ -4051,8 +4051,8 @@ real tab_angles(int nbonds,
                 f[ak][m] += f_k[m];
             }
 
-            if (pf_global->PFPS) pf_atom_add_angle(pf_global, ai, aj, ak, f_i, f_j, f_k);
-            if (pf_global->VS) pf_global->add_virial_angle(ai, aj, ak, r_ij, r_kj, f_i, f_k);
+            if (fda->PFPS) pf_atom_add_angle(fda, ai, aj, ak, f_i, f_j, f_k);
+            if (fda->VS) fda->add_virial_angle(ai, aj, ak, r_ij, r_kj, f_i, f_k);
 
             if (g)
             {
@@ -4077,7 +4077,7 @@ real tab_dihs(int nbonds,
               const t_pbc *pbc, const t_graph *g,
               real lambda, real *dvdlambda,
               const t_mdatoms gmx_unused *md, t_fcdata *fcd,
-              int gmx_unused *global_atom_index, t_pf_global *pf_global)
+              int gmx_unused *global_atom_index, FDA *fda)
 {
     int  i, type, ai, aj, ak, al, table;
     int  t1, t2, t3;
@@ -4107,7 +4107,7 @@ real tab_dihs(int nbonds,
 
         vtot += vpd;
         do_dih_fup(ai, aj, ak, al, -ddphi, r_ij, r_kj, r_kl, m, n,
-                   f, fshift, pbc, g, x, t1, t2, t3, pf_global); /* 112	*/
+                   f, fshift, pbc, g, x, t1, t2, t3, fda); /* 112	*/
 
 #ifdef DEBUG
         fprintf(debug, "pdih: (%d,%d,%d,%d) phi=%g\n",

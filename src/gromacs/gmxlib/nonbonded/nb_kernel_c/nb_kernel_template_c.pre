@@ -176,7 +176,7 @@ void
     real             rswitch,swV3,swV4,swV5,swF2,swF3,swF4,d,d2,sw,dsw;
     /* #endif */
 
-    struct t_pf_global *pf_global = fr->pf_global;
+    struct FDA *fda = fr->fda;
 
     x                = xx[0];
     f                = ff[0];
@@ -834,16 +834,16 @@ void
 
             /* pairwise forces */
             /*         #if 'electrostatics' in INTERACTION_FLAGS[I][J] and 'vdw' in INTERACTION_FLAGS[I][J] */
-            if (pf_global->PFPS) pf_atom_add_nonbonded(pf_global, inr+{I}, jnr+{J}, felec, fvdw, dx{I}{J}, dy{I}{J}, dz{I}{J});
+            if (fda->PFPS) pf_atom_add_nonbonded(fda, inr+{I}, jnr+{J}, felec, fvdw, dx{I}{J}, dy{I}{J}, dz{I}{J});
                 /* ## fprintf(stdout, "add coulomb and vdw %i %i %15.8f %15.8f\n", inr+{I}, jnr+{J}, felec, fvdw); */
             /*         #elif 'electrostatics' in INTERACTION_FLAGS[I][J] */
-            if (pf_global->PFPS) pf_atom_add_nonbonded_single(pf_global, inr+{I}, jnr+{J}, PF_INTER_COULOMB, felec, dx{I}{J}, dy{I}{J}, dz{I}{J});
+            if (fda->PFPS) pf_atom_add_nonbonded_single(fda, inr+{I}, jnr+{J}, PF_INTER_COULOMB, felec, dx{I}{J}, dy{I}{J}, dz{I}{J});
                 /* ## fprintf(stdout, "add coulomb %i %i %15.8f\n", inr+{I}, jnr+{J}, felec); */
             /*         #elif 'vdw' in INTERACTION_FLAGS[I][J] */
-            if (pf_global->PFPS) pf_atom_add_nonbonded_single(pf_global, inr+{I}, jnr+{J}, PF_INTER_LJ, fvdw, dx{I}{J}, dy{I}{J}, dz{I}{J});
+            if (fda->PFPS) pf_atom_add_nonbonded_single(fda, inr+{I}, jnr+{J}, PF_INTER_LJ, fvdw, dx{I}{J}, dy{I}{J}, dz{I}{J});
                 /* ## fprintf(stdout, "add vdw %i %i %15.8f\n", inr+{I}, jnr+{J}, fvdw); */
             /*        #endif */
-            if (pf_global->VS) pf_atom_virial_bond(pf_global, inr+{I}, jnr+{J}, fscal, dx{I}{J}, dy{I}{J}, dz{I}{J});
+            if (fda->VS) pf_atom_virial_bond(fda, inr+{I}, jnr+{J}, fscal, dx{I}{J}, dy{I}{J}, dz{I}{J});
 
             /*         #define INNERFLOPS INNERFLOPS+9 */
             /*     #endif */

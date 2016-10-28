@@ -3,11 +3,11 @@
 
 #include "fda.h"
 
-void pf_write_frame(t_pf_global *pf_global, rvec const *x, gmx_mtop_t *top_global);
-void pf_open(t_pf_global *pf_global);
-void pf_close(t_pf_global *pf_global);
+void pf_write_frame(FDA *fda, rvec const *x, gmx_mtop_t *top_global);
+void pf_open(FDA *fda);
+void pf_close(FDA *fda);
 
-void pf_save_and_write_scalar_time_averages(t_pf_global *pf_global, rvec const *x, gmx_mtop_t *top_global);
-void pf_write_scalar_time_averages(t_pf_global *pf_global);
+void pf_save_and_write_scalar_time_averages(FDA *fda, rvec const *x, gmx_mtop_t *top_global);
+void pf_write_scalar_time_averages(FDA *fda);
 
 #endif  /* pf_io_h */

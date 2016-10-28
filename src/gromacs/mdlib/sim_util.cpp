@@ -517,7 +517,7 @@ static void do_nb_verlet(t_forcerec *fr,
                              fr->bBHAM ?
                              enerd->grpp.ener[egBHAMSR] :
                              enerd->grpp.ener[egLJSR],
-                             fr->pf_global,
+                             fr->fda,
                              fr->nbv->nbs->a);
             break;
 

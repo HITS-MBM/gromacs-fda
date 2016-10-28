@@ -364,7 +364,7 @@ do_pairs_general(int ftype, int nbonds,
     real             LFC[2], LFV[2], DLF[2], lfac_coul[2], lfac_vdw[2], dlfac_coul[2], dlfac_vdw[2];
     real             qqB, c6B, c12B, sigma2_def, sigma2_min;
 
-    t_pf_global      *pf_global = fr->pf_global;
+    FDA      *fda = fr->fda;
 
     switch (ftype)
     {
@@ -517,8 +517,8 @@ do_pairs_general(int ftype, int nbonds,
         rvec_inc(f[ai], dx);
         rvec_dec(f[aj], dx);
 
-        if (pf_global->bInitialized)
-        	pf_global->add_bonded(ai, aj, PF_INTER_NB14, dx);
+        if (fda->bInitialized)
+        	fda->add_bonded(ai, aj, PF_INTER_NB14, dx);
 
         if (g)
         {

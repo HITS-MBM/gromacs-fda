@@ -39,7 +39,7 @@
 #include "mdrun/mdrun_main.h"
 
 //! FDA global object
-t_pf_global_data pf_global_data;
+FDA_data fda_data;
 
 int main(int argc, char *argv[])
 {

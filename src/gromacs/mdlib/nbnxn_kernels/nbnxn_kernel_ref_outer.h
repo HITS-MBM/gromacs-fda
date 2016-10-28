@@ -107,7 +107,7 @@ NBK_FUNC_NAME(_VgrpF)
  ,
  real                       *Vvdw,
  real                       *Vc,
- t_pf_global                *pf_global,
+ FDA                *fda,
  int                        *cellInv
 #endif
 )

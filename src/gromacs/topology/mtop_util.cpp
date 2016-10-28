@@ -952,7 +952,7 @@ static void pf_ilistcat(int ftype, t_ilist *dest, t_ilist *src, int copies,
                         int dnum, int snum)
 {
 	// Return if no bonded interaction is needed.
-	if (!(pf_global_data.type & (PF_INTER_BONDED + PF_INTER_NB14))) return;
+	if (!(fda_data.type & (PF_INTER_BONDED + PF_INTER_NB14))) return;
 
     int nral, c, i, a, atomIdx;
     char needed;
@@ -963,11 +963,11 @@ static void pf_ilistcat(int ftype, t_ilist *dest, t_ilist *src, int copies,
     snew(tmp,copies*src->nr);
     int len = 0;
 
-    int *g1atomsBeg = pf_global_data.groups->a + pf_global_data.groups->index[pf_global_data.g1idx];
-    int *g1atomsEnd = pf_global_data.groups->a + pf_global_data.groups->index[pf_global_data.g1idx+1];
+    int *g1atomsBeg = fda_data.groups->a + fda_data.groups->index[fda_data.g1idx];
+    int *g1atomsEnd = fda_data.groups->a + fda_data.groups->index[fda_data.g1idx+1];
     int *g1atomsCur = NULL;
-    int *g2atomsBeg = pf_global_data.groups->a + pf_global_data.groups->index[pf_global_data.g2idx];
-    int *g2atomsEnd = pf_global_data.groups->a + pf_global_data.groups->index[pf_global_data.g2idx+1];
+    int *g2atomsBeg = fda_data.groups->a + fda_data.groups->index[fda_data.g2idx];
+    int *g2atomsEnd = fda_data.groups->a + fda_data.groups->index[fda_data.g2idx+1];
     int *g2atomsCur = NULL;
 
     for (c = 0; c < copies; c++)
@@ -1165,7 +1165,7 @@ static void gen_local_top(const gmx_mtop_t *mtop,
             }
             else if (!(bMergeConstr && ftype == F_CONSTRNC))
             {
-            	if (pf_global_data.FDA_bonded_exclusion_on)
+            	if (fda_data.FDA_bonded_exclusion_on)
                     pf_ilistcat(ftype, &idef->il[ftype], &molt->ilist[ftype],
                              molb->nmol, destnr, srcnr);
             	else

@@ -61,7 +61,7 @@
 #endif
 
 //! FDA global object
-t_pf_global_data pf_global_data;
+FDA_data fda_data;
 
 /*! \brief
  * Initializes unit testing for \ref module_testutils.

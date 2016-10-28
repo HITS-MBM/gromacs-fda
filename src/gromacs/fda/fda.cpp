@@ -65,7 +65,7 @@ const char *pf_vector2scalar_option[PF_VECTOR2SCALAR_NR+1] = {
   NULL
 };
 
-t_pf_global::t_pf_global(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global)
+FDA::FDA(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global)
  : bInitialized(false),
    AtomBased(0),
    ResidueBased(0),
@@ -286,14 +286,14 @@ t_pf_global::t_pf_global(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global
 	no_end_zeros = TRUE;
 }
 
-void pf_atom_add_bonded_nocheck(t_pf_global *pf_global, int i, int j, int type, rvec force) {
+void pf_atom_add_bonded_nocheck(FDA *fda, int i, int j, int type, rvec force) {
   t_pf_atoms *atoms;
   t_pf_atoms *residues;
   int ri = 0, rj = 0;       /* initialized to get rid of compiler warning, as they are only initialized later if ResidueBased is non-zero */
   rvec force_residue;
 
-  atoms = pf_global->atoms;
-  residues = pf_global->residues;
+  atoms = fda->atoms;
+  residues = fda->residues;
   //fprintf(stderr, "pf_atom_add_bonded_nocheck: adding i=%d, j=%d, type=%d\n", i, j, type);
 
   /* checking is symmetrical for atoms i and j; one of them has to be from g1, the other one from g2;
@@ -307,15 +307,15 @@ void pf_atom_add_bonded_nocheck(t_pf_global *pf_global, int i, int j, int type, 
    * is done first (the original code), i/j/force are needed for the later atom->residue mapping
    * and saving in intermediate variables is needed
    */
-  if (pf_file_out_PF_or_PS(pf_global->ResidueBased)) {
+  if (pf_file_out_PF_or_PS(fda->ResidueBased)) {
     /* the calling functions will not have i == j, but there is not such guarantee for ri and rj;
      * and it makes no sense to look at the interaction of a residue to itself
      */
-    ri = pf_global->atom2residue[i];
-    rj = pf_global->atom2residue[j];
+    ri = fda->atom2residue[i];
+    rj = fda->atom2residue[j];
     //fprintf(stderr, "pf_atom_add_bonded_nocheck: i=%d, j=%d, ri=%d, rj=%d, type=%d\n", i, j, ri, rj, type);
     if (ri != rj) {
-      switch(pf_global->OnePair) {
+      switch(fda->OnePair) {
         case PF_ONEPAIR_DETAILED:
           if (ri > rj) {
             int_swap(&ri, &rj);
@@ -342,13 +342,13 @@ void pf_atom_add_bonded_nocheck(t_pf_global *pf_global, int i, int j, int type, 
     }
   }
 
-  if (pf_file_out_PF_or_PS(pf_global->AtomBased)) {
+  if (pf_file_out_PF_or_PS(fda->AtomBased)) {
     //fprintf(stderr, "pf_atom_add_bonded_nocheck: i=%d, j=%d, type=%d\n", i, j, type);
     if (i > j) {
       int_swap(&i, &j);
       rvec_opp(force);
     }
-    switch(pf_global->OnePair) {
+    switch(fda->OnePair) {
       case PF_ONEPAIR_DETAILED:
         pf_atom_detailed_add(&atoms->detailed[atoms->sys2pf[i]], j, type, force);
         break;
@@ -361,7 +361,7 @@ void pf_atom_add_bonded_nocheck(t_pf_global *pf_global, int i, int j, int type, 
   }
 }
 
-void t_pf_global::add_bonded(int i, int j, int type, rvec force)
+void FDA::add_bonded(int i, int j, int type, rvec force)
 {
   // leave early if the interaction is not interesting
   if (!(this->type & type)) return;
@@ -372,7 +372,7 @@ void t_pf_global::add_bonded(int i, int j, int type, rvec force)
   pf_atom_add_bonded_nocheck(this, i, j, type, force);
 }
 
-void t_pf_global::add_virial_angle(int ai, int aj, int ak,
+void FDA::add_virial_angle(int ai, int aj, int ak,
   rvec r_ij, rvec r_kj, rvec f_i, rvec f_k)
 {
   tensor v;
@@ -387,7 +387,7 @@ void t_pf_global::add_virial_angle(int ai, int aj, int ak,
   pf_atom_virial_add(this, ak, v, THIRD);
 }
 
-void t_pf_global::add_virial_dihedral(int i, int j, int k, int l,
+void FDA::add_virial_dihedral(int i, int j, int k, int l,
   rvec f_i, rvec f_k, rvec f_l, rvec r_ij, rvec r_kj, rvec r_kl)
 {
   rvec r_lj;

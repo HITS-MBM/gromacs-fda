@@ -756,7 +756,7 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
         read_tpx_state(ftp2fn(efTPR, nfile, fnm), inputrec, state, mtop);
 
         // Initialize FDA global array
-        pf_global_data_init(nfile, fnm);
+        fda_data_init(nfile, fnm);
 
     	// Exclusions for FDA must be generated directly behind the file import.
     	// Call of pf_init would be too late, since neighbor lists allocation will be before.

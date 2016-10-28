@@ -228,7 +228,7 @@ void pf_write_frame_atoms_summed_compat(t_pf_atoms *atoms, FILE *f, int *framenr
  * not express the COM of the whole residue but the COM of the atoms of the residue which
  * are interesting for PF
  */
-rvec *pf_residues_com(t_pf_global *pf_global, gmx_mtop_t *top_global, const rvec *x) {
+rvec *pf_residues_com(FDA *fda, gmx_mtop_t *top_global, const rvec *x) {
   int moltype_index, mol_index, d;
   int i, atom_index, atom_global_index, residue_global_index;
   t_atoms *atoms;
@@ -238,10 +238,10 @@ rvec *pf_residues_com(t_pf_global *pf_global, gmx_mtop_t *top_global, const rvec
   real *mass;
   rvec *com;
 
-  snew(com, pf_global->syslen_residues);
-  snew(mass, pf_global->syslen_residues);
+  snew(com, fda->syslen_residues);
+  snew(mass, fda->syslen_residues);
 
-  for (i = 0; i < pf_global->syslen_residues; i++) {
+  for (i = 0; i < fda->syslen_residues; i++) {
     mass[i] = 0.0;
     for (d = 0; d < DIM; d++)
       com[i][d] = 0.0;
@@ -253,8 +253,8 @@ rvec *pf_residues_com(t_pf_global *pf_global, gmx_mtop_t *top_global, const rvec
     for (mol_index = 0; mol_index < mb->nmol; mol_index++) {				//enum all instances of each molecule type
     atoms = &top_global->moltype[mb->type].atoms;
       for(atom_index = 0; atom_index < atoms->nr; atom_index++) {			//enum atoms
-        if ((pf_global->sys_in_g1[atom_global_index]) || (pf_global->sys_in_g2[atom_global_index])) {
-          residue_global_index = pf_global->atom2residue[atom_global_index];
+        if ((fda->sys_in_g1[atom_global_index]) || (fda->sys_in_g2[atom_global_index])) {
+          residue_global_index = fda->atom2residue[atom_global_index];
           atom_info=&atoms->atom[atom_index];
           mass[residue_global_index] += atom_info->m;
           svmul(atom_info->m, x[atom_global_index], r);
@@ -268,7 +268,7 @@ rvec *pf_residues_com(t_pf_global *pf_global, gmx_mtop_t *top_global, const rvec
   /* there might be residues with no interesting atoms, so their mass would be set to the initial 0.0;
    * float/double comparison can be tricky in general, but here it's used only to prevent division by 0
    */
-  for (i = 0; i < pf_global->syslen_residues; i++) {
+  for (i = 0; i < fda->syslen_residues; i++) {
     if (mass[i] != 0.0)
       for (d = 0; d < DIM; d++)
         com[i][d] /= mass[i];
@@ -347,26 +347,26 @@ void pf_write_frame_scalar(t_pf_atoms *atoms, FILE* f, int *framenr) {
   (*framenr)++;
 }
 
-void pf_write_frame(t_pf_global *pf_global, const rvec *x,  gmx_mtop_t *top_global) {
+void pf_write_frame(FDA *fda, const rvec *x,  gmx_mtop_t *top_global) {
   rvec *com = NULL;	/* for residue based summation */
 
   /* this function is called from md.c, needs to check whether PF was initialized... */
-  if (!pf_global->bInitialized)
+  if (!fda->bInitialized)
     return;
 
-  if (pf_file_out_PF_or_PS(pf_global->ResidueBased))
-    com = pf_residues_com(pf_global, top_global, x);
+  if (pf_file_out_PF_or_PS(fda->ResidueBased))
+    com = pf_residues_com(fda, top_global, x);
 
-  switch (pf_global->OnePair) {
+  switch (fda->OnePair) {
     case PF_ONEPAIR_DETAILED:
-      switch (pf_global->AtomBased) {
+      switch (fda->AtomBased) {
         case FILE_OUT_NONE:
           break;
         case FILE_OUT_PAIRWISE_FORCES_VECTOR:
-          pf_write_frame_detailed(pf_global->atoms, pf_global->of_atoms, &pf_global->nsteps_atoms, x, TRUE, pf_global->Vector2Scalar);
+          pf_write_frame_detailed(fda->atoms, fda->of_atoms, &fda->nsteps_atoms, x, TRUE, fda->Vector2Scalar);
           break;
         case FILE_OUT_PAIRWISE_FORCES_SCALAR:
-          pf_write_frame_detailed(pf_global->atoms, pf_global->of_atoms, &pf_global->nsteps_atoms, x, FALSE, pf_global->Vector2Scalar);
+          pf_write_frame_detailed(fda->atoms, fda->of_atoms, &fda->nsteps_atoms, x, FALSE, fda->Vector2Scalar);
           break;
         case FILE_OUT_VIRIAL_STRESS:
           gmx_fatal(FARGS, "Per atom detailed output not supported for virial stress.\n");
@@ -383,14 +383,14 @@ void pf_write_frame(t_pf_global *pf_global, const rvec *x,  gmx_mtop_t *top_glob
           gmx_fatal(FARGS, "Per atom detailed output not implemented.\n");
           break;
       }
-      switch (pf_global->ResidueBased) {
+      switch (fda->ResidueBased) {
         case FILE_OUT_NONE:
           break;
         case FILE_OUT_PAIRWISE_FORCES_VECTOR:
-          pf_write_frame_detailed(pf_global->residues, pf_global->of_residues, &pf_global->nsteps_residues, (const rvec*)com, TRUE, pf_global->Vector2Scalar);
+          pf_write_frame_detailed(fda->residues, fda->of_residues, &fda->nsteps_residues, (const rvec*)com, TRUE, fda->Vector2Scalar);
           break;
         case FILE_OUT_PAIRWISE_FORCES_SCALAR:
-          pf_write_frame_detailed(pf_global->residues, pf_global->of_residues, &pf_global->nsteps_residues, (const rvec*)com, FALSE, pf_global->Vector2Scalar);
+          pf_write_frame_detailed(fda->residues, fda->of_residues, &fda->nsteps_residues, (const rvec*)com, FALSE, fda->Vector2Scalar);
           break;
         case FILE_OUT_VIRIAL_STRESS:
           gmx_fatal(FARGS, "Per residue detailed output not supported for virial stress.\n");
@@ -409,46 +409,46 @@ void pf_write_frame(t_pf_global *pf_global, const rvec *x,  gmx_mtop_t *top_glob
       }
       break; /* PF_ONEPAIR_DETAILED */
     case PF_ONEPAIR_SUMMED:
-      switch (pf_global->AtomBased) {
+      switch (fda->AtomBased) {
         case FILE_OUT_NONE:
           break;
         case FILE_OUT_PAIRWISE_FORCES_VECTOR:
-          pf_write_frame_summed(pf_global->atoms, pf_global->of_atoms, &pf_global->nsteps_atoms, x, TRUE, pf_global->Vector2Scalar);
+          pf_write_frame_summed(fda->atoms, fda->of_atoms, &fda->nsteps_atoms, x, TRUE, fda->Vector2Scalar);
           break;
         case FILE_OUT_PAIRWISE_FORCES_SCALAR:
-          pf_write_frame_summed(pf_global->atoms, pf_global->of_atoms, &pf_global->nsteps_atoms, x, FALSE, pf_global->Vector2Scalar);
+          pf_write_frame_summed(fda->atoms, fda->of_atoms, &fda->nsteps_atoms, x, FALSE, fda->Vector2Scalar);
           break;
         case FILE_OUT_PUNCTUAL_STRESS:
-          pf_per_atom_sum(pf_global->per_atom_real, pf_global->atoms->summed, pf_global->atoms->len, x, pf_global->Vector2Scalar);
-          pf_per_atom_real_write_frame(pf_global->of_atoms, pf_global->per_atom_real->force, pf_global->per_atom_real->len, pf_global->no_end_zeros);
+          pf_per_atom_sum(fda->per_atom_real, fda->atoms->summed, fda->atoms->len, x, fda->Vector2Scalar);
+          pf_per_atom_real_write_frame(fda->of_atoms, fda->per_atom_real->force, fda->per_atom_real->len, fda->no_end_zeros);
           break;
         case FILE_OUT_VIRIAL_STRESS:
-          pf_write_atom_virial_sum(pf_global->of_atoms, pf_global->atom_vir, pf_global->syslen_atoms);
+          pf_write_atom_virial_sum(fda->of_atoms, fda->atom_vir, fda->syslen_atoms);
           break;
         case FILE_OUT_VIRIAL_STRESS_VON_MISES:
-          pf_write_atom_virial_sum_von_mises(pf_global->of_atoms, pf_global->atom_vir, pf_global->syslen_atoms);
+          pf_write_atom_virial_sum_von_mises(fda->of_atoms, fda->atom_vir, fda->syslen_atoms);
           break;
         case FILE_OUT_COMPAT_BIN:
           break;
         case FILE_OUT_COMPAT_ASCII:
-          pf_write_frame_atoms_summed_compat(pf_global->atoms, pf_global->of_atoms, &pf_global->nsteps_atoms, x, (pf_global->AtomBased == FILE_OUT_COMPAT_ASCII), pf_global->Vector2Scalar);
+          pf_write_frame_atoms_summed_compat(fda->atoms, fda->of_atoms, &fda->nsteps_atoms, x, (fda->AtomBased == FILE_OUT_COMPAT_ASCII), fda->Vector2Scalar);
           break;
         default:
           gmx_fatal(FARGS, "Per atom summed output not implemented.\n");
           break;
       }
-      switch (pf_global->ResidueBased) {
+      switch (fda->ResidueBased) {
         case FILE_OUT_NONE:
           break;
         case FILE_OUT_PAIRWISE_FORCES_VECTOR:
-          pf_write_frame_summed(pf_global->residues, pf_global->of_residues, &pf_global->nsteps_residues, (const rvec*)com, TRUE, pf_global->Vector2Scalar);
+          pf_write_frame_summed(fda->residues, fda->of_residues, &fda->nsteps_residues, (const rvec*)com, TRUE, fda->Vector2Scalar);
           break;
         case FILE_OUT_PAIRWISE_FORCES_SCALAR:
-          pf_write_frame_summed(pf_global->residues, pf_global->of_residues, &pf_global->nsteps_residues, (const rvec *)com, FALSE, pf_global->Vector2Scalar);
+          pf_write_frame_summed(fda->residues, fda->of_residues, &fda->nsteps_residues, (const rvec *)com, FALSE, fda->Vector2Scalar);
           break;
         case FILE_OUT_PUNCTUAL_STRESS:
-          pf_per_atom_sum(pf_global->per_residue_real, pf_global->residues->summed, pf_global->residues->len, (const rvec*)com, pf_global->Vector2Scalar);
-          pf_per_atom_real_write_frame(pf_global->of_residues, pf_global->per_residue_real->force, pf_global->per_residue_real->len, pf_global->no_end_zeros);
+          pf_per_atom_sum(fda->per_residue_real, fda->residues->summed, fda->residues->len, (const rvec*)com, fda->Vector2Scalar);
+          pf_per_atom_real_write_frame(fda->of_residues, fda->per_residue_real->force, fda->per_residue_real->len, fda->no_end_zeros);
           break;
         case FILE_OUT_VIRIAL_STRESS:
           gmx_fatal(FARGS, "Per residue summed output not supported for virial stress.\n");
@@ -459,18 +459,18 @@ void pf_write_frame(t_pf_global *pf_global, const rvec *x,  gmx_mtop_t *top_glob
         case FILE_OUT_COMPAT_BIN:
           break;
         case FILE_OUT_COMPAT_ASCII:
-          pf_write_frame_atoms_summed_compat(pf_global->residues, pf_global->of_residues, &pf_global->nsteps_residues, (const rvec*)com, (pf_global->ResidueBased == FILE_OUT_COMPAT_ASCII), pf_global->Vector2Scalar);
+          pf_write_frame_atoms_summed_compat(fda->residues, fda->of_residues, &fda->nsteps_residues, (const rvec*)com, (fda->ResidueBased == FILE_OUT_COMPAT_ASCII), fda->Vector2Scalar);
           break;
         default:
           gmx_fatal(FARGS, "Per residue summed output not implemented.\n");
           break;
       }
       break; /* PF_ONEPAIR_SUMMED */
-    default: /* switch (pf_global->OnePair) */
+    default: /* switch (fda->OnePair) */
       break;
   }
 
-  if (pf_file_out_PF_or_PS(pf_global->ResidueBased)) sfree(com);
+  if (pf_file_out_PF_or_PS(fda->ResidueBased)) sfree(com);
 }
 
 /* writes a header as in original PF implementation;
@@ -499,69 +499,69 @@ void pf_write_compat_header(t_pf_atoms *atoms, FILE* f, int nsteps, int syslen, 
     fprintf(f, "<end_block>\n");
 }
 
-void pf_open(t_pf_global *pf_global)
+void pf_open(FDA *fda)
 {
   /* this function is called from md.c, needs to check whether PF was initialized... */
-  if (!pf_global->bInitialized) return;
+  if (!fda->bInitialized) return;
 
-  if (pf_file_out_PF_or_PS(pf_global->AtomBased)) {
-    make_backup(pf_global->ofn_atoms);
-    pf_global->of_atoms = gmx_fio_fopen(pf_global->ofn_atoms, "w+");
-    if (pf_in_compatibility_mode(pf_global->AtomBased))
-      pf_write_compat_header(pf_global->atoms, pf_global->of_atoms, 1, pf_global->syslen_atoms, pf_global->atoms->len, pf_global->groupname);
+  if (pf_file_out_PF_or_PS(fda->AtomBased)) {
+    make_backup(fda->ofn_atoms);
+    fda->of_atoms = gmx_fio_fopen(fda->ofn_atoms, "w+");
+    if (pf_in_compatibility_mode(fda->AtomBased))
+      pf_write_compat_header(fda->atoms, fda->of_atoms, 1, fda->syslen_atoms, fda->atoms->len, fda->groupname);
   }
 
-  if (pf_file_out_PF_or_PS(pf_global->ResidueBased)) {
-    make_backup(pf_global->ofn_residues);
-    pf_global->of_residues = gmx_fio_fopen(pf_global->ofn_residues, "w+");
-    if (pf_in_compatibility_mode(pf_global->ResidueBased))
-      pf_write_compat_header(pf_global->residues, pf_global->of_residues, 1, pf_global->syslen_residues, pf_global->residues->len, pf_global->groupname);
+  if (pf_file_out_PF_or_PS(fda->ResidueBased)) {
+    make_backup(fda->ofn_residues);
+    fda->of_residues = gmx_fio_fopen(fda->ofn_residues, "w+");
+    if (pf_in_compatibility_mode(fda->ResidueBased))
+      pf_write_compat_header(fda->residues, fda->of_residues, 1, fda->syslen_residues, fda->residues->len, fda->groupname);
   }
 
-  if (pf_file_out_VS(pf_global->AtomBased)) {
-    make_backup(pf_global->ofn_atoms);
-    pf_global->of_atoms = gmx_fio_fopen(pf_global->ofn_atoms, "w+");
+  if (pf_file_out_VS(fda->AtomBased)) {
+    make_backup(fda->ofn_atoms);
+    fda->of_atoms = gmx_fio_fopen(fda->ofn_atoms, "w+");
   }
 
-  if (pf_file_out_VS(pf_global->ResidueBased)) {
-    make_backup(pf_global->ofn_residues);
-    pf_global->of_atoms = gmx_fio_fopen(pf_global->ofn_atoms, "w+");
+  if (pf_file_out_VS(fda->ResidueBased)) {
+    make_backup(fda->ofn_residues);
+    fda->of_atoms = gmx_fio_fopen(fda->ofn_atoms, "w+");
   }
 }
 
-void pf_close(t_pf_global *pf_global)\
+void pf_close(FDA *fda)\
 {
   /* this function is called from md.c, needs to check whether PF was initialized... */
-  if (!pf_global->bInitialized) return;
+  if (!fda->bInitialized) return;
 
-  if (pf_file_out_PF_or_PS(pf_global->AtomBased)) {
-    if (pf_in_compatibility_mode(pf_global->AtomBased)) {
-      fprintf(pf_global->of_atoms, "EOF");
-      fflush(pf_global->of_atoms);
+  if (pf_file_out_PF_or_PS(fda->AtomBased)) {
+    if (pf_in_compatibility_mode(fda->AtomBased)) {
+      fprintf(fda->of_atoms, "EOF");
+      fflush(fda->of_atoms);
       /* need to write header again to contain the correct nr. of steps */
-      rewind(pf_global->of_atoms);
-      pf_write_compat_header(pf_global->atoms, pf_global->of_atoms, pf_global->nsteps_atoms, pf_global->syslen_atoms, pf_global->atoms->len, pf_global->groupname);
+      rewind(fda->of_atoms);
+      pf_write_compat_header(fda->atoms, fda->of_atoms, fda->nsteps_atoms, fda->syslen_atoms, fda->atoms->len, fda->groupname);
     }
-    gmx_fio_fclose(pf_global->of_atoms);
+    gmx_fio_fclose(fda->of_atoms);
   }
 
-  if (pf_file_out_PF_or_PS(pf_global->ResidueBased)) {
-    if (pf_in_compatibility_mode(pf_global->ResidueBased)) {
-      fprintf(pf_global->of_residues, "EOF");
-      fflush(pf_global->of_residues);
+  if (pf_file_out_PF_or_PS(fda->ResidueBased)) {
+    if (pf_in_compatibility_mode(fda->ResidueBased)) {
+      fprintf(fda->of_residues, "EOF");
+      fflush(fda->of_residues);
       /* need to write header again to contain the correct nr. of steps */
-      rewind(pf_global->of_residues);
-      pf_write_compat_header(pf_global->residues, pf_global->of_residues, pf_global->nsteps_residues, pf_global->syslen_residues, pf_global->residues->len, pf_global->groupname);
+      rewind(fda->of_residues);
+      pf_write_compat_header(fda->residues, fda->of_residues, fda->nsteps_residues, fda->syslen_residues, fda->residues->len, fda->groupname);
     }
-    gmx_fio_fclose(pf_global->of_residues);
+    gmx_fio_fclose(fda->of_residues);
   }
 
-  if (pf_file_out_VS(pf_global->AtomBased)) {
-    gmx_fio_fclose(pf_global->of_atoms);
+  if (pf_file_out_VS(fda->AtomBased)) {
+    gmx_fio_fclose(fda->of_atoms);
   }
 
-  if (pf_file_out_VS(pf_global->ResidueBased)) {
-    gmx_fio_fclose(pf_global->of_residues);
+  if (pf_file_out_VS(fda->ResidueBased)) {
+    gmx_fio_fclose(fda->of_residues);
   }
 }
 
@@ -671,7 +671,7 @@ void pf_write_frame_atoms_scalar_compat(t_pf_atoms *atoms, FILE *f, int *framenr
 }
 
 /* write scalar time averages; this is similar to pf_write_frame, except that time averages are used */
-void pf_write_scalar_time_averages(t_pf_global *pf_global) {
+void pf_write_scalar_time_averages(FDA *fda) {
   /* there are several cases:
    * steps == 0 - there was no frame saved at all or there are no frames saved since the last writing, so no writing needed
    * steps > 0, period == 0 - no frames written so far, but frames saved, so writing one frame
@@ -682,63 +682,63 @@ void pf_write_scalar_time_averages(t_pf_global *pf_global) {
    */
 
   /* this function is called from md.c, needs to check whether PF was initialized... */
-  if (!pf_global->bInitialized)
+  if (!fda->bInitialized)
     return;
 
-  if (pf_global->time_averages->steps == 0)
+  if (fda->time_averages->steps == 0)
     return;
 
-  //fprintf(stderr, "steps=%d\n", pf_global->time_averages->steps);
+  //fprintf(stderr, "steps=%d\n", fda->time_averages->steps);
   /* atoms */
-  if (pf_file_out_PF_or_PS(pf_global->AtomBased)) {
-    pf_atoms_scalar_real_divide(pf_global->atoms, (real)pf_global->time_averages->steps);
-    if (pf_in_compatibility_mode(pf_global->AtomBased))
-      pf_write_frame_atoms_scalar_compat(pf_global->atoms, pf_global->of_atoms, &pf_global->nsteps_atoms, (pf_global->AtomBased == FILE_OUT_COMPAT_ASCII));
+  if (pf_file_out_PF_or_PS(fda->AtomBased)) {
+    pf_atoms_scalar_real_divide(fda->atoms, (real)fda->time_averages->steps);
+    if (pf_in_compatibility_mode(fda->AtomBased))
+      pf_write_frame_atoms_scalar_compat(fda->atoms, fda->of_atoms, &fda->nsteps_atoms, (fda->AtomBased == FILE_OUT_COMPAT_ASCII));
     else
-      pf_write_frame_scalar(pf_global->atoms, pf_global->of_atoms, &pf_global->nsteps_atoms);
-    pf_atoms_scalar_init(pf_global->atoms);
+      pf_write_frame_scalar(fda->atoms, fda->of_atoms, &fda->nsteps_atoms);
+    pf_atoms_scalar_init(fda->atoms);
   }
   /* residues */
-  if (pf_file_out_PF_or_PS(pf_global->ResidueBased)) {
-    pf_atoms_scalar_real_divide(pf_global->residues, (real)pf_global->time_averages->steps);
-    pf_x_real_div(pf_global->time_averages->com, pf_global->syslen_residues, (real)pf_global->time_averages->steps);
-    if (pf_in_compatibility_mode(pf_global->ResidueBased))
-      pf_write_frame_atoms_scalar_compat(pf_global->residues, pf_global->of_residues, &pf_global->nsteps_residues, (pf_global->ResidueBased == FILE_OUT_COMPAT_ASCII));
+  if (pf_file_out_PF_or_PS(fda->ResidueBased)) {
+    pf_atoms_scalar_real_divide(fda->residues, (real)fda->time_averages->steps);
+    pf_x_real_div(fda->time_averages->com, fda->syslen_residues, (real)fda->time_averages->steps);
+    if (pf_in_compatibility_mode(fda->ResidueBased))
+      pf_write_frame_atoms_scalar_compat(fda->residues, fda->of_residues, &fda->nsteps_residues, (fda->ResidueBased == FILE_OUT_COMPAT_ASCII));
     else
-      pf_write_frame_scalar(pf_global->residues, pf_global->of_residues, &pf_global->nsteps_residues);
-    pf_atoms_scalar_init(pf_global->residues);
-    clear_rvecs(pf_global->syslen_residues, pf_global->time_averages->com);
+      pf_write_frame_scalar(fda->residues, fda->of_residues, &fda->nsteps_residues);
+    pf_atoms_scalar_init(fda->residues);
+    clear_rvecs(fda->syslen_residues, fda->time_averages->com);
   }
 
-  pf_global->time_averages->steps = 0;
+  fda->time_averages->steps = 0;
 }
 
 /* main function for scalar time averages; saves data and decides when to write it out
  * 
  * dealing with residues is more complicated because COMs have to be averaged over time;
  * it's not possible to average the atom positions and calculate COMs only once before
- * writing because for this pf_global->atoms would need to be initialized (to get the atom
+ * writing because for this fda->atoms would need to be initialized (to get the atom
  * number or to get the sys2ps mapping) which only happens when AtomBased is non-zero
  */
-void pf_save_and_write_scalar_time_averages(t_pf_global *pf_global, const rvec *x,  gmx_mtop_t *top_global) {
+void pf_save_and_write_scalar_time_averages(FDA *fda, const rvec *x,  gmx_mtop_t *top_global) {
   rvec *com;    /* for residue based summation */
 
   /* this function is called from md.c, needs to check whether PF was initialized... */
-  if (!pf_global->bInitialized)
+  if (!fda->bInitialized)
     return;
 
-  //fprintf(stderr, "save and write scalar data, steps=%d\n", pf_global->time_averages->steps);
+  //fprintf(stderr, "save and write scalar data, steps=%d\n", fda->time_averages->steps);
   /* first save the data */
-  if (pf_file_out_PF_or_PS(pf_global->AtomBased))
-    pf_atoms_summed_merge_to_scalar(pf_global->atoms, x, pf_global->Vector2Scalar);
-  if (pf_file_out_PF_or_PS(pf_global->ResidueBased)) {
-    com = pf_residues_com(pf_global, top_global, x);
-    pf_atoms_summed_merge_to_scalar(pf_global->residues, (const rvec *)com, pf_global->Vector2Scalar);
-    pf_x_inc(pf_global->residues, pf_global->time_averages->com, (const rvec *)com);
+  if (pf_file_out_PF_or_PS(fda->AtomBased))
+    pf_atoms_summed_merge_to_scalar(fda->atoms, x, fda->Vector2Scalar);
+  if (pf_file_out_PF_or_PS(fda->ResidueBased)) {
+    com = pf_residues_com(fda, top_global, x);
+    pf_atoms_summed_merge_to_scalar(fda->residues, (const rvec *)com, fda->Vector2Scalar);
+    pf_x_inc(fda->residues, fda->time_averages->com, (const rvec *)com);
     sfree(com);
   }
 
-  pf_global->time_averages->steps++;
-  if ((pf_global->time_averages->period != 0) && (pf_global->time_averages->steps >= pf_global->time_averages->period))
-    pf_write_scalar_time_averages(pf_global);
+  fda->time_averages->steps++;
+  if ((fda->time_averages->period != 0) && (fda->time_averages->steps >= fda->time_averages->period))
+    pf_write_scalar_time_averages(fda);
 }

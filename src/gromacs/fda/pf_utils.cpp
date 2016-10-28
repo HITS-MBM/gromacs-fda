@@ -195,7 +195,7 @@ char *pf_make_sys_in_group(int syslen, t_pf_int_list *p) {
  * in output, residue nr. will be kept, but renumbered nr. will be -1, so that it starts from zero;
  * this way it fits with VMD's resid vs. residue numbering
  * 
- * fills in pf_global->atom2residue and pf_global->syslen_residues
+ * fills in fda->atom2residue and fda->syslen_residues
  */
 
 /* returns the global residue number - based on mtop_util.c::gmx_mtop_atominfo_global(),
@@ -232,7 +232,7 @@ int pf_get_global_residue_number(const gmx_mtop_t *mtop, const int atnr_global) 
   return maxresnr + (atnr_global - a_start)/atoms->nr*atoms->nres + atoms->atom[at_loc].resind;
 }
 
-void pf_fill_atom2residue(t_pf_global *pf_global, gmx_mtop_t *top_global) {
+void pf_fill_atom2residue(FDA *fda, gmx_mtop_t *top_global) {
   int moltype_index, mol_index, atom_index, atom_global_index, resnrmax, i;
   t_atoms *atoms;
   t_atom *atom_info;
@@ -281,25 +281,25 @@ void pf_fill_atom2residue(t_pf_global *pf_global, gmx_mtop_t *top_global) {
   sfree(resnr2renum);
 
   /* renum is set to the residue number of the last atom, so should be largest value so far */
-  switch (pf_global->ResiduesRenumber) {
+  switch (fda->ResiduesRenumber) {
     case PF_RESIDUE_RENUMBER_AUTO:
       if (bResnrCollision) {
         fprintf(stderr, "Residue number collision detected, residues will be renumbered.\n");
-        pf_global->atom2residue = a2r_renum;
-        pf_global->syslen_residues = renum + 1;
+        fda->atom2residue = a2r_renum;
+        fda->syslen_residues = renum + 1;
         sfree(a2r_resnr);
       }
       else {
         fprintf(stderr, "Residues will not be renumbered.\n");
-        pf_global->atom2residue = a2r_resnr;
-        pf_global->syslen_residues = resnrmax + 1;
+        fda->atom2residue = a2r_resnr;
+        fda->syslen_residues = resnrmax + 1;
         sfree(a2r_renum);
       }
       break;
     case PF_RESIDUE_RENUMBER_DO:
       fprintf(stderr, "Residues will be renumbered.\n");
-      pf_global->atom2residue = a2r_renum;
-      pf_global->syslen_residues = renum + 1;
+      fda->atom2residue = a2r_renum;
+      fda->syslen_residues = renum + 1;
       sfree(a2r_resnr);
       break;
     case PF_RESIDUE_RENUMBER_DONT:
@@ -307,12 +307,12 @@ void pf_fill_atom2residue(t_pf_global *pf_global, gmx_mtop_t *top_global) {
         fprintf(stderr, "Residue number collision detected, residues will NOT be renumbered.\n");
       else
         fprintf(stderr, "Residues will not be renumbered.\n");
-      pf_global->atom2residue = a2r_resnr;
-      pf_global->syslen_residues = resnrmax + 1;
+      fda->atom2residue = a2r_resnr;
+      fda->syslen_residues = resnrmax + 1;
       sfree(a2r_renum);
       break;
   }
-  //fprintf(stderr, "pf_global->syslen_residues=%d\n", pf_global->syslen_residues);
+  //fprintf(stderr, "fda->syslen_residues=%d\n", fda->syslen_residues);
 }
 
 /* makes a list from the atoms numbers in the group
@@ -334,7 +334,7 @@ t_pf_int_list *pf_group2atoms(int len, int *list){
 /* makes a list of residue numbers based on atom numbers of this group;
  * this is slightly more complex than needed to allow the residue numbers to retain the ordering given to atoms
  */
-t_pf_int_list *pf_groupatoms2residues(t_pf_int_list *atoms, t_pf_global *pf_global) {
+t_pf_int_list *pf_groupatoms2residues(t_pf_int_list *atoms, FDA *fda) {
   int i, r;
   int nr_residues_in_g = 0;
   int *group_residues;
@@ -342,14 +342,14 @@ t_pf_int_list *pf_groupatoms2residues(t_pf_int_list *atoms, t_pf_global *pf_glob
   t_pf_int_list *p;
 
   /* as the list length is unknown at this point, make it as large as possible */
-  snew(group_residues, pf_global->syslen_residues);
+  snew(group_residues, fda->syslen_residues);
   /* store information about being already put in the list, to avoid lookup in a loop */
-  snew(in_g, pf_global->syslen_residues);
-  for (i = 0; i < pf_global->syslen_residues; i++)
+  snew(in_g, fda->syslen_residues);
+  for (i = 0; i < fda->syslen_residues; i++)
     in_g[i] = FALSE;
   
   for (i = 0; i < atoms->len; i++) {
-    r = pf_global->atom2residue[atoms->list[i]];
+    r = fda->atom2residue[atoms->list[i]];
     if (!in_g[r]) {
       group_residues[nr_residues_in_g] = r;
       nr_residues_in_g++;
@@ -366,7 +366,7 @@ t_pf_int_list *pf_groupatoms2residues(t_pf_int_list *atoms, t_pf_global *pf_glob
   return p;
 }
 
-void pf_read_group(t_pf_global *pf_global, const char *ndxfile, char *groupname, char **sys_in_g) {
+void pf_read_group(FDA *fda, const char *ndxfile, char *groupname, char **sys_in_g) {
   t_blocka *groups;
   char** groupnames;
   int i;
@@ -377,24 +377,24 @@ void pf_read_group(t_pf_global *pf_global, const char *ndxfile, char *groupname,
   if(groups->nr == 0)
     gmx_fatal(FARGS, "No groups found in the indexfile.\n");
 
-  snew(residues_in_g, pf_global->syslen_residues);
+  snew(residues_in_g, fda->syslen_residues);
 
   for (i = 0; i < groups->nr; i++) {
     if (strcmp(groupnames[i], groupname) == 0) {
       //fprintf(stderr, "found group: %s\n", groupname);
       groupatoms = pf_group2atoms(groups->index[i + 1] - groups->index[i], &groups->a[groups->index[i]]);
-      *sys_in_g = pf_make_sys_in_group(pf_global->syslen_atoms, groupatoms);
+      *sys_in_g = pf_make_sys_in_group(fda->syslen_atoms, groupatoms);
 
-      if (pf_file_out_PF_or_PS(pf_global->AtomBased)) {
-        pf_fill_sys2pf(pf_global->atoms->sys2pf, &pf_global->atoms->len, groupatoms);
-//	for (k = 0; k < pf_global->syslen_atoms; k++)
-//	  fprintf(stderr, "sys2pf[%d]=%d\n", k, pf_global->atoms->sys2pf[k]);
+      if (pf_file_out_PF_or_PS(fda->AtomBased)) {
+        pf_fill_sys2pf(fda->atoms->sys2pf, &fda->atoms->len, groupatoms);
+//	for (k = 0; k < fda->syslen_atoms; k++)
+//	  fprintf(stderr, "sys2pf[%d]=%d\n", k, fda->atoms->sys2pf[k]);
       }
-      if (pf_file_out_PF_or_PS(pf_global->ResidueBased)) {
-        groupresidues = pf_groupatoms2residues(groupatoms, pf_global);
-        pf_fill_sys2pf(pf_global->residues->sys2pf, &pf_global->residues->len, groupresidues);
-//	for (k = 0; k < pf_global->syslen_residues; k++)
-//	  fprintf(stderr, "sys2pf[%d]=%d\n", k, pf_global->residues->sys2pf[k]);
+      if (pf_file_out_PF_or_PS(fda->ResidueBased)) {
+        groupresidues = pf_groupatoms2residues(groupatoms, fda);
+        pf_fill_sys2pf(fda->residues->sys2pf, &fda->residues->len, groupresidues);
+//	for (k = 0; k < fda->syslen_residues; k++)
+//	  fprintf(stderr, "sys2pf[%d]=%d\n", k, fda->residues->sys2pf[k]);
         pf_int_list_free(groupresidues);
       }
 
@@ -404,8 +404,8 @@ void pf_read_group(t_pf_global *pf_global, const char *ndxfile, char *groupname,
   }
 }
 
-void pf_check_sys_in_g(t_pf_global *pf_global) {
-  if ((pf_global->sys_in_g1 == NULL) || (pf_global->sys_in_g2 == NULL))
+void pf_check_sys_in_g(FDA *fda) {
+  if ((fda->sys_in_g1 == NULL) || (fda->sys_in_g2 == NULL))
     gmx_fatal(FARGS, "No atoms in one or both groups.\n");
 }
 
@@ -495,11 +495,11 @@ void pf_atoms_init(int OnePair, t_pf_atoms *atoms) {
   }
 }
 
-void pf_atoms_and_residues_init(t_pf_global *pf_global) {
-  if (pf_file_out_PF_or_PS(pf_global->AtomBased))
-    pf_atoms_init(pf_global->OnePair, pf_global->atoms);
-  if (pf_file_out_PF_or_PS(pf_global->ResidueBased))
-    pf_atoms_init(pf_global->OnePair, pf_global->residues);
+void pf_atoms_and_residues_init(FDA *fda) {
+  if (pf_file_out_PF_or_PS(fda->AtomBased))
+    pf_atoms_init(fda->OnePair, fda->atoms);
+  if (pf_file_out_PF_or_PS(fda->ResidueBased))
+    pf_atoms_init(fda->OnePair, fda->residues);
 }
 
 void pf_atoms_scalar_alloc(t_pf_atoms *atoms, int syslen, char *name) {

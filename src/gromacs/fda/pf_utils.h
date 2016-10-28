@@ -20,17 +20,17 @@ real pf_vector2signedscalar(const rvec v, const rvec xi, const rvec xj, int Vect
 int *pf_init_sys2pf(int syslen);
 void pf_fill_sys2pf(int *sys2pf, int *len, t_pf_int_list *p);
 char *pf_make_sys_in_group(int syslen, t_pf_int_list *p);
-void pf_fill_atom2residue(t_pf_global *pf_global, gmx_mtop_t *top_global);
+void pf_fill_atom2residue(FDA *fda, gmx_mtop_t *top_global);
 t_pf_int_list *pf_group2atoms(int len, int *list);
-t_pf_int_list *pf_groupatoms2residues(t_pf_int_list *atoms, t_pf_global *pf_global);
-void pf_read_group(t_pf_global *pf_global, const char *ndxfile, char *groupname, char **sys_in_g);
-void pf_check_sys_in_g(t_pf_global *pf_global);
+t_pf_int_list *pf_groupatoms2residues(t_pf_int_list *atoms, FDA *fda);
+void pf_read_group(FDA *fda, const char *ndxfile, char *groupname, char **sys_in_g);
+void pf_check_sys_in_g(FDA *fda);
 int pf_interactions_type_str2val(char *typestr);
 char *pf_interactions_type_val2str(int type);
 void pf_atoms_alloc(int OnePair, t_pf_atoms *atoms, int syslen, char *name);
 void pf_atoms_init(int OnePair, t_pf_atoms *atoms);
 void pf_atoms_scalar_alloc(t_pf_atoms *atoms, int syslen, char *name);
 void pf_atoms_scalar_init(t_pf_atoms *atoms);
-void pf_atoms_and_residues_init(t_pf_global *pf_global);
+void pf_atoms_and_residues_init(FDA *fda);
 
 #endif  /* pf_utils_h */

@@ -87,15 +87,15 @@ typedef struct {
 typedef struct {
   int period;       /* nr. of steps to average before writing; if 1 (default), no averaging is done; if 0, averaging is done over all steps so only one frame is written at the end */
   int steps;        /* counter for current step, incremented for every call of pf_save_and_write_scalar_averages(); when it reaches time_averages_steps, data is written */
-  rvec *com;                    /* averaged residue COM coordinates over steps, needed for COM calculations; only initialized when pf_global->ResidueBased is non-zero */
+  rvec *com;                    /* averaged residue COM coordinates over steps, needed for COM calculations; only initialized when fda->ResidueBased is non-zero */
 } t_pf_time_averages;
 
 #ifdef __cplusplus
-class t_pf_global {
+class FDA {
 public:
 
   /// Constructor
-  t_pf_global(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global);
+  FDA(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global);
 
   /// Returns true if atoms i and j are in fda groups
   gmx_bool atoms_in_groups(int i, int j) const {
@@ -124,7 +124,7 @@ public:
   void add_virial_dihedral(int i, int j, int k, int l, rvec f_i, rvec f_k, rvec f_l, rvec r_ij, rvec r_kj, rvec r_kl);
 
 #else
-struct t_pf_global {
+struct FDA {
 #endif
 
   /// TRUE if pairwise forces should be written out, FALSE otherwise;
@@ -200,7 +200,7 @@ enum {
 
 /* values for AtomBased and ResidueBased; some have ATOM in their name, but are applied to residues as well */
 enum {
-  FILE_OUT_NONE,                       /* this should be always kept first (=zero), as the code does if (pf_global->AtomBased) */
+  FILE_OUT_NONE,                       /* this should be always kept first (=zero), as the code does if (fda->AtomBased) */
   FILE_OUT_PAIRWISE_FORCES_VECTOR,
   FILE_OUT_PAIRWISE_FORCES_SCALAR,
   FILE_OUT_PUNCTUAL_STRESS,

@@ -39,7 +39,7 @@
 #include "gromacs/fda/pf_exclusions.h"
 
 //! FDA global object
-t_pf_global_data pf_global_data;
+FDA_data fda_data;
 
 using namespace gmx;
 

@@ -43,22 +43,22 @@ typedef struct {
 	int           type; /* interaction type */
 	char          FDA_nonbonded_exclusion_on; /* switch FDA nonbonded exclusions on/off (default: on) */
 	char          FDA_bonded_exclusion_on; /* switch FDA bonded exclusions on/off (default: on) */
-} t_pf_global_data;
+} FDA_data;
 
 //! Global data structure
-//! Parts are redundant to t_pf_global, which is located in t_forcerec.
+//! Parts are redundant to FDA, which is located in t_forcerec.
 //! The function doing the nonbonded and bonded exclusions are called before the t_forcerec is initialized.
-//! In the current implementation a second global object (real global instead of pf_global)
+//! In the current implementation a second global object (real global instead of fda)
 //! is used only for the data needed by the exclusion code.
 //! For the future both global object should be merged.
-extern t_pf_global_data pf_global_data;
+extern FDA_data fda_data;
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 //! Initialization of global data
-void pf_global_data_init(int nfile, const t_filenm fnm[]);
+void fda_data_init(int nfile, const t_filenm fnm[]);
 
 //! Append group to energy groups, returns the position index
 int pf_add_name_to_energygrp(char* name, gmx_groups_t* groups);

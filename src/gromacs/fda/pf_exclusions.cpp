@@ -21,7 +21,7 @@
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/smalloc.h"
 
-void pf_global_data_init(int nfile, const t_filenm fnm[])
+void fda_data_init(int nfile, const t_filenm fnm[])
 {
 	// Open pfi-file
 	const char *pf_file_in = opt2fn("-pfi", nfile, fnm);
@@ -31,39 +31,39 @@ void pf_global_data_init(int nfile, const t_filenm fnm[])
 	t_inpfile *inp = read_inpfile(pf_file_in, &ninp, wi);
 
 	// Get group names defined in pfi-file
-	STYPE("group1", pf_global_data.g1name, "Protein");
-	STYPE("group2", pf_global_data.g2name, "Protein");
+	STYPE("group1", fda_data.g1name, "Protein");
+	STYPE("group2", fda_data.g2name, "Protein");
 
 	#ifdef FDA_PRINT_DEBUG_ON
-		printf("=== DEBUG === g1name = %s\n", pf_global_data.g1name);
-		printf("=== DEBUG === g2name = %s\n", pf_global_data.g2name);
+		printf("=== DEBUG === g1name = %s\n", fda_data.g1name);
+		printf("=== DEBUG === g2name = %s\n", fda_data.g2name);
 	#endif
 
 	// Get atom indices of groups defined in pfn-file
-	pf_global_data.groups = init_index(opt2fn("-pfn", nfile, fnm), &pf_global_data.groupnames);
+	fda_data.groups = init_index(opt2fn("-pfn", nfile, fnm), &fda_data.groupnames);
 
 	// Get group number
 	int i;
-	for (i = 0; i < pf_global_data.groups->nr; ++i) {
-		if (gmx_strcasecmp(pf_global_data.groupnames[i], pf_global_data.g1name) == 0) pf_global_data.g1idx = i;
-		if (gmx_strcasecmp(pf_global_data.groupnames[i], pf_global_data.g2name) == 0) pf_global_data.g2idx = i;
+	for (i = 0; i < fda_data.groups->nr; ++i) {
+		if (gmx_strcasecmp(fda_data.groupnames[i], fda_data.g1name) == 0) fda_data.g1idx = i;
+		if (gmx_strcasecmp(fda_data.groupnames[i], fda_data.g2name) == 0) fda_data.g2idx = i;
 	}
 
 	#ifdef FDA_PRINT_DEBUG_ON
-		printf("=== DEBUG === g1idx = %i\n", pf_global_data.g1idx);
-		printf("=== DEBUG === g2idx = %i\n", pf_global_data.g2idx);
+		printf("=== DEBUG === g1idx = %i\n", fda_data.g1idx);
+		printf("=== DEBUG === g2idx = %i\n", fda_data.g2idx);
 	#endif
 
 	// Get interaction type
     char tmpstr[STRLEN];
     STYPE("type", tmpstr, "all");
-    pf_global_data.type = pf_interactions_type_str2val(tmpstr);
+    fda_data.type = pf_interactions_type_str2val(tmpstr);
 
 	STYPE("energy_grp_exclusion", tmpstr, "yes");
-	pf_global_data.FDA_nonbonded_exclusion_on = gmx_strcasecmp(tmpstr, "no") != 0;
+	fda_data.FDA_nonbonded_exclusion_on = gmx_strcasecmp(tmpstr, "no") != 0;
 
 	STYPE("bonded_exclusion", tmpstr, "yes");
-	pf_global_data.FDA_bonded_exclusion_on = gmx_strcasecmp(tmpstr, "no") != 0;
+	fda_data.FDA_bonded_exclusion_on = gmx_strcasecmp(tmpstr, "no") != 0;
 }
 
 int pf_add_name_to_energygrp(char* name, gmx_groups_t* groups)
@@ -143,13 +143,13 @@ void pf_print_exclusion_table(int* egp_flags, int dim)
 
 void pf_modify_energy_group_exclusions(gmx_mtop_t *mtop, t_inputrec *inputrec)
 {
-	if (!pf_global_data.FDA_nonbonded_exclusion_on) {
+	if (!fda_data.FDA_nonbonded_exclusion_on) {
 		printf("WARNING: FDA energy group exclusion is set off.\n");
 		return;
 	}
 
 	// If no nonbonded interactions are needed we simply exclude all energy groups
-	if (!(pf_global_data.type & (PF_INTER_NONBONDED))) {
+	if (!(fda_data.type & (PF_INTER_NONBONDED))) {
 
 		int i;
 		for (i = 0; i < inputrec->opts.ngener; ++i) inputrec->opts.egp_flags[i] = 1;
@@ -173,16 +173,16 @@ void pf_modify_energy_group_exclusions(gmx_mtop_t *mtop, t_inputrec *inputrec)
 		}
 
 		// ... and then overwrite the defined atoms with FDA group 1
-		for (i = pf_global_data.groups->index[pf_global_data.g1idx]; i < pf_global_data.groups->index[pf_global_data.g1idx+1]; ++i) {
-			mtop->groups.grpnr[egcENER][pf_global_data.groups->a[i]] = PF_GROUP_IDX_FDA1;
+		for (i = fda_data.groups->index[fda_data.g1idx]; i < fda_data.groups->index[fda_data.g1idx+1]; ++i) {
+			mtop->groups.grpnr[egcENER][fda_data.groups->a[i]] = PF_GROUP_IDX_FDA1;
 		}
 
 		// ... and FDA group 2
-		for (i = pf_global_data.groups->index[pf_global_data.g2idx]; i < pf_global_data.groups->index[pf_global_data.g2idx+1]; ++i) {
-			if (mtop->groups.grpnr[egcENER][pf_global_data.groups->a[i]] == PF_GROUP_IDX_FDA1)
-				mtop->groups.grpnr[egcENER][pf_global_data.groups->a[i]] = PF_GROUP_IDX_FDA12;
+		for (i = fda_data.groups->index[fda_data.g2idx]; i < fda_data.groups->index[fda_data.g2idx+1]; ++i) {
+			if (mtop->groups.grpnr[egcENER][fda_data.groups->a[i]] == PF_GROUP_IDX_FDA1)
+				mtop->groups.grpnr[egcENER][fda_data.groups->a[i]] = PF_GROUP_IDX_FDA12;
 			else
-				mtop->groups.grpnr[egcENER][pf_global_data.groups->a[i]] = PF_GROUP_IDX_FDA2;
+				mtop->groups.grpnr[egcENER][fda_data.groups->a[i]] = PF_GROUP_IDX_FDA2;
 		}
 
 		pf_respect_charge_groups(mtop->groups.grpnr[egcENER],mtop);
@@ -229,13 +229,13 @@ void pf_modify_energy_group_exclusions(gmx_mtop_t *mtop, t_inputrec *inputrec)
 		}
 
 		// ... and then overwrite the defined atoms with FDA group 1
-		for (i = pf_global_data.groups->index[pf_global_data.g1idx]; i < pf_global_data.groups->index[pf_global_data.g1idx+1]; ++i) {
-			FDA_eg[pf_global_data.groups->a[i]] = PF_GROUP_IDX_FDA1;
+		for (i = fda_data.groups->index[fda_data.g1idx]; i < fda_data.groups->index[fda_data.g1idx+1]; ++i) {
+			FDA_eg[fda_data.groups->a[i]] = PF_GROUP_IDX_FDA1;
 		}
 
 		// ... and FDA group 2
-		for (i = pf_global_data.groups->index[pf_global_data.g2idx]; i < pf_global_data.groups->index[pf_global_data.g2idx+1]; ++i) {
-			FDA_eg[pf_global_data.groups->a[i]] = PF_GROUP_IDX_FDA2;
+		for (i = fda_data.groups->index[fda_data.g2idx]; i < fda_data.groups->index[fda_data.g2idx+1]; ++i) {
+			FDA_eg[fda_data.groups->a[i]] = PF_GROUP_IDX_FDA2;
 		}
 
 		pf_respect_charge_groups(FDA_eg, mtop);
