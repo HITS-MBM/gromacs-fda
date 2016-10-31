@@ -281,8 +281,8 @@ nb_kernel_ElecRFCut_VdwBhamSw_GeomW4P1_VF_c
             f[j_coord_offset+DIM*0+ZZ] -= tz;
 
             /* pairwise forces */
-            if (fda->PFPS) pf_atom_add_nonbonded_single(fda, inr+0, jnr+0, PF_INTER_LJ, fvdw, dx00, dy00, dz00);
-            if (fda->VS) pf_atom_virial_bond(fda, inr+0, jnr+0, fscal, dx00, dy00, dz00);
+            pf_atom_add_nonbonded_single(fda, inr+0, jnr+0, PF_INTER_LJ, fvdw, dx00, dy00, dz00);
+            pf_atom_virial_bond(fda, inr+0, jnr+0, fscal, dx00, dy00, dz00);
 
             }
 
@@ -318,8 +318,8 @@ nb_kernel_ElecRFCut_VdwBhamSw_GeomW4P1_VF_c
             f[j_coord_offset+DIM*0+ZZ] -= tz;
 
             /* pairwise forces */
-            if (fda->PFPS) pf_atom_add_nonbonded_single(fda, inr+1, jnr+0, PF_INTER_COULOMB, felec, dx10, dy10, dz10);
-            if (fda->VS) pf_atom_virial_bond(fda, inr+1, jnr+0, fscal, dx10, dy10, dz10);
+            pf_atom_add_nonbonded_single(fda, inr+1, jnr+0, PF_INTER_COULOMB, felec, dx10, dy10, dz10);
+            pf_atom_virial_bond(fda, inr+1, jnr+0, fscal, dx10, dy10, dz10);
 
             }
 
@@ -355,8 +355,8 @@ nb_kernel_ElecRFCut_VdwBhamSw_GeomW4P1_VF_c
             f[j_coord_offset+DIM*0+ZZ] -= tz;
 
             /* pairwise forces */
-            if (fda->PFPS) pf_atom_add_nonbonded_single(fda, inr+2, jnr+0, PF_INTER_COULOMB, felec, dx20, dy20, dz20);
-            if (fda->VS) pf_atom_virial_bond(fda, inr+2, jnr+0, fscal, dx20, dy20, dz20);
+            pf_atom_add_nonbonded_single(fda, inr+2, jnr+0, PF_INTER_COULOMB, felec, dx20, dy20, dz20);
+            pf_atom_virial_bond(fda, inr+2, jnr+0, fscal, dx20, dy20, dz20);
 
             }
 
@@ -392,8 +392,8 @@ nb_kernel_ElecRFCut_VdwBhamSw_GeomW4P1_VF_c
             f[j_coord_offset+DIM*0+ZZ] -= tz;
 
             /* pairwise forces */
-            if (fda->PFPS) pf_atom_add_nonbonded_single(fda, inr+3, jnr+0, PF_INTER_COULOMB, felec, dx30, dy30, dz30);
-            if (fda->VS) pf_atom_virial_bond(fda, inr+3, jnr+0, fscal, dx30, dy30, dz30);
+            pf_atom_add_nonbonded_single(fda, inr+3, jnr+0, PF_INTER_COULOMB, felec, dx30, dy30, dz30);
+            pf_atom_virial_bond(fda, inr+3, jnr+0, fscal, dx30, dy30, dz30);
 
             }
 
@@ -677,8 +677,8 @@ nb_kernel_ElecRFCut_VdwBhamSw_GeomW4P1_F_c
             f[j_coord_offset+DIM*0+ZZ] -= tz;
 
             /* pairwise forces */
-            if (fda->PFPS) pf_atom_add_nonbonded_single(fda, inr+0, jnr+0, PF_INTER_LJ, fvdw, dx00, dy00, dz00);
-            if (fda->VS) pf_atom_virial_bond(fda, inr+0, jnr+0, fscal, dx00, dy00, dz00);
+            pf_atom_add_nonbonded_single(fda, inr+0, jnr+0, PF_INTER_LJ, fvdw, dx00, dy00, dz00);
+            pf_atom_virial_bond(fda, inr+0, jnr+0, fscal, dx00, dy00, dz00);
 
             }
 
@@ -710,8 +710,8 @@ nb_kernel_ElecRFCut_VdwBhamSw_GeomW4P1_F_c
             f[j_coord_offset+DIM*0+ZZ] -= tz;
 
             /* pairwise forces */
-            if (fda->PFPS) pf_atom_add_nonbonded_single(fda, inr+1, jnr+0, PF_INTER_COULOMB, felec, dx10, dy10, dz10);
-            if (fda->VS) pf_atom_virial_bond(fda, inr+1, jnr+0, fscal, dx10, dy10, dz10);
+            pf_atom_add_nonbonded_single(fda, inr+1, jnr+0, PF_INTER_COULOMB, felec, dx10, dy10, dz10);
+            pf_atom_virial_bond(fda, inr+1, jnr+0, fscal, dx10, dy10, dz10);
 
             }
 
@@ -743,8 +743,8 @@ nb_kernel_ElecRFCut_VdwBhamSw_GeomW4P1_F_c
             f[j_coord_offset+DIM*0+ZZ] -= tz;
 
             /* pairwise forces */
-            if (fda->PFPS) pf_atom_add_nonbonded_single(fda, inr+2, jnr+0, PF_INTER_COULOMB, felec, dx20, dy20, dz20);
-            if (fda->VS) pf_atom_virial_bond(fda, inr+2, jnr+0, fscal, dx20, dy20, dz20);
+            pf_atom_add_nonbonded_single(fda, inr+2, jnr+0, PF_INTER_COULOMB, felec, dx20, dy20, dz20);
+            pf_atom_virial_bond(fda, inr+2, jnr+0, fscal, dx20, dy20, dz20);
 
             }
 
@@ -776,8 +776,8 @@ nb_kernel_ElecRFCut_VdwBhamSw_GeomW4P1_F_c
             f[j_coord_offset+DIM*0+ZZ] -= tz;
 
             /* pairwise forces */
-            if (fda->PFPS) pf_atom_add_nonbonded_single(fda, inr+3, jnr+0, PF_INTER_COULOMB, felec, dx30, dy30, dz30);
-            if (fda->VS) pf_atom_virial_bond(fda, inr+3, jnr+0, fscal, dx30, dy30, dz30);
+            pf_atom_add_nonbonded_single(fda, inr+3, jnr+0, PF_INTER_COULOMB, felec, dx30, dy30, dz30);
+            pf_atom_virial_bond(fda, inr+3, jnr+0, fscal, dx30, dy30, dz30);
 
             }
 

@@ -67,7 +67,9 @@ const char *pf_vector2scalar_option[PF_VECTOR2SCALAR_NR+1] = {
 };
 
 FDA::FDA(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global)
- : bInitialized(false),
+ : atoms(nullptr),
+   residues(nullptr),
+   bInitialized(false),
    AtomBased(0),
    ResidueBased(0),
    PFPS(0),
@@ -78,8 +80,6 @@ FDA::FDA(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global)
    syslen_residues(0),
    sys_in_g1(nullptr),
    sys_in_g2(nullptr),
-   atoms(nullptr),
-   residues(nullptr),
    atom2residue(nullptr),
    ResiduesRenumber(0),
    type(0),

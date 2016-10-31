@@ -237,8 +237,8 @@ nb_kernel_ElecRF_VdwCSTab_GeomP1P1_VF_c
             f[j_coord_offset+DIM*0+ZZ] -= tz;
 
             /* pairwise forces */
-            if (fda->PFPS) pf_atom_add_nonbonded(fda, inr+0, jnr+0, felec, fvdw, dx00, dy00, dz00);
-            if (fda->VS) pf_atom_virial_bond(fda, inr+0, jnr+0, fscal, dx00, dy00, dz00);
+            pf_atom_add_nonbonded(fda, inr+0, jnr+0, felec, fvdw, dx00, dy00, dz00);
+            pf_atom_virial_bond(fda, inr+0, jnr+0, fscal, dx00, dy00, dz00);
 
             /* Inner loop uses 66 flops */
         }
@@ -450,8 +450,8 @@ nb_kernel_ElecRF_VdwCSTab_GeomP1P1_F_c
             f[j_coord_offset+DIM*0+ZZ] -= tz;
 
             /* pairwise forces */
-            if (fda->PFPS) pf_atom_add_nonbonded(fda, inr+0, jnr+0, felec, fvdw, dx00, dy00, dz00);
-            if (fda->VS) pf_atom_virial_bond(fda, inr+0, jnr+0, fscal, dx00, dy00, dz00);
+            pf_atom_add_nonbonded(fda, inr+0, jnr+0, felec, fvdw, dx00, dy00, dz00);
+            pf_atom_virial_bond(fda, inr+0, jnr+0, fscal, dx00, dy00, dz00);
 
             /* Inner loop uses 53 flops */
         }

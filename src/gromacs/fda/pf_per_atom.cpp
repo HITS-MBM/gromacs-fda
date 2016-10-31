@@ -4,11 +4,10 @@
  * Copyright Bogdan Costescu 2011-2013
  */
 
-#include <math.h>
-
-#include "gromacs/fda/pf_array.h"
-#include "gromacs/fda/pf_per_atom.h"
-#include "gromacs/fda/types/pf_array_summed.h"
+#include <cmath>
+#include "fda.h"
+#include "pf_per_atom.h"
+#include "types/pf_array_summed.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/math/vectypes.h"
 #include "gromacs/utility/basedefinitions.h"

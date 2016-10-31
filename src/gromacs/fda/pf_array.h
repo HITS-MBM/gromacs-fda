@@ -8,9 +8,6 @@
 #define pf_array_h
 
 #include "fda.h"
-#include "pf_array_detailed.h"
-#include "pf_array_scalar.h"
-#include "pf_array_summed.h"
 
 #ifdef __cplusplus
 extern "C" {

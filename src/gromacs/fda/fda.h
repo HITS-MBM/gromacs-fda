@@ -39,7 +39,6 @@
 #ifndef GMX_FDA_FDA_H
 #define GMX_FDA_FDA_H
 
-#include <stdio.h>
 #include "gromacs/math/vectypes.h"
 #include "gromacs/utility/basedefinitions.h"
 #include "pf_array_detailed.h"
@@ -48,6 +47,9 @@
 #include "pf_per_atom.h"
 
 #ifdef __cplusplus
+#include <cstdio>
+#include <vector>
+#include "DistributedForce.h"
 #include "gromacs/commandline/filenm.h"
 #include "gromacs/topology/topology.h"
 #endif
@@ -148,9 +150,15 @@ public:
    */
   void add_virial_dihedral(int i, int j, int k, int l, rvec f_i, rvec f_k, rvec f_l, rvec r_ij, rvec r_kj, rvec r_kl);
 
-#else
-struct FDA {
-#endif
+//private:
+
+  /// Distributed forces per atom
+  //std::vector<DistributedForce> atoms;
+  t_pf_atoms *atoms;
+
+  /// Distributed forces per residue
+  //std::vector<DistributedForce> residues;
+  t_pf_atoms *residues;
 
   /// TRUE if pairwise forces should be written out, FALSE otherwise;
   /// if FALSE, many of the following structure members will not be initialized
@@ -191,8 +199,7 @@ struct FDA {
   int syslen_residues;          /* maximum of residue nr. + 1; residue nr. doesn't have to be continuous, there can be gaps */
   char *sys_in_g1;              /* 0 if atom not in group1, 1 if atom in group1, length of syslen_atoms; always allocated */
   char *sys_in_g2;              /* 0 if atom not in group2, 1 if atom in group2, length of syslen_atoms; always allocated */
-  t_pf_atoms *atoms;            /* atoms, always allocated but structure only initialized if AtomBased is non-zero */
-  t_pf_atoms *residues;         /* residues, always allocated but structure only initialized if ResidueBased is non-zero */
+
   int *atom2residue;        /* stores the residue nr. for each atom; array of length syslen; only initialized if ResidueBased is non-zero */
   int ResiduesRenumber;         /* detect/force residue renumbering */
   int type;                     /* interaction types that are interesting, set based on input file; functions are supposed to test against this before calculating/storing data */
@@ -214,6 +221,10 @@ struct FDA {
   t_pf_per_atom_real_int *per_residue_real_int; /* only initialized if required by user */
   gmx_bool no_end_zeros;	/* if True, trim the line such that the zeros at the end are not written; if False (default), all per atom/residue data is written */
   tensor *atom_vir;
+
+#else
+struct FDA {
+#endif
 };
 
 /* values for OnePair */
