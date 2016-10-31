@@ -160,6 +160,8 @@ public:
   //std::vector<DistributedForce> residues;
   t_pf_atoms *residues;
 
+public:
+
   /// TRUE if pairwise forces should be written out, FALSE otherwise;
   /// if FALSE, many of the following structure members will not be initialized
   gmx_bool bInitialized;
