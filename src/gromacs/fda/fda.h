@@ -49,7 +49,7 @@
 #ifdef __cplusplus
 #include <cstdio>
 #include <vector>
-#include "DistributedForce.h"
+#include "DistributedForces.h"
 #include "gromacs/commandline/filenm.h"
 #include "gromacs/topology/topology.h"
 #endif
@@ -196,12 +196,10 @@ public:
 private:
 
   /// Distributed forces per atom
-  //std::vector<DistributedForce> atom_based_forces;
-  t_pf_atoms *atom_based_forces;
+  DistributedForces atom_based_forces;
 
   /// Distributed forces per residue
-  //std::vector<DistributedForce> residue_based_forces;
-  t_pf_atoms *residue_based_forces;
+  DistributedForces residue_based_forces;
 
 public:
 

@@ -67,8 +67,8 @@ const char *pf_vector2scalar_option[PF_VECTOR2SCALAR_NR+1] = {
 };
 
 FDA::FDA(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global)
- : atom_based_forces(nullptr),
-   residue_based_forces(nullptr),
+ : atom_based_forces(),
+   residue_based_forces(),
    bInitialized(false),
    AtomBased(0),
    ResidueBased(0),
@@ -105,9 +105,6 @@ FDA::FDA(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global)
   char g1name[STRLEN], g2name[STRLEN];	/* readinp.c::get_estr() function uses a char[32] buffer */
   char tmpstr[STRLEN];
   warninp_t wi;
-
-  snew(atom_based_forces, 1);
-  snew(residue_based_forces, 1);
 
   /* check for the pf configuration file (specified with -pfi option);
    * if it doesn't exist, return NULL to specify that no pf handling is done;
@@ -194,10 +191,11 @@ FDA::FDA(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global)
   syslen_atoms = top_global->natoms;
   pf_fill_atom2residue(this, top_global);	/* also fills syslen_residues */
 
+  // allocates and fills with -1 the indexing table real atom nr. to pf number
   if (AtomBased)
-	atom_based_forces->sys2pf = pf_init_sys2pf(syslen_atoms);
+	atom_based_forces.forces.resize(syslen_atoms);
   if (ResidueBased)
-	residue_based_forces->sys2pf = pf_init_sys2pf(syslen_residues);
+	residue_based_forces.forces.resize(syslen_residues);
 
   this->read_group(opt2fn("-pfn", nfile, fnm), g1name, &sys_in_g1);
   this->read_group(opt2fn("-pfn", nfile, fnm), g2name, &sys_in_g2);

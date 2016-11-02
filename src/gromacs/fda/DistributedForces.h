@@ -1,19 +1,19 @@
 /*
- * DistributedForce.h
+ * DistributedForces.h
  *
  *  Created on: Oct 31, 2016
  *      Author: Bernd Doser, HITS gGmbH <bernd.doser@h-its.org>
  */
 
-#ifndef SRC_GROMACS_FDA_DISTRIBUTEDFORCE_H_
-#define SRC_GROMACS_FDA_DISTRIBUTEDFORCE_H_
+#ifndef SRC_GROMACS_FDA_DISTRIBUTEDFORCES_H_
+#define SRC_GROMACS_FDA_DISTRIBUTEDFORCES_H_
 
 #include <vector>
 #include "gromacs/math/vectypes.h"
 
-struct DistributedForcePerAtom
+struct DistributedForcesSingle
 {
-  /// Atom index
+  /// Atom or residue index, respectively
   std::vector<int> atom_id;
 
   /// Scalar distributed forces
@@ -32,10 +32,12 @@ struct DistributedForcePerAtom
   std::vector<rvec> vector_force_polar;
 };
 
-struct DistributedForce
+/// Storage container for distributed forces
+/// Same structure for atom and residue based distribution
+struct DistributedForces
 {
   /// Indexing table: real atom nr. to index in the pf array; this has length equal to the total nr. of atoms in system
-  std::vector<DistributedForcePerAtom> forces;
+  std::vector<DistributedForcesSingle> forces;
 };
 
-#endif /* SRC_GROMACS_FDA_DISTRIBUTEDFORCE_H_ */
+#endif /* SRC_GROMACS_FDA_DISTRIBUTEDFORCES_H_ */

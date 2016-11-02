@@ -135,18 +135,6 @@ real pf_vector2signedscalar(const rvec v, const rvec xi, const rvec xj, int Vect
   }
 }
 
-/* allocates and fills with -1 the indexing table real atom nr. to pf number */
-int *pf_init_sys2pf(int syslen) {
-  int *sys2pf;
-  int i;
-
-  snew(sys2pf, syslen);
-  for (i = 0; i < syslen; i++) {
-    sys2pf[i] = -1;
-  }
-  return sys2pf;
-}
-
 /* fills an indexing table: real atom nr. to pf number based on data from group atom lists*/
 void pf_fill_sys2pf(int *sys2pf, int *len, t_pf_int_list *p) {
   int i;
@@ -404,6 +392,7 @@ void FDA::read_group(const char *ndxfile, char *groupname, char **sys_in_g) {
   }
 }
 
+/// TODO: remove
 void pf_check_sys_in_g(FDA *fda) {
   if ((fda->sys_in_g1 == NULL) || (fda->sys_in_g2 == NULL))
     gmx_fatal(FARGS, "No atoms in one or both groups.\n");
