@@ -366,7 +366,7 @@ t_pf_int_list *pf_groupatoms2residues(t_pf_int_list *atoms, FDA *fda) {
   return p;
 }
 
-void pf_read_group(FDA *fda, const char *ndxfile, char *groupname, char **sys_in_g) {
+void FDA::read_group(const char *ndxfile, char *groupname, char **sys_in_g) {
   t_blocka *groups;
   char** groupnames;
   int i;
@@ -377,24 +377,24 @@ void pf_read_group(FDA *fda, const char *ndxfile, char *groupname, char **sys_in
   if(groups->nr == 0)
     gmx_fatal(FARGS, "No groups found in the indexfile.\n");
 
-  snew(residues_in_g, fda->syslen_residues);
+  snew(residues_in_g, syslen_residues);
 
   for (i = 0; i < groups->nr; i++) {
     if (strcmp(groupnames[i], groupname) == 0) {
       //fprintf(stderr, "found group: %s\n", groupname);
       groupatoms = pf_group2atoms(groups->index[i + 1] - groups->index[i], &groups->a[groups->index[i]]);
-      *sys_in_g = pf_make_sys_in_group(fda->syslen_atoms, groupatoms);
+      *sys_in_g = pf_make_sys_in_group(syslen_atoms, groupatoms);
 
-      if (pf_file_out_PF_or_PS(fda->AtomBased)) {
-        pf_fill_sys2pf(fda->atoms->sys2pf, &fda->atoms->len, groupatoms);
-//	for (k = 0; k < fda->syslen_atoms; k++)
-//	  fprintf(stderr, "sys2pf[%d]=%d\n", k, fda->atoms->sys2pf[k]);
+      if (pf_file_out_PF_or_PS(AtomBased)) {
+        pf_fill_sys2pf(atom_based_forces->sys2pf, &atom_based_forces->len, groupatoms);
+//	for (k = 0; k < syslen_atoms; k++)
+//	  fprintf(stderr, "sys2pf[%d]=%d\n", k, atoms->sys2pf[k]);
       }
-      if (pf_file_out_PF_or_PS(fda->ResidueBased)) {
-        groupresidues = pf_groupatoms2residues(groupatoms, fda);
-        pf_fill_sys2pf(fda->residues->sys2pf, &fda->residues->len, groupresidues);
-//	for (k = 0; k < fda->syslen_residues; k++)
-//	  fprintf(stderr, "sys2pf[%d]=%d\n", k, fda->residues->sys2pf[k]);
+      if (pf_file_out_PF_or_PS(ResidueBased)) {
+        groupresidues = pf_groupatoms2residues(groupatoms, this);
+        pf_fill_sys2pf(residue_based_forces->sys2pf, &residue_based_forces->len, groupresidues);
+//	for (k = 0; k < syslen_residues; k++)
+//	  fprintf(stderr, "sys2pf[%d]=%d\n", k, residues->sys2pf[k]);
         pf_int_list_free(groupresidues);
       }
 
@@ -495,11 +495,12 @@ void pf_atoms_init(int OnePair, t_pf_atoms *atoms) {
   }
 }
 
-void pf_atoms_and_residues_init(FDA *fda) {
-  if (pf_file_out_PF_or_PS(fda->AtomBased))
-    pf_atoms_init(fda->OnePair, fda->atoms);
-  if (pf_file_out_PF_or_PS(fda->ResidueBased))
-    pf_atoms_init(fda->OnePair, fda->residues);
+void FDA::atoms_and_residues_init()
+{
+  if (pf_file_out_PF_or_PS(AtomBased))
+	pf_atoms_init(OnePair, atom_based_forces);
+  if (pf_file_out_PF_or_PS(ResidueBased))
+	pf_atoms_init(OnePair, residue_based_forces);
 }
 
 void pf_atoms_scalar_alloc(t_pf_atoms *atoms, int syslen, char *name) {

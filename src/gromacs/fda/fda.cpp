@@ -67,8 +67,8 @@ const char *pf_vector2scalar_option[PF_VECTOR2SCALAR_NR+1] = {
 };
 
 FDA::FDA(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global)
- : atoms(nullptr),
-   residues(nullptr),
+ : atom_based_forces(nullptr),
+   residue_based_forces(nullptr),
    bInitialized(false),
    AtomBased(0),
    ResidueBased(0),
@@ -106,8 +106,8 @@ FDA::FDA(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global)
   char tmpstr[STRLEN];
   warninp_t wi;
 
-  snew(atoms, 1);
-  snew(residues, 1);
+  snew(atom_based_forces, 1);
+  snew(residue_based_forces, 1);
 
   /* check for the pf configuration file (specified with -pfi option);
    * if it doesn't exist, return NULL to specify that no pf handling is done;
@@ -195,16 +195,16 @@ FDA::FDA(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global)
   pf_fill_atom2residue(this, top_global);	/* also fills syslen_residues */
 
   if (AtomBased)
-	atoms->sys2pf = pf_init_sys2pf(syslen_atoms);
+	atom_based_forces->sys2pf = pf_init_sys2pf(syslen_atoms);
   if (ResidueBased)
-	residues->sys2pf = pf_init_sys2pf(syslen_residues);
+	residue_based_forces->sys2pf = pf_init_sys2pf(syslen_residues);
 
-  pf_read_group(this, opt2fn("-pfn", nfile, fnm), g1name, &sys_in_g1);
-  pf_read_group(this, opt2fn("-pfn", nfile, fnm), g2name, &sys_in_g2);
+  this->read_group(opt2fn("-pfn", nfile, fnm), g1name, &sys_in_g1);
+  this->read_group(opt2fn("-pfn", nfile, fnm), g2name, &sys_in_g2);
 
   if (pf_file_out_PF_or_PS(AtomBased)) {
 	pf_check_sys_in_g(this);
-	pf_atoms_alloc(OnePair, atoms, syslen_atoms, "atoms");
+	pf_atoms_alloc(OnePair, atom_based_forces, syslen_atoms, "atoms");
 	if (AtomBased == FILE_OUT_PUNCTUAL_STRESS) {
 		pf_per_atom_real_init(&(per_atom_real), syslen_atoms, 0.0);
 		ofn_atoms = gmx_strdup(opt2fn("-psa", nfile, fnm));
@@ -217,7 +217,7 @@ FDA::FDA(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global)
 
   if (pf_file_out_PF_or_PS(ResidueBased)) {
 	pf_check_sys_in_g(this);
-	pf_atoms_alloc(OnePair, residues, syslen_residues, "residues");
+	pf_atoms_alloc(OnePair, residue_based_forces, syslen_residues, "residues");
 	if (ResidueBased == FILE_OUT_PUNCTUAL_STRESS) {
 		pf_per_atom_real_init(&(per_residue_real), syslen_residues, 0.0);
 		ofn_residues = gmx_strdup(opt2fn("-psr", nfile, fnm));
@@ -268,14 +268,14 @@ FDA::FDA(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global)
 	if (pf_file_out_PF_or_PS(AtomBased)) {
 	  if (!((pf_in_compatibility_mode(AtomBased)) || (AtomBased == FILE_OUT_PAIRWISE_FORCES_SCALAR)))
 		gmx_fatal(FARGS, "Can only use time averages with scalar or compatibility output.\n");
-	  pf_atoms_scalar_alloc(atoms, syslen_atoms, "atoms - time averages");
-	  pf_atoms_scalar_init(atoms);
+	  pf_atoms_scalar_alloc(atom_based_forces, syslen_atoms, "atoms - time averages");
+	  pf_atoms_scalar_init(atom_based_forces);
 	}
 	if (pf_file_out_PF_or_PS(ResidueBased)) {
 	  if (!((pf_in_compatibility_mode(ResidueBased)) || (ResidueBased == FILE_OUT_PAIRWISE_FORCES_SCALAR)))
 		gmx_fatal(FARGS, "Can only use time averages with scalar or compatibility output.\n");
-	  pf_atoms_scalar_alloc(residues, syslen_residues, "residues - time averages");
-	  pf_atoms_scalar_init(residues);
+	  pf_atoms_scalar_alloc(residue_based_forces, syslen_residues, "residues - time averages");
+	  pf_atoms_scalar_init(residue_based_forces);
 	  snew(time_averages->com, syslen_residues);
 	  clear_rvecs(syslen_residues, time_averages->com);
 	}
@@ -315,9 +315,9 @@ void FDA::add_bonded_nocheck(int i, int j, int type, rvec force)
             int_swap(&ri, &rj);
             clear_rvec(force_residue);
             rvec_dec(force_residue, force);
-            pf_atom_detailed_add(&residues->detailed[residues->sys2pf[ri]], rj, type, force_residue);
+            pf_atom_detailed_add(&residue_based_forces->detailed[residue_based_forces->sys2pf[ri]], rj, type, force_residue);
           } else {
-            pf_atom_detailed_add(&residues->detailed[residues->sys2pf[ri]], rj, type, force);
+            pf_atom_detailed_add(&residue_based_forces->detailed[residue_based_forces->sys2pf[ri]], rj, type, force);
           }
           break;
         case PF_ONEPAIR_SUMMED:
@@ -325,9 +325,9 @@ void FDA::add_bonded_nocheck(int i, int j, int type, rvec force)
             int_swap(&ri, &rj);
             clear_rvec(force_residue);
             rvec_dec(force_residue, force);
-            pf_atom_summed_add(&residues->summed[residues->sys2pf[ri]], rj, type, force_residue);
+            pf_atom_summed_add(&residue_based_forces->summed[residue_based_forces->sys2pf[ri]], rj, type, force_residue);
           } else {
-            pf_atom_summed_add(&residues->summed[residues->sys2pf[ri]], rj, type, force);
+            pf_atom_summed_add(&residue_based_forces->summed[residue_based_forces->sys2pf[ri]], rj, type, force);
           }
           break;
         default:
@@ -344,10 +344,10 @@ void FDA::add_bonded_nocheck(int i, int j, int type, rvec force)
     }
     switch(OnePair) {
       case PF_ONEPAIR_DETAILED:
-        pf_atom_detailed_add(&atoms->detailed[atoms->sys2pf[i]], j, type, force);
+        pf_atom_detailed_add(&atom_based_forces->detailed[atom_based_forces->sys2pf[i]], j, type, force);
         break;
       case PF_ONEPAIR_SUMMED:
-        pf_atom_summed_add(&atoms->summed[atoms->sys2pf[i]], j, type, force);
+        pf_atom_summed_add(&atom_based_forces->summed[atom_based_forces->sys2pf[i]], j, type, force);
         break;
       default:
         break;
@@ -440,15 +440,15 @@ void FDA::add_nonbonded(int i, int j, real pf_coul, real pf_lj, real dx, real dy
           pf_lj_residue_v[0] = pf_lj_residue * dx;
           pf_lj_residue_v[1] = pf_lj_residue * dy;
           pf_lj_residue_v[2] = pf_lj_residue * dz;
-          pf_atom_detailed_add(&residues->detailed[residues->sys2pf[ri]], rj, PF_INTER_LJ, pf_lj_residue_v);
-          pf_atom_detailed_add(&residues->detailed[residues->sys2pf[ri]], rj, PF_INTER_COULOMB, pf_coul_residue_v);
+          pf_atom_detailed_add(&residue_based_forces->detailed[residue_based_forces->sys2pf[ri]], rj, PF_INTER_LJ, pf_lj_residue_v);
+          pf_atom_detailed_add(&residue_based_forces->detailed[residue_based_forces->sys2pf[ri]], rj, PF_INTER_COULOMB, pf_coul_residue_v);
           break;
         case PF_ONEPAIR_SUMMED:
           pf_lj_coul = pf_lj_residue + pf_coul_residue;
           pf_coul_residue_v[0] = pf_lj_coul * dx;
           pf_coul_residue_v[1] = pf_lj_coul * dy;
           pf_coul_residue_v[2] = pf_lj_coul * dz;
-          pf_atom_summed_add(&residues->summed[residues->sys2pf[ri]], rj, PF_INTER_LJ | PF_INTER_COULOMB, pf_coul_residue_v);
+          pf_atom_summed_add(&residue_based_forces->summed[residue_based_forces->sys2pf[ri]], rj, PF_INTER_LJ | PF_INTER_COULOMB, pf_coul_residue_v);
           break;
         default:
           break;
@@ -473,15 +473,15 @@ void FDA::add_nonbonded(int i, int j, real pf_coul, real pf_lj, real dx, real dy
         pf_lj_atom_v[0] = pf_lj * dx;
         pf_lj_atom_v[1] = pf_lj * dy;
         pf_lj_atom_v[2] = pf_lj * dz;
-        pf_atom_detailed_add(&atoms->detailed[atoms->sys2pf[i]], j, PF_INTER_LJ, pf_lj_atom_v);
-        pf_atom_detailed_add(&atoms->detailed[atoms->sys2pf[i]], j, PF_INTER_COULOMB, pf_coul_atom_v);
+        pf_atom_detailed_add(&atom_based_forces->detailed[atom_based_forces->sys2pf[i]], j, PF_INTER_LJ, pf_lj_atom_v);
+        pf_atom_detailed_add(&atom_based_forces->detailed[atom_based_forces->sys2pf[i]], j, PF_INTER_COULOMB, pf_coul_atom_v);
         break;
       case PF_ONEPAIR_SUMMED:
         pf_lj_coul = pf_lj + pf_coul;
         pf_coul_atom_v[0] = pf_lj_coul * dx;
         pf_coul_atom_v[1] = pf_lj_coul * dy;
         pf_coul_atom_v[2] = pf_lj_coul * dz;
-        pf_atom_summed_add(&atoms->summed[atoms->sys2pf[i]], j, PF_INTER_LJ | PF_INTER_COULOMB, pf_coul_atom_v);
+        pf_atom_summed_add(&atom_based_forces->summed[atom_based_forces->sys2pf[i]], j, PF_INTER_LJ | PF_INTER_COULOMB, pf_coul_atom_v);
         break;
       default:
         break;

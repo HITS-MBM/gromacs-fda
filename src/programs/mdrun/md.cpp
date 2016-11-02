@@ -54,8 +54,7 @@
 #include "gromacs/domdec/domdec_struct.h"
 #include "gromacs/ewald/pme.h"
 #include "gromacs/ewald/pme-load-balancing.h"
-#include "gromacs/fda/pf_io.h"
-#include "gromacs/fda/pf_utils.h"
+#include "gromacs/fda/fda.h"
 #include "gromacs/fileio/trxio.h"
 #include "gromacs/gmxlib/md_logging.h"
 #include "gromacs/gmxlib/network.h"
@@ -682,7 +681,7 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
     fr->fda = new FDA(nfile, fnm, top_global);
     if ((fr->fda) && PAR(cr))
       gmx_fatal(FARGS, "PF2 doesn't work in parallel ! Please start with '-nt 1' on the mdrun command line\n");
-    pf_open(fr->fda);
+    fr->fda->open();
 
     walltime_accounting_start(walltime_accounting);
     wallcycle_start(wcycle, ewcRUN);
@@ -996,7 +995,7 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
             }
         }
 
-        pf_atoms_and_residues_init(fr->fda);
+        fr->fda->atoms_and_residues_init();
 
         if (MASTER(cr) && do_log)
         {
@@ -1260,9 +1259,9 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
 
         /* this test could be done inside pf_save_and_write_scalar_averages(), but is left here explicitly to be replaced with a more general mechanism */
         if (fr->fda->time_averages->period != 1)
-          pf_save_and_write_scalar_time_averages(fr->fda, state->x, top_global);
+          fr->fda->save_and_write_scalar_time_averages(state->x, top_global);
         else
-          pf_write_frame(fr->fda, state->x, top_global);
+          fr->fda->write_frame(state->x, top_global);
 
         if (bDoExpanded)
         {
@@ -1819,8 +1818,8 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
     }
 
     if (fr->fda->time_averages->period != 1)
-      pf_write_scalar_time_averages(fr->fda);
-    pf_close(fr->fda);
+        fr->fda->write_scalar_time_averages();
+    fr->fda->close();
 
     if (!(cr->duty & DUTY_PME))
     {

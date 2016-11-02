@@ -150,15 +150,58 @@ public:
    */
   void add_virial_dihedral(int i, int j, int k, int l, rvec f_i, rvec f_k, rvec f_l, rvec r_ij, rvec r_kj, rvec r_kl);
 
-//private:
+  void write_frame(const rvec *x,  gmx_mtop_t *top_global) /* const */;
+
+  void write_frame_detailed(t_pf_atoms* atoms, FILE* f, int *framenr, const rvec *x, gmx_bool bVector, int Vector2Scalar) /* const */;
+
+  void write_frame_summed(t_pf_atoms* atoms, FILE* f, int *framenr, const rvec *x, gmx_bool bVector, int Vector2Scalar) /* const */;
+
+  void write_frame_scalar(t_pf_atoms* atoms, FILE* f, int *framenr) /* const */;
+
+  void read_group(const char *ndxfile, char *groupname, char **sys_in_g);
+
+  /**
+   * Main function for scalar time averages; saves data and decides when to write it out
+   *
+   * dealing with residues is more complicated because COMs have to be averaged over time;
+   * it's not possible to average the atom positions and calculate COMs only once before
+   * writing because for this fda->atoms would need to be initialized (to get the atom
+   * number or to get the sys2ps mapping) which only happens when AtomBased is non-zero
+   */
+  void save_and_write_scalar_time_averages(rvec const *x, gmx_mtop_t *top_global);
+
+  /**
+   * Write scalar time averages; this is similar to pf_write_frame, except that time averages are used
+   *
+   * There are several cases:
+   * steps == 0 - there was no frame saved at all or there are no frames saved since the last writing, so no writing needed
+   * steps > 0, period == 0 - no frames written so far, but frames saved, so writing one frame
+   * steps > 0, period != 0 - frames saved, so writing the last frame
+   *
+   * if this is called from pf_write_and_save... then steps is certainly > 0
+   * period is certainly != 1, otherwise the averages functions are not called
+   */
+  void write_scalar_time_averages();
+
+  void write_frame_atoms_scalar_compat(t_pf_atoms *atoms, FILE *f, int *framenr, gmx_bool ascii);
+
+  // TODO: Remove following legacy c-functions:
+
+  void atoms_and_residues_init();
+
+  void open();
+
+  void close();
+
+private:
 
   /// Distributed forces per atom
-  //std::vector<DistributedForce> atoms;
-  t_pf_atoms *atoms;
+  //std::vector<DistributedForce> atom_based_forces;
+  t_pf_atoms *atom_based_forces;
 
   /// Distributed forces per residue
-  //std::vector<DistributedForce> residues;
-  t_pf_atoms *residues;
+  //std::vector<DistributedForce> residue_based_forces;
+  t_pf_atoms *residue_based_forces;
 
 public:
 
