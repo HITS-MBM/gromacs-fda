@@ -404,7 +404,7 @@ typedef struct t_forcerec {
     real print_force;
 
     /* pf structure */
-    struct FDA *fda;
+    struct fda::FDA *fda;
 
     /* coarse load balancing time measurement */
     double t_fnbf;

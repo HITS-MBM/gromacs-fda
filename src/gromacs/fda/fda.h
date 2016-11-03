@@ -50,6 +50,7 @@
 #include <cstdio>
 #include <vector>
 #include "DistributedForces.h"
+#include "ResultType.h"
 #include "gromacs/commandline/filenm.h"
 #include "gromacs/topology/topology.h"
 #endif
@@ -58,6 +59,8 @@
   #include <config.h>
 #endif
 
+namespace fda {
+
 /* type for a list of int's, containing both the list itself and the
  * length of the list
  */
@@ -65,26 +68,6 @@ typedef struct {
   int *list;
   int len;
 } t_pf_int_list;
-
-/* TODO: the bonded interaction type  might be possible to be reduced to a 
- * single real vector (=eliminate jjnr) as the atoms interacting are known
- * at simulation start and do not change (also their order in the bond list
- * doesn't change). This would however require an extra step of looking up
- * the atom indices when writing out the force matrix. This would also require
- * a change in the way the atom structure is accessed, it makes no sense to
- * keep an array of t_pf_interaction items, but only an array of reals 
- * representing forces.
- */
-/* type to represent all atoms */
-
-typedef struct {
-  int *sys2pf;		/* indexing table: real atom nr. to index in the pf array; this has length equal to the total nr. of atoms in system */
-  int len;			/* nr. of atoms from both groups, gives the length of the atoms lists below */
-  /* only one of atoms and atom_summed lists will be initialized */
-  t_pf_atom_detailed *detailed;	/* list of atoms */
-  t_pf_atom_summed *summed;	/* list of atoms */
-  t_pf_atom_scalar *scalar;     /* list of atoms */
-} t_pf_atoms;
 
 typedef struct {
   int period;       /* nr. of steps to average before writing; if 1 (default), no averaging is done; if 0, averaging is done over all steps so only one frame is written at the end */
@@ -152,11 +135,13 @@ public:
 
   void write_frame(const rvec *x,  gmx_mtop_t *top_global) /* const */;
 
-  void write_frame_detailed(t_pf_atoms* atoms, FILE* f, int *framenr, const rvec *x, gmx_bool bVector, int Vector2Scalar) /* const */;
+  void write_frame_detailed(DistributedForces const& forces, FILE* f, int *framenr, const rvec *x, gmx_bool bVector, int Vector2Scalar) /* const */;
 
-  void write_frame_summed(t_pf_atoms* atoms, FILE* f, int *framenr, const rvec *x, gmx_bool bVector, int Vector2Scalar) /* const */;
+  void write_frame_summed(DistributedForces const& forces, FILE* f, int *framenr, const rvec *x, gmx_bool bVector, int Vector2Scalar) /* const */;
 
-  void write_frame_scalar(t_pf_atoms* atoms, FILE* f, int *framenr) /* const */;
+  void write_frame_scalar(DistributedForces const& forces, FILE* f, int *framenr) /* const */;
+
+  void write_frame_atoms_scalar_compat(DistributedForces const& forces, FILE *f, int *framenr, gmx_bool ascii) /* const */;
 
   void read_group(const char *ndxfile, char *groupname, char **sys_in_g);
 
@@ -183,7 +168,21 @@ public:
    */
   void write_scalar_time_averages();
 
-  void write_frame_atoms_scalar_compat(t_pf_atoms *atoms, FILE *f, int *framenr, gmx_bool ascii);
+  bool compatibility_mode(ResultType const& r) const {
+    return r == ResultType::COMPAT_BIN or r == ResultType::COMPAT_ASCII;
+  }
+
+  bool stress_mode(ResultType const& r) const {
+    return r == ResultType::PUNCTUAL_STRESS or r == ResultType::VIRIAL_STRESS or r == ResultType::VIRIAL_STRESS_VON_MISES;
+  }
+
+  bool PF_or_PS_mode(ResultType const& r) const {
+	return r == ResultType::PAIRWISE_FORCES_VECTOR or r == ResultType::PAIRWISE_FORCES_SCALAR or r == ResultType::PUNCTUAL_STRESS;
+  }
+
+  bool VS_mode(ResultType const& r) const {
+	return r == ResultType::VIRIAL_STRESS or r == ResultType::VIRIAL_STRESS_VON_MISES;
+  }
 
   // TODO: Remove following legacy c-functions:
 
@@ -194,6 +193,12 @@ public:
   void close();
 
 private:
+
+  /// ResultType for atom based forces
+  ResultType atom_based_result_type;
+
+  /// ResultType for residue based forces
+  ResultType residue_based_result_type;
 
   /// Distributed forces per atom
   DistributedForces atom_based_forces;
@@ -207,29 +212,19 @@ public:
   /// if FALSE, many of the following structure members will not be initialized
   gmx_bool bInitialized;
 
-  /**
-   * AtomBased & ResidueBased below are not boolean, to allow expressing preferences not only for storing in memory but also about the format they are written in:
-   * value | value in fi file | meaning
-   * 0     | no               | no storing (default)
-   * 1     | scalar           | store as vectors, write as scalars
-   * 2     | vector           | store as vectors, write as vectors
-   * 3     | compat_bin       | store as vectors, write in compatibility mode (signed scalars) in binary
-   * 4     | compat_ascii     | store as vectors, write in compatibility mode (signed scalars) in ascii
-   * Also see the constants defined below.
-   */
-  int AtomBased;
-  int ResidueBased;
-
   // Helper flag for pairwise forces or punctual stress
   int PFPS;
+
   // Helper flag for virial stress
   int VS;
+
   /* OnePair defines the way the interactions between the same pair of atoms are stored:
    * value | value in fi file | meaning
    * 0     | detailed         | each interaction is stored separately; it's possible to have the same pair in several interaction lists (default)
    * 1     | summed           | each interaction is stored once
    */
   int OnePair;
+
   /* Vector2Scalar defines the way the force vector to scalar conversion is done:
    * value | value in fi file | meaning
    * 0     | norm             | takes the norm of the vector
@@ -277,19 +272,6 @@ enum {
   PF_ONEPAIR_NR
 };
 
-/* values for AtomBased and ResidueBased; some have ATOM in their name, but are applied to residues as well */
-enum {
-  FILE_OUT_NONE,                       /* this should be always kept first (=zero), as the code does if (fda->AtomBased) */
-  FILE_OUT_PAIRWISE_FORCES_VECTOR,
-  FILE_OUT_PAIRWISE_FORCES_SCALAR,
-  FILE_OUT_PUNCTUAL_STRESS,
-  FILE_OUT_VIRIAL_STRESS,
-  FILE_OUT_VIRIAL_STRESS_VON_MISES,
-  FILE_OUT_COMPAT_BIN,                 /* DEPRICATED! compat is always scalar */
-  FILE_OUT_COMPAT_ASCII,               /* DEPRICATED! compat is always scalar */
-  FILE_OUT_NR
-};
-
 /* values for Vector2Scalar */
 enum {
   PF_VECTOR2SCALAR_NORM,
@@ -305,12 +287,9 @@ enum {
   PF_RESIDUE_RENUMBER_NR
 };
 
-#define pf_in_compatibility_mode(x) ((x == FILE_OUT_COMPAT_BIN) || (x == FILE_OUT_COMPAT_ASCII))
-#define pf_file_out_stress(x) ((x == FILE_OUT_PUNCTUAL_STRESS) || (x == FILE_OUT_VIRIAL_STRESS) || (x == FILE_OUT_VIRIAL_STRESS_VON_MISES))
-#define pf_file_out_PF_or_PS(x) ((x == FILE_OUT_PAIRWISE_FORCES_VECTOR) || (x == FILE_OUT_PAIRWISE_FORCES_SCALAR) || (x == FILE_OUT_PUNCTUAL_STRESS))
-#define pf_file_out_VS(x) ((x == FILE_OUT_VIRIAL_STRESS) || (x == FILE_OUT_VIRIAL_STRESS_VON_MISES))
-
 /* the initial number of items allocated for an array */
 #define PF_ARRAY_INITSIZE	8
 
-#endif  /* GMX_FDA_FDA_H */
+} // namespace fda
+
+#endif // GMX_FDA_FDA_H

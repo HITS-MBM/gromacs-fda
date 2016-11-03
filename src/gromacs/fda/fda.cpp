@@ -1,7 +1,8 @@
 /*
- * Handling of arrays of pairwise forces.
+ * fda.cpp
  *
- * Copyright Bogdan Costescu 2010-2012
+ *  Created on: Oct 31, 2016
+ *      Author: Bernd Doser, HITS gGmbH <bernd.doser@h-its.org>
  */
 
 #include "fda.h"
@@ -27,32 +28,6 @@ static const real HALF    = 1.0 / 2.0;
 static const real THIRD   = 1.0 / 3.0;
 static const real QUARTER = 0.25;
 
-/* these arrays should correspond to the defines in include/fda.h */
-/* they are used both for reading input from user and in output for confirmation */
-const char *pf_file_out_atom_option[FILE_OUT_NR+1] = {
-  "no",
-  "pairwise_forces_vector",
-  "pairwise_forces_scalar",
-  "punctual_stress",
-  "virial_stress",
-  "virial_stress_von_mises",
-  "compat_bin",
-  "compat_ascii",
-  NULL
-};
-
-const char *pf_file_out_residue_option[FILE_OUT_NR+1] = {
-  "no",
-  "pairwise_forces_vector",
-  "pairwise_forces_scalar",
-  "punctual_stress",
-  "virial_stress",
-  "virial_stress_von_mises",
-  "compat_bin",
-  "compat_ascii",
-  NULL
-};
-
 const char *pf_residue_renumber_option[PF_RESIDUE_RENUMBER_NR+1] = {
   "auto",
   "yes",
@@ -67,11 +42,11 @@ const char *pf_vector2scalar_option[PF_VECTOR2SCALAR_NR+1] = {
 };
 
 FDA::FDA(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global)
- : atom_based_forces(),
-   residue_based_forces(),
+ : atom_based_result_type(),
+   residue_based_result_type(),
+   atom_based_forces(atom_based_result_type),
+   residue_based_forces(residue_based_result_type),
    bInitialized(false),
-   AtomBased(0),
-   ResidueBased(0),
    PFPS(0),
    VS(0),
    OnePair(0),
@@ -153,32 +128,32 @@ FDA::FDA(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global)
   fprintf(stderr, "Pairwise forces for groups: %s and %s\n", g1name, g2name);
 
   STYPE("atombased", tmpstr, "no");
-  AtomBased = FILE_OUT_NONE;
+  atom_based_result_type = FILE_OUT_NONE;
   for (i = 0; i < FILE_OUT_NR; i++)
 	if (strcasecmp(tmpstr, pf_file_out_atom_option[i]) == 0)
-	  AtomBased = i;
+	  atom_based_result_type = i;
 
   STYPE("residuebased", tmpstr, "no");
-  ResidueBased = FILE_OUT_NONE;
+  residue_based_result_type = FILE_OUT_NONE;
   for (i = 0; i < FILE_OUT_NR; i++)
 	if (strcasecmp(tmpstr, pf_file_out_residue_option[i]) == 0)
-	  ResidueBased = i;
+	  residue_based_result_type = i;
 
-  PFPS = pf_file_out_PF_or_PS(AtomBased) || pf_file_out_PF_or_PS(ResidueBased) ? 1 : 0;
-  VS = pf_file_out_VS(AtomBased) || pf_file_out_VS(ResidueBased) ? 1 : 0;
+  PFPS = pf_file_out_PF_or_PS(atom_based_result_type) || pf_file_out_PF_or_PS(residue_based_result_type) ? 1 : 0;
+  VS = pf_file_out_VS(atom_based_result_type) || pf_file_out_VS(residue_based_result_type) ? 1 : 0;
 
-  fprintf(stderr, "AtomBased: %s\n", pf_file_out_atom_option[AtomBased]);
-  fprintf(stderr, "ResidueBased: %s\n", pf_file_out_residue_option[ResidueBased]);
+  fprintf(stderr, "atom_based_result_type: %s\n", pf_file_out_atom_option[atom_based_result_type]);
+  fprintf(stderr, "residue_based_result_type: %s\n", pf_file_out_residue_option[residue_based_result_type]);
 
   /* if using compatibility mode, there should be only one group */
-  if ((pf_in_compatibility_mode(AtomBased)) || (pf_in_compatibility_mode(ResidueBased))) {
+  if (compatibility_mode(atom_based_result_type) or compatibility_mode(residue_based_result_type)) {
 	if (gmx_strcasecmp(g1name, g2name))
 	  gmx_fatal(FARGS, "When using compat mode, the two group names should the identical.\n");
 	else
 	  groupname = gmx_strdup(g1name);
   }
 
-  if ((pf_file_out_stress(AtomBased) || pf_file_out_stress(ResidueBased)) && (OnePair != PF_ONEPAIR_SUMMED))
+  if ((pf_file_out_stress(atom_based_result_type) || pf_file_out_stress(residue_based_result_type)) && (OnePair != PF_ONEPAIR_SUMMED))
 	gmx_fatal(FARGS, "Per atom data can only be computed from summed interactions.\n");
 
   STYPE("residuesrenumber", tmpstr, "auto");
@@ -192,18 +167,18 @@ FDA::FDA(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global)
   pf_fill_atom2residue(this, top_global);	/* also fills syslen_residues */
 
   // allocates and fills with -1 the indexing table real atom nr. to pf number
-  if (AtomBased)
+  if (atom_based_result_type)
 	atom_based_forces.forces.resize(syslen_atoms);
-  if (ResidueBased)
+  if (residue_based_result_type)
 	residue_based_forces.forces.resize(syslen_residues);
 
   this->read_group(opt2fn("-pfn", nfile, fnm), g1name, &sys_in_g1);
   this->read_group(opt2fn("-pfn", nfile, fnm), g2name, &sys_in_g2);
 
-  if (pf_file_out_PF_or_PS(AtomBased)) {
+  if (pf_file_out_PF_or_PS(atom_based_result_type)) {
 	pf_check_sys_in_g(this);
 	pf_atoms_alloc(OnePair, atom_based_forces, syslen_atoms, "atoms");
-	if (AtomBased == FILE_OUT_PUNCTUAL_STRESS) {
+	if (atom_based_result_type == FILE_OUT_PUNCTUAL_STRESS) {
 		pf_per_atom_real_init(&(per_atom_real), syslen_atoms, 0.0);
 		ofn_atoms = gmx_strdup(opt2fn("-psa", nfile, fnm));
 	} else {
@@ -213,10 +188,10 @@ FDA::FDA(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global)
 	  gmx_fatal(FARGS, "No file for writing out atom-based values.\n");
   }
 
-  if (pf_file_out_PF_or_PS(ResidueBased)) {
+  if (pf_file_out_PF_or_PS(residue_based_result_type)) {
 	pf_check_sys_in_g(this);
 	pf_atoms_alloc(OnePair, residue_based_forces, syslen_residues, "residues");
-	if (ResidueBased == FILE_OUT_PUNCTUAL_STRESS) {
+	if (residue_based_result_type == FILE_OUT_PUNCTUAL_STRESS) {
 		pf_per_atom_real_init(&(per_residue_real), syslen_residues, 0.0);
 		ofn_residues = gmx_strdup(opt2fn("-psr", nfile, fnm));
 	} else {
@@ -226,11 +201,11 @@ FDA::FDA(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global)
 	  gmx_fatal(FARGS, "No file for writing out residue-based values.\n");
   }
 
-  if (pf_file_out_VS(AtomBased)) {
+  if (pf_file_out_VS(atom_based_result_type)) {
 	snew(atom_vir, top_global->natoms);
-	if (AtomBased == FILE_OUT_VIRIAL_STRESS)
+	if (atom_based_result_type == FILE_OUT_VIRIAL_STRESS)
 		ofn_atoms = gmx_strdup(opt2fn("-vsa", nfile, fnm));
-	if (AtomBased == FILE_OUT_VIRIAL_STRESS_VON_MISES)
+	if (atom_based_result_type == FILE_OUT_VIRIAL_STRESS_VON_MISES)
 		ofn_atoms = gmx_strdup(opt2fn("-vma", nfile, fnm));
 	if (!ofn_atoms) gmx_fatal(FARGS, "No file for writing out virial stress.\n");
   }
@@ -249,7 +224,7 @@ FDA::FDA(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global)
 	if (strcasecmp(tmpstr, pf_vector2scalar_option[i]) == 0)
 	  Vector2Scalar = i;
   fprintf(stderr, "Vector2Scalar: %s\n", pf_vector2scalar_option[Vector2Scalar]);
-  if (((pf_in_compatibility_mode(AtomBased)) || (pf_in_compatibility_mode(ResidueBased))) &&
+  if (((pf_in_compatibility_mode(atom_based_result_type)) || (pf_in_compatibility_mode(residue_based_result_type))) &&
 	(Vector2Scalar != PF_VECTOR2SCALAR_NORM))
 	  gmx_fatal(FARGS, "When using compat mode, pf_vector2scalar should be set to norm.\n");
 
@@ -263,14 +238,14 @@ FDA::FDA(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global)
 	if (OnePair != PF_ONEPAIR_SUMMED)
 	  gmx_fatal(FARGS, "Can only save scalar time averages from summed interactions.\n");
 	/* for atoms/residues, pf_atoms_init is called for each step from md.c, but for time averages the initialization needs to be done only at the begining and after every data writing */
-	if (pf_file_out_PF_or_PS(AtomBased)) {
-	  if (!((pf_in_compatibility_mode(AtomBased)) || (AtomBased == FILE_OUT_PAIRWISE_FORCES_SCALAR)))
+	if (pf_file_out_PF_or_PS(atom_based_result_type)) {
+	  if (!((pf_in_compatibility_mode(atom_based_result_type)) || (atom_based_result_type == FILE_OUT_PAIRWISE_FORCES_SCALAR)))
 		gmx_fatal(FARGS, "Can only use time averages with scalar or compatibility output.\n");
 	  pf_atoms_scalar_alloc(atom_based_forces, syslen_atoms, "atoms - time averages");
 	  pf_atoms_scalar_init(atom_based_forces);
 	}
-	if (pf_file_out_PF_or_PS(ResidueBased)) {
-	  if (!((pf_in_compatibility_mode(ResidueBased)) || (ResidueBased == FILE_OUT_PAIRWISE_FORCES_SCALAR)))
+	if (pf_file_out_PF_or_PS(residue_based_result_type)) {
+	  if (!((pf_in_compatibility_mode(residue_based_result_type)) || (residue_based_result_type == FILE_OUT_PAIRWISE_FORCES_SCALAR)))
 		gmx_fatal(FARGS, "Can only use time averages with scalar or compatibility output.\n");
 	  pf_atoms_scalar_alloc(residue_based_forces, syslen_residues, "residues - time averages");
 	  pf_atoms_scalar_init(residue_based_forces);
@@ -292,13 +267,13 @@ void FDA::add_bonded_nocheck(int i, int j, int type, rvec force)
    * force is the force atom j exerts on atom i; if i and j are switched, the force goes in opposite direction
    * it's possible that i > j, but ri < rj, so the force has to be handled separately for each of them
    * 
-   * the logic is a bit complicated by the fact that AtomBased and ResidueBased are independent;
-   * if ResidueBased part is done first, the AtomBased part can use i/j/force directly, without saving them
-   * first in intermediate variables, as the initial values of i/j/force are no longer needed; if AtomBased
+   * the logic is a bit complicated by the fact that atom_based_result_type and residue_based_result_type are independent;
+   * if residue_based_result_type part is done first, the atom_based_result_type part can use i/j/force directly, without saving them
+   * first in intermediate variables, as the initial values of i/j/force are no longer needed; if atom_based_result_type
    * is done first (the original code), i/j/force are needed for the later atom->residue mapping
    * and saving in intermediate variables is needed
    */
-  if (pf_file_out_PF_or_PS(ResidueBased)) {
+  if (pf_file_out_PF_or_PS(residue_based_result_type)) {
     /* the calling functions will not have i == j, but there is not such guarantee for ri and rj;
      * and it makes no sense to look at the interaction of a residue to itself
      */
@@ -334,7 +309,7 @@ void FDA::add_bonded_nocheck(int i, int j, int type, rvec force)
     }
   }
 
-  if (pf_file_out_PF_or_PS(AtomBased)) {
+  if (pf_file_out_PF_or_PS(atom_based_result_type)) {
     //fprintf(stderr, "pf_atom_add_bonded_nocheck: i=%d, j=%d, type=%d\n", i, j, type);
     if (i > j) {
       int_swap(&i, &j);
@@ -408,12 +383,12 @@ void FDA::add_nonbonded(int i, int j, real pf_coul, real pf_lj, real dx, real dy
   /*fprintf(stderr, "Nonbonded interaction: ii=%d, jnr=%d\n", ii, jnr);*/
 
   /* checking is symmetrical for atoms i and j; one of them has to be from g1, the other one from g2
-   * however, if only ResidueBased is non-zero, atoms won't be initialized... so the conversion to residue numebers needs to be done here already;
+   * however, if only residue_based_result_type is non-zero, atoms won't be initialized... so the conversion to residue numebers needs to be done here already;
    * the check below makes the atoms equivalent, make them always have the same order (i,j) and not (j,i) where i < j;
    * force is the force atom j exerts on atom i; if i and j are switched, the force goes in opposite direction
    * it's possible that i > j, but ri < rj, so the force has to be handled separately for each of them
    */
-  if (pf_file_out_PF_or_PS(ResidueBased)) {
+  if (pf_file_out_PF_or_PS(residue_based_result_type)) {
     /* the calling functions will not have i == j, but there is not such guarantee for ri and rj;
      * and it makes no sense to look at the interaction of a residue to itself
      */
@@ -455,7 +430,7 @@ void FDA::add_nonbonded(int i, int j, real pf_coul, real pf_lj, real dx, real dy
   }
 
   /* i & j as well as pf_lj & pf_coul are not used after this point, so it's safe to operate on their values directly */
-  if (pf_file_out_PF_or_PS(AtomBased)) {
+  if (pf_file_out_PF_or_PS(atom_based_result_type)) {
     //fprintf(stderr, "pf_atom_add_nonbonded: i=%d, j=%d\n", i, j);
     if (i > j) {
       int tmp = j; j = i; i = tmp; // swap

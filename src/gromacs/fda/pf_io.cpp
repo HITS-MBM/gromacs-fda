@@ -25,6 +25,8 @@
   #include <config.h>
 #endif
 
+using namespace fda;
+
 static inline void pf_write_space_separated_int_array(FILE *f, int *x, int len) {
   int i;
 
@@ -156,7 +158,7 @@ gmx_int64_t pf_atoms_scalar_to_fm(t_pf_atoms *atoms, int **fmatoms) {
   return interactions_count;
 }
 
-void pf_write_frame_atoms_compat(t_pf_atoms *atoms, FILE *f, int *framenr, int interactions_count, int *fmatoms, int *index, real *force, char *interaction, gmx_bool ascii) {
+void pf_write_frame_atoms_compat(DistributedForces const& forces, FILE *f, int *framenr, int interactions_count, int *fmatoms, int *index, real *force, char *interaction, gmx_bool ascii) {
   int i;
 
   if (ascii) {
@@ -181,7 +183,7 @@ void pf_write_frame_atoms_compat(t_pf_atoms *atoms, FILE *f, int *framenr, int i
   }
 }
 
-void pf_write_frame_atoms_summed_compat(t_pf_atoms *atoms, FILE *f, int *framenr, const rvec *x, gmx_bool ascii, int Vector2Scalar)
+void pf_write_frame_atoms_summed_compat(DistributedForces const& forces, FILE *f, int *framenr, const rvec *x, gmx_bool ascii, int Vector2Scalar)
 {
   t_pf_atom_summed i_atom_summed;
   t_pf_interaction_summed j_atom_summed;
@@ -290,7 +292,7 @@ rvec *pf_residues_com(FDA *fda, gmx_mtop_t *top_global, const rvec *x)
   return com;
 }
 
-void FDA::write_frame_detailed(t_pf_atoms* atoms, FILE* f, int *framenr, const rvec *x, gmx_bool bVector, int Vector2Scalar)
+void FDA::write_frame_detailed(DistributedForces const& forces, FILE* f, int *framenr, const rvec *x, gmx_bool bVector, int Vector2Scalar)
 {
   int i, ii, j, jj;
   t_pf_interaction_array_detailed *iad;
@@ -317,7 +319,7 @@ void FDA::write_frame_detailed(t_pf_atoms* atoms, FILE* f, int *framenr, const r
   (*framenr)++;
 }
 
-void FDA::write_frame_summed(t_pf_atoms* atoms, FILE* f, int *framenr, const rvec *x, gmx_bool bVector, int Vector2Scalar)
+void FDA::write_frame_summed(DistributedForces const& forces, FILE* f, int *framenr, const rvec *x, gmx_bool bVector, int Vector2Scalar)
 {
   int i, ii, j, jj;
   t_pf_interaction_array_summed ias;
@@ -341,7 +343,7 @@ void FDA::write_frame_summed(t_pf_atoms* atoms, FILE* f, int *framenr, const rve
   (*framenr)++;
 }
 
-void FDA::write_frame_scalar(t_pf_atoms* atoms, FILE* f, int *framenr)
+void FDA::write_frame_scalar(DistributedForces const& forces, FILE* f, int *framenr)
 {
   int i, ii, j, jj;
   t_pf_interaction_array_scalar ias;
@@ -362,7 +364,7 @@ void FDA::write_frame_scalar(t_pf_atoms* atoms, FILE* f, int *framenr)
   (*framenr)++;
 }
 
-void FDA::write_frame(const rvec *x,  gmx_mtop_t *top_global)
+void FDA::write_frame(const rvec *x, gmx_mtop_t *top_global)
 {
   rvec *com = NULL;	/* for residue based summation */
 
