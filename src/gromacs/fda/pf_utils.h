@@ -13,9 +13,6 @@
 
 t_pf_int_list *pf_int_list_alloc(int len);
 void pf_int_list_free(t_pf_int_list *p);
-void pf_atoms_scalar_real_divide(t_pf_atoms *atoms, real divisor);
-void pf_atom_summed_merge_to_scalar(t_pf_atom_summed *src, t_pf_atom_scalar *dst, const rvec *x, int Vector2Scalar);
-void pf_atoms_summed_merge_to_scalar(t_pf_atoms *atoms, const rvec *x, int Vector2Scalar);
 real pf_vector2signedscalar(const rvec v, const rvec xi, const rvec xj, int Vector2Scalar);
 void pf_fill_sys2pf(int *sys2pf, int *len, t_pf_int_list *p);
 char *pf_make_sys_in_group(int syslen, t_pf_int_list *p);

@@ -9,31 +9,12 @@
 #define SRC_GROMACS_FDA_DISTRIBUTEDFORCES_H_
 
 #include <vector>
+#include "DistributedForcesDetailed.h"
+#include "DistributedForcesScalar.h"
+#include "DistributedForcesVector.h"
 #include "ResultType.h"
-#include "gromacs/math/vectypes.h"
 
 namespace fda {
-
-struct DistributedForcesSingle
-{
-  /// Atom or residue index, respectively
-  std::vector<int> atom_id;
-
-  /// Scalar distributed forces
-  std::vector<real> scalar_force;
-
-  /// Vector distributed forces
-  std::vector<rvec> vector_force;
-
-  /// Detailed vector distributed forces
-  std::vector<rvec> vector_force_coulomb;
-  std::vector<rvec> vector_force_lj;
-  std::vector<rvec> vector_force_nb14;
-  std::vector<rvec> vector_force_bonds;
-  std::vector<rvec> vector_force_angles;
-  std::vector<rvec> vector_force_dihedrals;
-  std::vector<rvec> vector_force_polar;
-};
 
 /**
  * Storage container for distributed forces
@@ -48,13 +29,33 @@ struct DistributedForcesSingle
  * keep an array of t_pf_interaction items, but only an array of reals
  * representing forces.
  */
-struct DistributedForces
+class DistributedForces
 {
+public:
+
   /// Constructor
   DistributedForces(ResultType const& resultType);
 
+  /// Divide all scalar forces by the divisor
+  void scalar_real_divide(real divisor);
+
+  ///
+  void summed_merge_to_scalar(const rvec *x, int Vector2Scalar);
+
+private:
+
   /// Indexing table: real atom nr. to index in the pf array; this has length equal to the total nr. of atoms in system
-  std::vector<DistributedForcesSingle> forces;
+  std::vector<int> sys2pf;
+
+  /// Scalar values of forces
+  std::vector<DistributedForcesScalar> scalar_forces;
+
+  /// Vector values of forces
+  std::vector<DistributedForcesVector> vector_forces;
+
+  /// Detailed values of forces
+  std::vector<DistributedForcesDetailed> detailed_forces;
+
 };
 
 } // namespace fda

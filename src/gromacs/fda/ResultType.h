@@ -24,7 +24,7 @@ enum class ResultType : std::int8_t
   VIRIAL_STRESS_VON_MISES,
   COMPAT_BIN,               // DEPRICATED! compatibility mode (signed scalars) in binary
   COMPAT_ASCII,             // DEPRICATED! compatibility mode (signed scalars) in ascii
-  INVALID                   // unknown type from string conversion
+  INVALID                   // unknown type by string conversion
 };
 
 std::string to_string(ResultType const& r)

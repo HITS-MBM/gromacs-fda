@@ -64,14 +64,6 @@ void pf_int_list_free(t_pf_int_list *p) {
   sfree(p);
 }
 
-void pf_atoms_scalar_real_divide(t_pf_atoms *atoms, real divisor) {
-  int i;
-
-  for (i = 0; i < atoms->len; i++) {
-    pf_atom_scalar_real_divide(&(atoms->scalar[i]), divisor);
-  }
-}
-
 void pf_atom_summed_merge_to_scalar(t_pf_atom_summed *src, t_pf_atom_scalar *dst, const rvec *x, int Vector2Scalar) {
   t_pf_interaction_array_summed *ia;
   t_pf_interaction_summed *i;
@@ -373,12 +365,12 @@ void FDA::read_group(const char *ndxfile, char *groupname, char **sys_in_g) {
       groupatoms = pf_group2atoms(groups->index[i + 1] - groups->index[i], &groups->a[groups->index[i]]);
       *sys_in_g = pf_make_sys_in_group(syslen_atoms, groupatoms);
 
-      if (pf_file_out_PF_or_PS(AtomBased)) {
+      if (PF_or_PS_mode(AtomBased)) {
         pf_fill_sys2pf(atom_based_forces->sys2pf, &atom_based_forces->len, groupatoms);
 //	for (k = 0; k < syslen_atoms; k++)
 //	  fprintf(stderr, "sys2pf[%d]=%d\n", k, atoms->sys2pf[k]);
       }
-      if (pf_file_out_PF_or_PS(ResidueBased)) {
+      if (PF_or_PS_mode(ResidueBased)) {
         groupresidues = pf_groupatoms2residues(groupatoms, this);
         pf_fill_sys2pf(residue_based_forces->sys2pf, &residue_based_forces->len, groupresidues);
 //	for (k = 0; k < syslen_residues; k++)
@@ -486,9 +478,9 @@ void pf_atoms_init(int OnePair, t_pf_atoms *atoms) {
 
 void FDA::atoms_and_residues_init()
 {
-  if (pf_file_out_PF_or_PS(AtomBased))
+  if (PF_or_PS_mode(AtomBased))
 	pf_atoms_init(OnePair, atom_based_forces);
-  if (pf_file_out_PF_or_PS(ResidueBased))
+  if (PF_or_PS_mode(ResidueBased))
 	pf_atoms_init(OnePair, residue_based_forces);
 }
 
