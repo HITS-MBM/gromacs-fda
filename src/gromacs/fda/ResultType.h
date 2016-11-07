@@ -27,6 +27,7 @@ enum class ResultType : std::int8_t
   INVALID                   // unknown type by string conversion
 };
 
+/// Conversion to string
 std::string to_string(ResultType const& r)
 {
   switch(r) {
@@ -51,29 +52,35 @@ std::string to_string(ResultType const& r)
   }
 }
 
+/// Conversion from string
+ResultType from_string(std::string const& s)
+{
+  if (s == "none")
+	return ResultType::NO;
+  else if (s == "pairwise_forces_vector")
+	return ResultType::PAIRWISE_FORCES_VECTOR;
+  else if (s == "pairwise_forces_scalar")
+	return ResultType::PAIRWISE_FORCES_SCALAR;
+  else if (s == "punctual_stress")
+	return ResultType::PUNCTUAL_STRESS;
+  else if (s == "virial_stress")
+	return ResultType::VIRIAL_STRESS;
+  else if (s == "virial_stress_von_mises")
+	return ResultType::VIRIAL_STRESS_VON_MISES;
+  else if (s == "compat_bin")
+	return ResultType::COMPAT_BIN;
+  else if (s == "compat_ascii")
+	return ResultType::COMPAT_ASCII;
+  else
+	return ResultType::INVALID;
+}
+
 /// Input operator for ResultType
 std::istream& operator>>(std::istream& is, ResultType& r)
 {
   std::string s;
   is >> s;
-  if (s == "none")
-    r = ResultType::NO;
-  else if (s == "pairwise_forces_vector")
-    r = ResultType::PAIRWISE_FORCES_VECTOR;
-  else if (s == "pairwise_forces_scalar")
-    r = ResultType::PAIRWISE_FORCES_SCALAR;
-  else if (s == "punctual_stress")
-    r = ResultType::PUNCTUAL_STRESS;
-  else if (s == "virial_stress")
-    r = ResultType::VIRIAL_STRESS;
-  else if (s == "virial_stress_von_mises")
-    r = ResultType::VIRIAL_STRESS_VON_MISES;
-  else if (s == "compat_bin")
-    r = ResultType::COMPAT_BIN;
-  else if (s == "compat_ascii")
-    r = ResultType::COMPAT_ASCII;
-  else
-    r = ResultType::INVALID;
+  r = from_string(s);
   return is;
 }
 

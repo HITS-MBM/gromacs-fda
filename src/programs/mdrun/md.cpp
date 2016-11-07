@@ -678,7 +678,7 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
         fprintf(fplog, "\n");
     }
 
-    fr->fda = new fda::FDA(nfile, fnm, top_global);
+    fr->fda = new fda::FDA(fda::FDA::Settings(nfile, fnm, top_global));
     if ((fr->fda) && PAR(cr))
       gmx_fatal(FARGS, "PF2 doesn't work in parallel ! Please start with '-nt 1' on the mdrun command line\n");
     fr->fda->open();

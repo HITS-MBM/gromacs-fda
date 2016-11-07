@@ -79,8 +79,32 @@ typedef struct {
 class FDA {
 public:
 
-  /// Constructor
-  FDA(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global);
+  /// Settings
+  struct Settings
+  {
+	/// Default constructor
+	Settings()
+	 : atom_based_result_type(ResultType::NO),
+	   residue_based_result_type(ResultType::NO),
+	   syslen_atoms(0)
+	{}
+
+    /// Construction by reading file
+	Settings(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global);
+
+    /// ResultType for atom based forces
+	ResultType atom_based_result_type;
+
+	/// ResultType for residue based forces
+	ResultType residue_based_result_type;
+
+	/// Total nnumber of atoms in the system.
+	/// This is a local copy to avoid passing too many variables down the function call stack
+	int syslen_atoms;
+  };
+
+  /// Default constructor
+  FDA(Settings const& settings = Settings());
 
   /// Returns true if atoms i and j are in fda groups
   gmx_bool atoms_in_groups(int i, int j) const {
@@ -194,11 +218,8 @@ public:
 
 private:
 
-  /// ResultType for atom based forces
-  ResultType atom_based_result_type;
-
-  /// ResultType for residue based forces
-  ResultType residue_based_result_type;
+  /// Settings
+  Settings const settings;
 
   /// Distributed forces per atom
   DistributedForces atom_based_forces;
@@ -207,10 +228,6 @@ private:
   DistributedForces residue_based_forces;
 
 public:
-
-  /// TRUE if pairwise forces should be written out, FALSE otherwise;
-  /// if FALSE, many of the following structure members will not be initialized
-  gmx_bool bInitialized;
 
   // Helper flag for pairwise forces or punctual stress
   int PFPS;
@@ -233,7 +250,6 @@ public:
    * setting rather than creating separates modes for norm and projection.
    */
   int Vector2Scalar;
-  int syslen_atoms;             /* total nr. of atoms in the system; this is a local copy to avoid passing too many variables down the function call stack */
   int syslen_residues;          /* maximum of residue nr. + 1; residue nr. doesn't have to be continuous, there can be gaps */
   char *sys_in_g1;              /* 0 if atom not in group1, 1 if atom in group1, length of syslen_atoms; always allocated */
   char *sys_in_g2;              /* 0 if atom not in group2, 1 if atom in group2, length of syslen_atoms; always allocated */
