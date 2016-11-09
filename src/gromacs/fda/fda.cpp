@@ -29,32 +29,16 @@ static const real HALF    = 1.0 / 2.0;
 static const real THIRD   = 1.0 / 3.0;
 static const real QUARTER = 0.25;
 
-const char *pf_residue_renumber_option[PF_RESIDUE_RENUMBER_NR+1] = {
-  "auto",
-  "yes",
-  "no",
-  NULL
-};
-
-const char *pf_vector2scalar_option[PF_VECTOR2SCALAR_NR+1] = {
-  "norm",
-  "projection",
-  NULL
-};
-
 FDA::FDA(FDASettings const& fda_settings)
  : fda_settings(fda_settings),
-   atom_based_forces(fda_settings.atom_based_result_type),
-   residue_based_forces(fda_settings.residue_based_result_type),
+   atom_based_forces(ForceType::ATOMS, fda_settings),
+   residue_based_forces(ForceType::RESIDUES, fda_settings),
    PFPS(0),
    VS(0),
-   OnePair(0),
-   Vector2Scalar(0),
    syslen_residues(0),
    sys_in_g1(nullptr),
    sys_in_g2(nullptr),
    atom2residue(nullptr),
-   ResiduesRenumber(0),
    type(0),
    ofn_atoms(nullptr),
    of_atoms(nullptr),
@@ -71,17 +55,6 @@ FDA::FDA(FDASettings const& fda_settings)
    no_end_zeros(false),
    atom_vir(nullptr)
 {
-  /* OnePair has to be initialized before the atoms/residues are initialized
-   * because the data structures used for storing atoms/residues depend on it
-   */
-  OnePair = PF_ONEPAIR_SUMMED;
-  STYPE("onepair", tmpstr, "summed");
-  if (strcasecmp(tmpstr, "detailed") == 0)
-	OnePair = PF_ONEPAIR_DETAILED;
-
-  /* obtain in g1name and g2name the names of the 2 groups */
-  STYPE("group1", g1name, "Protein");
-  STYPE("group2", g2name, "Protein");
   /* check that there is an index file */
   if (!opt2bSet("-pfn", nfile, fnm))
 	gmx_fatal(FARGS, "No index file (-pfn) for pairwise forces.\n");
@@ -102,13 +75,6 @@ FDA::FDA(FDASettings const& fda_settings)
   if ((stress_mode(fda_settings.atom_based_result_type) || stress_mode(fda_settings.residue_based_result_type)) && (OnePair != PF_ONEPAIR_SUMMED))
 	gmx_fatal(FARGS, "Per atom data can only be computed from summed interactions.\n");
 
-  STYPE("residuesrenumber", tmpstr, "auto");
-  ResiduesRenumber = PF_RESIDUE_RENUMBER_AUTO;
-  for (i = 0; i < PF_RESIDUE_RENUMBER_NR; i++)
-	if (strcasecmp(tmpstr, pf_residue_renumber_option[i]) == 0)
-	  ResiduesRenumber = i;
-  fprintf(stderr, "ResidueRenumber: %s\n", pf_residue_renumber_option[ResiduesRenumber]);
-
   pf_fill_atom2residue(this, top_global);	/* also fills syslen_residues */
 
   // allocates and fills with -1 the indexing table real atom nr. to pf number
@@ -116,9 +82,6 @@ FDA::FDA(FDASettings const& fda_settings)
 	atom_based_forces.forces.resize(fda_settings.syslen_atoms);
   if (fda_settings.residue_based_result_type)
 	residue_based_forces.forces.resize(syslen_residues);
-
-  this->read_group(opt2fn("-pfn", nfile, fnm), g1name, &sys_in_g1);
-  this->read_group(opt2fn("-pfn", nfile, fnm), g2name, &sys_in_g2);
 
   if (PF_or_PS_mode(fda_settings.atom_based_result_type)) {
 	pf_check_sys_in_g(this);
@@ -154,24 +117,6 @@ FDA::FDA(FDASettings const& fda_settings)
 		ofn_atoms = gmx_strdup(opt2fn("-vma", nfile, fnm));
 	if (!ofn_atoms) gmx_fatal(FARGS, "No file for writing out virial stress.\n");
   }
-
-  STYPE("type", tmpstr, "all");
-  type = pf_interactions_type_str2val(tmpstr);
-  if (type == PF_INTER_NONE)
-	gmx_fatal(FARGS, "No interactions selected, no sense to compute pairwise forces.\n");
-  else {
-	fprintf(stderr, "Pairwise interactions selected: %s\n", pf_interactions_type_val2str(type));
-  }
-
-  STYPE("vector2scalar", tmpstr, "norm");
-  Vector2Scalar = PF_VECTOR2SCALAR_NORM;
-  for (i = 0; i < PF_VECTOR2SCALAR_NR; i++)
-	if (strcasecmp(tmpstr, pf_vector2scalar_option[i]) == 0)
-	  Vector2Scalar = i;
-  fprintf(stderr, "Vector2Scalar: %s\n", pf_vector2scalar_option[Vector2Scalar]);
-  if (((compatibility_mode(fda_settings.atom_based_result_type)) || (compatibility_mode(fda_settings.residue_based_result_type))) &&
-	(Vector2Scalar != PF_VECTOR2SCALAR_NORM))
-	  gmx_fatal(FARGS, "When using compat mode, pf_vector2scalar should be set to norm.\n");
 
   /* initialization of time averages */
   snew(time_averages, 1);

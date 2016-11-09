@@ -70,7 +70,7 @@ typedef struct {
 typedef struct {
   int period;       /* nr. of steps to average before writing; if 1 (default), no averaging is done; if 0, averaging is done over all steps so only one frame is written at the end */
   int steps;        /* counter for current step, incremented for every call of pf_save_and_write_scalar_averages(); when it reaches time_averages_steps, data is written */
-  rvec *com;                    /* averaged residue COM coordinates over steps, needed for COM calculations; only initialized when fda->ResidueBased is non-zero */
+  rvec *com;        /* averaged residue COM coordinates over steps, needed for COM calculations; only initialized when fda->ResidueBased is non-zero */
 } t_pf_time_averages;
 
 #ifdef __cplusplus
@@ -166,22 +166,6 @@ public:
    */
   void write_scalar_time_averages();
 
-  bool compatibility_mode(ResultType const& r) const {
-    return r == ResultType::COMPAT_BIN or r == ResultType::COMPAT_ASCII;
-  }
-
-  bool stress_mode(ResultType const& r) const {
-    return r == ResultType::PUNCTUAL_STRESS or r == ResultType::VIRIAL_STRESS or r == ResultType::VIRIAL_STRESS_VON_MISES;
-  }
-
-  bool PF_or_PS_mode(ResultType const& r) const {
-	return r == ResultType::PAIRWISE_FORCES_VECTOR or r == ResultType::PAIRWISE_FORCES_SCALAR or r == ResultType::PUNCTUAL_STRESS;
-  }
-
-  bool VS_mode(ResultType const& r) const {
-	return r == ResultType::VIRIAL_STRESS or r == ResultType::VIRIAL_STRESS_VON_MISES;
-  }
-
   // TODO: Remove following legacy c-functions:
 
   void atoms_and_residues_init();
@@ -209,13 +193,6 @@ public:
   // Helper flag for virial stress
   int VS;
 
-  /* OnePair defines the way the interactions between the same pair of atoms are stored:
-   * value | value in fi file | meaning
-   * 0     | detailed         | each interaction is stored separately; it's possible to have the same pair in several interaction lists (default)
-   * 1     | summed           | each interaction is stored once
-   */
-  int OnePair;
-
   /* Vector2Scalar defines the way the force vector to scalar conversion is done:
    * value | value in fi file | meaning
    * 0     | norm             | takes the norm of the vector
@@ -223,13 +200,12 @@ public:
    * As the conversion affects all scalar writing modes (PF_FILE_OUT*), this is kept as a separate
    * setting rather than creating separates modes for norm and projection.
    */
-  int Vector2Scalar;
   int syslen_residues;          /* maximum of residue nr. + 1; residue nr. doesn't have to be continuous, there can be gaps */
   char *sys_in_g1;              /* 0 if atom not in group1, 1 if atom in group1, length of syslen_atoms; always allocated */
   char *sys_in_g2;              /* 0 if atom not in group2, 1 if atom in group2, length of syslen_atoms; always allocated */
 
   int *atom2residue;        /* stores the residue nr. for each atom; array of length syslen; only initialized if ResidueBased is non-zero */
-  int ResiduesRenumber;         /* detect/force residue renumbering */
+
   int type;                     /* interaction types that are interesting, set based on input file; functions are supposed to test against this before calculating/storing data */
 
   // File handles for pairwise forces.
@@ -254,31 +230,6 @@ public:
 struct FDA {
 #endif
 };
-
-/* values for OnePair */
-enum {
-  PF_ONEPAIR_DETAILED,
-  PF_ONEPAIR_SUMMED,
-  PF_ONEPAIR_NR
-};
-
-/* values for Vector2Scalar */
-enum {
-  PF_VECTOR2SCALAR_NORM,
-  PF_VECTOR2SCALAR_PROJECTION,
-  PF_VECTOR2SCALAR_NR
-};
-
-/* values for ResidueRenumber */
-enum {
-  PF_RESIDUE_RENUMBER_AUTO,
-  PF_RESIDUE_RENUMBER_DO,
-  PF_RESIDUE_RENUMBER_DONT,
-  PF_RESIDUE_RENUMBER_NR
-};
-
-/* the initial number of items allocated for an array */
-#define PF_ARRAY_INITSIZE	8
 
 } // namespace fda
 
