@@ -22,7 +22,7 @@ t_pf_int_list *pf_groupatoms2residues(t_pf_int_list *atoms, FDA *fda);
 void pf_check_sys_in_g(FDA *fda);
 int pf_interactions_type_str2val(char *typestr);
 char *pf_interactions_type_val2str(int type);
-void pf_atoms_alloc(int OnePair, t_pf_atoms *atoms, int syslen, char *name);
+
 void pf_atoms_init(int OnePair, t_pf_atoms *atoms);
 void pf_atoms_scalar_alloc(t_pf_atoms *atoms, int syslen, char *name);
 void pf_atoms_scalar_init(t_pf_atoms *atoms);

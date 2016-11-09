@@ -27,60 +27,54 @@ enum class ResultType : std::int8_t
   INVALID                   // unknown type by string conversion
 };
 
-/// Conversion to string
-std::string to_string(ResultType const& r)
+/// Output stream for ResultType
+std::ostream& operator>>(std::ostream& os, ResultType r)
 {
   switch(r) {
     case ResultType::NO:
-      return "none";
+      return os << "none";
     case ResultType::PAIRWISE_FORCES_VECTOR:
-      return "pairwise_forces_vector";
+      return os << "pairwise_forces_vector";
     case ResultType::PAIRWISE_FORCES_SCALAR:
-      return "pairwise_forces_scalar";
+      return os << "pairwise_forces_scalar";
     case ResultType::PUNCTUAL_STRESS:
-      return "punctual_stress";
+      return os << "punctual_stress";
     case ResultType::VIRIAL_STRESS:
-      return "virial_stress";
+      return os << "virial_stress";
     case ResultType::VIRIAL_STRESS_VON_MISES:
-      return "virial_stress_von_mises";
+      return os << "virial_stress_von_mises";
     case ResultType::COMPAT_BIN:
-      return "compat_bin";
+      return os << "compat_bin";
     case ResultType::COMPAT_ASCII:
-      return "compat_ascii";
+      return os << "compat_ascii";
     default:
-      return "invalid";
+      return os << "invalid";
   }
 }
 
-/// Conversion from string
-ResultType from_string(std::string const& s)
-{
-  if (s == "none")
-	return ResultType::NO;
-  else if (s == "pairwise_forces_vector")
-	return ResultType::PAIRWISE_FORCES_VECTOR;
-  else if (s == "pairwise_forces_scalar")
-	return ResultType::PAIRWISE_FORCES_SCALAR;
-  else if (s == "punctual_stress")
-	return ResultType::PUNCTUAL_STRESS;
-  else if (s == "virial_stress")
-	return ResultType::VIRIAL_STRESS;
-  else if (s == "virial_stress_von_mises")
-	return ResultType::VIRIAL_STRESS_VON_MISES;
-  else if (s == "compat_bin")
-	return ResultType::COMPAT_BIN;
-  else if (s == "compat_ascii")
-	return ResultType::COMPAT_ASCII;
-  else
-	return ResultType::INVALID;
-}
-
-/// Input operator for ResultType
+/// Input stream for ResultType
 std::istream& operator>>(std::istream& is, ResultType& r)
 {
   std::string s;
   is >> s;
-  r = from_string(s);
+  if (s == "none")
+	r = ResultType::NO;
+  else if (s == "pairwise_forces_vector")
+	r = ResultType::PAIRWISE_FORCES_VECTOR;
+  else if (s == "pairwise_forces_scalar")
+	r = ResultType::PAIRWISE_FORCES_SCALAR;
+  else if (s == "punctual_stress")
+	r = ResultType::PUNCTUAL_STRESS;
+  else if (s == "virial_stress")
+	r = ResultType::VIRIAL_STRESS;
+  else if (s == "virial_stress_von_mises")
+	r = ResultType::VIRIAL_STRESS_VON_MISES;
+  else if (s == "compat_bin")
+	r = ResultType::COMPAT_BIN;
+  else if (s == "compat_ascii")
+	r = ResultType::COMPAT_ASCII;
+  else
+	r = ResultType::INVALID;
   return is;
 }
 

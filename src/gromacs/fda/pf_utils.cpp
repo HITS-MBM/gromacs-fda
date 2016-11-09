@@ -435,30 +435,6 @@ char *pf_interactions_type_val2str(int type) {
   return strdup(tmpstr);
 }
 
-void pf_atoms_alloc(int OnePair, t_pf_atoms *atoms, int syslen, char *name) {
-  int i;
-
-  fprintf(stderr, "Allocating space for pairwise forces of %d %s.\n", atoms->len, name);
-  switch(OnePair) {
-    case PF_ONEPAIR_DETAILED:
-      snew(atoms->detailed, atoms->len);
-      for (i = 0; i < syslen; i++)
-        if (atoms->sys2pf[i] != -1)
-          atoms->detailed[atoms->sys2pf[i]].nr = i;
-      break;
-    case PF_ONEPAIR_SUMMED:
-      snew(atoms->summed, atoms->len);
-      for (i = 0; i < syslen; i++)
-        if (atoms->sys2pf[i] != -1)
-          atoms->summed[atoms->sys2pf[i]].nr = i;
-      break;
-    default:
-       /* this is the first use of OnePair; calling gmx_fatal on further uses will not happen anymore, as the test here is supposed to catch such cases */
-       gmx_fatal(FARGS, "Unknown value for pf OnePair: 0x%x.\n", OnePair);
-       break;
-  }
-}
-
 void pf_atoms_init(int OnePair, t_pf_atoms *atoms) {
   int j;
 

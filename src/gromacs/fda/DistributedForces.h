@@ -12,6 +12,8 @@
 #include "DistributedForcesDetailed.h"
 #include "DistributedForcesScalar.h"
 #include "DistributedForcesVector.h"
+#include "FDASettings.h"
+#include "ForceType.h"
 #include "ResultType.h"
 
 namespace fda {
@@ -34,7 +36,7 @@ class DistributedForces
 public:
 
   /// Constructor
-  DistributedForces(ResultType const& resultType);
+  DistributedForces(ForceType force_type, FDASettings fda_settings);
 
   /// Divide all scalar forces by the divisor
   void scalar_real_divide(real divisor);
@@ -44,17 +46,23 @@ public:
 
 private:
 
+  /// Atom or residue based forces
+  ForceType force_type;
+
+  /// FDA settings
+  FDASettings fda_settings;
+
   /// Indexing table: real atom nr. to index in the pf array; this has length equal to the total nr. of atoms in system
   std::vector<int> sys2pf;
 
   /// Scalar values of forces
-  std::vector<DistributedForcesScalar> scalar_forces;
+  std::vector<DistributedForcesScalar> scalar;
 
   /// Vector values of forces
-  std::vector<DistributedForcesVector> vector_forces;
+  std::vector<DistributedForcesVector> vector;
 
   /// Detailed values of forces
-  std::vector<DistributedForcesDetailed> detailed_forces;
+  std::vector<DistributedForcesDetailed> detailed;
 
 };
 

@@ -50,9 +50,7 @@
 #include <cstdio>
 #include <vector>
 #include "DistributedForces.h"
-#include "ResultType.h"
-#include "gromacs/commandline/filenm.h"
-#include "gromacs/topology/topology.h"
+#include "FDASettings.h"
 #endif
 
 #ifdef HAVE_CONFIG_H
@@ -79,32 +77,8 @@ typedef struct {
 class FDA {
 public:
 
-  /// Settings
-  struct Settings
-  {
-	/// Default constructor
-	Settings()
-	 : atom_based_result_type(ResultType::NO),
-	   residue_based_result_type(ResultType::NO),
-	   syslen_atoms(0)
-	{}
-
-    /// Construction by reading file
-	Settings(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global);
-
-    /// ResultType for atom based forces
-	ResultType atom_based_result_type;
-
-	/// ResultType for residue based forces
-	ResultType residue_based_result_type;
-
-	/// Total nnumber of atoms in the system.
-	/// This is a local copy to avoid passing too many variables down the function call stack
-	int syslen_atoms;
-  };
-
   /// Default constructor
-  FDA(Settings const& settings = Settings());
+  FDA(FDASettings const& fda_settings = FDASettings());
 
   /// Returns true if atoms i and j are in fda groups
   gmx_bool atoms_in_groups(int i, int j) const {
@@ -219,7 +193,7 @@ public:
 private:
 
   /// Settings
-  Settings const settings;
+  FDASettings const& fda_settings;
 
   /// Distributed forces per atom
   DistributedForces atom_based_forces;
