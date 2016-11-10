@@ -28,6 +28,7 @@ struct FDASettings
 	 one_pair(OnePair::DETAILED),
 	 vector_2_scalar(Vector2Scalar::NORM),
 	 residues_renumber(ResiduesRenumber::AUTO),
+	 no_end_zeros(false),
      syslen_atoms(0)
   {}
 
@@ -67,6 +68,10 @@ struct FDASettings
 
   /// detect/force residue renumbering
   ResiduesRenumber residues_renumber;
+
+  /// If True, trim the line such that the zeros at the end are not written.
+  /// if False (default), all per atom/residue data is written.
+  gmx_bool no_end_zeros;
 
   /// Total number of atoms in the system.
   /// This is a local copy to avoid passing too many variables down the function call stack

@@ -15,6 +15,7 @@ FDASettings::FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global
    one_pair(OnePair::DETAILED),
    vector_2_scalar(Vector2Scalar::NORM),
    residues_renumber(ResiduesRenumber::AUTO),
+   no_end_zeros(false),
    syslen_atoms(top_global->natoms)
 {
   // check for the pf configuration file (specified with -pfi option);
@@ -45,6 +46,8 @@ FDASettings::FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global
 
   std::stringstream(get_estr(&ninp, &inp, "vector2scalar", "norm")) >> vector_2_scalar;
   std::cout << "Vector2Scalar: " << vector_2_scalar << std::endl;
+
+  no_end_zeros = strcasecmp(get_estr(&ninp, &inp, "no_end_zeros", "no"), "no");
 
   if ((compatibility_mode(atom_based_result_type) or compatibility_mode(residue_based_result_type)) and Vector2Scalar != Vector2Scalar::NORM)
 	gmx_fatal(FARGS, "When using compat mode, pf_vector2scalar should be set to norm.\n");

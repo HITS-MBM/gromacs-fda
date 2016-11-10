@@ -166,8 +166,6 @@ public:
 
   // TODO: Remove following legacy c-functions:
 
-  void atoms_and_residues_init();
-
   void open();
 
   void close();
@@ -221,7 +219,6 @@ public:
   t_pf_per_atom_real_int *per_atom_real_int;    /* only initialized if required by user */
   t_pf_per_atom_real *per_residue_real;          /* only initialized if required by user */
   t_pf_per_atom_real_int *per_residue_real_int; /* only initialized if required by user */
-  gmx_bool no_end_zeros;	/* if True, trim the line such that the zeros at the end are not written; if False (default), all per atom/residue data is written */
   tensor *atom_vir;
 
 #else

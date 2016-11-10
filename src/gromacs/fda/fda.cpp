@@ -52,7 +52,6 @@ FDA::FDA(FDASettings const& fda_settings)
    per_atom_real_int(nullptr),
    per_residue_real(nullptr),
    per_residue_real_int(nullptr),
-   no_end_zeros(false),
    atom_vir(nullptr)
 {
   /* check that there is an index file */
@@ -143,11 +142,6 @@ FDA::FDA(FDASettings const& fda_settings)
 	  clear_rvecs(syslen_residues, time_averages->com);
 	}
   }
-
-  STYPE("no_end_zeros", tmpstr, "no");
-  no_end_zeros = FALSE;
-  if (strcasecmp(tmpstr, "no") != 0)
-	no_end_zeros = TRUE;
 }
 
 void FDA::add_bonded_nocheck(int i, int j, int type, rvec force)
@@ -163,7 +157,7 @@ void FDA::add_bonded_nocheck(int i, int j, int type, rvec force)
    * is done first (the original code), i/j/force are needed for the later atom->residue mapping
    * and saving in intermediate variables is needed
    */
-  if (pf_file_out_PF_or_PS(fda_settings.residue_based_result_type)) {
+  if (residue_based_forces.PF_or_PS_mode()) {
     /* the calling functions will not have i == j, but there is not such guarantee for ri and rj;
      * and it makes no sense to look at the interaction of a residue to itself
      */
@@ -172,8 +166,8 @@ void FDA::add_bonded_nocheck(int i, int j, int type, rvec force)
     //fprintf(stderr, "pf_atom_add_bonded_nocheck: i=%d, j=%d, ri=%d, rj=%d, type=%d\n", i, j, ri, rj, type);
     rvec force_residue;
     if (ri != rj) {
-      switch(OnePair) {
-        case PF_ONEPAIR_DETAILED:
+      switch(fda_settings.one_pair) {
+        case OnePair::DETAILED:
           if (ri > rj) {
             int_swap(&ri, &rj);
             clear_rvec(force_residue);
@@ -183,7 +177,7 @@ void FDA::add_bonded_nocheck(int i, int j, int type, rvec force)
             pf_atom_detailed_add(&residue_based_forces->detailed[residue_based_forces->sys2pf[ri]], rj, type, force);
           }
           break;
-        case PF_ONEPAIR_SUMMED:
+        case OnePair::SUMMED:
           if (ri > rj) {
             int_swap(&ri, &rj);
             clear_rvec(force_residue);
@@ -199,17 +193,17 @@ void FDA::add_bonded_nocheck(int i, int j, int type, rvec force)
     }
   }
 
-  if (pf_file_out_PF_or_PS(fda_settings.atom_based_result_type)) {
+  if (atom_based_forces.PF_or_PS_mode()) {
     //fprintf(stderr, "pf_atom_add_bonded_nocheck: i=%d, j=%d, type=%d\n", i, j, type);
     if (i > j) {
       int_swap(&i, &j);
       rvec_opp(force);
     }
-    switch(OnePair) {
-      case PF_ONEPAIR_DETAILED:
+    switch(fda_settings.one_pair) {
+      case OnePair::DETAILED:
         pf_atom_detailed_add(&atom_based_forces->detailed[atom_based_forces->sys2pf[i]], j, type, force);
         break;
-      case PF_ONEPAIR_SUMMED:
+      case OnePair::SUMMED:
         pf_atom_summed_add(&atom_based_forces->summed[atom_based_forces->sys2pf[i]], j, type, force);
         break;
       default:
@@ -228,6 +222,7 @@ void FDA::add_bonded(int i, int j, int type, rvec force)
   }
   add_bonded_nocheck(i, j, type, force);
 }
+
 void FDA::add_nonbonded_single(int i, int j, int type, real force, real dx, real dy, real dz)
 {
   rvec force_v;			/* vector force for interaction */

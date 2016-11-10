@@ -996,8 +996,6 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
             }
         }
 
-        fr->fda->atoms_and_residues_init();
-
         if (MASTER(cr) && do_log)
         {
             print_ebin_header(fplog, step, t); /* can we improve the information printed here? */

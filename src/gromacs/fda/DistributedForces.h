@@ -44,6 +44,32 @@ public:
   ///
   void summed_merge_to_scalar(const rvec *x, int Vector2Scalar);
 
+  ResultType get_result_type() const {
+	if (force_type == ForceType::ATOMS) return fda_settings.atom_based_result_type;
+	else if (force_type == ForceType::RESIDUES) return fda_settings.residue_based_result_type;
+	else return ResultType::INVALID;
+  }
+
+  bool compatibility_mode() const {
+    ResultType r = get_result_type();
+    return r == ResultType::COMPAT_BIN or r == ResultType::COMPAT_ASCII;
+  }
+
+  bool stress_mode() const {
+	ResultType r = get_result_type();
+    return r == ResultType::PUNCTUAL_STRESS or r == ResultType::VIRIAL_STRESS or r == ResultType::VIRIAL_STRESS_VON_MISES;
+  }
+
+  bool PF_or_PS_mode() const {
+	ResultType r = get_result_type();
+	return r == ResultType::PAIRWISE_FORCES_VECTOR or r == ResultType::PAIRWISE_FORCES_SCALAR or r == ResultType::PUNCTUAL_STRESS;
+  }
+
+  bool VS_mode() const {
+	ResultType r = get_result_type();
+	return r == ResultType::VIRIAL_STRESS or r == ResultType::VIRIAL_STRESS_VON_MISES;
+  }
+
 private:
 
   /// Atom or residue based forces
@@ -59,7 +85,7 @@ private:
   std::vector<DistributedForcesScalar> scalar;
 
   /// Vector values of forces
-  std::vector<DistributedForcesVector> vector;
+  std::vector<DistributedForcesVector> summed;
 
   /// Detailed values of forces
   std::vector<DistributedForcesDetailed> detailed;
