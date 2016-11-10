@@ -141,8 +141,6 @@ public:
 
   void write_frame_atoms_scalar_compat(DistributedForces const& forces, FILE *f, int *framenr, gmx_bool ascii) /* const */;
 
-  void read_group(const char *ndxfile, char *groupname, char **sys_in_g);
-
   /**
    * Main function for scalar time averages; saves data and decides when to write it out
    *

@@ -63,3 +63,42 @@ FDASettings::FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global
   this->read_group(opt2fn("-pfn", nfile, fnm), name_group1, &sys_in_group1);
   this->read_group(opt2fn("-pfn", nfile, fnm), name_group2, &sys_in_group2);
 }
+
+void FDASettings::read_group(const char *ndxfile, char *groupname, char **sys_in_g)
+{
+  t_blocka *groups;
+  char** groupnames;
+  int i;
+  t_pf_int_list *groupatoms, *groupresidues;
+  int *residues_in_g;
+
+  groups = init_index(ndxfile, &groupnames);
+  if(groups->nr == 0)
+    gmx_fatal(FARGS, "No groups found in the indexfile.\n");
+
+  snew(residues_in_g, syslen_residues);
+
+  for (i = 0; i < groups->nr; i++) {
+    if (strcmp(groupnames[i], groupname) == 0) {
+      //fprintf(stderr, "found group: %s\n", groupname);
+      groupatoms = pf_group2atoms(groups->index[i + 1] - groups->index[i], &groups->a[groups->index[i]]);
+      *sys_in_g = pf_make_sys_in_group(syslen_atoms, groupatoms);
+
+      if (PF_or_PS_mode(AtomBased)) {
+        pf_fill_sys2pf(atom_based_forces->sys2pf, &atom_based_forces->len, groupatoms);
+//	for (k = 0; k < syslen_atoms; k++)
+//	  fprintf(stderr, "sys2pf[%d]=%d\n", k, atoms->sys2pf[k]);
+      }
+      if (PF_or_PS_mode(ResidueBased)) {
+        groupresidues = pf_groupatoms2residues(groupatoms, this);
+        pf_fill_sys2pf(residue_based_forces->sys2pf, &residue_based_forces->len, groupresidues);
+//	for (k = 0; k < syslen_residues; k++)
+//	  fprintf(stderr, "sys2pf[%d]=%d\n", k, residues->sys2pf[k]);
+        pf_int_list_free(groupresidues);
+      }
+
+      pf_int_list_free(groupatoms);
+      break;	/* once the group is found, no reason to check against further group names */
+    }
+  }
+}

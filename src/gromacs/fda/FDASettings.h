@@ -34,6 +34,9 @@ struct FDASettings
   /// Construction by input file
   FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global);
 
+  /// Read atom/residue groups
+  void read_group(const char *ndxfile, char *groupname, char **sys_in_g);
+
   bool compatibility_mode(ResultType const& r) const {
     return r == ResultType::COMPAT_BIN or r == ResultType::COMPAT_ASCII;
   }
