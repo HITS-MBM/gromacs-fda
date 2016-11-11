@@ -36,8 +36,8 @@
  * Copyright Bogdan Costescu 2010-2013
  */
 
-#ifndef GMX_FDA_FDA_H
-#define GMX_FDA_FDA_H
+#ifndef SRC_GROMACS_FDA_FDA_H
+#define SRC_GROMACS_FDA_FDA_H
 
 #include "gromacs/math/vectypes.h"
 #include "gromacs/utility/basedefinitions.h"
@@ -59,31 +59,12 @@
 
 namespace fda {
 
-/* type for a list of int's, containing both the list itself and the
- * length of the list
- */
-typedef struct {
-  int *list;
-  int len;
-} t_pf_int_list;
-
-typedef struct {
-  int period;       /* nr. of steps to average before writing; if 1 (default), no averaging is done; if 0, averaging is done over all steps so only one frame is written at the end */
-  int steps;        /* counter for current step, incremented for every call of pf_save_and_write_scalar_averages(); when it reaches time_averages_steps, data is written */
-  rvec *com;        /* averaged residue COM coordinates over steps, needed for COM calculations; only initialized when fda->ResidueBased is non-zero */
-} t_pf_time_averages;
-
 #ifdef __cplusplus
 class FDA {
 public:
 
   /// Default constructor
   FDA(FDASettings const& fda_settings = FDASettings());
-
-  /// Returns true if atoms i and j are in fda groups
-  gmx_bool atoms_in_groups(int i, int j) const {
-	return ((sys_in_g1[i] && sys_in_g2[j]) || (sys_in_g1[j] && sys_in_g2[i]));
-  }
 
   void add_bonded_nocheck(int i, int j, int type, rvec force);
 
@@ -102,6 +83,10 @@ public:
    *  computed, the same way it's done in the nonbonded kernels
    */
   void add_nonbonded(int i, int j, real pf_coul, real pf_lj, real dx, real dy, real dz);
+
+  void add_angle(int ai, int aj, int ak, rvec f_i, rvec f_j, rvec f_k);
+
+  void add_dihedral(int i, int j, int k, int l, rvec f_i, rvec f_j, rvec f_k, rvec f_l);
 
   /**
    *  The atom virial can be expressed as a 6-real tensor, as it's symmetric.
@@ -181,44 +166,33 @@ private:
   /// Distributed forces per residue
   DistributedForces residue_based_forces;
 
+  /// Counter for current step, incremented for every call of pf_save_and_write_scalar_averages()
+  /// When it reaches time_averages_steps, data is written
+  int time_averaging_steps;
+
+  /// Averaged residue COM coordinates over steps, needed for COM calculations
+  /// Only initialized when residue_based_forces is non-zero
+  rvec *time_averaging_com;
+
 public:
-
-  // Helper flag for pairwise forces or punctual stress
-  int PFPS;
-
-  // Helper flag for virial stress
-  int VS;
-
-  /* Vector2Scalar defines the way the force vector to scalar conversion is done:
-   * value | value in fi file | meaning
-   * 0     | norm             | takes the norm of the vector
-   * 1     | projection       | takes the projection of the force on the direction of the 2 atoms
-   * As the conversion affects all scalar writing modes (PF_FILE_OUT*), this is kept as a separate
-   * setting rather than creating separates modes for norm and projection.
-   */
-  int syslen_residues;          /* maximum of residue nr. + 1; residue nr. doesn't have to be continuous, there can be gaps */
-  char *sys_in_g1;              /* 0 if atom not in group1, 1 if atom in group1, length of syslen_atoms; always allocated */
-  char *sys_in_g2;              /* 0 if atom not in group2, 1 if atom in group2, length of syslen_atoms; always allocated */
 
   int *atom2residue;        /* stores the residue nr. for each atom; array of length syslen; only initialized if ResidueBased is non-zero */
 
-  int type;                     /* interaction types that are interesting, set based on input file; functions are supposed to test against this before calculating/storing data */
-
   // File handles for pairwise forces.
-  char *ofn_atoms;              /* output file name for atoms if AtomBased is non-zero */
   FILE *of_atoms;               /* output file for atoms if AtomBased is non-zero */
-  char *ofn_residues;           /* output file name for residues if ResidueBased is non-zero */
   FILE *of_residues;            /* outpuf file for residues if ResidueBased is non-zero */
 
   char *groupname;              /* name of group for output in compatibility mode */
   /* the following 2 should be gmx_int64_t, but the file format is defined with int... */
   int nsteps_atoms;             /* nr. of steps for output in compatibility mode; incremented for each step written during run, also used to write the total nr. of steps at the end */
   int nsteps_residues;          /* nr. of steps for output in compatibility mode; incremented for each step written during run, also used to write the total nr. of steps at the end */
-  t_pf_time_averages *time_averages;    /* only initialized when time averages are calculated */
-  t_pf_per_atom_real *per_atom_real;            /* only initialized if required by user */
-  t_pf_per_atom_real_int *per_atom_real_int;    /* only initialized if required by user */
-  t_pf_per_atom_real *per_residue_real;          /* only initialized if required by user */
-  t_pf_per_atom_real_int *per_residue_real_int; /* only initialized if required by user */
+
+  /// Only initialized if required by user
+  t_pf_per_atom_real *per_atom_real;
+  t_pf_per_atom_real_int *per_atom_real_int;
+  t_pf_per_atom_real *per_residue_real;
+  t_pf_per_atom_real_int *per_residue_real_int;
+
   tensor *atom_vir;
 
 #else
@@ -228,4 +202,4 @@ struct FDA {
 
 } // namespace fda
 
-#endif // GMX_FDA_FDA_H
+#endif // SRC_GROMACS_FDA_FDA_H

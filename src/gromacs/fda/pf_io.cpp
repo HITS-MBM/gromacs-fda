@@ -636,7 +636,7 @@ void pf_x_real_div(rvec *pf_x, int pf_x_len, real divisor) {
     svdiv(divisor, pf_x[i]);
 }
 
-void FDA::save_and_write_scalar_time_averages(const rvec *x,  gmx_mtop_t *top_global)
+void FDA::save_and_write_scalar_time_averages(const rvec *x, gmx_mtop_t *top_global)
 {
   rvec *com;    /* for residue based summation */
 
@@ -659,6 +659,7 @@ void FDA::save_and_write_scalar_time_averages(const rvec *x,  gmx_mtop_t *top_gl
   if ((time_averages->period != 0) && (time_averages->steps >= time_averages->period))
     this->write_scalar_time_averages();
 }
+
 void FDA::write_scalar_time_averages()
 {
   /* this function is called from md.c, needs to check whether PF was initialized... */

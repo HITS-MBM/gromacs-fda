@@ -29,7 +29,12 @@ struct FDASettings
 	 vector_2_scalar(Vector2Scalar::NORM),
 	 residues_renumber(ResiduesRenumber::AUTO),
 	 no_end_zeros(false),
-     syslen_atoms(0)
+     syslen_atoms(0),
+	 time_averaging_period(1),
+     syslen_residues(0),
+     sys_in_g1(nullptr),
+     sys_in_g2(nullptr),
+     type(0)
   {}
 
   /// Construction by input file
@@ -37,6 +42,11 @@ struct FDASettings
 
   /// Read atom/residue groups
   void read_group(const char *ndxfile, char *groupname, char **sys_in_g);
+
+  /// Returns true if atoms i and j are in fda groups
+  gmx_bool atoms_in_groups(int i, int j) const {
+	return ((sys_in_g1[i] && sys_in_g2[j]) || (sys_in_g1[j] && sys_in_g2[i]));
+  }
 
   bool compatibility_mode(ResultType const& r) const {
     return r == ResultType::COMPAT_BIN or r == ResultType::COMPAT_ASCII;
@@ -76,6 +86,29 @@ struct FDASettings
   /// Total number of atoms in the system.
   /// This is a local copy to avoid passing too many variables down the function call stack
   int syslen_atoms;
+
+  /// Number of steps to average before writing.
+  /// If 1 (default), no averaging is done.
+  /// If 0 averaging is done over all steps so only one frame is written at the end.
+  int time_averaging_period;
+
+  /// Output file name for atoms if AtomBased is non-zero
+  std::string ofn_atoms;
+
+  /// Output file name for residues if ResidueBased is non-zero
+  std::string ofn_residues;
+
+  /// Maximum of residue nr. + 1; residue nr. doesn't have to be continuous, there can be gaps
+  int syslen_residues;
+
+  /// If 0 if atom not in group1, if 1 if atom in group1, length of syslen_atoms; always allocated
+  char *sys_in_g1;
+
+  /// If 0 if atom not in group2, if 1 if atom in group2, length of syslen_atoms; always allocated
+  char *sys_in_g2;
+
+  /// Interaction types that are interesting, set based on input file; functions are supposed to test against this before calculating/storing data
+  int type;
 
 };
 

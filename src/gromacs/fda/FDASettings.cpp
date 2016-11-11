@@ -16,7 +16,12 @@ FDASettings::FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global
    vector_2_scalar(Vector2Scalar::NORM),
    residues_renumber(ResiduesRenumber::AUTO),
    no_end_zeros(false),
-   syslen_atoms(top_global->natoms)
+   syslen_atoms(top_global->natoms),
+   time_averaging_period(1),
+   syslen_residues(0),
+   sys_in_g1(nullptr),
+   sys_in_g2(nullptr),
+   type(0)
 {
   // check for the pf configuration file (specified with -pfi option);
   // if it doesn't exist, return NULL to specify that no pf handling is done;
@@ -58,13 +63,63 @@ FDASettings::FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global
   if (type == InteractionType::NONE)
 	gmx_fatal(FARGS, "No interactions selected, no sense to compute pairwise forces.\n");
 
-  // Obtain in g1name and g2name the names of the 2 groups
+  // Read group names
   std::string name_group1, name_group2;
   std::stringstream(get_estr(&ninp, &inp, "group1", "Protein")) >> name_group1;
   std::stringstream(get_estr(&ninp, &inp, "group2", "Protein")) >> name_group2;
+  std::cout << "Pairwise forces for groups: " << name_group1 << " and " << name_group2 << std::endl;
 
   this->read_group(opt2fn("-pfn", nfile, fnm), name_group1, &sys_in_group1);
   this->read_group(opt2fn("-pfn", nfile, fnm), name_group2, &sys_in_group2);
+
+  // Read time averaging period
+  time_averaging_period = get_eint(&ninp, &inp, "time_averages_period", 1, wi);
+  if (time_averaging_period < 0)
+	gmx_fatal(FARGS, "Invalid value for time_averages_period: %d\n", time_averaging_period);
+
+  // Check if groups are defined for PF/PF mode
+  if (PF_or_PS_mode(atom_based_result_type) or PF_or_PS_mode(residue_based_result_type)) {
+	if ((sys_in_g1 == NULL) || (sys_in_g2 == NULL))
+	  gmx_fatal(FARGS, "No atoms in one or both groups.\n");
+  }
+
+  // Check that there is an index file
+  if (!opt2bSet("-pfn", nfile, fnm))
+	gmx_fatal(FARGS, "No index file (-pfn) for pairwise forces.\n");
+
+  // Get output file names
+  if (PF_or_PS_mode(atom_based_result_type)) {
+	pf_atoms_alloc(OnePair, atom_based_forces, fda_settings.syslen_atoms, "atoms");
+	if (atom_based_result_type == ResultType::PUNCTUAL_STRESS) {
+		pf_per_atom_real_init(&(per_atom_real), fda_settings.syslen_atoms, 0.0);
+		ofn_atoms = gmx_strdup(opt2fn("-psa", nfile, fnm));
+	} else {
+		ofn_atoms = gmx_strdup(opt2fn("-pfa", nfile, fnm));
+	}
+	if (!ofn_atoms)
+	  gmx_fatal(FARGS, "No file for writing out atom-based values.\n");
+  }
+
+  if (PF_or_PS_mode(residue_based_result_type)) {
+	pf_atoms_alloc(OnePair, residue_based_forces, syslen_residues, "residues");
+	if (residue_based_result_type == ResultType::PUNCTUAL_STRESS) {
+		pf_per_atom_real_init(&(per_residue_real), syslen_residues, 0.0);
+		ofn_residues = gmx_strdup(opt2fn("-psr", nfile, fnm));
+	} else {
+		ofn_residues = gmx_strdup(opt2fn("-pfr", nfile, fnm));
+	}
+	if (!ofn_residues)
+	  gmx_fatal(FARGS, "No file for writing out residue-based values.\n");
+  }
+
+  if (VS_mode(atom_based_result_type)) {
+	snew(atom_vir, fda_settings.syslen_atoms);
+	if (atom_based_result_type == ResultType::VIRIAL_STRESS)
+		ofn_atoms = gmx_strdup(opt2fn("-vsa", nfile, fnm));
+	if (atom_based_result_type == ResultType::VIRIAL_STRESS_VON_MISES)
+		ofn_atoms = gmx_strdup(opt2fn("-vma", nfile, fnm));
+	if (!ofn_atoms) gmx_fatal(FARGS, "No file for writing out virial stress.\n");
+  }
 }
 
 void FDASettings::read_group(const char *ndxfile, char *groupname, char **sys_in_g)

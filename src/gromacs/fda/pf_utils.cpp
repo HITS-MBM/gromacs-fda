@@ -346,12 +346,6 @@ t_pf_int_list *pf_groupatoms2residues(t_pf_int_list *atoms, FDA *fda) {
   return p;
 }
 
-/// TODO: remove
-void pf_check_sys_in_g(FDA *fda) {
-  if ((fda->sys_in_g1 == NULL) || (fda->sys_in_g2 == NULL))
-    gmx_fatal(FARGS, "No atoms in one or both groups.\n");
-}
-
 /* inspired by src/gmxlib/readir.c::do_egp_flag() which reads multiple energy exclusion groups */
 int pf_interactions_type_str2val(char *typestr) {
   /* The maximum number of energy group pairs would be MAXPTR*(MAXPTR+1)/2.

@@ -14,10 +14,13 @@
 
 namespace fda {
 
+/// Vector2Scalar defines the way the force vector to scalar conversion is done
+/// As the conversion affects all scalar writing modes (PF_FILE_OUT*), this is kept as a separate
+/// setting rather than creating separates modes for norm and projection.
 enum class Vector2Scalar : std::int8_t
 {
-  NORM,
-  PROJECTION,
+  NORM,        ///< Takes the norm of the vector
+  PROJECTION,  ///< Takes the projection of the force on the direction of the 2 atoms
   INVALID
 };
 
