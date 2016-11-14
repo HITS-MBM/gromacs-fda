@@ -180,9 +180,6 @@ private:
   /// File handles for residue-based forces
   FILE *of_residues;
 
-  /// Name of group for output in compatibility mode
-  char *groupname;
-
   /// The following 2 should be gmx_int64_t, but the file format is defined with int
   /// Number of steps for output in compatibility mode; incremented for each step written during run, also used to write the total nr. of steps at the end
   int nsteps_atoms;

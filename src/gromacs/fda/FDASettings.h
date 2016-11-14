@@ -110,6 +110,9 @@ struct FDASettings
   /// If 0 if atom not in group2, if 1 if atom in group2, length of syslen_atoms; always allocated
   char *sys_in_g2;
 
+  /// Name of group for output in compatibility mode
+  std::string groupname;
+
   /// Interaction types that are interesting, set based on input file; functions are supposed to test against this before calculating/storing data
   int type;
 

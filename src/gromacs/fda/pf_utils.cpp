@@ -50,20 +50,6 @@ t_pf_interactions_type pf_interactions_type[] = {
 };
 #define PF_INTERACTIONS_NR asize(pf_interactions_type)
 
-t_pf_int_list *pf_int_list_alloc(int len) {
-  t_pf_int_list *p;
-
-  snew(p, 1);
-  p->len = len;
-  snew(p->list, p->len);
-  return p;
-}
-
-void pf_int_list_free(t_pf_int_list *p) {
-  sfree(p->list);
-  sfree(p);
-}
-
 void pf_atom_summed_merge_to_scalar(t_pf_atom_summed *src, t_pf_atom_scalar *dst, const rvec *x, int Vector2Scalar) {
   t_pf_interaction_array_summed *ia;
   t_pf_interaction_summed *i;
