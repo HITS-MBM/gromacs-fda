@@ -12,7 +12,6 @@
 #include "DistributedForcesDetailed.h"
 #include "DistributedForcesScalar.h"
 #include "DistributedForcesVector.h"
-#include "FDASettings.h"
 #include "ForceType.h"
 #include "ResultType.h"
 
@@ -36,7 +35,7 @@ class DistributedForces
 public:
 
   /// Constructor
-  DistributedForces(ForceType force_type, FDASettings fda_settings);
+  DistributedForces(ForceType force_type, ResultType result_type, int syslen);
 
   /// Divide all scalar forces by the divisor
   void scalar_real_divide(real divisor);
@@ -44,30 +43,20 @@ public:
   ///
   void summed_merge_to_scalar(const rvec *x, int Vector2Scalar);
 
-  ResultType get_result_type() const {
-	if (force_type == ForceType::ATOMS) return fda_settings.atom_based_result_type;
-	else if (force_type == ForceType::RESIDUES) return fda_settings.residue_based_result_type;
-	else return ResultType::INVALID;
-  }
-
   bool compatibility_mode() const {
-    ResultType r = get_result_type();
-    return r == ResultType::COMPAT_BIN or r == ResultType::COMPAT_ASCII;
+    return result_type == ResultType::COMPAT_BIN or result_type == ResultType::COMPAT_ASCII;
   }
 
   bool stress_mode() const {
-	ResultType r = get_result_type();
-    return r == ResultType::PUNCTUAL_STRESS or r == ResultType::VIRIAL_STRESS or r == ResultType::VIRIAL_STRESS_VON_MISES;
+    return result_type == ResultType::PUNCTUAL_STRESS or result_type == ResultType::VIRIAL_STRESS or result_type == ResultType::VIRIAL_STRESS_VON_MISES;
   }
 
   bool PF_or_PS_mode() const {
-	ResultType r = get_result_type();
-	return r == ResultType::PAIRWISE_FORCES_VECTOR or r == ResultType::PAIRWISE_FORCES_SCALAR or r == ResultType::PUNCTUAL_STRESS;
+	return result_type == ResultType::PAIRWISE_FORCES_VECTOR or result_type == ResultType::PAIRWISE_FORCES_SCALAR or result_type == ResultType::PUNCTUAL_STRESS;
   }
 
   bool VS_mode() const {
-	ResultType r = get_result_type();
-	return r == ResultType::VIRIAL_STRESS or r == ResultType::VIRIAL_STRESS_VON_MISES;
+	return result_type == ResultType::VIRIAL_STRESS or result_type == ResultType::VIRIAL_STRESS_VON_MISES;
   }
 
 private:
@@ -75,11 +64,14 @@ private:
   /// Atom or residue based forces
   ForceType force_type;
 
-  /// FDA settings
-  FDASettings fda_settings;
+  /// Result type
+  ResultType result_type;
 
   /// Indexing table: real atom nr. to index in the pf array; this has length equal to the total nr. of atoms in system
   std::vector<int> sys2pf;
+
+  /// Number of interaction nodes
+  std::vector<int> syslen;
 
   /// Scalar values of forces
   std::vector<DistributedForcesScalar> scalar;

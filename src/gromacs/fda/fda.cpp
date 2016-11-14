@@ -31,8 +31,8 @@ static const real QUARTER = 0.25;
 
 FDA::FDA(FDASettings const& fda_settings)
  : fda_settings(fda_settings),
-   atom_based_forces(ForceType::ATOMS, fda_settings),
-   residue_based_forces(ForceType::RESIDUES, fda_settings),
+   atom_based_forces(ForceType::ATOMS, fda_settings.atom_based_result_type, fda_settings.syslen_atoms),
+   residue_based_forces(ForceType::RESIDUES, fda_settings.residue_based_result_type, fda_settings.syslen_residues),
    time_averaging_steps(0),
    time_averaging_com(nullptr),
    of_atoms(nullptr),
@@ -46,29 +46,23 @@ FDA::FDA(FDASettings const& fda_settings)
    per_residue_real_int(nullptr),
    atom_vir(nullptr)
 {
-  // allocates and fills with -1 the indexing table real atom nr. to pf number
-  if (fda_settings.atom_based_result_type != ResultType::NO)
-	atom_based_forces.sys2pf.resize(fda_settings.syslen_atoms);
-  if (fda_settings.residue_based_result_type != ResultType::NO)
-	residue_based_forces.sys2pf.resize(fda_settings.syslen_residues);
-
   if (fda_settings.time_averaging_period != 1) {
 	if (fda_settings.one_pair != OnePair::SUMMED)
 	  gmx_fatal(FARGS, "Can only save scalar time averages from summed interactions.\n");
 	/* for atoms/residues, pf_atoms_init is called for each step from md.c, but for time averages the initialization needs to be done only at the begining and after every data writing */
 	if (atom_based_forces.PF_or_PS_mode()) {
-	  if (!((compatibility_mode(fda_settings.atom_based_result_type)) || (fda_settings.atom_based_result_type == ResultType::PAIRWISE_FORCES_SCALAR)))
+	  if (!(atom_based_forces.compatibility_mode() or fda_settings.atom_based_result_type == ResultType::PAIRWISE_FORCES_SCALAR))
 		gmx_fatal(FARGS, "Can only use time averages with scalar or compatibility output.\n");
 	  pf_atoms_scalar_alloc(atom_based_forces, fda_settings.syslen_atoms, "atoms - time averages");
 	  pf_atoms_scalar_init(atom_based_forces);
 	}
 	if (residue_based_forces.PF_or_PS_mode()) {
-	  if (!((compatibility_mode(fda_settings.residue_based_result_type)) || (fda_settings.residue_based_result_type == ResultType::PAIRWISE_FORCES_SCALAR)))
+	  if (!(residue_based_forces.compatibility_mode() or fda_settings.residue_based_result_type == ResultType::PAIRWISE_FORCES_SCALAR))
 		gmx_fatal(FARGS, "Can only use time averages with scalar or compatibility output.\n");
-	  pf_atoms_scalar_alloc(residue_based_forces, syslen_residues, "residues - time averages");
+	  pf_atoms_scalar_alloc(residue_based_forces, fda_settings.syslen_residues, "residues - time averages");
 	  pf_atoms_scalar_init(residue_based_forces);
-	  snew(time_averages->com, syslen_residues);
-	  clear_rvecs(syslen_residues, time_averages->com);
+	  snew(time_averaging_com, fda_settings.syslen_residues);
+	  clear_rvecs(fda_settings.syslen_residues, time_averaging_com);
 	}
   }
 }
@@ -90,8 +84,8 @@ void FDA::add_bonded_nocheck(int i, int j, int type, rvec force)
     /* the calling functions will not have i == j, but there is not such guarantee for ri and rj;
      * and it makes no sense to look at the interaction of a residue to itself
      */
-    int ri = atom2residue[i];
-    int rj = atom2residue[j];
+    int ri = fda_settings.get_atom2residue(i);
+    int rj = fda_settings.get_atom2residue(j);
     //fprintf(stderr, "pf_atom_add_bonded_nocheck: i=%d, j=%d, ri=%d, rj=%d, type=%d\n", i, j, ri, rj, type);
     rvec force_residue;
     if (ri != rj) {
@@ -317,7 +311,6 @@ void FDA::add_dihedral(int i, int j, int k, int l, rvec f_i, rvec f_j, rvec f_k,
 
 void FDA::add_nonbonded(int i, int j, real pf_coul, real pf_lj, real dx, real dy, real dz)
 {
-  int ri = 0, rj = 0;
   real pf_lj_residue, pf_coul_residue, pf_lj_coul;
   rvec pf_lj_atom_v, pf_lj_residue_v, pf_coul_atom_v, pf_coul_residue_v;
 
@@ -347,8 +340,8 @@ void FDA::add_nonbonded(int i, int j, real pf_coul, real pf_lj, real dx, real dy
     /* the calling functions will not have i == j, but there is not such guarantee for ri and rj;
      * and it makes no sense to look at the interaction of a residue to itself
      */
-    ri = atom2residue[i];
-    rj = atom2residue[j];
+    int ri = fda_settings.get_atom2residue(i);
+    int rj = fda_settings.get_atom2residue(j);
     //fprintf(stderr, "pf_atom_add_nonbonded: i=%d, j=%d, ri=%d, rj=%d\n", i, j, ri, rj);
     if (ri != rj) {
       if (ri > rj) {

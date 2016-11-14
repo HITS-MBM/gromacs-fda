@@ -20,7 +20,6 @@ namespace fda {
 /// Settings
 struct FDASettings
 {
-
   /// Default constructor
   FDASettings()
    : atom_based_result_type(ResultType::NO),
@@ -30,8 +29,8 @@ struct FDASettings
 	 residues_renumber(ResiduesRenumber::AUTO),
 	 no_end_zeros(false),
      syslen_atoms(0),
-	 time_averaging_period(1),
      syslen_residues(0),
+	 time_averaging_period(1),
      sys_in_g1(nullptr),
      sys_in_g2(nullptr),
      type(0)
@@ -49,6 +48,8 @@ struct FDASettings
   }
 
   void fill_atom2residue(gmx_mtop_t *top_global);
+
+  int get_atom2residue(int i) const { return atom_2_residue[i]; }
 
   bool compatibility_mode(ResultType const& r) const {
     return r == ResultType::COMPAT_BIN or r == ResultType::COMPAT_ASCII;
@@ -89,6 +90,9 @@ struct FDASettings
   /// This is a local copy to avoid passing too many variables down the function call stack
   int syslen_atoms;
 
+  /// Maximum of residue nr. + 1; residue nr. doesn't have to be continuous, there can be gaps
+  int syslen_residues;
+
   /// Number of steps to average before writing.
   /// If 1 (default), no averaging is done.
   /// If 0 averaging is done over all steps so only one frame is written at the end.
@@ -99,9 +103,6 @@ struct FDASettings
 
   /// Output file name for residues if ResidueBased is non-zero
   std::string ofn_residues;
-
-  /// Maximum of residue nr. + 1; residue nr. doesn't have to be continuous, there can be gaps
-  int syslen_residues;
 
   /// If 0 if atom not in group1, if 1 if atom in group1, length of syslen_atoms; always allocated
   char *sys_in_g1;

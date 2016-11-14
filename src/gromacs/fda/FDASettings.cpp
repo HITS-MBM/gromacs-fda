@@ -17,8 +17,8 @@ FDASettings::FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global
    residues_renumber(ResiduesRenumber::AUTO),
    no_end_zeros(false),
    syslen_atoms(top_global->natoms),
-   time_averaging_period(1),
    syslen_residues(0),
+   time_averaging_period(1),
    sys_in_g1(nullptr),
    sys_in_g2(nullptr),
    type(0)

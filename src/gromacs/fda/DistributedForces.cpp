@@ -9,19 +9,20 @@
 
 using namespace fda;
 
-DistributedForces::DistributedForces(ForceType force_type, FDASettings fda_settings)
+DistributedForces::DistributedForces(ForceType force_type, ResultType result_type, int syslen)
  : force_type(force_type),
-   fda_settings(fda_settings)
+   result_type(result_type),
+   syslen(syslen)
 {
   std::cout << "Allocating space for pairwise forces of " << fda_settings.syslen_atoms << force_type << std::endl;
-  switch(OnePair) {
-	case PF_ONEPAIR_DETAILED:
+  switch(fda_settings.one_pair) {
+	case OnePair::DETAILED:
 	  snew(atoms->detailed, atoms->len);
 	  for (i = 0; i < syslen; i++)
 		if (atoms->sys2pf[i] != -1)
 		  atoms->detailed[atoms->sys2pf[i]].nr = i;
 	  break;
-	case PF_ONEPAIR_SUMMED:
+	case OnePair::SUMMED:
 	  snew(atoms->summed, atoms->len);
 	  for (i = 0; i < syslen; i++)
 		if (atoms->sys2pf[i] != -1)
@@ -32,6 +33,10 @@ DistributedForces::DistributedForces(ForceType force_type, FDASettings fda_setti
 	   gmx_fatal(FARGS, "Unknown value for pf OnePair: 0x%x.\n", OnePair);
 	   break;
   }
+
+  // allocates and fills with -1 the indexing table real atom nr. to pf number
+  if (result_type != ResultType::NO)
+	sys2pf.resize(syslen);
 }
 
 void DistributedForces::scalar_real_divide(real divisor)
