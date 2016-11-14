@@ -368,10 +368,6 @@ void FDA::write_frame(const rvec *x, gmx_mtop_t *top_global)
 {
   rvec *com = NULL;	/* for residue based summation */
 
-  /* this function is called from md.c, needs to check whether PF was initialized... */
-  if (!bInitialized)
-    return;
-
   if (pf_file_out_PF_or_PS(ResidueBased))
     com = pf_residues_com(this, top_global, x);
 
@@ -519,9 +515,6 @@ void pf_write_compat_header(t_pf_atoms *atoms, FILE* f, int nsteps, int syslen, 
 
 void FDA::open()
 {
-  /* this function is called from md.c, needs to check whether PF was initialized... */
-  if (!bInitialized) return;
-
   if (pf_file_out_PF_or_PS(AtomBased)) {
     make_backup(ofn_atoms);
     of_atoms = gmx_fio_fopen(ofn_atoms, "w+");
@@ -549,9 +542,6 @@ void FDA::open()
 
 void FDA::close()
 {
-  /* this function is called from md.c, needs to check whether PF was initialized... */
-  if (!bInitialized) return;
-
   if (pf_file_out_PF_or_PS(AtomBased)) {
     if (pf_in_compatibility_mode(AtomBased)) {
       fprintf(of_atoms, "EOF");
@@ -638,52 +628,43 @@ void pf_x_real_div(rvec *pf_x, int pf_x_len, real divisor) {
 
 void FDA::save_and_write_scalar_time_averages(const rvec *x, gmx_mtop_t *top_global)
 {
-  rvec *com;    /* for residue based summation */
+  if (fda_settings.time_averaging_period != 1) {
+    // First save the data
+    if (atom_based_forces.PF_or_PS_mode())
+      atom_based_forces.summed_merge_to_scalar(x, Vector2Scalar);
+    if (residue_based_forces.PF_or_PS_mode()) {
+  	  rvec *com = pf_residues_com(this, top_global, x);
+      residue_based_forces.summed_merge_to_scalar(com, Vector2Scalar);
+      pf_x_inc(residue_based_forces, time_averaging_com, com);
+      sfree(com);
+    }
 
-  /* this function is called from md.c, needs to check whether PF was initialized... */
-  if (!bInitialized)
-    return;
-
-  //fprintf(stderr, "save and write scalar data, steps=%d\n", time_averages->steps);
-  /* first save the data */
-  if (pf_file_out_PF_or_PS(AtomBased))
-    pf_atoms_summed_merge_to_scalar(atom_based_forces, x, Vector2Scalar);
-  if (pf_file_out_PF_or_PS(ResidueBased)) {
-    com = pf_residues_com(this, top_global, x);
-    pf_atoms_summed_merge_to_scalar(residue_based_forces, (const rvec *)com, Vector2Scalar);
-    pf_x_inc(residue_based_forces, time_averages->com, (const rvec *)com);
-    sfree(com);
+    time_averages->steps++;
+    if ((time_averages->period != 0) && (time_averages->steps >= time_averages->period))
+      this->write_scalar_time_averages();
+  } else {
+    write_frame(x, top_global);
   }
-
-  time_averages->steps++;
-  if ((time_averages->period != 0) && (time_averages->steps >= time_averages->period))
-    this->write_scalar_time_averages();
 }
 
 void FDA::write_scalar_time_averages()
 {
-  /* this function is called from md.c, needs to check whether PF was initialized... */
-  if (!bInitialized)
-    return;
+  if (time_averaging_steps == 0) return;
+  if (fda_settings.time_averaging_period == 1) return;
 
-  if (time_averages->steps == 0)
-    return;
-
-  //fprintf(stderr, "steps=%d\n", time_averages->steps);
-  /* atoms */
-  if (pf_file_out_PF_or_PS(AtomBased)) {
-    pf_atoms_scalar_real_divide(atom_based_forces, (real)time_averages->steps);
-    if (pf_in_compatibility_mode(AtomBased))
+  if (atom_based_forces.PF_or_PS_mode()) {
+    atom_based_forces.scalar_real_divide(time_averaging_steps);
+    if (atom_based_forces.compatibility_mode())
       this->write_frame_atoms_scalar_compat(atom_based_forces, of_atoms, &nsteps_atoms, (AtomBased == FILE_OUT_COMPAT_ASCII));
     else
       this->write_frame_scalar(atom_based_forces, of_atoms, &nsteps_atoms);
     pf_atoms_scalar_init(atom_based_forces);
   }
-  /* residues */
-  if (pf_file_out_PF_or_PS(ResidueBased)) {
-    pf_atoms_scalar_real_divide(residue_based_forces, (real)time_averages->steps);
-    pf_x_real_div(time_averages->com, syslen_residues, (real)time_averages->steps);
-    if (pf_in_compatibility_mode(ResidueBased))
+
+  if (residue_based_forces.PF_or_PS_mode()) {
+    residue_based_forces.scalar_real_divide(time_averaging_steps);
+    pf_x_real_div(time_averaging_com, fda_settings.syslen_residues, time_averaging_steps);
+    if (residue_based_forces.compatibility_mode())
       this->write_frame_atoms_scalar_compat(residue_based_forces, of_residues, &nsteps_residues, (ResidueBased == FILE_OUT_COMPAT_ASCII));
     else
       this->write_frame_scalar(residue_based_forces, of_residues, &nsteps_residues);
@@ -691,7 +672,7 @@ void FDA::write_scalar_time_averages()
     clear_rvecs(syslen_residues, time_averages->com);
   }
 
-  time_averages->steps = 0;
+  time_averaging_steps = 0;
 }
 
 void FDA::write_frame_atoms_scalar_compat(t_pf_atoms *atoms, FILE *f, int *framenr, gmx_bool ascii)

@@ -174,18 +174,21 @@ private:
   /// Only initialized when residue_based_forces is non-zero
   rvec *time_averaging_com;
 
-public:
+  /// File handles for atom-based forces
+  FILE *of_atoms;
 
-  int *atom2residue;        /* stores the residue nr. for each atom; array of length syslen; only initialized if ResidueBased is non-zero */
+  /// File handles for residue-based forces
+  FILE *of_residues;
 
-  // File handles for pairwise forces.
-  FILE *of_atoms;               /* output file for atoms if AtomBased is non-zero */
-  FILE *of_residues;            /* outpuf file for residues if ResidueBased is non-zero */
+  /// Name of group for output in compatibility mode
+  char *groupname;
 
-  char *groupname;              /* name of group for output in compatibility mode */
-  /* the following 2 should be gmx_int64_t, but the file format is defined with int... */
-  int nsteps_atoms;             /* nr. of steps for output in compatibility mode; incremented for each step written during run, also used to write the total nr. of steps at the end */
-  int nsteps_residues;          /* nr. of steps for output in compatibility mode; incremented for each step written during run, also used to write the total nr. of steps at the end */
+  /// The following 2 should be gmx_int64_t, but the file format is defined with int
+  /// Number of steps for output in compatibility mode; incremented for each step written during run, also used to write the total nr. of steps at the end
+  int nsteps_atoms;
+
+  /// Number of steps for output in compatibility mode; incremented for each step written during run, also used to write the total nr. of steps at the end
+  int nsteps_residues;
 
   /// Only initialized if required by user
   t_pf_per_atom_real *per_atom_real;

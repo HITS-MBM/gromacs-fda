@@ -368,19 +368,17 @@
 
 #ifdef CALC_ENERGIES
                 /* pairwise forces */
-                if (fda->bInitialized) {
-                	if (fabs(fcoul) > PF_TINY_REAL_NUMBER && fabs(fvdw) > PF_TINY_REAL_NUMBER) {
-						pf_atom_add_nonbonded(fda, cellInv[ai], cellInv[aj], fcoul, fvdw, dx, dy, dz);
-						//printf("Add vdw and coulomb %i %i %15.8f %15.8f\n",
-						//	ai, aj, fcoul, fvdw); fflush(stdout);
-                	} else if (fabs(fcoul) > PF_TINY_REAL_NUMBER) {
-    					pf_atom_add_nonbonded_single(fda, cellInv[ai], cellInv[aj], PF_INTER_COULOMB, fcoul, dx, dy, dz);
-    					//printf("Add coulomb %i %i %15.8f\n", ai, aj, fcoul); fflush(stdout);
-                	} else if (fabs(fvdw) > PF_TINY_REAL_NUMBER) {
-                        pf_atom_add_nonbonded_single(fda, cellInv[ai], cellInv[aj], PF_INTER_LJ, fscal, dx, dy, dz);
-                        //printf("Add vdw %i %i %15.8f\n", ai, aj, fscal); fflush(stdout);
-                	}
-                }
+				if (fabs(fcoul) > PF_TINY_REAL_NUMBER && fabs(fvdw) > PF_TINY_REAL_NUMBER) {
+					pf_atom_add_nonbonded(fda, cellInv[ai], cellInv[aj], fcoul, fvdw, dx, dy, dz);
+					//printf("Add vdw and coulomb %i %i %15.8f %15.8f\n",
+					//	ai, aj, fcoul, fvdw); fflush(stdout);
+				} else if (fabs(fcoul) > PF_TINY_REAL_NUMBER) {
+					pf_atom_add_nonbonded_single(fda, cellInv[ai], cellInv[aj], PF_INTER_COULOMB, fcoul, dx, dy, dz);
+					//printf("Add coulomb %i %i %15.8f\n", ai, aj, fcoul); fflush(stdout);
+				} else if (fabs(fvdw) > PF_TINY_REAL_NUMBER) {
+					pf_atom_add_nonbonded_single(fda, cellInv[ai], cellInv[aj], PF_INTER_LJ, fscal, dx, dy, dz);
+					//printf("Add vdw %i %i %15.8f\n", ai, aj, fscal); fflush(stdout);
+				}
 #endif
             }
 #ifdef HALF_LJ
@@ -390,7 +388,7 @@
 
 #ifdef CALC_ENERGIES
 				/* pairwise forces */
-				if (fda->bInitialized && fabs(fcoul) > PF_TINY_REAL_NUMBER) {
+				if (fabs(fcoul) > PF_TINY_REAL_NUMBER) {
 					pf_atom_add_nonbonded_single(fda, cellInv[ai], cellInv[aj], PF_INTER_COULOMB, fcoul, dx, dy, dz);
 					//printf("Add coulomb %i %i %15.8f\n", ai, aj, fcoul); fflush(stdout);
 				}
@@ -402,7 +400,7 @@
 
 #ifdef CALC_ENERGIES
             /* pairwise forces */
-            if (fda->bInitialized && fabs(fscal) > PF_TINY_REAL_NUMBER) {
+            if (fabs(fscal) > PF_TINY_REAL_NUMBER) {
                 pf_atom_add_nonbonded_single(fda, cellInv[ai], cellInv[aj], PF_INTER_LJ, fscal, dx, dy, dz);
                 //printf("Add vdw %i %i %15.8f\n", ai, aj, fscal); fflush(stdout);
             }

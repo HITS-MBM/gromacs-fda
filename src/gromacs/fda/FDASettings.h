@@ -48,6 +48,8 @@ struct FDASettings
 	return ((sys_in_g1[i] && sys_in_g2[j]) || (sys_in_g1[j] && sys_in_g2[i]));
   }
 
+  void fill_atom2residue(gmx_mtop_t *top_global);
+
   bool compatibility_mode(ResultType const& r) const {
     return r == ResultType::COMPAT_BIN or r == ResultType::COMPAT_ASCII;
   }
@@ -109,6 +111,9 @@ struct FDASettings
 
   /// Interaction types that are interesting, set based on input file; functions are supposed to test against this before calculating/storing data
   int type;
+
+  /// Stores the residue number for each atom; array of length syslen; only initialized if ResidueBased is non-zero
+  std::vector<int> atom_2_residue;
 
 };
 

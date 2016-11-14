@@ -120,6 +120,19 @@ FDASettings::FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global
 		ofn_atoms = gmx_strdup(opt2fn("-vma", nfile, fnm));
 	if (!ofn_atoms) gmx_fatal(FARGS, "No file for writing out virial stress.\n");
   }
+
+  // Check if using compatibility mode, there should be only one group
+  if (compatibility_mode(atom_based_result_type) or compatibility_mode(residue_based_result_type)) {
+	if (gmx_strcasecmp(g1name, g2name))
+	  gmx_fatal(FARGS, "When using compat mode, the two group names should the identical.\n");
+	else
+	  groupname = gmx_strdup(g1name);
+  }
+
+  if ((stress_mode(atom_based_result_type) or stress_mode(residue_based_result_type)) and (one_pair != OnePair::SUMMED))
+	gmx_fatal(FARGS, "Per atom data can only be computed from summed interactions.\n");
+
+  fill_atom2residue(top_global);
 }
 
 void FDASettings::read_group(const char *ndxfile, char *groupname, char **sys_in_g)
@@ -158,5 +171,88 @@ void FDASettings::read_group(const char *ndxfile, char *groupname, char **sys_in
       pf_int_list_free(groupatoms);
       break;	/* once the group is found, no reason to check against further group names */
     }
+  }
+}
+
+void FDASettings::fill_atom2residue(gmx_mtop_t *top_global)
+{
+  int moltype_index, mol_index, atom_index, atom_global_index, resnrmax, i;
+  t_atoms *atoms;
+  t_atom *atom_info;
+  gmx_molblock_t *mb;
+  int *a2r_resnr, *a2r_renum;       /* atom 2 residue correspondence tables, both are filled, one will be used in the end */
+  int *resnr2renum;                 /* residue nr. to renumbered nr. corespondence */
+  int resnr;                            /* residue nr.; set to atoms->resinfo[].nr => type int */
+  int renum;                        /* renumbered residue nr.; increased monotonically, so could theoretically be as large as the nr. of atoms => type int */
+  gmx_bool bResnrCollision = FALSE;     /* TRUE if residue number collision */
+
+  /* fill in the map between atom nr. and residue nr.; adapted from the code fragment in Data_Structures page on GROMACS website */
+  snew(a2r_resnr, top_global->natoms);
+  snew(a2r_renum, top_global->natoms);
+  /* get the maximum number of residues in any molecule block;
+   * any residue nr. obtained via atoms->resinfo[].nr is guaranteed to be smaller than this;
+   * this will be used for residue nr. collision detection - initialized to -1,
+   * will be set to the renumbered value on the first encounter, then a new renumbered value means a collision */
+  resnrmax = gmx_mtop_maxresnr(top_global, 0);
+  snew(resnr2renum, resnrmax + 1);
+  //fprintf(stderr, "resnrmax=%d\n",resnrmax);
+  for (i = 0; i <= resnrmax; i++)
+    resnr2renum[i] = -1;
+  atom_global_index = 0;
+  renum = 0;
+  for (moltype_index = 0; moltype_index < top_global->nmolblock; moltype_index++) {	//enum all molecule types
+    mb = &top_global->molblock[moltype_index];
+    for (mol_index = 0; mol_index < mb->nmol; mol_index++) {				//enum all instances of each molecule type
+      atoms = &top_global->moltype[mb->type].atoms;
+      for(atom_index = 0; atom_index < atoms->nr; atom_index++) {			//enum atoms
+        atom_info=&atoms->atom[atom_index];
+        resnr = atoms->resinfo[atom_info->resind].nr;
+        renum = pf_get_global_residue_number(top_global, atom_global_index);
+        //fprintf(stderr, "atom=%d, resnr=%d, renum=%d\n", atom_global_index, resnr, renum);
+        //fprintf(stderr, "pair %d:%d\n", resnr, resnr2renum[resnr]);
+        if ((resnr2renum[resnr] != renum) && (resnr2renum[resnr] != -1)) {
+          bResnrCollision = TRUE;
+          //fprintf(stderr, "Renumbering because %d:%d should be %d:%d\n", resnr, renum, resnr, resnr2renum[resnr]);
+        }
+        resnr2renum[resnr] = renum;
+        a2r_resnr[atom_global_index] = resnr;
+        a2r_renum[atom_global_index] = renum;
+        atom_global_index++;
+      }
+    }
+  } /* for (moltype_index = 0... */
+  sfree(resnr2renum);
+
+  /* renum is set to the residue number of the last atom, so should be largest value so far */
+  switch (fda->ResiduesRenumber) {
+    case PF_RESIDUE_RENUMBER_AUTO:
+      if (bResnrCollision) {
+        fprintf(stderr, "Residue number collision detected, residues will be renumbered.\n");
+        fda->atom2residue = a2r_renum;
+        fda->syslen_residues = renum + 1;
+        sfree(a2r_resnr);
+      }
+      else {
+        fprintf(stderr, "Residues will not be renumbered.\n");
+        fda->atom2residue = a2r_resnr;
+        fda->syslen_residues = resnrmax + 1;
+        sfree(a2r_renum);
+      }
+      break;
+    case PF_RESIDUE_RENUMBER_DO:
+      fprintf(stderr, "Residues will be renumbered.\n");
+      fda->atom2residue = a2r_renum;
+      fda->syslen_residues = renum + 1;
+      sfree(a2r_resnr);
+      break;
+    case PF_RESIDUE_RENUMBER_DONT:
+      if (bResnrCollision)
+        fprintf(stderr, "Residue number collision detected, residues will NOT be renumbered.\n");
+      else
+        fprintf(stderr, "Residues will not be renumbered.\n");
+      fda->atom2residue = a2r_resnr;
+      fda->syslen_residues = resnrmax + 1;
+      sfree(a2r_renum);
+      break;
   }
 }

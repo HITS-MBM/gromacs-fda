@@ -35,7 +35,6 @@ FDA::FDA(FDASettings const& fda_settings)
    residue_based_forces(ForceType::RESIDUES, fda_settings),
    time_averaging_steps(0),
    time_averaging_com(nullptr),
-   atom2residue(nullptr),
    of_atoms(nullptr),
    of_residues(nullptr),
    groupname(nullptr),
@@ -47,24 +46,11 @@ FDA::FDA(FDASettings const& fda_settings)
    per_residue_real_int(nullptr),
    atom_vir(nullptr)
 {
-  /* if using compatibility mode, there should be only one group */
-  if (compatibility_mode(fda_settings.atom_based_result_type) or compatibility_mode(fda_settings.residue_based_result_type)) {
-	if (gmx_strcasecmp(g1name, g2name))
-	  gmx_fatal(FARGS, "When using compat mode, the two group names should the identical.\n");
-	else
-	  groupname = gmx_strdup(g1name);
-  }
-
-  if ((stress_mode(fda_settings.atom_based_result_type) || stress_mode(fda_settings.residue_based_result_type)) && (OnePair != PF_ONEPAIR_SUMMED))
-	gmx_fatal(FARGS, "Per atom data can only be computed from summed interactions.\n");
-
-  pf_fill_atom2residue(this, top_global);
-
   // allocates and fills with -1 the indexing table real atom nr. to pf number
   if (fda_settings.atom_based_result_type != ResultType::NO)
 	atom_based_forces.sys2pf.resize(fda_settings.syslen_atoms);
   if (fda_settings.residue_based_result_type != ResultType::NO)
-	residue_based_forces.sus2pf.resize(fda_settings.syslen_residues);
+	residue_based_forces.sys2pf.resize(fda_settings.syslen_residues);
 
   if (fda_settings.time_averaging_period != 1) {
 	if (fda_settings.one_pair != OnePair::SUMMED)

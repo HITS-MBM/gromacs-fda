@@ -1256,11 +1256,8 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
         /* ########  END FIRST UPDATE STEP  ############## */
         /* ########  If doing VV, we now have v(dt) ###### */
 
-        /* this test could be done inside pf_save_and_write_scalar_averages(), but is left here explicitly to be replaced with a more general mechanism */
-        if (fr->fda->time_averages->period != 1)
-          fr->fda->save_and_write_scalar_time_averages(state->x, top_global);
-        else
-          fr->fda->write_frame(state->x, top_global);
+        // FDA
+        fr->fda->save_and_write_scalar_time_averages(state->x, top_global);
 
         if (bDoExpanded)
         {
@@ -1816,8 +1813,8 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
         close_trj(status);
     }
 
-    if (fr->fda->time_averages->period != 1)
-        fr->fda->write_scalar_time_averages();
+    // FDA
+    fr->fda->write_scalar_time_averages();
     fr->fda->close();
 
     if (!(cr->duty & DUTY_PME))
