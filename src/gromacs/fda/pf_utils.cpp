@@ -113,31 +113,6 @@ real pf_vector2signedscalar(const rvec v, const rvec xi, const rvec xj, int Vect
   }
 }
 
-/* fills an indexing table: real atom nr. to pf number based on data from group atom lists*/
-void pf_fill_sys2pf(int *sys2pf, int *len, t_pf_int_list *p) {
-  int i;
-
-  for (i = 0; i < p->len; i++) {
-    if (sys2pf[p->list[i]] == -1) {
-      sys2pf[p->list[i]] = *len;
-      (*len)++;
-    }
-  }
-}
-
-char *pf_make_sys_in_group(int syslen, t_pf_int_list *p) {
-  char *sys_in_group;
-  int i;
-
-  if (p->len == 0)
-    return NULL;
-  snew(sys_in_group, syslen);
-  for (i = 0; i < p->len; i++) {
-    sys_in_group[p->list[i]] = 1;
-  }
-  return sys_in_group;
-}
-
 /* residue nr. doesn't hold much importance in GROMACS, it's only stored to be used when writing back
  * a structure file (f.e. PDB). Because of this, there is no residue nr. equivalent of the atom nr.;
  * the residue nr. which is held in atoms->resinfo[].nr is just what was in the PDB that was read, f.e.
@@ -196,57 +171,6 @@ int pf_get_global_residue_number(const gmx_mtop_t *mtop, const int atnr_global) 
   * atoms->atom[at_loc].resind = residue index from the start of the molblock;
    * original function had maxresnr + 1 + (...), to make residue numbering start from 1 */
   return maxresnr + (atnr_global - a_start)/atoms->nr*atoms->nres + atoms->atom[at_loc].resind;
-}
-
-/* makes a list from the atoms numbers in the group
- * 
- * this can also be used later to map atoms to different nodes in a parallel run
- */
-t_pf_int_list *pf_group2atoms(int len, int *list){
-  t_pf_int_list *p;
-  int i;
-
-  if (len == 0)
-    return NULL;
-  p = pf_int_list_alloc(len);
-  for (i = 0; i < p->len; i++)
-    p->list[i] = list[i];
-  return p;
-}
-
-/* makes a list of residue numbers based on atom numbers of this group;
- * this is slightly more complex than needed to allow the residue numbers to retain the ordering given to atoms
- */
-t_pf_int_list *pf_groupatoms2residues(t_pf_int_list *atoms, FDA *fda) {
-  int i, r;
-  int nr_residues_in_g = 0;
-  int *group_residues;
-  gmx_bool *in_g;
-  t_pf_int_list *p;
-
-  /* as the list length is unknown at this point, make it as large as possible */
-  snew(group_residues, fda->syslen_residues);
-  /* store information about being already put in the list, to avoid lookup in a loop */
-  snew(in_g, fda->syslen_residues);
-  for (i = 0; i < fda->syslen_residues; i++)
-    in_g[i] = FALSE;
-  
-  for (i = 0; i < atoms->len; i++) {
-    r = fda->atom2residue[atoms->list[i]];
-    if (!in_g[r]) {
-      group_residues[nr_residues_in_g] = r;
-      nr_residues_in_g++;
-      in_g[r] = TRUE;
-    }
-  }
-
-  /* as the length is now known, copy the residue ids to a properly sized list */
-  p = pf_int_list_alloc(nr_residues_in_g);
-  for (i = 0; i < p->len; i++)
-    p->list[i] = group_residues[i];
-  sfree(in_g);
-  sfree(group_residues);
-  return p;
 }
 
 /* inspired by src/gmxlib/readir.c::do_egp_flag() which reads multiple energy exclusion groups */

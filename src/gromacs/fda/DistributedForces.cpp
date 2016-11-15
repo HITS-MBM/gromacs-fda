@@ -14,7 +14,7 @@ DistributedForces::DistributedForces(ForceType force_type, ResultType result_typ
    result_type(result_type),
    syslen(syslen)
 {
-  std::cout << "Allocating space for pairwise forces of " << fda_settings.syslen_atoms << force_type << std::endl;
+  std::cout << "Allocating space for pairwise forces of " << force_type << ": " << syslen << std::endl;
   switch(fda_settings.one_pair) {
 	case OnePair::DETAILED:
 	  snew(atoms->detailed, atoms->len);
@@ -34,16 +34,13 @@ DistributedForces::DistributedForces(ForceType force_type, ResultType result_typ
 	   break;
   }
 
-  // allocates and fills with -1 the indexing table real atom nr. to pf number
-  if (result_type != ResultType::NO)
-	sys2pf.resize(syslen);
+  // Allocates and fills with -1 the indexing table real atom number to pf number
+  if (result_type != ResultType::NO) sys2pf.resize(syslen, -1);
 }
 
 void DistributedForces::scalar_real_divide(real divisor)
 {
-  for (auto& f : scalar) {
-    f.scalar_real_divide(divisor);
-  }
+  for (auto& f : scalar) f.scalar_real_divide(divisor);
 }
 
 void DistributedForces::summed_merge_to_scalar(const rvec *x, int Vector2Scalar)

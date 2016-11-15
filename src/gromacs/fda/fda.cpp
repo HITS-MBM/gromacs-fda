@@ -37,7 +37,6 @@ FDA::FDA(FDASettings const& fda_settings)
    time_averaging_com(nullptr),
    of_atoms(nullptr),
    of_residues(nullptr),
-   groupname(nullptr),
    nsteps_atoms(0),
    nsteps_residues(0),
    per_atom_real(nullptr),

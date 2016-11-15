@@ -31,20 +31,15 @@ struct FDASettings
      syslen_atoms(0),
      syslen_residues(0),
 	 time_averaging_period(1),
-     sys_in_g1(nullptr),
-     sys_in_g2(nullptr),
      type(0)
   {}
 
   /// Construction by input file
   FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global);
 
-  /// Read atom/residue groups
-  void read_group(const char *ndxfile, char *groupname, char **sys_in_g);
-
   /// Returns true if atoms i and j are in fda groups
-  gmx_bool atoms_in_groups(int i, int j) const {
-	return ((sys_in_g1[i] && sys_in_g2[j]) || (sys_in_g1[j] && sys_in_g2[i]));
+  bool atoms_in_groups(int i, int j) const {
+	return ((sys_in_group1[i] && sys_in_group2[j]) || (sys_in_group1[j] && sys_in_group2[i]));
   }
 
   void fill_atom2residue(gmx_mtop_t *top_global);
@@ -84,7 +79,7 @@ struct FDASettings
 
   /// If True, trim the line such that the zeros at the end are not written.
   /// if False (default), all per atom/residue data is written.
-  gmx_bool no_end_zeros;
+  bool no_end_zeros;
 
   /// Total number of atoms in the system.
   /// This is a local copy to avoid passing too many variables down the function call stack
@@ -104,11 +99,11 @@ struct FDASettings
   /// Output file name for residues if ResidueBased is non-zero
   std::string ofn_residues;
 
-  /// If 0 if atom not in group1, if 1 if atom in group1, length of syslen_atoms; always allocated
-  char *sys_in_g1;
+  /// If 0 if atom not in group1, if 1 if atom in group1, length of syslen_atoms
+  std::vector<char> sys_in_group1;
 
-  /// If 0 if atom not in group2, if 1 if atom in group2, length of syslen_atoms; always allocated
-  char *sys_in_g2;
+  /// If 0 if atom not in group2, if 1 if atom in group2, length of syslen_atoms
+  std::vector<char> sys_in_group2;
 
   /// Name of group for output in compatibility mode
   std::string groupname;

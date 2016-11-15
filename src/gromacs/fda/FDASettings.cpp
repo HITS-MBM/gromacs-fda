@@ -19,8 +19,8 @@ FDASettings::FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global
    syslen_atoms(top_global->natoms),
    syslen_residues(0),
    time_averaging_period(1),
-   sys_in_g1(nullptr),
-   sys_in_g2(nullptr),
+   sys_in_group1(syslen_atoms, 0),
+   sys_in_group2(syslen_atoms, 0),
    type(0)
 {
   // check for the pf configuration file (specified with -pfi option);
@@ -69,8 +69,31 @@ FDASettings::FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global
   std::stringstream(get_estr(&ninp, &inp, "group2", "Protein")) >> name_group2;
   std::cout << "Pairwise forces for groups: " << name_group1 << " and " << name_group2 << std::endl;
 
-  this->read_group(opt2fn("-pfn", nfile, fnm), name_group1, &sys_in_group1);
-  this->read_group(opt2fn("-pfn", nfile, fnm), name_group2, &sys_in_group2);
+  // Read group information
+  char** group_names;
+  t_blocka *groups = init_index(opt2fn("-pfn", nfile, fnm), &group_names);
+  if(groups->nr == 0) gmx_fatal(FARGS, "No groups found in the indexfile.\n");
+
+  // Set sys_in_group arrays
+  for (int i = 0; i != groups->nr; ++i) {
+    if (group_names[i] == name_group1) {
+      std::vector<int> group_atoms(groups->a + groups->index[i], groups->a + groups->index[i + 1]);
+      for (auto g : group_atoms) sys_in_group1[g] = 1;
+    }
+    if (group_names[i] == name_group2) {
+      std::vector<int> group_atoms(groups->a + groups->index[i], groups->a + groups->index[i + 1]);
+      for (auto g : group_atoms) sys_in_group2[g] = 1;
+    }
+  }
+
+    if (PF_or_PS_mode(atom_based_result_type)) {
+      pf_fill_sys2pf(atom_based_forces->sys2pf, &atom_based_forces->len, groupatoms);
+    }
+
+    if (PF_or_PS_mode(residue_based_result_type)) {
+      std::vector<int> groupresidues = pf_groupatoms2residues(groupatoms, this);
+      pf_fill_sys2pf(residue_based_forces->sys2pf, &residue_based_forces->len, groupresidues);
+    }
 
   // Read time averaging period
   time_averaging_period = get_eint(&ninp, &inp, "time_averages_period", 1, wi);
@@ -135,43 +158,51 @@ FDASettings::FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global
   fill_atom2residue(top_global);
 }
 
-void FDASettings::read_group(const char *ndxfile, char *groupname, char **sys_in_g)
-{
-  t_blocka *groups;
-  char** groupnames;
+/* fills an indexing table: real atom nr. to pf number based on data from group atom lists*/
+void pf_fill_sys2pf(int *sys2pf, int *len, t_pf_int_list *p) {
   int i;
-  t_pf_int_list *groupatoms, *groupresidues;
-  int *residues_in_g;
 
-  groups = init_index(ndxfile, &groupnames);
-  if(groups->nr == 0)
-    gmx_fatal(FARGS, "No groups found in the indexfile.\n");
-
-  snew(residues_in_g, syslen_residues);
-
-  for (i = 0; i < groups->nr; i++) {
-    if (strcmp(groupnames[i], groupname) == 0) {
-      //fprintf(stderr, "found group: %s\n", groupname);
-      groupatoms = pf_group2atoms(groups->index[i + 1] - groups->index[i], &groups->a[groups->index[i]]);
-      *sys_in_g = pf_make_sys_in_group(syslen_atoms, groupatoms);
-
-      if (PF_or_PS_mode(AtomBased)) {
-        pf_fill_sys2pf(atom_based_forces->sys2pf, &atom_based_forces->len, groupatoms);
-//	for (k = 0; k < syslen_atoms; k++)
-//	  fprintf(stderr, "sys2pf[%d]=%d\n", k, atoms->sys2pf[k]);
-      }
-      if (PF_or_PS_mode(ResidueBased)) {
-        groupresidues = pf_groupatoms2residues(groupatoms, this);
-        pf_fill_sys2pf(residue_based_forces->sys2pf, &residue_based_forces->len, groupresidues);
-//	for (k = 0; k < syslen_residues; k++)
-//	  fprintf(stderr, "sys2pf[%d]=%d\n", k, residues->sys2pf[k]);
-        pf_int_list_free(groupresidues);
-      }
-
-      pf_int_list_free(groupatoms);
-      break;	/* once the group is found, no reason to check against further group names */
+  for (i = 0; i < p->len; i++) {
+    if (sys2pf[p->list[i]] == -1) {
+      sys2pf[p->list[i]] = *len;
+      (*len)++;
     }
   }
+}
+
+/* makes a list of residue numbers based on atom numbers of this group;
+ * this is slightly more complex than needed to allow the residue numbers to retain the ordering given to atoms
+ */
+t_pf_int_list *pf_groupatoms2residues(t_pf_int_list *atoms, FDA *fda) {
+  int i, r;
+  int nr_residues_in_g = 0;
+  int *group_residues;
+  gmx_bool *in_g;
+  t_pf_int_list *p;
+
+  /* as the list length is unknown at this point, make it as large as possible */
+  snew(group_residues, fda->syslen_residues);
+  /* store information about being already put in the list, to avoid lookup in a loop */
+  snew(in_g, fda->syslen_residues);
+  for (i = 0; i < fda->syslen_residues; i++)
+    in_g[i] = FALSE;
+
+  for (i = 0; i < atoms->len; i++) {
+    r = fda->atom2residue[atoms->list[i]];
+    if (!in_g[r]) {
+      group_residues[nr_residues_in_g] = r;
+      nr_residues_in_g++;
+      in_g[r] = TRUE;
+    }
+  }
+
+  /* as the length is now known, copy the residue ids to a properly sized list */
+  p = pf_int_list_alloc(nr_residues_in_g);
+  for (i = 0; i < p->len; i++)
+    p->list[i] = group_residues[i];
+  sfree(in_g);
+  sfree(group_residues);
+  return p;
 }
 
 void FDASettings::fill_atom2residue(gmx_mtop_t *top_global)
