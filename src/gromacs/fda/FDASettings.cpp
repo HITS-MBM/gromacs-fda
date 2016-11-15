@@ -5,6 +5,7 @@
  *      Author: Bernd Doser, HITS gGmbH <bernd.doser@h-its.org>
  */
 
+#include <set>
 #include "FDASettings.h"
 
 using namespace fda;
@@ -69,6 +70,14 @@ FDASettings::FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global
   std::stringstream(get_estr(&ninp, &inp, "group2", "Protein")) >> name_group2;
   std::cout << "Pairwise forces for groups: " << name_group1 << " and " << name_group2 << std::endl;
 
+  // Check if using compatibility mode, there should be only one group
+  if (compatibility_mode(atom_based_result_type) or compatibility_mode(residue_based_result_type)) {
+	if (name_group1 != name_group2)
+	  gmx_fatal(FARGS, "When using compat mode, the two group names should the identical.\n");
+	else
+	  groupname = name_group1;
+  }
+
   // Read group information
   char** group_names;
   t_blocka *groups = init_index(opt2fn("-pfn", nfile, fnm), &group_names);
@@ -76,24 +85,23 @@ FDASettings::FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global
 
   // Set sys_in_group arrays
   for (int i = 0; i != groups->nr; ++i) {
+    std::vector<int> group_atoms;
     if (group_names[i] == name_group1) {
-      std::vector<int> group_atoms(groups->a + groups->index[i], groups->a + groups->index[i + 1]);
+      group_atoms = std::vector<int>(groups->a + groups->index[i], groups->a + groups->index[i + 1]);
       for (auto g : group_atoms) sys_in_group1[g] = 1;
     }
     if (group_names[i] == name_group2) {
-      std::vector<int> group_atoms(groups->a + groups->index[i], groups->a + groups->index[i + 1]);
+      group_atoms = std::vector<int>(groups->a + groups->index[i], groups->a + groups->index[i + 1]);
       for (auto g : group_atoms) sys_in_group2[g] = 1;
     }
-  }
-
     if (PF_or_PS_mode(atom_based_result_type)) {
-      pf_fill_sys2pf(atom_based_forces->sys2pf, &atom_based_forces->len, groupatoms);
+      for (auto g : group_atoms) sys2pf_atoms[g] = sys2pf_atoms.size();
     }
-
     if (PF_or_PS_mode(residue_based_result_type)) {
-      std::vector<int> groupresidues = pf_groupatoms2residues(groupatoms, this);
-      pf_fill_sys2pf(residue_based_forces->sys2pf, &residue_based_forces->len, groupresidues);
+      std::vector<int> group_residues = groupatoms2residues(group_atoms);
+      for (auto g : group_residues) sys2pf_residues[g] = sys2pf_residues.size();
     }
+  }
 
   // Read time averaging period
   time_averaging_period = get_eint(&ninp, &inp, "time_averages_period", 1, wi);
@@ -102,7 +110,7 @@ FDASettings::FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global
 
   // Check if groups are defined for PF/PF mode
   if (PF_or_PS_mode(atom_based_result_type) or PF_or_PS_mode(residue_based_result_type)) {
-	if ((sys_in_g1 == NULL) || (sys_in_g2 == NULL))
+	if ((sys_in_group1 == NULL) || (sys_in_group2 == NULL))
 	  gmx_fatal(FARGS, "No atoms in one or both groups.\n");
   }
 
@@ -144,65 +152,17 @@ FDASettings::FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global
 	if (!ofn_atoms) gmx_fatal(FARGS, "No file for writing out virial stress.\n");
   }
 
-  // Check if using compatibility mode, there should be only one group
-  if (compatibility_mode(atom_based_result_type) or compatibility_mode(residue_based_result_type)) {
-	if (gmx_strcasecmp(g1name, g2name))
-	  gmx_fatal(FARGS, "When using compat mode, the two group names should the identical.\n");
-	else
-	  groupname = gmx_strdup(g1name);
-  }
-
   if ((stress_mode(atom_based_result_type) or stress_mode(residue_based_result_type)) and (one_pair != OnePair::SUMMED))
 	gmx_fatal(FARGS, "Per atom data can only be computed from summed interactions.\n");
 
   fill_atom2residue(top_global);
 }
 
-/* fills an indexing table: real atom nr. to pf number based on data from group atom lists*/
-void pf_fill_sys2pf(int *sys2pf, int *len, t_pf_int_list *p) {
-  int i;
-
-  for (i = 0; i < p->len; i++) {
-    if (sys2pf[p->list[i]] == -1) {
-      sys2pf[p->list[i]] = *len;
-      (*len)++;
-    }
-  }
-}
-
-/* makes a list of residue numbers based on atom numbers of this group;
- * this is slightly more complex than needed to allow the residue numbers to retain the ordering given to atoms
- */
-t_pf_int_list *pf_groupatoms2residues(t_pf_int_list *atoms, FDA *fda) {
-  int i, r;
-  int nr_residues_in_g = 0;
-  int *group_residues;
-  gmx_bool *in_g;
-  t_pf_int_list *p;
-
-  /* as the list length is unknown at this point, make it as large as possible */
-  snew(group_residues, fda->syslen_residues);
-  /* store information about being already put in the list, to avoid lookup in a loop */
-  snew(in_g, fda->syslen_residues);
-  for (i = 0; i < fda->syslen_residues; i++)
-    in_g[i] = FALSE;
-
-  for (i = 0; i < atoms->len; i++) {
-    r = fda->atom2residue[atoms->list[i]];
-    if (!in_g[r]) {
-      group_residues[nr_residues_in_g] = r;
-      nr_residues_in_g++;
-      in_g[r] = TRUE;
-    }
-  }
-
-  /* as the length is now known, copy the residue ids to a properly sized list */
-  p = pf_int_list_alloc(nr_residues_in_g);
-  for (i = 0; i < p->len; i++)
-    p->list[i] = group_residues[i];
-  sfree(in_g);
-  sfree(group_residues);
-  return p;
+std::vector<int> FDASettings::groupatoms2residues(std::vector<int> const& group_atoms) const
+{
+  std::set<int> group_residues;
+  for (auto atom : group_atoms) group_residues.insert(atom_2_residue[atom]);
+  return std::vector<int>(group_residues.begin(), group_residues.end());
 }
 
 void FDASettings::fill_atom2residue(gmx_mtop_t *top_global)

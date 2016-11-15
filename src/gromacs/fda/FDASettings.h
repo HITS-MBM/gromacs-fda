@@ -8,6 +8,8 @@
 #ifndef SRC_GROMACS_FDA_FDASETTINGS_H_
 #define SRC_GROMACS_FDA_FDASETTINGS_H_
 
+#include <map>
+#include <vector>
 #include "gromacs/commandline/filenm.h"
 #include "gromacs/topology/topology.h"
 #include "OnePair.h"
@@ -41,6 +43,10 @@ struct FDASettings
   bool atoms_in_groups(int i, int j) const {
 	return ((sys_in_group1[i] && sys_in_group2[j]) || (sys_in_group1[j] && sys_in_group2[i]));
   }
+
+  /// Makes a list of residue numbers based on atom numbers of this group.
+  /// This is slightly more complex than needed to allow the residue numbers to retain the ordering given to atoms.
+  std::vector<int> groupatoms2residues(std::vector<int> const& group_atoms) const;
 
   void fill_atom2residue(gmx_mtop_t *top_global);
 
@@ -87,6 +93,12 @@ struct FDASettings
 
   /// Maximum of residue nr. + 1; residue nr. doesn't have to be continuous, there can be gaps
   int syslen_residues;
+
+  /// Mapping of real atom number to index in the pf array
+  std::map<int, int> sys2pf_atoms;
+
+  /// Mapping of real residue number to index in the pf array
+  std::map<int, int> sys2pf_residues;
 
   /// Number of steps to average before writing.
   /// If 1 (default), no averaging is done.
