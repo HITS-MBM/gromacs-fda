@@ -433,8 +433,8 @@ void FDA::write_frame(const rvec *x, gmx_mtop_t *top_global)
           this->write_frame_summed(atom_based_forces, of_atoms, &nsteps_atoms, x, FALSE, Vector2Scalar);
           break;
         case FILE_OUT_PUNCTUAL_STRESS:
-          pf_per_atom_sum(per_atom_real, atom_based_forces->summed, atom_based_forces->len, x, Vector2Scalar);
-          pf_per_atom_real_write_frame(of_atoms, per_atom_real->force, per_atom_real->len, no_end_zeros);
+          per_atom_sum(force_per_atom, atom_based_forces->summed, atom_based_forces->len, x, Vector2Scalar);
+          per_atom_real_write_frame(of_atoms, force_per_atom, no_end_zeros);
           break;
         case FILE_OUT_VIRIAL_STRESS:
           pf_write_atom_virial_sum(of_atoms, atom_vir, syslen_atoms);
@@ -461,8 +461,8 @@ void FDA::write_frame(const rvec *x, gmx_mtop_t *top_global)
           this->write_frame_summed(residue_based_forces, of_residues, &nsteps_residues, (const rvec *)com, FALSE, Vector2Scalar);
           break;
         case FILE_OUT_PUNCTUAL_STRESS:
-          pf_per_atom_sum(per_residue_real, residue_based_forces->summed, residue_based_forces->len, (const rvec*)com, Vector2Scalar);
-          pf_per_atom_real_write_frame(of_residues, per_residue_real->force, per_residue_real->len, no_end_zeros);
+          per_atom_sum(force_per_residue, residue_based_forces->summed, residue_based_forces->len, (const rvec*)com, Vector2Scalar);
+          per_atom_real_write_frame(of_residues, force_per_residue, no_end_zeros);
           break;
         case FILE_OUT_VIRIAL_STRESS:
           gmx_fatal(FARGS, "Per residue summed output not supported for virial stress.\n");

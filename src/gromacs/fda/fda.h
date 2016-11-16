@@ -41,10 +41,7 @@
 
 #include "gromacs/math/vectypes.h"
 #include "gromacs/utility/basedefinitions.h"
-#include "pf_array_detailed.h"
-#include "pf_array_scalar.h"
-#include "pf_array_summed.h"
-#include "pf_per_atom.h"
+#include "types/pf_array_summed.h"
 
 #ifdef __cplusplus
 #include <cstdio>
@@ -149,6 +146,16 @@ public:
    */
   void write_scalar_time_averages();
 
+  void per_atom_real_write_frame(FILE *f, std::vector<real> const& force_per_node, gmx_bool no_end_zeros);
+
+  void per_atom_sum(std::vector<real>& force_per_node, t_pf_atom_summed *atoms, int atoms_len, const rvec *x, int Vector2Scalar);
+
+  /// The stress is the negative atom_vir value.
+  void write_atom_virial_sum(FILE *f, tensor *atom_vir, int natoms);
+
+  /// For von Mises no negative values are needed, since all items are squared.
+  void write_atom_virial_sum_von_mises(FILE *f, tensor *atom_vir, int natoms);
+
   // TODO: Remove following legacy c-functions:
 
   void open();
@@ -187,13 +194,14 @@ private:
   /// Number of steps for output in compatibility mode; incremented for each step written during run, also used to write the total nr. of steps at the end
   int nsteps_residues;
 
-  /// Only initialized if required by user
-  t_pf_per_atom_real *per_atom_real;
-  t_pf_per_atom_real_int *per_atom_real_int;
-  t_pf_per_atom_real *per_residue_real;
-  t_pf_per_atom_real_int *per_residue_real_int;
+  /// Total force per atom
+  std::vector<real> force_per_atom;
 
-  tensor *atom_vir;
+  /// Total force per residue
+  std::vector<real> force_per_residue;
+
+  /// For virial stress
+  std::vector<tensor> atom_vir;
 
 #else
 struct FDA {

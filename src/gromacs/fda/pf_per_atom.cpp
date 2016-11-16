@@ -6,8 +6,6 @@
 
 #include <cmath>
 #include "fda.h"
-#include "pf_per_atom.h"
-#include "types/pf_array_summed.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/math/vectypes.h"
 #include "gromacs/utility/basedefinitions.h"
@@ -19,44 +17,10 @@
   #include <config.h>
 #endif
 
-void pf_per_atom_real_set(t_pf_per_atom_real *per_atom_real, real val) {
-  int i;
+using namespace fda;
 
-  for (i = 0; i < per_atom_real->len; i++)
-    per_atom_real->force[i] = val;
-}
-
-void pf_per_atom_real_init(t_pf_per_atom_real **per_atom_real, int len, real val) {
-  t_pf_per_atom_real *p;
-
-  snew(p, 1);
-  p->len = len;
-  snew(p->force, len);
-  pf_per_atom_real_set(p, val);
-  *per_atom_real = p;
-}
-
-void pf_per_atom_real_int_set(t_pf_per_atom_real_int *per_atom_real_int, real val_real, int val_int) {
-  int i;
-
-  for (i = 0; i < per_atom_real_int->len; i++) {
-    per_atom_real_int->force[i] = val_int;
-    per_atom_real_int->interactions[i] = val_real;
-  }
-}
-
-void pf_per_atom_real_int_init(t_pf_per_atom_real_int **per_atom_real_int, int len, real val_real, int val_int) {
-  t_pf_per_atom_real_int *p;
-
-  snew(p, 1);
-  p->len = len;
-  snew(p->force, len);
-  snew(p->interactions, len);
-  pf_per_atom_real_int_set(p, val_real, val_int);
-  *per_atom_real_int = p;
-}
-
-void pf_per_atom_real_write_frame(FILE *f, real *force, int len, gmx_bool no_end_zeros) {
+void FDA::per_atom_real_write_frame(FILE *f, std::vector<real> const& force_per_node, gmx_bool no_end_zeros)
+{
   int i, j;
   gmx_bool first_on_line = TRUE;
 
@@ -90,7 +54,8 @@ static inline real pf_vector2unsignedscalar(const rvec v, const int i, const int
   return p;
 }
 
-void pf_per_atom_sum(t_pf_per_atom_real *per_atom_sum, t_pf_atom_summed *atoms, int atoms_len, const rvec *x, int Vector2Scalar) {
+void FDA::per_atom_sum(std::vector<real>& force_per_node, t_pf_atom_summed *atoms, int atoms_len, const rvec *x, int Vector2Scalar)
+{
   int i, ii, j, jj;
   t_pf_interaction_array_summed ias;
   t_pf_interaction_summed is;
@@ -120,115 +85,7 @@ void pf_per_atom_sum(t_pf_per_atom_real *per_atom_sum, t_pf_atom_summed *atoms, 
   }
 }
 
-/* findmax parameter: TRUE = find max; FALSE = find min */
-static gmx_inline void pf_per_atom_minmax_op(real *force, real val, gmx_bool findmax) {
-  /* val is a norm of a vector so it's always non-negative */
-  //fprintf(stderr, "force=%f, val=%f\n", *force, val);
-  if (findmax) {
-    /* looking for maximum */
-    if (val > (*force))
-      *force = val;
-  } else {
-    /*looking for minimum */
-    if (((*force) == 0.0) || (val < (*force)))
-      *force = val;
-  }
-}
-
-/* findmax parameter: TRUE = find max; FALSE = find min */
-void pf_per_atom_minmax(t_pf_per_atom_real *per_atom_real, t_pf_atom_summed *atoms, int atoms_len, gmx_bool findmax, const rvec *x, int Vector2Scalar) {
-  int i, ii, j, jj;
-  t_pf_interaction_array_summed ias;
-  t_pf_interaction_summed is;
-  real scalar_force = 0.0;
-
-  //fprintf(stderr, "pf_per_atom_minmax, findmax=%d, atoms_len=%d\n", findmax ? 1 : 0, atoms_len);
-  pf_per_atom_real_set(per_atom_real, 0.0);
-  for (i = 0; i < atoms_len; i++) {
-    ii = atoms[i].nr;
-    ias = atoms[i].interactions;
-    //fprintf(stderr, "ii=%d,  nr. interactions=%d\n", ii, ias.len);
-    for (j = 0; j < ias.len; j++) {
-      is = ias.array[j];
-      jj = is.jjnr;
-      switch (Vector2Scalar) {
-        case PF_VECTOR2SCALAR_NORM:
-          scalar_force = norm(is.force);
-          break;
-        case PF_VECTOR2SCALAR_PROJECTION:
-          scalar_force = pf_vector2unsignedscalar(is.force, ii, jj, x);
-          break;
-        default:
-          break;
-      }
-      //fprintf(stderr, "force=%32f\n", scalar_force);
-      pf_per_atom_minmax_op(&(per_atom_real->force[ii]), scalar_force, findmax);
-      pf_per_atom_minmax_op(&(per_atom_real->force[jj]), scalar_force, findmax);
-    }
-  }
-}
-
-static gmx_inline real pf_per_atom_average_compute(real r, int i) {
-  switch (i) {
-    case 0:
-      /* there were no interactions, so return 0 */
-      return 0.0;
-      break;
-    case 1:
-      /* avoid division by 1 */
-      return r;
-      break;
-    default:
-      return (r / i);
-      break;
-  }
-}
-
-/* computes averages in place and returns a t_pf_per_atom_real pointing to it;
- * this way, only one large memory allocation is made at beginning for the pf->global->per_atom_real_int
- */
-void pf_per_atom_average(t_pf_per_atom_real_int *per_atom_average, t_pf_atom_summed *atoms, int atoms_len, const rvec *x, int Vector2Scalar) {
-  int i, ii, j, jj;
-  t_pf_interaction_array_summed ias;
-  t_pf_interaction_summed is;
-  real scalar_force = 0.0;
-
-  /* a counter for interactions is needed because not all interactions are accounted for a certain atom;
-   * when atoms i and j interact, the interaction is only stored once (for whichever i and j is smaller), but should be accounted for both i and j
-   */
-  pf_per_atom_real_int_set(per_atom_average, 0.0, 0);
-  for (i = 0; i < atoms_len; i++) {
-    ii = atoms[i].nr;
-    ias = atoms[i].interactions;
-    for (j = 0; j < ias.len; j++) {
-      is = ias.array[j];
-      jj = is.jjnr;
-      switch (Vector2Scalar) {
-        case PF_VECTOR2SCALAR_NORM:
-          scalar_force = norm(is.force);
-          break;
-        case PF_VECTOR2SCALAR_PROJECTION:
-          scalar_force = pf_vector2unsignedscalar(is.force, ii, jj, x);
-          break;
-        default:
-          break;
-      }
-      per_atom_average->force[ii] += scalar_force;
-      per_atom_average->force[jj] += scalar_force;
-      (per_atom_average->interactions[ii])++;
-      (per_atom_average->interactions[jj])++;
-    }
-  }
-  /* summing is done, now compute the average */
-  for (i = 0; i < per_atom_average->len; i++) {
-    per_atom_average->force[i] = pf_per_atom_average_compute(per_atom_average->force[i], per_atom_average->interactions[i]);
-  }
-}
-
-/**
- * The stress is the negative atom_vir value.
- */
-void pf_write_atom_virial_sum(FILE *f, tensor *atom_vir, int natoms)
+void FDA::write_atom_virial_sum(FILE *f, tensor *atom_vir, int natoms)
 {
   int i;
   gmx_bool first_on_line = TRUE;
@@ -255,10 +112,7 @@ static gmx_inline real tensor_to_vonmises(tensor t)
     6 * (t[XX][YY]*t[XX][YY] + t[XX][ZZ]*t[XX][ZZ] + t[YY][ZZ]*t[YY][ZZ])));
 }
 
-/**
- * For von Mises no negative values are needed, since all items are squared.
- */
-void pf_write_atom_virial_sum_von_mises(FILE *f, tensor *atom_vir, int natoms)
+void FDA::write_atom_virial_sum_von_mises(FILE *f, tensor *atom_vir, int natoms)
 {
   int i;
   gmx_bool first_on_line = TRUE;

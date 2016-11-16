@@ -120,9 +120,7 @@ FDASettings::FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global
 
   // Get output file names
   if (PF_or_PS_mode(atom_based_result_type)) {
-	pf_atoms_alloc(OnePair, atom_based_forces, fda_settings.syslen_atoms, "atoms");
 	if (atom_based_result_type == ResultType::PUNCTUAL_STRESS) {
-		pf_per_atom_real_init(&(per_atom_real), fda_settings.syslen_atoms, 0.0);
 		ofn_atoms = gmx_strdup(opt2fn("-psa", nfile, fnm));
 	} else {
 		ofn_atoms = gmx_strdup(opt2fn("-pfa", nfile, fnm));
@@ -132,9 +130,7 @@ FDASettings::FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global
   }
 
   if (PF_or_PS_mode(residue_based_result_type)) {
-	pf_atoms_alloc(OnePair, residue_based_forces, syslen_residues, "residues");
 	if (residue_based_result_type == ResultType::PUNCTUAL_STRESS) {
-		pf_per_atom_real_init(&(per_residue_real), syslen_residues, 0.0);
 		ofn_residues = gmx_strdup(opt2fn("-psr", nfile, fnm));
 	} else {
 		ofn_residues = gmx_strdup(opt2fn("-pfr", nfile, fnm));
@@ -144,7 +140,6 @@ FDASettings::FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global
   }
 
   if (VS_mode(atom_based_result_type)) {
-	snew(atom_vir, fda_settings.syslen_atoms);
 	if (atom_based_result_type == ResultType::VIRIAL_STRESS)
 		ofn_atoms = gmx_strdup(opt2fn("-vsa", nfile, fnm));
 	if (atom_based_result_type == ResultType::VIRIAL_STRESS_VON_MISES)
