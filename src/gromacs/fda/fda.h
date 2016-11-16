@@ -156,12 +156,6 @@ public:
   /// For von Mises no negative values are needed, since all items are squared.
   void write_atom_virial_sum_von_mises(FILE *f, tensor *atom_vir, int natoms);
 
-  // TODO: Remove following legacy c-functions:
-
-  void open();
-
-  void close();
-
 private:
 
   /// Settings

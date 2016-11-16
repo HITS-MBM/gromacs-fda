@@ -37,7 +37,7 @@ struct FDASettings
   {}
 
   /// Construction by input file
-  FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global);
+  FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global, bool parallel_execution);
 
   /// Returns true if atoms i and j are in fda groups
   bool atoms_in_groups(int i, int j) const {

@@ -10,7 +10,7 @@
 
 using namespace fda;
 
-FDASettings::FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global)
+FDASettings::FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global, bool parallel_execution)
  : atom_based_result_type(ResultType::NO),
    residue_based_result_type(ResultType::NO),
    one_pair(OnePair::DETAILED),
@@ -24,6 +24,10 @@ FDASettings::FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global
    sys_in_group2(syslen_atoms, 0),
    type(0)
 {
+  /// Parallel execution not implemented yet
+  if (parallel_execution)
+    gmx_fatal(FARGS, "FDA parallel execution not implemented yet! Please start with '-nt 1' on the mdrun command line\n");
+
   // check for the pf configuration file (specified with -pfi option);
   // if it doesn't exist, return NULL to specify that no pf handling is done;
   // otherwise, check also for specification of the index file (-pfn)

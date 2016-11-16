@@ -678,11 +678,8 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
         fprintf(fplog, "\n");
     }
 
-    fda::FDASettings fda_settings(nfile, fnm, top_global);
+    fda::FDASettings fda_settings(nfile, fnm, top_global, PAR(cr));
     fr->fda = new fda::FDA(fda_settings);
-    if ((fr->fda) && PAR(cr))
-      gmx_fatal(FARGS, "PF2 doesn't work in parallel ! Please start with '-nt 1' on the mdrun command line\n");
-    fr->fda->open();
 
     walltime_accounting_start(walltime_accounting);
     wallcycle_start(wcycle, ewcRUN);
@@ -1815,7 +1812,6 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
 
     // FDA
     fr->fda->write_scalar_time_averages();
-    fr->fda->close();
 
     if (!(cr->duty & DUTY_PME))
     {
