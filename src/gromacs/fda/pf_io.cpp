@@ -4,12 +4,7 @@
  * Copyright Bogdan Costescu 2011-2013
  */
 
-#include "gromacs/fda/pf_array_detailed.h"
-#include "gromacs/fda/pf_array_summed.h"
-#include "gromacs/fda/pf_interactions.h"
-#include "gromacs/fda/pf_per_atom.h"
-#include "gromacs/fda/pf_utils.h"
-#include "gromacs/fda/fda.h"
+#include "fda.h"
 #include "gromacs/fileio/gmxfio.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/math/vectypes.h"

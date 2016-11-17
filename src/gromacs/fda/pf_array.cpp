@@ -5,13 +5,10 @@
  */
 
 #include "fda.h"
+#include "pf_array.h"
 #include "gromacs/math/vectypes.h"
 #include "gromacs/utility/basedefinitions.h"
 #include "gromacs/utility/real.h"
-#include "pf_array.h"
-#include "pf_array_detailed.h"
-#include "pf_array_summed.h"
-#include "pf_interactions.h"
 
 #ifdef HAVE_CONFIG_H
   #include <config.h>

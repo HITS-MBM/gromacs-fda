@@ -5,7 +5,7 @@
  */
 
 #include <stdio.h>
-
+#include "fda.h"
 #include "gromacs/fileio/readinp.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/math/vectypes.h"
@@ -20,15 +20,6 @@
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/real.h"
 #include "gromacs/utility/smalloc.h"
-#include "pf_array.h"
-#include "pf_array_detailed.h"
-#include "pf_array_scalar.h"
-#include "pf_array_summed.h"
-#include "pf_interactions.h"
-#include "pf_per_atom.h"
-#include "pf_utils.h"
-#include "types/pf_array_scalar.h"
-#include "types/pf_array_summed.h"
 
 #ifdef HAVE_CONFIG_H
   #include <config.h>
