@@ -7,8 +7,6 @@
 #ifndef pf_array_summed_h
 #define pf_array_summed_h
 
-#include "types/pf_array_summed.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif

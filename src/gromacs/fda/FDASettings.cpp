@@ -39,6 +39,20 @@ FDASettings::FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global
 	return;
   }
 
+  // Check for valid input options using time averaging
+  if (time_averaging_period != 1) {
+	if (one_pair != OnePair::SUMMED)
+	  gmx_fatal(FARGS, "Can only save scalar time averages from summed interactions.\n");
+	if (PF_or_PS_mode(atom_based_result_type)) {
+	  if (!(compatibility_mode(atom_based_result_type) or atom_based_result_type == ResultType::PAIRWISE_FORCES_SCALAR))
+		gmx_fatal(FARGS, "Can only use time averages with scalar or compatibility output.\n");
+	}
+	if (PF_or_PS_mode(residue_based_result_type)) {
+	  if (!(compatibility_mode(residue_based_result_type) or residue_based_result_type == ResultType::PAIRWISE_FORCES_SCALAR))
+		gmx_fatal(FARGS, "Can only use time averages with scalar or compatibility output.\n");
+	}
+  }
+
   // Use GROMACS function to read lines of form key = value from input file
   const char *pf_file_in = opt2fn("-pfi", nfile, fnm);
   warninp_t wi = init_warning(FALSE, 0);

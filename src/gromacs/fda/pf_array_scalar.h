@@ -7,8 +7,6 @@
 #ifndef pf_array_scalar_h
 #define pf_array_scalar_h
 
-#include "types/pf_array_scalar.h"
-
 static inline void pf_interaction_array_scalar_init(t_pf_interaction_array_scalar *a);
 void pf_atom_scalar_init(t_pf_atom_scalar *atom);
 t_pf_interaction_scalar *pf_lookup_interaction_scalar(t_pf_interaction_array_scalar *ia, int jjnr);

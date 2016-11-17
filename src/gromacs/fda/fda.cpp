@@ -40,26 +40,6 @@ FDA::FDA(FDASettings const& fda_settings)
    nsteps_atoms(0),
    nsteps_residues(0)
 {
-  if (fda_settings.time_averaging_period != 1) {
-	if (fda_settings.one_pair != OnePair::SUMMED)
-	  gmx_fatal(FARGS, "Can only save scalar time averages from summed interactions.\n");
-	/* for atoms/residues, pf_atoms_init is called for each step from md.c, but for time averages the initialization needs to be done only at the begining and after every data writing */
-	if (atom_based_forces.PF_or_PS_mode()) {
-	  if (!(atom_based_forces.compatibility_mode() or fda_settings.atom_based_result_type == ResultType::PAIRWISE_FORCES_SCALAR))
-		gmx_fatal(FARGS, "Can only use time averages with scalar or compatibility output.\n");
-	  pf_atoms_scalar_alloc(atom_based_forces, fda_settings.syslen_atoms, "atoms - time averages");
-	  pf_atoms_scalar_init(atom_based_forces);
-	}
-	if (residue_based_forces.PF_or_PS_mode()) {
-	  if (!(residue_based_forces.compatibility_mode() or fda_settings.residue_based_result_type == ResultType::PAIRWISE_FORCES_SCALAR))
-		gmx_fatal(FARGS, "Can only use time averages with scalar or compatibility output.\n");
-	  pf_atoms_scalar_alloc(residue_based_forces, fda_settings.syslen_residues, "residues - time averages");
-	  pf_atoms_scalar_init(residue_based_forces);
-	  snew(time_averaging_com, fda_settings.syslen_residues);
-	  clear_rvecs(fda_settings.syslen_residues, time_averaging_com);
-	}
-  }
-
   if (atom_based_forces.PF_or_PS_mode()) {
 	pf_atoms_alloc(OnePair, atom_based_forces, fda_settings.syslen_atoms, "atoms");
 	if (fda_settings.atom_based_result_type == ResultType::PUNCTUAL_STRESS) {
@@ -79,17 +59,6 @@ FDA::FDA(FDASettings const& fda_settings)
 
 void FDA::add_bonded_nocheck(int i, int j, int type, rvec force)
 {
-  /* checking is symmetrical for atoms i and j; one of them has to be from g1, the other one from g2;
-   * the check below makes the atoms equivalent, make them always have the same order (i,j) and not (j,i) where i < j;
-   * force is the force atom j exerts on atom i; if i and j are switched, the force goes in opposite direction
-   * it's possible that i > j, but ri < rj, so the force has to be handled separately for each of them
-   * 
-   * the logic is a bit complicated by the fact that atom_based_result_type and residue_based_result_type are independent;
-   * if residue_based_result_type part is done first, the atom_based_result_type part can use i/j/force directly, without saving them
-   * first in intermediate variables, as the initial values of i/j/force are no longer needed; if atom_based_result_type
-   * is done first (the original code), i/j/force are needed for the later atom->residue mapping
-   * and saving in intermediate variables is needed
-   */
   if (residue_based_forces.PF_or_PS_mode()) {
     /* the calling functions will not have i == j, but there is not such guarantee for ri and rj;
      * and it makes no sense to look at the interaction of a residue to itself

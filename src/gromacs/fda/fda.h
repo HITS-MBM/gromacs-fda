@@ -41,7 +41,6 @@
 
 #include "gromacs/math/vectypes.h"
 #include "gromacs/utility/basedefinitions.h"
-#include "types/pf_array_summed.h"
 
 #ifdef __cplusplus
 #include <cstdio>
@@ -63,21 +62,34 @@ public:
   /// Default constructor
   FDA(FDASettings const& fda_settings = FDASettings());
 
+  /**
+   * Checking is symmetrical for atoms i and j; one of them has to be from g1, the other one from g2;
+   * the check below makes the atoms equivalent, make them always have the same order (i,j) and not (j,i) where i < j;
+   * force is the force atom j exerts on atom i; if i and j are switched, the force goes in opposite direction
+   * it's possible that i > j, but ri < rj, so the force has to be handled separately for each of them
+   *
+   * the logic is a bit complicated by the fact that atom_based_result_type and residue_based_result_type are independent;
+   * if residue_based_result_type part is done first, the atom_based_result_type part can use i/j/force directly, without saving them
+   * first in intermediate variables, as the initial values of i/j/force are no longer needed; if atom_based_result_type
+   * is done first (the original code), i/j/force are needed for the later atom->residue mapping
+   * and saving in intermediate variables is needed
+   */
   void add_bonded_nocheck(int i, int j, int type, rvec force);
 
   void add_bonded(int i, int j, int type, rvec force);
 
   /**
-   *  Add a particular type of nonbonded interaction for the kernels where only one type of interaction is computed;
-   *  force is passed as scalar along with the distance vector (as dx, dy, dz) from which the vector force is
-   *  computed, the same way it's done in the nonbonded kernels
+   * Add a particular type of nonbonded interaction for the kernels where only one type of interaction is computed;
+   * force is passed as scalar along with the distance vector (as dx, dy, dz) from which the vector force is
+   * computed, the same way it's done in the nonbonded kernels
    */
   void add_nonbonded_single(int i, int j, int type, real force, real dx, real dy, real dz);
 
-  /** Add a nonbonded interaction for kernels where both Coulomb and LJ are computed;
-   *  this is more efficient than calling the previous one twice because some of the tests are made only once;
-   *  forces are passed as scalars along with the distance vector (as dx, dy, dz) from which the vector forces are
-   *  computed, the same way it's done in the nonbonded kernels
+  /**
+   * Add a nonbonded interaction for kernels where both Coulomb and LJ are computed;
+   * this is more efficient than calling the previous one twice because some of the tests are made only once;
+   * forces are passed as scalars along with the distance vector (as dx, dy, dz) from which the vector forces are
+   * computed, the same way it's done in the nonbonded kernels
    */
   void add_nonbonded(int i, int j, real pf_coul, real pf_lj, real dx, real dy, real dz);
 
@@ -86,30 +98,30 @@ public:
   void add_dihedral(int i, int j, int k, int l, rvec f_i, rvec f_j, rvec f_k, rvec f_l);
 
   /**
-   *  The atom virial can be expressed as a 6-real tensor, as it's symmetric.
-   *  To avoid defining a new tensor type, the 9-real tensor is used instead.
+   * The atom virial can be expressed as a 6-real tensor, as it's symmetric.
+   * To avoid defining a new tensor type, the 9-real tensor is used instead.
    */
   void add_virial(int ai, tensor v, real s);
 
   /**
-   *  Origin on j, but for 2 atoms it doesn't matter.
+   * Origin on j, but for 2 atoms it doesn't matter.
    */
   void add_virial_bond(int ai, int aj, real fbond, real dx, real dy, real dz);
 
   /**
-   *  Translate to origin on the middle (j) atom:
-   *  vir = ri*Fi + rj*Fj + rk*Fk
-   *      = (ri-rj)*Fi + (rk-rj)*Fk
-   *      = r_ij[dim1]*f_i[dim2] + r_kj[dim1]*f_k[dim2]
+   * Translate to origin on the middle (j) atom:
+   * vir = ri*Fi + rj*Fj + rk*Fk
+   *     = (ri-rj)*Fi + (rk-rj)*Fk
+   *     = r_ij[dim1]*f_i[dim2] + r_kj[dim1]*f_k[dim2]
    */
   void add_virial_angle(int ai, int aj, int ak, rvec r_ij, rvec r_kj, rvec f_i, rvec f_k);
 
   /**
-   *  Translate to origin on the second (j) atom:
-   *  vir = ri*Fi + rj*Fj + rk*Fk + rl*Fl
-   *      = (ri-rj)*Fi + (rk-rj)*Fk + (rl-rj)*Fl
-   *      = (ri-rj)*Fi + (rk-rj)*Fk + ((rl-rk) + (rk-rj))*Fl
-   *      = r_ij[dim1]*f_i[dim2] + r_kj[dim1]*f_k[dim2] + (r_kj-r_kl)[dim1]*f_l[dim2]
+   * Translate to origin on the second (j) atom:
+   * vir = ri*Fi + rj*Fj + rk*Fk + rl*Fl
+   *     = (ri-rj)*Fi + (rk-rj)*Fk + (rl-rj)*Fl
+   *     = (ri-rj)*Fi + (rk-rj)*Fk + ((rl-rk) + (rk-rj))*Fl
+   *     = r_ij[dim1]*f_i[dim2] + r_kj[dim1]*f_k[dim2] + (r_kj-r_kl)[dim1]*f_l[dim2]
    */
   void add_virial_dihedral(int i, int j, int k, int l, rvec f_i, rvec f_k, rvec f_l, rvec r_ij, rvec r_kj, rvec r_kl);
 
@@ -148,7 +160,7 @@ public:
 
   void per_atom_real_write_frame(FILE *f, std::vector<real> const& force_per_node, gmx_bool no_end_zeros);
 
-  void per_atom_sum(std::vector<real>& force_per_node, t_pf_atom_summed *atoms, int atoms_len, const rvec *x, int Vector2Scalar);
+  void per_atom_sum(std::vector<real>& force_per_node, DistributedForces& forces, int atoms_len, const rvec *x, int Vector2Scalar);
 
   /// The stress is the negative atom_vir value.
   void write_atom_virial_sum(FILE *f, tensor *atom_vir, int natoms);

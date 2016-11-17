@@ -7,8 +7,6 @@
 #ifndef pf_array_detailed_h
 #define pf_array_detailed_h
 
-#include "types/pf_array_detailed.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif

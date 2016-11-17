@@ -54,7 +54,7 @@ static inline real pf_vector2unsignedscalar(const rvec v, const int i, const int
   return p;
 }
 
-void FDA::per_atom_sum(std::vector<real>& force_per_node, t_pf_atom_summed *atoms, int atoms_len, const rvec *x, int Vector2Scalar)
+void FDA::per_atom_sum(std::vector<real>& force_per_node, DistributedForces& forces, int atoms_len, const rvec *x, int Vector2Scalar)
 {
   int i, ii, j, jj;
   t_pf_interaction_array_summed ias;
