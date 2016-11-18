@@ -69,7 +69,7 @@ void FDA::add_bonded_nocheck(int i, int j, int type, rvec force)
             int_swap(&ri, &rj);
             clear_rvec(force_residue);
             rvec_dec(force_residue, force);
-            pf_atom_detailed_add(&residue_based_forces->detailed[residue_based_forces->sys2pf[ri]], rj, type, force_residue);
+            residue_based_forces.detailed[ri].add_force(rj, type, force_residue);
           } else {
             pf_atom_detailed_add(&residue_based_forces->detailed[residue_based_forces->sys2pf[ri]], rj, type, force);
           }

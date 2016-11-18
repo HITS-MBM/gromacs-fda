@@ -10,6 +10,7 @@
 
 #include <array>
 #include <map>
+#include <vector>
 #include "InteractionType.h"
 #include "gromacs/math/vectypes.h"
 
