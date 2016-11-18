@@ -7,16 +7,6 @@
 #ifndef pf_array_detailed_h
 #define pf_array_detailed_h
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-void pf_atom_detailed_add(t_pf_atom_detailed *atom, int jjnr, int type, rvec force);
-
-#ifdef __cplusplus
-}
-#endif
-
 static inline void pf_interaction_array_detailed_init(t_pf_interaction_array_detailed *a);
 void pf_interactions_detailed_init(t_pf_interactions_detailed *interactions);
 void pf_atom_detailed_init(t_pf_atom_detailed *atom);

@@ -4,8 +4,7 @@
  * Copyright Bogdan Costescu 2010-2012
  */
 
-#include <stddef.h>
-#include "fda.h"
+#include "DistributedForcesDetailed.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/math/vectypes.h"
 #include "gromacs/utility/fatalerror.h"
@@ -94,24 +93,6 @@ void pf_interaction_array_detailed_append(t_pf_interaction_array_detailed *ia, i
   ia->array[ia->len].jjnr = jjnr;
   copy_rvec(force, ia->array[ia->len].force);
   ia->len++;
-}
-
-/* looks for the interaction in the array corresponding to type; if found,
- * the force is added to the existing value; if not, a new interaction is
- * appended to the array
- */
-void pf_atom_detailed_add(t_pf_atom_detailed *atom, int jjnr, int type, rvec force) {
-  t_pf_interaction_array_detailed *ia;
-  t_pf_interaction_detailed *p;
-
-  /*fprintf(stderr, "pf_atom_add: jjnr=%d, type=0x%x, force=%f,%f,%f\n", jjnr, type, force[0], force[1], force[2]);*/
-  ia = pf_interaction_array_by_type(&atom->interactions, type);
-  p = pf_lookup_interaction_detailed(ia, jjnr);
-  if (p == NULL) {
-    pf_interaction_array_detailed_append(ia, jjnr, force);
-  } else {
-    rvec_inc(p->force, force);
-  }
 }
 
 /* merge interactions of src into dst */

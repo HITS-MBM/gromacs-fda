@@ -29,8 +29,8 @@ static const real QUARTER = 0.25;
 
 FDA::FDA(FDASettings const& fda_settings)
  : fda_settings(fda_settings),
-   atom_based_forces(ForceType::ATOMS, fda_settings.atom_based_result_type, fda_settings.syslen_atoms),
-   residue_based_forces(ForceType::RESIDUES, fda_settings.residue_based_result_type, fda_settings.syslen_residues),
+   atom_based_forces(ForceType::ATOMS, fda_settings.atom_based_result_type, fda_settings.one_pair, fda_settings.syslen_atoms),
+   residue_based_forces(ForceType::RESIDUES, fda_settings.residue_based_result_type, fda_settings.one_pair, fda_settings.syslen_residues),
    time_averaging_steps(0),
    time_averaging_com(nullptr),
    of_atoms(nullptr),
@@ -39,14 +39,12 @@ FDA::FDA(FDASettings const& fda_settings)
    nsteps_residues(0)
 {
   if (atom_based_forces.PF_or_PS_mode()) {
-	pf_atoms_alloc(fda_settings.one_pair, atom_based_forces, fda_settings.syslen_atoms, "atoms");
 	if (fda_settings.atom_based_result_type == ResultType::PUNCTUAL_STRESS) {
       force_per_atom.resize(fda_settings.syslen_atoms, 0.0);
 	}
   }
 
   if (residue_based_forces.PF_or_PS_mode()) {
-	pf_atoms_alloc(fda_settings.one_pair, residue_based_forces, fda_settings.syslen_residues, "residues");
     if (fda_settings.residue_based_result_type == ResultType::PUNCTUAL_STRESS) {
       force_per_residue.resize(fda_settings.syslen_residues, 0.0);
 	}
@@ -63,7 +61,6 @@ void FDA::add_bonded_nocheck(int i, int j, int type, rvec force)
      */
     int ri = fda_settings.get_atom2residue(i);
     int rj = fda_settings.get_atom2residue(j);
-    //fprintf(stderr, "pf_atom_add_bonded_nocheck: i=%d, j=%d, ri=%d, rj=%d, type=%d\n", i, j, ri, rj, type);
     rvec force_residue;
     if (ri != rj) {
       switch(fda_settings.one_pair) {

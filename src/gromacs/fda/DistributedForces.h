@@ -8,11 +8,12 @@
 #ifndef SRC_GROMACS_FDA_DISTRIBUTEDFORCES_H_
 #define SRC_GROMACS_FDA_DISTRIBUTEDFORCES_H_
 
-#include <vector>
+#include <map>
 #include "DistributedForcesDetailed.h"
 #include "DistributedForcesScalar.h"
 #include "DistributedForcesVector.h"
 #include "ForceType.h"
+#include "OnePair.h"
 #include "ResultType.h"
 
 namespace fda {
@@ -35,7 +36,7 @@ class DistributedForces
 public:
 
   /// Constructor
-  DistributedForces(ForceType force_type, ResultType result_type, int syslen);
+  DistributedForces(ForceType force_type, ResultType result_type, OnePair one_pair, int syslen);
 
   /// Divide all scalar forces by the divisor
   void scalar_real_divide(real divisor);
@@ -67,6 +68,9 @@ private:
   /// Result type
   ResultType result_type;
 
+  /// Detailed or summed storage
+  OnePair one_pair;
+
   /// Indexing table: real atom nr. to index in the pf array; this has length equal to the total nr. of atoms in system
   std::vector<int> sys2pf;
 
@@ -74,13 +78,13 @@ private:
   std::vector<int> syslen;
 
   /// Scalar values of forces
-  std::vector<DistributedForcesScalar> scalar;
+  std::map<int, DistributedForcesScalar> scalar;
 
   /// Vector values of forces
-  std::vector<DistributedForcesVector> summed;
+  std::map<int, DistributedForcesVector> summed;
 
   /// Detailed values of forces
-  std::vector<DistributedForcesDetailed> detailed;
+  std::map<int, DistributedForcesDetailed> detailed;
 
 };
 

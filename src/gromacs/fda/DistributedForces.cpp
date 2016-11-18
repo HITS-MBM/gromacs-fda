@@ -9,31 +9,12 @@
 
 using namespace fda;
 
-DistributedForces::DistributedForces(ForceType force_type, ResultType result_type, int syslen)
+DistributedForces::DistributedForces(ForceType force_type, ResultType result_type, OnePair one_pair, int syslen)
  : force_type(force_type),
    result_type(result_type),
+   one_pair(one_pair),
    syslen(syslen)
 {
-  std::cout << "Allocating space for pairwise forces of " << force_type << ": " << syslen << std::endl;
-  switch(fda_settings.one_pair) {
-	case OnePair::DETAILED:
-	  snew(atoms->detailed, atoms->len);
-	  for (i = 0; i < syslen; i++)
-		if (atoms->sys2pf[i] != -1)
-		  atoms->detailed[atoms->sys2pf[i]].nr = i;
-	  break;
-	case OnePair::SUMMED:
-	  snew(atoms->summed, atoms->len);
-	  for (i = 0; i < syslen; i++)
-		if (atoms->sys2pf[i] != -1)
-		  atoms->summed[atoms->sys2pf[i]].nr = i;
-	  break;
-	default:
-	   /* this is the first use of OnePair; calling gmx_fatal on further uses will not happen anymore, as the test here is supposed to catch such cases */
-	   gmx_fatal(FARGS, "Unknown value for pf OnePair: 0x%x.\n", OnePair);
-	   break;
-  }
-
   // Allocates and fills with -1 the indexing table real atom number to pf number
   if (result_type != ResultType::NO) sys2pf.resize(syslen, -1);
 }
@@ -45,8 +26,8 @@ void DistributedForces::scalar_real_divide(real divisor)
 
 void DistributedForces::summed_merge_to_scalar(const rvec *x, int Vector2Scalar)
 {
-  if (scalar.size() != vector.size())
-    gmx_fatal(FARGS, "Mismatch of PF atom id: summed %d vs scalar %d\n", vector.size(), scalar.size());
+  if (scalar.size() != summed.size())
+    gmx_fatal(FARGS, "Mismatch of PF atom id: summed %d vs scalar %d\n", summed.size(), scalar.size());
 
   for (int i = 0; i != scalar.size(); ++i) {
     scalar_add(scalar, scalar[i].id, scalar[i].type,
