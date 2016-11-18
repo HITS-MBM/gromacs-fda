@@ -89,7 +89,8 @@ std::istream& operator>>(std::istream& is, InteractionType& r)
   return is;
 }
 
+#endif
+
 } // namespace fda
 
-#endif
 #endif /* SRC_GROMACS_FDA_INTERACTIONTYPE_H_ */
