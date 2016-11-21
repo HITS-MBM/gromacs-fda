@@ -16,7 +16,7 @@ DistributedForcesDetailed::DistributedForcesDetailed()
 
 void DistributedForcesDetailed::add_force(int j, int type, rvec force)
 {
-  //interactions[type][j] += force;
+  interactions[type][j] += force;
 
   // old:
 //  t_pf_interaction_array_detailed *ia;

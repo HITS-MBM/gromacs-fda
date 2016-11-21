@@ -9,7 +9,6 @@
 #define SRC_GROMACS_FDA_DISTRIBUTEDFORCESSCALAR_H_
 
 #include <vector>
-#include "gromacs/math/vectypes.h"
 
 namespace fda {
 

@@ -39,7 +39,6 @@
 #ifndef SRC_GROMACS_FDA_FDA_H
 #define SRC_GROMACS_FDA_FDA_H
 
-#include "gromacs/math/vectypes.h"
 #include "gromacs/utility/basedefinitions.h"
 
 #ifdef __cplusplus
@@ -47,6 +46,7 @@
 #include <vector>
 #include "DistributedForces.h"
 #include "FDASettings.h"
+#include "Tensor.h"
 #endif
 
 #ifdef HAVE_CONFIG_H
@@ -207,7 +207,7 @@ private:
   std::vector<real> force_per_residue;
 
   /// For virial stress
-  std::vector<tensor> atom_vir;
+  std::vector<Tensor> atom_vir;
 
 #else
 struct FDA {

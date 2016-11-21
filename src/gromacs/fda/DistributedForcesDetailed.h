@@ -12,7 +12,7 @@
 #include <map>
 #include <vector>
 #include "InteractionType.h"
-#include "gromacs/math/vectypes.h"
+#include "Vector.h"
 
 namespace fda {
 
@@ -36,8 +36,7 @@ private:
   std::vector<int> id;
 
   /// Distributed forces for each interaction type
-  //std::array<std::map<int, rvec>, InteractionType::num> interactions;
-  std::array<std::map<int, int>, InteractionType::num> interactions;
+  std::array<std::map<int, Vector>, InteractionType::num> interactions;
 
 };
 

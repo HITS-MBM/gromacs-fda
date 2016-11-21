@@ -91,7 +91,6 @@ void FDA::add_bonded_nocheck(int i, int j, int type, rvec force)
   }
 
   if (atom_based_forces.PF_or_PS_mode()) {
-    //fprintf(stderr, "pf_atom_add_bonded_nocheck: i=%d, j=%d, type=%d\n", i, j, type);
     if (i > j) {
       int_swap(&i, &j);
       rvec_opp(force);
