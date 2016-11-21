@@ -22,7 +22,7 @@ enum class ForceType : std::int8_t
 };
 
 /// Output stream for ForceType
-std::ostream& operator>>(std::ostream& os, ForceType r)
+std::ostream& operator<<(std::ostream& os, ForceType r)
 {
   switch(r) {
     case ForceType::ATOMS:

@@ -16,6 +16,7 @@ namespace fda {
 
 struct InteractionType
 {
+  static const int none      =      0;
   static const int bond      = 1 << 0;
   static const int angle     = 1 << 1;
   static const int dihedral  = 1 << 2;
@@ -43,7 +44,7 @@ enum class InteractionType : int
 };
 
 /// Output stream for InteractionType
-std::ostream& operator>>(std::ostream& os, InteractionType r)
+std::ostream& operator<<(std::ostream& os, InteractionType r)
 {
   switch(r) {
     case InteractionType::BOND:

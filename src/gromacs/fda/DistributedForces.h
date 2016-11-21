@@ -8,13 +8,14 @@
 #ifndef SRC_GROMACS_FDA_DISTRIBUTEDFORCES_H_
 #define SRC_GROMACS_FDA_DISTRIBUTEDFORCES_H_
 
+#include <array>
 #include <map>
-#include "DistributedForcesDetailed.h"
-#include "DistributedForcesScalar.h"
-#include "DistributedForcesVector.h"
+#include <vector>
 #include "ForceType.h"
+#include "InteractionType.h"
 #include "OnePair.h"
 #include "ResultType.h"
+#include "Vector.h"
 
 namespace fda {
 
@@ -62,6 +63,8 @@ public:
 
 private:
 
+  friend class FDA;
+
   /// Atom or residue based forces
   ForceType force_type;
 
@@ -78,13 +81,13 @@ private:
   std::vector<int> syslen;
 
   /// Scalar values of forces
-  std::map<int, DistributedForcesScalar> scalar;
+  std::map<int, std::map<int, real>> scalar;
 
   /// Vector values of forces
-  std::map<int, DistributedForcesVector> summed;
+  std::map<int, std::map<int, Vector>> summed;
 
   /// Detailed values of forces
-  std::map<int, DistributedForcesDetailed> detailed;
+  std::map<int, std::map<int, std::array<Vector, InteractionType::num>>> detailed;
 
 };
 

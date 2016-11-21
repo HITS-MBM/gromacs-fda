@@ -23,7 +23,7 @@ enum class ResiduesRenumber : std::int8_t
 };
 
 /// Output stream for ResiduesRenumber
-std::ostream& operator>>(std::ostream& os, ResiduesRenumber r)
+std::ostream& operator<<(std::ostream& os, ResiduesRenumber r)
 {
   switch(r) {
     case ResiduesRenumber::AUTO:

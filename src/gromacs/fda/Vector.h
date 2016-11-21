@@ -21,10 +21,12 @@ public:
 	Vector()
 	{ v[0] = 0.0; v[1] = 0.0; v[2] = 0.0; }
 
-	void operator+(rvec other)
+	void operator+=(rvec other)
 	{
-	    v[0] = other[0]; v[1] = other[1]; v[2] = other[2];
+	    v[0] += other[0]; v[1] += other[1]; v[2] += other[2];
 	}
+
+	real* get_rvec() { return v; }
 
 private:
 

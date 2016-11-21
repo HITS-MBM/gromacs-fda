@@ -14,6 +14,7 @@
 real pf_vector2signedscalar(const rvec v, const rvec xi, const rvec xj, int Vector2Scalar);
 
 int pf_interactions_type_str2val(char *typestr);
+
 char *pf_interactions_type_val2str(int type);
 
 #endif  /* pf_utils_h */

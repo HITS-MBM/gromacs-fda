@@ -24,7 +24,7 @@ enum class OnePair : std::int8_t
 };
 
 /// Output stream for OnePair
-std::ostream& operator>>(std::ostream& os, OnePair r)
+std::ostream& operator<<(std::ostream& os, OnePair r)
 {
   switch(r) {
     case OnePair::DETAILED:

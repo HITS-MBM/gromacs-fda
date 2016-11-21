@@ -5,7 +5,9 @@
  *      Author: Bernd Doser, HITS gGmbH <bernd.doser@h-its.org>
  */
 
-#include <DistributedForces.h>
+#include "DistributedForces.h"
+#include "gromacs/utility/fatalerror.h"
+#include "pf_utils.h"
 
 using namespace fda;
 
@@ -21,29 +23,18 @@ DistributedForces::DistributedForces(ForceType force_type, ResultType result_typ
 
 void DistributedForces::scalar_real_divide(real divisor)
 {
-  for (auto& f : scalar) f.scalar_real_divide(divisor);
+  real inv = 1 / divisor;
+  for (auto& si : scalar)
+    for (auto& sj : si.second) sj.second *= inv;
 }
 
 void DistributedForces::summed_merge_to_scalar(const rvec *x, int Vector2Scalar)
 {
-  if (scalar.size() != summed.size())
-    gmx_fatal(FARGS, "Mismatch of PF atom id: summed %d vs scalar %d\n", summed.size(), scalar.size());
-
-  for (int i = 0; i != scalar.size(); ++i) {
-    scalar_add(scalar, scalar[i].id, scalar[i].type,
-      vector2signedscalar(scalar[i].force, x[scalar->nr], x[scalar[i].id], Vector2Scalar));
+  for (auto& si : summed) {
+	int i = si.first;
+    for (auto& sj : si.second) {
+      int j = sj.first;
+      scalar[i][j] += pf_vector2signedscalar(sj.second.get_rvec(), x[i], x[j], Vector2Scalar);
+    }
   }
-
-// Old code:
-//  t_pf_interaction_array_summed *ia;
-//  t_pf_interaction_summed *i;
-//  int j;
-//
-//  if (src->nr != dst->nr)
-//    gmx_fatal(FARGS, "Mismatch of PF atom id: summed %d vs scalar %d\n", src->nr, dst->nr);
-//  ia = &(src->interactions);
-//  for (j = 0; j < ia->len; j++) {
-//    i = &(ia->array[j]);
-//    pf_atom_scalar_add(dst, i->jjnr, i->type, pf_vector2signedscalar(i->force, x[src->nr], x[i->jjnr], Vector2Scalar));
-//  }
 }

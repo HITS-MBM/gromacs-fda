@@ -25,7 +25,7 @@ enum class Vector2Scalar : std::int8_t
 };
 
 /// Output stream for Vector2Scalar
-std::ostream& operator>>(std::ostream& os, Vector2Scalar r)
+std::ostream& operator<<(std::ostream& os, Vector2Scalar r)
 {
   switch(r) {
     case Vector2Scalar::NORM:

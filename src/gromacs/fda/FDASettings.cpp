@@ -6,7 +6,11 @@
  */
 
 #include <set>
+#include <sstream>
 #include "FDASettings.h"
+#include "gromacs/fileio/readinp.h"
+#include "gromacs/fileio/warninp.h"
+#include "gromacs/utility/fatalerror.h"
 
 using namespace fda;
 
@@ -22,7 +26,7 @@ FDASettings::FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global
    time_averaging_period(1),
    sys_in_group1(syslen_atoms, 0),
    sys_in_group2(syslen_atoms, 0),
-   type(0)
+   type(InteractionType::none)
 {
   /// Parallel execution not implemented yet
   if (parallel_execution)
@@ -73,13 +77,13 @@ FDASettings::FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global
 
   no_end_zeros = strcasecmp(get_estr(&ninp, &inp, "no_end_zeros", "no"), "no");
 
-  if ((compatibility_mode(atom_based_result_type) or compatibility_mode(residue_based_result_type)) and Vector2Scalar != Vector2Scalar::NORM)
+  if ((compatibility_mode(atom_based_result_type) or compatibility_mode(residue_based_result_type)) and vector_2_scalar != Vector2Scalar::NORM)
 	gmx_fatal(FARGS, "When using compat mode, pf_vector2scalar should be set to norm.\n");
 
   std::stringstream(get_estr(&ninp, &inp, "type", "all")) >> type;
   std::cout << "Pairwise interactions selected: " << type << std::endl;
 
-  if (type == InteractionType::NONE)
+  if (type == InteractionType::none)
 	gmx_fatal(FARGS, "No interactions selected, no sense to compute pairwise forces.\n");
 
   // Read group names

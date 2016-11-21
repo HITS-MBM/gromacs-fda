@@ -12,6 +12,7 @@
 #include <vector>
 #include "gromacs/commandline/filenm.h"
 #include "gromacs/topology/topology.h"
+#include "InteractionType.h"
 #include "OnePair.h"
 #include "ResidueRenumber.h"
 #include "ResultType.h"
@@ -33,7 +34,7 @@ struct FDASettings
      syslen_atoms(0),
      syslen_residues(0),
 	 time_averaging_period(1),
-     type(0)
+     type(InteractionType::none)
   {}
 
   /// Construction by input file

@@ -28,7 +28,7 @@ enum class ResultType : std::int8_t
 };
 
 /// Output stream for ResultType
-std::ostream& operator>>(std::ostream& os, ResultType r)
+std::ostream& operator<<(std::ostream& os, ResultType r)
 {
   switch(r) {
     case ResultType::NO:
