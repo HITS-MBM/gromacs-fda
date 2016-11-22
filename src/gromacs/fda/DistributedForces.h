@@ -37,7 +37,7 @@ class DistributedForces
 public:
 
   /// Constructor
-  DistributedForces(ForceType force_type, ResultType result_type, OnePair one_pair, int syslen);
+  DistributedForces(ResultType result_type, OnePair one_pair, int syslen);
 
   /// Divide all scalar forces by the divisor
   void scalar_real_divide(real divisor);
@@ -45,28 +45,9 @@ public:
   ///
   void summed_merge_to_scalar(const rvec *x, int Vector2Scalar);
 
-  bool compatibility_mode() const {
-    return result_type == ResultType::COMPAT_BIN or result_type == ResultType::COMPAT_ASCII;
-  }
-
-  bool stress_mode() const {
-    return result_type == ResultType::PUNCTUAL_STRESS or result_type == ResultType::VIRIAL_STRESS or result_type == ResultType::VIRIAL_STRESS_VON_MISES;
-  }
-
-  bool PF_or_PS_mode() const {
-	return result_type == ResultType::PAIRWISE_FORCES_VECTOR or result_type == ResultType::PAIRWISE_FORCES_SCALAR or result_type == ResultType::PUNCTUAL_STRESS;
-  }
-
-  bool VS_mode() const {
-	return result_type == ResultType::VIRIAL_STRESS or result_type == ResultType::VIRIAL_STRESS_VON_MISES;
-  }
-
 private:
 
   friend class FDA;
-
-  /// Atom or residue based forces
-  ForceType force_type;
 
   /// Result type
   ResultType result_type;

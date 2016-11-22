@@ -11,9 +11,8 @@
 
 using namespace fda;
 
-DistributedForces::DistributedForces(ForceType force_type, ResultType result_type, OnePair one_pair, int syslen)
- : force_type(force_type),
-   result_type(result_type),
+DistributedForces::DistributedForces(ResultType result_type, OnePair one_pair, int syslen)
+ : result_type(result_type),
    one_pair(one_pair),
    syslen(syslen)
 {

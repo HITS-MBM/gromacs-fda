@@ -13,28 +13,23 @@
 #include "gromacs/utility/real.h"
 #include "gromacs/utility/smalloc.h"
 
-#ifdef HAVE_CONFIG_H
-  #include <config.h>
-#endif
-
 using namespace fda;
 
-void FDA::per_atom_real_write_frame(FILE *f, std::vector<real> const& force_per_node, gmx_bool no_end_zeros)
+void FDA::per_atom_real_write_frame(std::vector<real> const& force_per_node) const
 {
-  int i, j;
-  gmx_bool first_on_line = TRUE;
-
-  j = len;
+  int j = force_per_node.size();
+  // Detect the last non-zero item
   if (no_end_zeros) {
-    /* detect the last non-zero item */
-    for (j = len; j > 0; j--)
+    for (; j > 0; --j)
       if (force[j - 1] != 0.0)
         break;
   }
-  /* j holds the index of first zero item or the length of force */
+
+  // j holds the index of first zero item or the length of force
+  bool first_on_line = true;
   for (i = 0; i < j; i++) {
     if (first_on_line) {
-      fprintf(f, "%e", force[i]);
+      ofs << force[i];
       first_on_line = FALSE;
     } else {
       fprintf(f, " %e", force[i]);

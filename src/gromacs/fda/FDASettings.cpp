@@ -10,6 +10,8 @@
 #include "FDASettings.h"
 #include "gromacs/fileio/readinp.h"
 #include "gromacs/fileio/warninp.h"
+#include "gromacs/topology/index.h"
+#include "gromacs/utility/cstringutil.h"
 #include "gromacs/utility/fatalerror.h"
 
 using namespace fda;
@@ -132,7 +134,7 @@ FDASettings::FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global
 
   // Check if groups are defined for PF/PF mode
   if (PF_or_PS_mode(atom_based_result_type) or PF_or_PS_mode(residue_based_result_type)) {
-	if ((sys_in_group1 == NULL) || (sys_in_group2 == NULL))
+	if (sys_in_group1.empty() or sys_in_group2.empty())
 	  gmx_fatal(FARGS, "No atoms in one or both groups.\n");
   }
 
@@ -143,30 +145,31 @@ FDASettings::FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global
   // Get output file names
   if (PF_or_PS_mode(atom_based_result_type)) {
 	if (atom_based_result_type == ResultType::PUNCTUAL_STRESS) {
-		ofn_atoms = gmx_strdup(opt2fn("-psa", nfile, fnm));
+	  atom_based_result_filename = gmx_strdup(opt2fn("-psa", nfile, fnm));
 	} else {
-		ofn_atoms = gmx_strdup(opt2fn("-pfa", nfile, fnm));
+	  atom_based_result_filename = gmx_strdup(opt2fn("-pfa", nfile, fnm));
 	}
-	if (!ofn_atoms)
+	if (atom_based_result_filename.empty())
 	  gmx_fatal(FARGS, "No file for writing out atom-based values.\n");
   }
 
   if (PF_or_PS_mode(residue_based_result_type)) {
 	if (residue_based_result_type == ResultType::PUNCTUAL_STRESS) {
-		ofn_residues = gmx_strdup(opt2fn("-psr", nfile, fnm));
+      residue_based_result_filename = gmx_strdup(opt2fn("-psr", nfile, fnm));
 	} else {
-		ofn_residues = gmx_strdup(opt2fn("-pfr", nfile, fnm));
+      residue_based_result_filename = gmx_strdup(opt2fn("-pfr", nfile, fnm));
 	}
-	if (!ofn_residues)
+	if (residue_based_result_filename.empty())
 	  gmx_fatal(FARGS, "No file for writing out residue-based values.\n");
   }
 
   if (VS_mode(atom_based_result_type)) {
 	if (atom_based_result_type == ResultType::VIRIAL_STRESS)
-		ofn_atoms = gmx_strdup(opt2fn("-vsa", nfile, fnm));
+      atom_based_result_filename = gmx_strdup(opt2fn("-vsa", nfile, fnm));
 	if (atom_based_result_type == ResultType::VIRIAL_STRESS_VON_MISES)
-		ofn_atoms = gmx_strdup(opt2fn("-vma", nfile, fnm));
-	if (!ofn_atoms) gmx_fatal(FARGS, "No file for writing out virial stress.\n");
+      atom_based_result_filename = gmx_strdup(opt2fn("-vma", nfile, fnm));
+	if (atom_based_result_filename.empty())
+	  gmx_fatal(FARGS, "No file for writing out virial stress.\n");
   }
 
   if ((stress_mode(atom_based_result_type) or stress_mode(residue_based_result_type)) and (one_pair != OnePair::SUMMED))

@@ -44,13 +44,9 @@
 #ifdef __cplusplus
 #include <cstdio>
 #include <vector>
-#include "DistributedForces.h"
+#include "FDABase.h"
 #include "FDASettings.h"
 #include "Tensor.h"
-#endif
-
-#ifdef HAVE_CONFIG_H
-  #include <config.h>
 #endif
 
 namespace fda {
@@ -158,7 +154,7 @@ public:
    */
   void write_scalar_time_averages();
 
-  void per_atom_real_write_frame(FILE *f, std::vector<real> const& force_per_node, gmx_bool no_end_zeros);
+  void per_atom_real_write_frame(FILE *f, std::vector<real> const& force_per_node, bool no_end_zeros);
 
   void per_atom_sum(std::vector<real>& force_per_node, DistributedForces& forces, int atoms_len, const rvec *x, int Vector2Scalar);
 
@@ -173,11 +169,11 @@ private:
   /// Settings
   FDASettings const& fda_settings;
 
-  /// Distributed forces per atom
-  DistributedForces atom_based_forces;
+  /// Atom-based operation
+  FDABase<Atom> atom_based;
 
-  /// Distributed forces per residue
-  DistributedForces residue_based_forces;
+  /// Residue-based operation
+  FDABase<Residue> residue_based;
 
   /// Counter for current step, incremented for every call of pf_save_and_write_scalar_averages()
   /// When it reaches time_averages_steps, data is written
@@ -186,25 +182,6 @@ private:
   /// Averaged residue COM coordinates over steps, needed for COM calculations
   /// Only initialized when residue_based_forces is non-zero
   rvec *time_averaging_com;
-
-  /// File handles for atom-based forces
-  FILE *of_atoms;
-
-  /// File handles for residue-based forces
-  FILE *of_residues;
-
-  /// The following 2 should be gmx_int64_t, but the file format is defined with int
-  /// Number of steps for output in compatibility mode; incremented for each step written during run, also used to write the total nr. of steps at the end
-  int nsteps_atoms;
-
-  /// Number of steps for output in compatibility mode; incremented for each step written during run, also used to write the total nr. of steps at the end
-  int nsteps_residues;
-
-  /// Total force per atom
-  std::vector<real> force_per_atom;
-
-  /// Total force per residue
-  std::vector<real> force_per_residue;
 
   /// For virial stress
   std::vector<Tensor> atom_vir;

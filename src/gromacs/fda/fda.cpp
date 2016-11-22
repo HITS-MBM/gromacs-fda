@@ -29,35 +29,27 @@ static const real QUARTER = 0.25;
 
 FDA::FDA(FDASettings const& fda_settings)
  : fda_settings(fda_settings),
-   atom_based_forces(ForceType::ATOMS, fda_settings.atom_based_result_type, fda_settings.one_pair, fda_settings.syslen_atoms),
-   residue_based_forces(ForceType::RESIDUES, fda_settings.residue_based_result_type, fda_settings.one_pair, fda_settings.syslen_residues),
+   atom_based(fda_settings.atom_based_result_type,
+		      fda_settings.one_pair,
+			  fda_settings.syslen_atoms,
+		      fda_settings.atom_based_result_filename,
+			  fda_settings.no_end_zeros),
+   residue_based(fda_settings.residue_based_result_type,
+		         fda_settings.one_pair,
+				 fda_settings.syslen_residues,
+				 fda_settings.residue_based_result_filename,
+		         fda_settings.no_end_zeros),
    time_averaging_steps(0),
-   time_averaging_com(nullptr),
-   of_atoms(nullptr),
-   of_residues(nullptr),
-   nsteps_atoms(0),
-   nsteps_residues(0)
+   time_averaging_com(nullptr)
 {
-  if (atom_based_forces.PF_or_PS_mode()) {
-	if (fda_settings.atom_based_result_type == ResultType::PUNCTUAL_STRESS) {
-      force_per_atom.resize(fda_settings.syslen_atoms, 0.0);
-	}
-  }
-
-  if (residue_based_forces.PF_or_PS_mode()) {
-    if (fda_settings.residue_based_result_type == ResultType::PUNCTUAL_STRESS) {
-      force_per_residue.resize(fda_settings.syslen_residues, 0.0);
-	}
-  }
-
-  if (atom_based_forces.VS_mode()) atom_vir.resize(fda_settings.syslen_atoms);
+  if (atom_based.VS_mode()) atom_vir.resize(fda_settings.syslen_atoms);
 }
 
 void FDA::add_bonded_nocheck(int i, int j, int type, rvec force)
 {
   // the calling functions will not have i == j, but there is not such guarantee for ri and rj;
   // and it makes no sense to look at the interaction of a residue to itself
-  if (residue_based_forces.PF_or_PS_mode()) {
+  if (residue_based.PF_or_PS_mode()) {
     int ri = fda_settings.get_atom2residue(i);
     int rj = fda_settings.get_atom2residue(j);
     rvec force_residue;
@@ -68,9 +60,9 @@ void FDA::add_bonded_nocheck(int i, int j, int type, rvec force)
             int_swap(&ri, &rj);
             clear_rvec(force_residue);
             rvec_dec(force_residue, force);
-            residue_based_forces.detailed[ri][rj][type] += force_residue;
+            residue_based.distributed_forces.detailed[ri][rj][type] += force_residue;
           } else {
-            residue_based_forces.detailed[ri][rj][type] += force;
+            residue_based.distributed_forces.detailed[ri][rj][type] += force;
           }
           break;
         case OnePair::SUMMED:
@@ -78,9 +70,9 @@ void FDA::add_bonded_nocheck(int i, int j, int type, rvec force)
             int_swap(&ri, &rj);
             clear_rvec(force_residue);
             rvec_dec(force_residue, force);
-            residue_based_forces.summed[ri][rj] += force_residue;
+            residue_based.distributed_forces.summed[ri][rj] += force_residue;
           } else {
-            residue_based_forces.summed[ri][rj] += force;
+            residue_based.distributed_forces.summed[ri][rj] += force;
           }
           break;
         case OnePair::INVALID:
@@ -89,17 +81,17 @@ void FDA::add_bonded_nocheck(int i, int j, int type, rvec force)
     }
   }
 
-  if (atom_based_forces.PF_or_PS_mode()) {
+  if (atom_based.PF_or_PS_mode()) {
     if (i > j) {
       int_swap(&i, &j);
       rvec_opp(force);
     }
     switch(fda_settings.one_pair) {
       case OnePair::DETAILED:
-        atom_based_forces.detailed[i][j][type] += force;
+        atom_based.distributed_forces.detailed[i][j][type] += force;
         break;
       case OnePair::SUMMED:
-        atom_based_forces.summed[i][j] += force;
+        atom_based.distributed_forces.summed[i][j] += force;
         break;
       case OnePair::INVALID:
         break;
@@ -308,13 +300,12 @@ void FDA::add_nonbonded(int i, int j, real pf_coul, real pf_lj, real dx, real dy
    * force is the force atom j exerts on atom i; if i and j are switched, the force goes in opposite direction
    * it's possible that i > j, but ri < rj, so the force has to be handled separately for each of them
    */
-  if (residue_based_forces.PF_or_PS_mode()) {
+  if (residue_based.PF_or_PS_mode()) {
     /* the calling functions will not have i == j, but there is not such guarantee for ri and rj;
      * and it makes no sense to look at the interaction of a residue to itself
      */
     int ri = fda_settings.get_atom2residue(i);
     int rj = fda_settings.get_atom2residue(j);
-    //fprintf(stderr, "pf_atom_add_nonbonded: i=%d, j=%d, ri=%d, rj=%d\n", i, j, ri, rj);
     if (ri != rj) {
       if (ri > rj) {
         int tmp = rj; rj = ri; ri = tmp; // swap
@@ -330,18 +321,18 @@ void FDA::add_nonbonded(int i, int j, real pf_coul, real pf_lj, real dx, real dy
           pf_coul_residue_v[0] = pf_coul_residue * dx;
           pf_coul_residue_v[1] = pf_coul_residue * dy;
           pf_coul_residue_v[2] = pf_coul_residue * dz;
-          residue_based_forces.detailed[ri][rj][PF_INTER_COULOMB] += pf_coul_residue_v;
+          residue_based.distributed_forces.detailed[ri][rj][PF_INTER_COULOMB] += pf_coul_residue_v;
           pf_lj_residue_v[0] = pf_lj_residue * dx;
           pf_lj_residue_v[1] = pf_lj_residue * dy;
           pf_lj_residue_v[2] = pf_lj_residue * dz;
-          residue_based_forces.detailed[ri][rj][PF_INTER_LJ] += pf_lj_residue_v;
+          residue_based.distributed_forces.detailed[ri][rj][PF_INTER_LJ] += pf_lj_residue_v;
           break;
         case OnePair::SUMMED:
           pf_lj_coul = pf_lj_residue + pf_coul_residue;
           pf_coul_residue_v[0] = pf_lj_coul * dx;
           pf_coul_residue_v[1] = pf_lj_coul * dy;
           pf_coul_residue_v[2] = pf_lj_coul * dz;
-          residue_based_forces.summed[ri][rj] += pf_coul_residue_v;
+          residue_based.distributed_forces.summed[ri][rj] += pf_coul_residue_v;
           break;
         case OnePair::INVALID:
           break;
@@ -350,7 +341,7 @@ void FDA::add_nonbonded(int i, int j, real pf_coul, real pf_lj, real dx, real dy
   }
 
   /* i & j as well as pf_lj & pf_coul are not used after this point, so it's safe to operate on their values directly */
-  if (atom_based_forces.PF_or_PS_mode()) {
+  if (atom_based.PF_or_PS_mode()) {
     if (i > j) {
       int tmp = j; j = i; i = tmp; // swap
       pf_lj = -pf_lj;
@@ -362,18 +353,18 @@ void FDA::add_nonbonded(int i, int j, real pf_coul, real pf_lj, real dx, real dy
         pf_coul_atom_v[0] = pf_coul * dx;
         pf_coul_atom_v[1] = pf_coul * dy;
         pf_coul_atom_v[2] = pf_coul * dz;
-        atom_based_forces.detailed[i][j][PF_INTER_COULOMB] += pf_coul_atom_v;
+        atom_based.distributed_forces.detailed[i][j][PF_INTER_COULOMB] += pf_coul_atom_v;
         pf_lj_atom_v[0] = pf_lj * dx;
         pf_lj_atom_v[1] = pf_lj * dy;
         pf_lj_atom_v[2] = pf_lj * dz;
-        atom_based_forces.detailed[i][j][PF_INTER_LJ] += pf_lj_atom_v;
+        atom_based.distributed_forces.detailed[i][j][PF_INTER_LJ] += pf_lj_atom_v;
         break;
       case OnePair::SUMMED:
         pf_lj_coul = pf_lj + pf_coul;
         pf_coul_atom_v[0] = pf_lj_coul * dx;
         pf_coul_atom_v[1] = pf_lj_coul * dy;
         pf_coul_atom_v[2] = pf_lj_coul * dz;
-        atom_based_forces.summed[i][j] += pf_coul_atom_v;
+        atom_based.distributed_forces.summed[i][j] += pf_coul_atom_v;
         break;
       case OnePair::INVALID:
         break;

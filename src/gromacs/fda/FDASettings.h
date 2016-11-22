@@ -107,10 +107,10 @@ struct FDASettings
   int time_averaging_period;
 
   /// Output file name for atoms if AtomBased is non-zero
-  std::string ofn_atoms;
+  std::string atom_based_result_filename;
 
   /// Output file name for residues if ResidueBased is non-zero
-  std::string ofn_residues;
+  std::string residue_based_result_filename;
 
   /// If 0 if atom not in group1, if 1 if atom in group1, length of syslen_atoms
   std::vector<char> sys_in_group1;
