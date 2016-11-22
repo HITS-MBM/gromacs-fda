@@ -121,48 +121,7 @@ public:
    */
   void add_virial_dihedral(int i, int j, int k, int l, rvec f_i, rvec f_k, rvec f_l, rvec r_ij, rvec r_kj, rvec r_kl);
 
-  void write_frame(const rvec *x,  gmx_mtop_t *top_global) /* const */;
-
-  void write_frame_detailed(DistributedForces const& forces, FILE* f, int *framenr, const rvec *x, gmx_bool bVector, Vector2Scalar v2s) /* const */;
-
-  void write_frame_summed(DistributedForces const& forces, FILE* f, int *framenr, const rvec *x, gmx_bool bVector, Vector2Scalar v2s) /* const */;
-
-  void write_frame_scalar(DistributedForces const& forces, FILE* f, int *framenr) /* const */;
-
-  void write_frame_atoms_scalar_compat(DistributedForces const& forces, FILE *f, int *framenr, gmx_bool ascii) /* const */;
-
-  /**
-   * Main function for scalar time averages; saves data and decides when to write it out
-   *
-   * dealing with residues is more complicated because COMs have to be averaged over time;
-   * it's not possible to average the atom positions and calculate COMs only once before
-   * writing because for this fda->atoms would need to be initialized (to get the atom
-   * number or to get the sys2ps mapping) which only happens when AtomBased is non-zero
-   */
-  void save_and_write_scalar_time_averages(rvec const *x, gmx_mtop_t *top_global);
-
-  /**
-   * Write scalar time averages; this is similar to pf_write_frame, except that time averages are used
-   *
-   * There are several cases:
-   * steps == 0 - there was no frame saved at all or there are no frames saved since the last writing, so no writing needed
-   * steps > 0, period == 0 - no frames written so far, but frames saved, so writing one frame
-   * steps > 0, period != 0 - frames saved, so writing the last frame
-   *
-   * if this is called from pf_write_and_save... then steps is certainly > 0
-   * period is certainly != 1, otherwise the averages functions are not called
-   */
-  void write_scalar_time_averages();
-
-  void per_atom_real_write_frame(FILE *f, std::vector<real> const& force_per_node, bool no_end_zeros);
-
-  void per_atom_sum(std::vector<real>& force_per_node, DistributedForces& forces, int atoms_len, const rvec *x, Vector2Scalar v2s);
-
-  /// The stress is the negative atom_vir value.
-  void write_atom_virial_sum(FILE *f, tensor *atom_vir, int natoms);
-
-  /// For von Mises no negative values are needed, since all items are squared.
-  void write_atom_virial_sum_von_mises(FILE *f, tensor *atom_vir, int natoms);
+  void write_frame(const rvec *x, gmx_mtop_t *mtop);
 
 private:
 
@@ -185,6 +144,10 @@ private:
 
   /// For virial stress
   std::vector<Tensor> atom_vir;
+
+  /// Current number of steps
+  /// Incremented for each step written during run, also used to write the total number of steps at the end
+  int nsteps;
 
 #else
 struct FDA {

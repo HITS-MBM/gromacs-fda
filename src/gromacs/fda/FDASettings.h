@@ -28,7 +28,7 @@ struct FDASettings
    : atom_based_result_type(ResultType::NO),
      residue_based_result_type(ResultType::NO),
 	 one_pair(OnePair::DETAILED),
-	 vector_2_scalar(Vector2Scalar::NORM),
+	 v2s(Vector2Scalar::NORM),
 	 residues_renumber(ResiduesRenumber::AUTO),
 	 no_end_zeros(false),
      syslen_atoms(0),
@@ -85,7 +85,7 @@ struct FDASettings
   OnePair one_pair;
 
   /// Define conversion from vector to scalar
-  Vector2Scalar vector_2_scalar;
+  Vector2Scalar v2s;
 
   /// detect/force residue renumbering
   ResiduesRenumber residues_renumber;
