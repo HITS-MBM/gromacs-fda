@@ -374,12 +374,15 @@ void FDA::add_nonbonded(int i, int j, real pf_coul, real pf_lj, real dx, real dy
 
 void FDA::add_virial(int ai, tensor v, real s)
 {
-    atom_vir[ai][XX][XX] += s * v[XX][XX];
-    atom_vir[ai][YY][YY] += s * v[YY][YY];
-    atom_vir[ai][ZZ][ZZ] += s * v[ZZ][ZZ];
-    atom_vir[ai][XX][YY] += s * v[XX][YY];
-    atom_vir[ai][XX][ZZ] += s * v[XX][ZZ];
-    atom_vir[ai][YY][ZZ] += s * v[YY][ZZ];
+	// Only symmetric tensor is used, therefore full multiplication is not as efficient
+	//atom_vir[ai] += s * v;
+
+    atom_vir[ai](XX, XX) += s * v[XX][XX];
+    atom_vir[ai](YY, YY) += s * v[YY][YY];
+    atom_vir[ai](ZZ, ZZ) += s * v[ZZ][ZZ];
+    atom_vir[ai](XX, YY) += s * v[XX][YY];
+    atom_vir[ai](XX, ZZ) += s * v[XX][ZZ];
+    atom_vir[ai](YY, ZZ) += s * v[YY][ZZ];
 }
 
 void FDA::add_virial_bond(int ai, int aj, real f, real dx, real dy, real dz)

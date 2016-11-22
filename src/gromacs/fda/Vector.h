@@ -12,7 +12,7 @@
 
 namespace fda {
 
-/// As currently no RAII algebra types are availbale in GROMACS
+/// As currently no RAII algebra types are available in GROMACS
 /// a wrapper class is used around rvec.
 class Vector
 {
@@ -31,6 +31,7 @@ public:
 private:
 
 	rvec v;
+
 };
 
 } // namespace fda
