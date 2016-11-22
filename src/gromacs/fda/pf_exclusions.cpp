@@ -2,16 +2,13 @@
  * pf_exclusions.c
  *
  *  Created on: Sep 29, 2014
- *      Author: Bernd Doser, HITS gGmbH
+ *      Author: Bernd Doser, HITS gGmbH <bernd.doser@h-its.org>
  */
 
 #include <algorithm>
 #include <climits>
 #include <cstdio>
 #include <cstring>
-#include "gromacs/fda/pf_exclusions.h"
-#include "gromacs/fda/pf_interactions.h"
-#include "gromacs/fda/pf_utils.h"
 #include "gromacs/fileio/readinp.h"
 #include "gromacs/fileio/warninp.h"
 #include "gromacs/topology/block.h"
@@ -20,6 +17,8 @@
 #include "gromacs/utility/basedefinitions.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/smalloc.h"
+#include "pf_exclusions.h"
+#include "pf_interactions.h"
 
 void fda_data_init(int nfile, const t_filenm fnm[])
 {

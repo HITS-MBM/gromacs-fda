@@ -7,7 +7,7 @@
 
 #include "DistributedForces.h"
 #include "gromacs/utility/fatalerror.h"
-#include "pf_utils.h"
+#include "Utilities.h"
 
 using namespace fda;
 
@@ -27,13 +27,13 @@ void DistributedForces::scalar_real_divide(real divisor)
     for (auto& sj : si.second) sj.second *= inv;
 }
 
-void DistributedForces::summed_merge_to_scalar(const rvec *x, int Vector2Scalar)
+void DistributedForces::summed_merge_to_scalar(const rvec *x, Vector2Scalar v2s)
 {
   for (auto& si : summed) {
 	int i = si.first;
     for (auto& sj : si.second) {
       int j = sj.first;
-      scalar[i][j] += pf_vector2signedscalar(sj.second.get_rvec(), x[i], x[j], Vector2Scalar);
+      scalar[i][j] += vector2signedscalar(sj.second.get_rvec(), x[i], x[j], v2s);
     }
   }
 }

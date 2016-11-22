@@ -16,6 +16,7 @@
 #include "OnePair.h"
 #include "ResultType.h"
 #include "Vector.h"
+#include "Vector2Scalar.h"
 
 namespace fda {
 
@@ -42,8 +43,7 @@ public:
   /// Divide all scalar forces by the divisor
   void scalar_real_divide(real divisor);
 
-  ///
-  void summed_merge_to_scalar(const rvec *x, int Vector2Scalar);
+  void summed_merge_to_scalar(const rvec *x, Vector2Scalar v2s);
 
 private:
 

@@ -123,9 +123,9 @@ public:
 
   void write_frame(const rvec *x,  gmx_mtop_t *top_global) /* const */;
 
-  void write_frame_detailed(DistributedForces const& forces, FILE* f, int *framenr, const rvec *x, gmx_bool bVector, int Vector2Scalar) /* const */;
+  void write_frame_detailed(DistributedForces const& forces, FILE* f, int *framenr, const rvec *x, gmx_bool bVector, Vector2Scalar v2s) /* const */;
 
-  void write_frame_summed(DistributedForces const& forces, FILE* f, int *framenr, const rvec *x, gmx_bool bVector, int Vector2Scalar) /* const */;
+  void write_frame_summed(DistributedForces const& forces, FILE* f, int *framenr, const rvec *x, gmx_bool bVector, Vector2Scalar v2s) /* const */;
 
   void write_frame_scalar(DistributedForces const& forces, FILE* f, int *framenr) /* const */;
 
@@ -156,7 +156,7 @@ public:
 
   void per_atom_real_write_frame(FILE *f, std::vector<real> const& force_per_node, bool no_end_zeros);
 
-  void per_atom_sum(std::vector<real>& force_per_node, DistributedForces& forces, int atoms_len, const rvec *x, int Vector2Scalar);
+  void per_atom_sum(std::vector<real>& force_per_node, DistributedForces& forces, int atoms_len, const rvec *x, Vector2Scalar v2s);
 
   /// The stress is the negative atom_vir value.
   void write_atom_virial_sum(FILE *f, tensor *atom_vir, int natoms);

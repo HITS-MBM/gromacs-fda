@@ -2,7 +2,7 @@
  * pf_exclusions.h
  *
  *  Created on: Sep 29, 2014
- *      Author: Bernd Doser, HITS gGmbH
+ *      Author: Bernd Doser, HITS gGmbH <bernd.doser@h-its.org>
  */
 
 #ifndef PF_EXCLUSIONS_H_
