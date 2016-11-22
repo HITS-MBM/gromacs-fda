@@ -42,7 +42,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "../fda/pf_exclusions.h"
+#include "gromacs/fda/pf_exclusions.h"
 #include "gromacs/fda/pf_interactions.h"
 #include "gromacs/math/vectypes.h"
 #include "gromacs/topology/atoms.h"

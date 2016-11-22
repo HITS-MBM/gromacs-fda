@@ -11,19 +11,20 @@
 #include "gromacs/fileio/readinp.h"
 #include "gromacs/fileio/warninp.h"
 #include "gromacs/topology/index.h"
+#include "gromacs/topology/mtop_util.h"
 #include "gromacs/utility/cstringutil.h"
 #include "gromacs/utility/fatalerror.h"
 
 using namespace fda;
 
-FDASettings::FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global, bool parallel_execution)
+FDASettings::FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *mtop, bool parallel_execution)
  : atom_based_result_type(ResultType::NO),
    residue_based_result_type(ResultType::NO),
    one_pair(OnePair::DETAILED),
    vector_2_scalar(Vector2Scalar::NORM),
    residues_renumber(ResiduesRenumber::AUTO),
    no_end_zeros(false),
-   syslen_atoms(top_global->natoms),
+   syslen_atoms(mtop->natoms),
    syslen_residues(0),
    time_averaging_period(1),
    sys_in_group1(syslen_atoms, 0),
@@ -175,7 +176,7 @@ FDASettings::FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global
   if ((stress_mode(atom_based_result_type) or stress_mode(residue_based_result_type)) and (one_pair != OnePair::SUMMED))
 	gmx_fatal(FARGS, "Per atom data can only be computed from summed interactions.\n");
 
-  fill_atom2residue(top_global);
+  fill_atom2residue(mtop);
 }
 
 std::vector<int> FDASettings::groupatoms2residues(std::vector<int> const& group_atoms) const
@@ -185,45 +186,36 @@ std::vector<int> FDASettings::groupatoms2residues(std::vector<int> const& group_
   return std::vector<int>(group_residues.begin(), group_residues.end());
 }
 
-void FDASettings::fill_atom2residue(gmx_mtop_t *top_global)
+void FDASettings::fill_atom2residue(gmx_mtop_t *mtop)
 {
-  int moltype_index, mol_index, atom_index, atom_global_index, resnrmax, i;
   t_atoms *atoms;
   t_atom *atom_info;
   gmx_molblock_t *mb;
-  int *a2r_resnr, *a2r_renum;       /* atom 2 residue correspondence tables, both are filled, one will be used in the end */
-  int *resnr2renum;                 /* residue nr. to renumbered nr. corespondence */
-  int resnr;                            /* residue nr.; set to atoms->resinfo[].nr => type int */
-  int renum;                        /* renumbered residue nr.; increased monotonically, so could theoretically be as large as the nr. of atoms => type int */
-  gmx_bool bResnrCollision = FALSE;     /* TRUE if residue number collision */
 
-  /* fill in the map between atom nr. and residue nr.; adapted from the code fragment in Data_Structures page on GROMACS website */
-  snew(a2r_resnr, top_global->natoms);
-  snew(a2r_renum, top_global->natoms);
-  /* get the maximum number of residues in any molecule block;
-   * any residue nr. obtained via atoms->resinfo[].nr is guaranteed to be smaller than this;
-   * this will be used for residue nr. collision detection - initialized to -1,
-   * will be set to the renumbered value on the first encounter, then a new renumbered value means a collision */
-  resnrmax = gmx_mtop_maxresnr(top_global, 0);
-  snew(resnr2renum, resnrmax + 1);
-  //fprintf(stderr, "resnrmax=%d\n",resnrmax);
-  for (i = 0; i <= resnrmax; i++)
-    resnr2renum[i] = -1;
-  atom_global_index = 0;
-  renum = 0;
-  for (moltype_index = 0; moltype_index < top_global->nmolblock; moltype_index++) {	//enum all molecule types
-    mb = &top_global->molblock[moltype_index];
-    for (mol_index = 0; mol_index < mb->nmol; mol_index++) {				//enum all instances of each molecule type
-      atoms = &top_global->moltype[mb->type].atoms;
-      for(atom_index = 0; atom_index < atoms->nr; atom_index++) {			//enum atoms
-        atom_info=&atoms->atom[atom_index];
-        resnr = atoms->resinfo[atom_info->resind].nr;
-        renum = pf_get_global_residue_number(top_global, atom_global_index);
-        //fprintf(stderr, "atom=%d, resnr=%d, renum=%d\n", atom_global_index, resnr, renum);
-        //fprintf(stderr, "pair %d:%d\n", resnr, resnr2renum[resnr]);
+  // atom 2 residue correspondence tables, both are filled, one will be used in the end
+  std::vector<int> a2r_resnr(syslen_atoms);
+  std::vector<int> a2r_renum(syslen_atoms);
+
+  // get the maximum number of residues in any molecule block;
+  // any residue nr. obtained via atoms->resinfo[].nr is guaranteed to be smaller than this;
+  // this will be used for residue nr. collision detection - initialized to -1,
+  // will be set to the renumbered value on the first encounter, then a new renumbered value means a collision
+  int resnrmax = gmx_mtop_maxresnr(mtop, 0);
+  std::vector<int> resnr2renum(resnrmax + 1, -1);
+
+  int atom_global_index = 0;
+  int renum = 0; //< renumbered residue nr.; increased monotonically, so could theoretically be as large as the nr. of atoms => type int
+  bool bResnrCollision = false;
+  for (int moltype_index = 0; moltype_index < mtop->nmolblock; ++moltype_index) {
+    mb = &mtop->molblock[moltype_index];
+    for (int mol_index = 0; mol_index < mb->nmol; ++mol_index) {
+      atoms = &mtop->moltype[mb->type].atoms;
+      for (int atom_index = 0; atom_index < atoms->nr; ++atom_index) {
+        atom_info = &atoms->atom[atom_index];
+        int resnr = atoms->resinfo[atom_info->resind].nr;
+        renum = get_global_residue_number(mtop, atom_global_index);
         if ((resnr2renum[resnr] != renum) && (resnr2renum[resnr] != -1)) {
-          bResnrCollision = TRUE;
-          //fprintf(stderr, "Renumbering because %d:%d should be %d:%d\n", resnr, renum, resnr, resnr2renum[resnr]);
+          bResnrCollision = true;
         }
         resnr2renum[resnr] = renum;
         a2r_resnr[atom_global_index] = resnr;
@@ -231,39 +223,69 @@ void FDASettings::fill_atom2residue(gmx_mtop_t *top_global)
         atom_global_index++;
       }
     }
-  } /* for (moltype_index = 0... */
-  sfree(resnr2renum);
+  }
 
-  /* renum is set to the residue number of the last atom, so should be largest value so far */
-  switch (fda->ResiduesRenumber) {
-    case PF_RESIDUE_RENUMBER_AUTO:
+  // renum is set to the residue number of the last atom, so should be largest value so far
+  switch (residues_renumber) {
+    case ResiduesRenumber::AUTO:
       if (bResnrCollision) {
-        fprintf(stderr, "Residue number collision detected, residues will be renumbered.\n");
-        fda->atom2residue = a2r_renum;
-        fda->syslen_residues = renum + 1;
-        sfree(a2r_resnr);
+        std::cerr << "Residue number collision detected, residues will be renumbered." << std::endl;
+        atom_2_residue = a2r_renum;
+        syslen_residues = renum + 1;
       }
       else {
-        fprintf(stderr, "Residues will not be renumbered.\n");
-        fda->atom2residue = a2r_resnr;
-        fda->syslen_residues = resnrmax + 1;
-        sfree(a2r_renum);
+    	std::cerr << "Residues will not be renumbered." << std::endl;
+        atom_2_residue = a2r_resnr;
+        syslen_residues = resnrmax + 1;
       }
       break;
-    case PF_RESIDUE_RENUMBER_DO:
-      fprintf(stderr, "Residues will be renumbered.\n");
-      fda->atom2residue = a2r_renum;
-      fda->syslen_residues = renum + 1;
-      sfree(a2r_resnr);
+    case ResiduesRenumber::DO:
+    	std::cerr << "Residues will be renumbered." << std::endl;
+        atom_2_residue = a2r_renum;
+        syslen_residues = renum + 1;
       break;
-    case PF_RESIDUE_RENUMBER_DONT:
+    case ResiduesRenumber::DONT:
       if (bResnrCollision)
-        fprintf(stderr, "Residue number collision detected, residues will NOT be renumbered.\n");
+    	std::cerr << "Residue number collision detected, residues will NOT be renumbered." << std::endl;
       else
-        fprintf(stderr, "Residues will not be renumbered.\n");
-      fda->atom2residue = a2r_resnr;
-      fda->syslen_residues = resnrmax + 1;
-      sfree(a2r_renum);
+    	std::cerr << "Residues will not be renumbered." << std::endl;
+        atom_2_residue = a2r_resnr;
+        syslen_residues = resnrmax + 1;
+      break;
+    case ResiduesRenumber::INVALID:
       break;
   }
+}
+
+int FDASettings::get_global_residue_number(gmx_mtop_t *mtop, int atnr_global) const
+{
+  int mb;
+  int a_start, a_end, maxresnr, at_loc;
+  t_atoms *atoms=NULL;
+
+  mb = -1;
+  a_end = 0;
+  maxresnr = 0;
+
+  /* find the molecule block to which this atom belongs; maxresnr counts the nr. of residues encountered along the way */
+  do
+  {
+    if (mb >= 0)
+          maxresnr += mtop->molblock[mb].nmol*atoms->nres;
+    mb++;
+    atoms = &mtop->moltype[mtop->molblock[mb].type].atoms;
+    a_start = a_end;
+    a_end = a_start + mtop->molblock[mb].nmol*atoms->nr;
+  }
+  while (atnr_global >= a_end);
+
+  /* get the location of the atom inside the current block;
+   * as the block could appear repeated multiple times (repetition count stored in mtop->molblock[mb].nmol),
+   * a simple substraction is not enough, modulo the total nr. of atoms in this block needs to be performed afterwards */
+  at_loc = (atnr_global - a_start) % atoms->nr;
+  /* (atnr_global - a_start)/atoms = in which repetition of the molblock this atom is found;
+   * above *atoms->nres = the residues corresponding to these repetitions;
+  * atoms->atom[at_loc].resind = residue index from the start of the molblock;
+   * original function had maxresnr + 1 + (...), to make residue numbering start from 1 */
+  return maxresnr + (atnr_global - a_start)/atoms->nr*atoms->nres + atoms->atom[at_loc].resind;
 }

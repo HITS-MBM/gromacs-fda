@@ -130,40 +130,6 @@ real pf_vector2signedscalar(const rvec v, const rvec xi, const rvec xj, int Vect
  * fills in fda->atom2residue and fda->syslen_residues
  */
 
-/* returns the global residue number - based on mtop_util.c::gmx_mtop_atominfo_global(),
- * equivalent to a call to it with mtop->maxres_renum = INT_MAX */
-int pf_get_global_residue_number(const gmx_mtop_t *mtop, const int atnr_global) {
-  int mb;
-  int a_start, a_end, maxresnr, at_loc;
-  t_atoms *atoms=NULL;
-
-  mb = -1;
-  a_end = 0;
-  maxresnr = 0;
-
-  /* find the molecule block to which this atom belongs; maxresnr counts the nr. of residues encountered along the way */
-  do
-  {
-    if (mb >= 0)
-          maxresnr += mtop->molblock[mb].nmol*atoms->nres;
-    mb++;
-    atoms = &mtop->moltype[mtop->molblock[mb].type].atoms;
-    a_start = a_end;
-    a_end = a_start + mtop->molblock[mb].nmol*atoms->nr;
-  }
-  while (atnr_global >= a_end);
-
-  /* get the location of the atom inside the current block;
-   * as the block could appear repeated multiple times (repetition count stored in mtop->molblock[mb].nmol),
-   * a simple substraction is not enough, modulo the total nr. of atoms in this block needs to be performed afterwards */
-  at_loc = (atnr_global - a_start) % atoms->nr;
-  /* (atnr_global - a_start)/atoms = in which repetition of the molblock this atom is found;
-   * above *atoms->nres = the residues corresponding to these repetitions;
-  * atoms->atom[at_loc].resind = residue index from the start of the molblock;
-   * original function had maxresnr + 1 + (...), to make residue numbering start from 1 */
-  return maxresnr + (atnr_global - a_start)/atoms->nr*atoms->nres + atoms->atom[at_loc].resind;
-}
-
 /* inspired by src/gmxlib/readir.c::do_egp_flag() which reads multiple energy exclusion groups */
 int pf_interactions_type_str2val(char *typestr) {
   /* The maximum number of energy group pairs would be MAXPTR*(MAXPTR+1)/2.

@@ -38,7 +38,7 @@ struct FDASettings
   {}
 
   /// Construction by input file
-  FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global, bool parallel_execution);
+  FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *mtop, bool parallel_execution);
 
   /// Returns true if atoms i and j are in fda groups
   bool atoms_in_groups(int i, int j) const {
@@ -49,7 +49,13 @@ struct FDASettings
   /// This is slightly more complex than needed to allow the residue numbers to retain the ordering given to atoms.
   std::vector<int> groupatoms2residues(std::vector<int> const& group_atoms) const;
 
-  void fill_atom2residue(gmx_mtop_t *top_global);
+  /// Fill in the map between atom and residue index
+  /// Adapted from the code fragment in Data_Structures page on GROMACS website
+  void fill_atom2residue(gmx_mtop_t *mtop);
+
+  /// Returns the global residue number - based on mtop_util.c::gmx_mtop_atominfo_global(),
+  /// equivalent to a call to it with mtop->maxres_renum = INT_MAX
+  int get_global_residue_number(gmx_mtop_t *mtop, int atnr_global) const;
 
   int get_atom2residue(int i) const { return atom_2_residue[i]; }
 
