@@ -45,3 +45,15 @@ real vector2signedscalar(const rvec v, const rvec xi, const rvec xj, Vector2Scal
 	  break;
   }
 }
+
+real vector2unsignedscalar(const rvec v, int i, int j, rvec *x)
+{
+  rvec r;
+  real p;
+
+  rvec_sub(x[j], x[i], r);
+  p = cos_angle(r, v) * norm(v);
+  if (p < 0)
+    return -p;
+  return p;
+}

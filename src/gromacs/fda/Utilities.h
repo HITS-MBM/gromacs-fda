@@ -20,6 +20,8 @@ namespace fda {
  */
 real vector2signedscalar(const rvec v, const rvec xi, const rvec xj, Vector2Scalar v2s);
 
+real vector2unsignedscalar(const rvec v, int i, int j, rvec *x);
+
 } // namespace fda
 
 #endif /* SRC_GROMACS_FDA_TENSOR_H_ */

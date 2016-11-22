@@ -8,10 +8,12 @@
 #ifndef SRC_GROMACS_FDA_FDABASE_H_
 #define SRC_GROMACS_FDA_FDABASE_H_
 
+#include <cmathB>
 #include <iostream>
 #include <fstream>
 #include <vector>
 #include "DistributedForces.h"
+#include "gromacs/topology/topology.h"
 #include "gromacs/utility/fatalerror.h"
 #include "OnePair.h"
 #include "ResultType.h"
@@ -67,6 +69,8 @@ public:
 
   void write_frame_scalar(int nsteps);
 
+  void sum_total_forces(rvec *x);
+
   void write_total_forces();
 
   void write_frame_atoms_scalar_compat(DistributedForces const& forces, FILE *f, int *framenr, gmx_bool ascii);
@@ -93,10 +97,6 @@ public:
    * period is certainly != 1, otherwise the averages functions are not called
    */
   void write_scalar_time_averages();
-
-  void per_atom_real_write_frame(FILE *f, std::vector<real> const& force_per_node, bool no_end_zeros);
-
-  void per_atom_sum(std::vector<real>& force_per_node, DistributedForces& forces, int atoms_len, const rvec *x, Vector2Scalar v2s);
 
   /// The stress is the negative atom_vir value.
   void write_atom_virial_sum(FILE *f, tensor *atom_vir, int natoms);
@@ -169,8 +169,8 @@ void FDABase<Base>::write_frame(rvec *x, int nsteps)
 		  write_frame_summed(x, false, nsteps);
 		  break;
 		case ResultType::PUNCTUAL_STRESS:
-		  per_atom_sum(force_per_atom, atom_based_forces->summed, atom_based_forces->len, x, v2s);
-		  per_atom_real_write_frame(of_atoms, force_per_atom, no_end_zeros);
+		  sum_total_forces(x);
+		  write_total_forces();
 		  break;
 		case ResultType::VIRIAL_STRESS:
 		  pf_write_atom_virial_sum(of_atoms, atom_vir, syslen_atoms);
@@ -243,6 +243,34 @@ void FDABase<Base>::write_frame_scalar(int nsteps)
       jj = is.jjnr;
       //fprintf(stderr, "i=%ld j=%ld type=%s\n", ii, jj, pf_interactions_type_val2str(is.type));
       fprintf(f, "%ld %ld %e %d\n", (long int)ii, (long int)jj, is.force, is.type);
+    }
+  }
+}
+
+template <class Base>
+void FDABase<Base>::sum_total_forces(rvec *x)
+{
+  for (auto& v : total_forces) v = 0.0;
+
+  for (i = 0; i < atoms_len; i++) {
+    ii = atoms[i].nr;
+    ias = atoms[i].interactions;
+    for (j = 0; j < ias.len; j++) {
+      is = ias.array[j];
+      jj = is.jjnr;
+      switch (v2s) {
+        case PF_VECTOR2SCALAR_NORM:
+          scalar_force = norm(is.force);
+          break;
+        case PF_VECTOR2SCALAR_PROJECTION:
+          scalar_force = vector2unsignedscalar(is.force, ii, jj, x);
+          break;
+        default:
+      	  gmx_fatal(FARGS, "Unknown option for Vector2Scalar.\n");
+          break;
+      }
+      total_forces[ii] += scalar_force;
+      total_forces[jj] += scalar_force;
     }
   }
 }
@@ -377,73 +405,6 @@ void FDABase<Base>::write_frame_atoms_scalar_compat(t_pf_atoms *atoms, FILE *f, 
 }
 
 template <class Base>
-void FDABase<Base>::per_atom_real_write_frame(std::vector<real> const& force_per_node) const
-{
-  int j = force_per_node.size();
-  // Detect the last non-zero item
-  if (no_end_zeros) {
-    for (; j > 0; --j)
-      if (force[j - 1] != 0.0)
-        break;
-  }
-
-  // j holds the index of first zero item or the length of force
-  bool first_on_line = true;
-  for (i = 0; i < j; i++) {
-    if (first_on_line) {
-      ofs << force[i];
-      first_on_line = FALSE;
-    } else {
-      fprintf(f, " %e", force[i]);
-    }
-  }
-  fprintf(f, "\n");
-}
-
-static inline real pf_vector2unsignedscalar(const rvec v, const int i, const int j, const rvec *x) {
-  rvec r;
-  real p;
-
-  rvec_sub(x[j], x[i], r);
-  p = cos_angle(r, v) * norm(v);
-  if (p < 0)
-    return -p;
-  return p;
-}
-
-template <class Base>
-void FDABase<Base>::per_atom_sum(std::vector<real>& force_per_node, DistributedForces& forces, int atoms_len, const rvec *x, Vector2Scalar v2s)
-{
-  int i, ii, j, jj;
-  t_pf_interaction_array_summed ias;
-  t_pf_interaction_summed is;
-  real scalar_force = 0.0;
-
-  pf_per_atom_real_set(per_atom_sum, 0.0);
-  for (i = 0; i < atoms_len; i++) {
-    ii = atoms[i].nr;
-    ias = atoms[i].interactions;
-    for (j = 0; j < ias.len; j++) {
-      is = ias.array[j];
-      jj = is.jjnr;
-      switch (v2s) {
-        case PF_VECTOR2SCALAR_NORM:
-          scalar_force = norm(is.force);
-          break;
-        case PF_VECTOR2SCALAR_PROJECTION:
-          scalar_force = pf_vector2unsignedscalar(is.force, ii, jj, x);
-          break;
-        default:
-      	  gmx_fatal(FARGS, "Unknown option for Vector2Scalar.\n");
-          break;
-      }
-      per_atom_sum->force[ii] += scalar_force;
-      per_atom_sum->force[jj] += scalar_force;
-    }
-  }
-}
-
-template <class Base>
 void FDABase<Base>::write_atom_virial_sum(FILE *f, tensor *atom_vir, int natoms)
 {
   int i;
@@ -467,8 +428,7 @@ static gmx_inline real tensor_to_vonmises(tensor t)
   txy = t[XX][XX]-t[YY][YY];
   tyz = t[YY][YY]-t[ZZ][ZZ];
   tzx = t[ZZ][ZZ]-t[XX][XX];
-  return sqrt(0.5 * (txy*txy + tyz*tyz + tzx*tzx +
-    6 * (t[XX][YY]*t[XX][YY] + t[XX][ZZ]*t[XX][ZZ] + t[YY][ZZ]*t[YY][ZZ])));
+  return sqrt(0.5 * (txy*txy + tyz*tyz + tzx*tzx + 6 * (t[XX][YY]*t[XX][YY] + t[XX][ZZ]*t[XX][ZZ] + t[YY][ZZ]*t[YY][ZZ])));
 }
 
 template <class Base>
