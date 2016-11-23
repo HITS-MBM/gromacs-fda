@@ -8,6 +8,8 @@
 #ifndef SRC_GROMACS_FDA_TENSOR_H_
 #define SRC_GROMACS_FDA_TENSOR_H_
 
+#include "gromacs/math/vectypes.h"
+#include "gromacs/utility/real.h"
 #include "Vector2Scalar.h"
 
 namespace fda {

@@ -17,8 +17,8 @@ real vector2signedscalar(const rvec v, const rvec xi, const rvec xj, Vector2Scal
   /* r is the position vector */
   rvec_sub(xj, xi, r);
   c = cos_angle(r, v);
-  switch (Vector2Scalar) {
-	case PF_VECTOR2SCALAR_NORM:
+  switch (v2s) {
+	case Vector2Scalar::NORM:
 	  /* based on the cos of the angle between vectors:
 	   * if it's positive, the vector v is oriented within -90 to 90 degress with respect to r - considered to be same direction = attractive = negative;
 	   * if it's negative, the vector v is oriented within 90 to 270 degrees with respect to r - considered to be in opposite direction = repulsvive = positive;
@@ -35,11 +35,11 @@ real vector2signedscalar(const rvec v, const rvec xi, const rvec xj, Vector2Scal
 		return 0.0;
 	  }
 	  break;
-	case PF_VECTOR2SCALAR_PROJECTION:
+	case Vector2Scalar::PROJECTION:
 	  /* it's minus c to go along the norm based calculation above: positive cos = in the same direction = attractive = negative */
 	  return -c * norm(v);
 	  break;
-	default:
+	case Vector2Scalar::INVALID:
 	  /* this should not happen - make it visible! */
 	  return GMX_FLOAT_MAX;
 	  break;

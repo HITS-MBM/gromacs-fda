@@ -18,9 +18,7 @@
 #include "pf_interactions.h"
 #include "Utilities.h"
 
-#ifdef HAVE_CONFIG_H
-  #include <config.h>
-#endif
+namespace fda {
 
 static const real HALF    = 1.0 / 2.0;
 static const real THIRD   = 1.0 / 3.0;
@@ -43,9 +41,7 @@ FDA::FDA(FDASettings const& fda_settings)
    time_averaging_steps(0),
    time_averaging_com(nullptr),
    nsteps(0)
-{
-  if (atom_based.VS_mode()) atom_vir.resize(fda_settings.syslen_atoms);
-}
+{}
 
 void FDA::add_bonded_nocheck(int i, int j, int type, rvec force)
 {
@@ -433,10 +429,61 @@ void FDA::add_virial_dihedral(int i, int j, int k, int l,
   add_virial(l, v, QUARTER);
 }
 
-void FDA::write_frame(const rvec *x, gmx_mtop_t *mtop)
+void FDA::save_and_write_scalar_time_averages(rvec *x, gmx_mtop_t *mtop)
+{
+  if (fda_settings.time_averaging_period != 1) {
+    // First save the data
+    if (atom_based_forces.PF_or_PS_mode())
+      atom_based_forces.summed_merge_to_scalar(x, v2s);
+    if (residue_based_forces.PF_or_PS_mode()) {
+  	  rvec *com = pf_residues_com(this, top_global, x);
+      residue_based_forces.summed_merge_to_scalar(com, v2s);
+      pf_x_inc(residue_based_forces, time_averaging_com, com);
+      sfree(com);
+    }
+
+    time_averages->steps++;
+    if ((time_averages->period != 0) && (time_averages->steps >= time_averages->period))
+      this->write_scalar_time_averages();
+  } else {
+    write_frame(x, top_global);
+  }
+}
+
+void FDA::write_scalar_time_averages()
+{
+  if (time_averaging_steps == 0) return;
+  if (fda_settings.time_averaging_period == 1) return;
+
+  if (atom_based_forces.PF_or_PS_mode()) {
+    atom_based_forces.scalar_real_divide(time_averaging_steps);
+    if (atom_based_forces.compatibility_mode())
+      this->write_frame_atoms_scalar_compat(atom_based_forces, of_atoms, &nsteps_atoms, (AtomBased == FILE_OUT_COMPAT_ASCII));
+    else
+      this->write_frame_scalar(atom_based_forces, of_atoms, &nsteps_atoms);
+    pf_atoms_scalar_init(atom_based_forces);
+  }
+
+  if (residue_based_forces.PF_or_PS_mode()) {
+    residue_based_forces.scalar_real_divide(time_averaging_steps);
+    pf_x_real_div(time_averaging_com, fda_settings.syslen_residues, time_averaging_steps);
+    if (residue_based_forces.compatibility_mode())
+      this->write_frame_atoms_scalar_compat(residue_based_forces, of_residues, &nsteps_residues, (ResidueBased == FILE_OUT_COMPAT_ASCII));
+    else
+      this->write_frame_scalar(residue_based_forces, of_residues, &nsteps_residues);
+    pf_atoms_scalar_init(residue_based_forces);
+    clear_rvecs(syslen_residues, time_averages->com);
+  }
+
+  time_averaging_steps = 0;
+}
+
+void FDA::write_frame(rvec *x, gmx_mtop_t *mtop)
 {
   rvec *com;
   atom_based.write_frame(x, nsteps);
   residue_based.write_frame(com, nsteps);
   ++nsteps;
 }
+
+} // namespace fda

@@ -5,9 +5,10 @@
  *      Author: Bernd Doser, HITS gGmbH <bernd.doser@h-its.org>
  */
 
+#include <cmath>
 #include "FDABase.h"
 
-using namespace fda;
+namespace fda {
 
 template <class Base>
 void FDABase<Base>::write_frame(rvec *x, int nsteps)
@@ -32,7 +33,7 @@ void FDABase<Base>::write_frame(rvec *x, int nsteps)
 		case ResultType::COMPAT_ASCII:
 		  gmx_fatal(FARGS, "Can't map detailed pairwise interactions in compatibility mode.\n");
 		  break;
-		default:
+		case ResultType::INVALID:
 		  gmx_fatal(FARGS, "Per atom detailed output not implemented.\n");
 		  break;
 	  }
@@ -50,17 +51,17 @@ void FDABase<Base>::write_frame(rvec *x, int nsteps)
 		  write_total_forces();
 		  break;
 		case ResultType::VIRIAL_STRESS:
-		  pf_write_atom_virial_sum(of_atoms, atom_vir, syslen_atoms);
+		  write_atom_virial_sum();
 		  break;
 		case ResultType::VIRIAL_STRESS_VON_MISES:
-		  pf_write_atom_virial_sum_von_mises(of_atoms, atom_vir, syslen_atoms);
+		  write_atom_virial_sum_von_mises();
 		  break;
 		case ResultType::COMPAT_BIN:
 		  break;
 		case ResultType::COMPAT_ASCII:
-		  pf_write_frame_atoms_summed_compat(atom_based_forces, of_atoms, &nsteps_atoms, x, (AtomBased == FILE_OUT_COMPAT_ASCII), v2s);
+		  write_frame_atoms_summed_compat(x, true);
 		  break;
-		default:
+		case ResultType::INVALID:
 		  gmx_fatal(FARGS, "Per atom summed output not implemented.\n");
 		  break;
 	  }
@@ -176,59 +177,34 @@ void FDABase<Base>::write_total_forces()
   result_file << std::endl;
 }
 
-template <class Base>
-void FDABase<Base>::save_and_write_scalar_time_averages(const rvec *x, gmx_mtop_t *mtop)
-{
-  if (fda_settings.time_averaging_period != 1) {
-    // First save the data
-    if (atom_based_forces.PF_or_PS_mode())
-      atom_based_forces.summed_merge_to_scalar(x, v2s);
-    if (residue_based_forces.PF_or_PS_mode()) {
-  	  rvec *com = pf_residues_com(this, top_global, x);
-      residue_based_forces.summed_merge_to_scalar(com, v2s);
-      pf_x_inc(residue_based_forces, time_averaging_com, com);
-      sfree(com);
-    }
+template <>
+void FDABase<Atom>::write_frame_atoms_compat(DistributedForces const& forces, FILE *f, int *framenr, int interactions_count, int *fmatoms, int *index, real *force, char *interaction, gmx_bool ascii) {
+  int i;
 
-    time_averages->steps++;
-    if ((time_averages->period != 0) && (time_averages->steps >= time_averages->period))
-      this->write_scalar_time_averages();
-  } else {
-    write_frame(x, top_global);
+  if (ascii) {
+    fprintf(f, "<begin_block>\n");
+    fprintf(f, "%d\n", *framenr);
+    fprintf(f, "%d\n", interactions_count);
+    pf_write_space_separated_int_array(f, fmatoms, atoms->len);
+    pf_write_space_separated_int_array(f, index, interactions_count);
+    pf_write_space_separated_real_array(f, force, interactions_count);
+    pf_write_space_separated_char_array(f, interaction, interactions_count);
+    fprintf(f, "<end_block>\n");
+  }
+  else {
+    fwrite(framenr, sizeof(*framenr), 1, f);
+    fwrite(&interactions_count, sizeof(interactions_count), 1, f);
+    fwrite(fmatoms, sizeof(fmatoms[0]), atoms->len, f);
+    fwrite(index, sizeof(index[0]), interactions_count, f);
+    fwrite(force, sizeof(force[0]), interactions_count, f);
+    fwrite(interaction, sizeof(interaction[0]), interactions_count, f);
+    i = PF_COMPAT_NEW_ENTRY;
+    fwrite(&i, sizeof(i), 1, f);
   }
 }
 
-template <class Base>
-void FDABase<Base>::write_scalar_time_averages()
-{
-  if (time_averaging_steps == 0) return;
-  if (fda_settings.time_averaging_period == 1) return;
-
-  if (atom_based_forces.PF_or_PS_mode()) {
-    atom_based_forces.scalar_real_divide(time_averaging_steps);
-    if (atom_based_forces.compatibility_mode())
-      this->write_frame_atoms_scalar_compat(atom_based_forces, of_atoms, &nsteps_atoms, (AtomBased == FILE_OUT_COMPAT_ASCII));
-    else
-      this->write_frame_scalar(atom_based_forces, of_atoms, &nsteps_atoms);
-    pf_atoms_scalar_init(atom_based_forces);
-  }
-
-  if (residue_based_forces.PF_or_PS_mode()) {
-    residue_based_forces.scalar_real_divide(time_averaging_steps);
-    pf_x_real_div(time_averaging_com, fda_settings.syslen_residues, time_averaging_steps);
-    if (residue_based_forces.compatibility_mode())
-      this->write_frame_atoms_scalar_compat(residue_based_forces, of_residues, &nsteps_residues, (ResidueBased == FILE_OUT_COMPAT_ASCII));
-    else
-      this->write_frame_scalar(residue_based_forces, of_residues, &nsteps_residues);
-    pf_atoms_scalar_init(residue_based_forces);
-    clear_rvecs(syslen_residues, time_averages->com);
-  }
-
-  time_averaging_steps = 0;
-}
-
-template <class Base>
-void FDABase<Base>::write_frame_atoms_scalar_compat(t_pf_atoms *atoms, FILE *f, int *framenr, gmx_bool ascii)
+template <>
+void FDABase<Atom>::write_frame_atoms_summed_compat(rvec *x, bool ascii)
 {
   t_pf_atom_scalar i_atom_scalar;
   t_pf_interaction_scalar j_atom_scalar;
@@ -281,50 +257,46 @@ void FDABase<Base>::write_frame_atoms_scalar_compat(t_pf_atoms *atoms, FILE *f, 
   (*framenr)++;
 }
 
-template <class Base>
-void FDABase<Base>::write_atom_virial_sum(FILE *f, tensor *atom_vir, int natoms)
+template <>
+void FDABase<Atom>::write_atom_virial_sum()
 {
-  int i;
-  gmx_bool first_on_line = TRUE;
-
-  for (i = 0; i < natoms; i++) {
-    if (first_on_line) {
-      fprintf(f, "%e %e %e %e %e %e", -atom_vir[i][XX][XX], -atom_vir[i][YY][YY], -atom_vir[i][ZZ][ZZ], -atom_vir[i][XX][YY], -atom_vir[i][XX][ZZ], -atom_vir[i][YY][ZZ]);
-      first_on_line = FALSE;
-    } else {
-      fprintf(f, " %e %e %e %e %e %e", -atom_vir[i][XX][XX], -atom_vir[i][YY][YY], -atom_vir[i][ZZ][ZZ], -atom_vir[i][XX][YY], -atom_vir[i][XX][ZZ], -atom_vir[i][YY][ZZ]);
-    }
+  bool first = true;
+  for (auto const& v : virial_stress) {
+    if (!first) result_file << " ";
+    else first = false;
+    result_file << -v(XX, XX) << " " << -v(YY, YY) << " " << -v(ZZ, ZZ) << " "
+ 				<< -v(XX, YY) << " " << -v(XX, ZZ) << " " << -v(YY, ZZ);
   }
-  fprintf(f, "\n");
+  result_file << std::endl;
 }
 
-static gmx_inline real tensor_to_vonmises(tensor t)
-{
-  real txy, tyz, tzx;
+template <>
+void FDABase<Residue>::write_atom_virial_sum()
+{}
 
-  txy = t[XX][XX]-t[YY][YY];
-  tyz = t[YY][YY]-t[ZZ][ZZ];
-  tzx = t[ZZ][ZZ]-t[XX][XX];
-  return sqrt(0.5 * (txy*txy + tyz*tyz + tzx*tzx + 6 * (t[XX][YY]*t[XX][YY] + t[XX][ZZ]*t[XX][ZZ] + t[YY][ZZ]*t[YY][ZZ])));
+real tensor_to_vonmises(Tensor t)
+{
+  real txy = t(XX, XX)-t(YY, YY);
+  real tyz = t(YY, YY)-t(ZZ, ZZ);
+  real tzx = t(ZZ, ZZ)-t(XX, XX);
+  return std::sqrt(0.5 * (txy*txy + tyz*tyz + tzx*tzx
+		           + 6 * (t(XX, YY)*t(XX, YY) + t(XX, ZZ)*t(XX, ZZ) + t(YY, ZZ)*t(YY, ZZ))));
 }
 
-template <class Base>
-void FDABase<Base>::write_atom_virial_sum_von_mises(FILE *f, tensor *atom_vir, int natoms)
+template <>
+void FDABase<Atom>::write_atom_virial_sum_von_mises()
 {
-  int i;
-  gmx_bool first_on_line = TRUE;
-
-  for (i = 0; i < natoms; i++) {
-    if (first_on_line) {
-      fprintf(f, "%e", tensor_to_vonmises(atom_vir[i]));
-      first_on_line = FALSE;
-    } else {
-      fprintf(f, " %e", tensor_to_vonmises(atom_vir[i]));
-    }
+  bool first = true;
+  for (auto const& v : virial_stress) {
+	if (!first) result_file << " ";
+	else first = false;
+	result_file << tensor_to_vonmises(v);
   }
-  fprintf(f, "\n");
+  result_file << std::endl;
 }
 
 /// template instantiation
 template class FDABase<Atom>;
 template class FDABase<Residue>;
+
+} // namespace fda
