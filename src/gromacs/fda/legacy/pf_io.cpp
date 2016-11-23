@@ -237,55 +237,7 @@ void pf_write_frame_atoms_summed_compat(DistributedForces const& forces, FILE *f
  * are interesting for PF
  */
 rvec *pf_residues_com(FDA *fda, gmx_mtop_t *top_global, const rvec *x)
-{
-  int moltype_index, mol_index, d;
-  int i, atom_index, atom_global_index, residue_global_index;
-  t_atoms *atoms;
-  t_atom *atom_info;
-  gmx_molblock_t *mb;
-  rvec r;
-  real *mass;
-  rvec *com;
 
-  snew(com, fda->syslen_residues);
-  snew(mass, fda->syslen_residues);
-
-  for (i = 0; i < fda->syslen_residues; i++) {
-    mass[i] = 0.0;
-    for (d = 0; d < DIM; d++)
-      com[i][d] = 0.0;
-  }
-
-  atom_global_index = 0;
-  for (moltype_index = 0; moltype_index < top_global->nmolblock; moltype_index++) {	//enum all molecule types
-    mb = &top_global->molblock[moltype_index];
-    for (mol_index = 0; mol_index < mb->nmol; mol_index++) {				//enum all instances of each molecule type
-    atoms = &top_global->moltype[mb->type].atoms;
-      for(atom_index = 0; atom_index < atoms->nr; atom_index++) {			//enum atoms
-        if ((fda->sys_in_g1[atom_global_index]) || (fda->sys_in_g2[atom_global_index])) {
-          residue_global_index = fda->atom2residue[atom_global_index];
-          atom_info=&atoms->atom[atom_index];
-          mass[residue_global_index] += atom_info->m;
-          svmul(atom_info->m, x[atom_global_index], r);
-          rvec_inc(com[residue_global_index], r);
-        }
-        atom_global_index++;
-      }
-    }
-  } /* for (moltype_index = 0... */
-
-  /* there might be residues with no interesting atoms, so their mass would be set to the initial 0.0;
-   * float/double comparison can be tricky in general, but here it's used only to prevent division by 0
-   */
-  for (i = 0; i < fda->syslen_residues; i++) {
-    if (mass[i] != 0.0)
-      for (d = 0; d < DIM; d++)
-        com[i][d] /= mass[i];
-  }
-
-  sfree(mass);
-  return com;
-}
 
 /* writes a header as in original PF implementation;
  * as the original PF implementation calculated everything then wrote out everything,

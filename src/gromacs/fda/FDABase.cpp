@@ -7,6 +7,8 @@
 
 #include <cmath>
 #include "FDABase.h"
+#include "gromacs/math/vec.h"
+#include "Utilities.h"
 
 namespace fda {
 
@@ -80,9 +82,8 @@ void FDABase<Base>::write_frame_detailed(rvec *x, bool bVector, int nsteps)
       for (j = 0 ; j < iad->len; j++) {
         id = iad->array[j];
         jj = id.jjnr;
-        //fprintf(stderr, "i=%ld j=%ld type=%s\n", ii, jj, pf_interactions_type_val2str(type));
         if (bVector)
-          fprintf(f, "%ld %ld %e %e %e %d\n", (long int)ii, (long int)jj, id.force[XX], id.force[YY], id.force[ZZ], type);
+          result_file << i << " " << j << " " << id.force[XX] << " " << id.force[YY] << " " << id.force[ZZ] << " " << type << std::endl;
         else
           fprintf(f, "%ld %ld %e %d\n", (long int)ii, (long int)jj, vector2signedscalar(id.force, x[ii], x[jj], v2s), type);
       }
@@ -130,25 +131,24 @@ void FDABase<Base>::sum_total_forces(rvec *x)
 {
   for (auto& v : total_forces) v = 0.0;
 
-  for (i = 0; i < atoms_len; i++) {
-    ii = atoms[i].nr;
-    ias = atoms[i].interactions;
-    for (j = 0; j < ias.len; j++) {
-      is = ias.array[j];
-      jj = is.jjnr;
+  for (auto const& v1 : distributed_forces.summed) {
+    int i = v1.first;
+    for (auto const& v2 : v1.second) {
+      int j = v2.first;
+      real scalar_force;
       switch (v2s) {
-        case PF_VECTOR2SCALAR_NORM:
-          scalar_force = norm(is.force);
+        case Vector2Scalar::NORM:
+          scalar_force = norm(v2.second.get_rvec());
           break;
-        case PF_VECTOR2SCALAR_PROJECTION:
-          scalar_force = vector2unsignedscalar(is.force, ii, jj, x);
+        case Vector2Scalar::PROJECTION:
+          scalar_force = vector2unsignedscalar(v2.second.get_rvec(), i, j, x);
           break;
         default:
       	  gmx_fatal(FARGS, "Unknown option for Vector2Scalar.\n");
           break;
       }
-      total_forces[ii] += scalar_force;
-      total_forces[jj] += scalar_force;
+      total_forces[i] += scalar_force;
+      total_forces[j] += scalar_force;
     }
   }
 }

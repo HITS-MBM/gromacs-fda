@@ -27,6 +27,7 @@ public:
 	}
 
 	real* get_rvec() { return v; }
+	real const* get_rvec() const { return v; }
 
 private:
 

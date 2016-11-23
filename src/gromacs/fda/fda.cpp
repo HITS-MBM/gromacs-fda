@@ -41,7 +41,14 @@ FDA::FDA(FDASettings const& fda_settings)
    time_averaging_steps(0),
    time_averaging_com(nullptr),
    nsteps(0)
-{}
+{
+  if (fda_settings.time_averaging_period != 1) {
+    if (residue_based.PF_or_PS_mode()) {
+      snew(time_averaging_com, pf_global->syslen_residues);
+      clear_rvecs(pf_global->syslen_residues, pf_global->time_averages->com);
+    }
+  }
+}
 
 void FDA::add_bonded_nocheck(int i, int j, int type, rvec force)
 {
@@ -375,12 +382,12 @@ void FDA::add_virial(int ai, tensor v, real s)
 	// Only symmetric tensor is used, therefore full multiplication is not as efficient
 	//atom_vir[ai] += s * v;
 
-    atom_vir[ai](XX, XX) += s * v[XX][XX];
-    atom_vir[ai](YY, YY) += s * v[YY][YY];
-    atom_vir[ai](ZZ, ZZ) += s * v[ZZ][ZZ];
-    atom_vir[ai](XX, YY) += s * v[XX][YY];
-    atom_vir[ai](XX, ZZ) += s * v[XX][ZZ];
-    atom_vir[ai](YY, ZZ) += s * v[YY][ZZ];
+    atom_based.virial_stress[ai](XX, XX) += s * v[XX][XX];
+    atom_based.virial_stress[ai](YY, YY) += s * v[YY][YY];
+    atom_based.virial_stress[ai](ZZ, ZZ) += s * v[ZZ][ZZ];
+    atom_based.virial_stress[ai](XX, YY) += s * v[XX][YY];
+    atom_based.virial_stress[ai](XX, ZZ) += s * v[XX][ZZ];
+    atom_based.virial_stress[ai](YY, ZZ) += s * v[YY][ZZ];
 }
 
 void FDA::add_virial_bond(int ai, int aj, real f, real dx, real dy, real dz)
@@ -433,20 +440,20 @@ void FDA::save_and_write_scalar_time_averages(rvec *x, gmx_mtop_t *mtop)
 {
   if (fda_settings.time_averaging_period != 1) {
     // First save the data
-    if (atom_based_forces.PF_or_PS_mode())
-      atom_based_forces.summed_merge_to_scalar(x, v2s);
-    if (residue_based_forces.PF_or_PS_mode()) {
-  	  rvec *com = pf_residues_com(this, top_global, x);
-      residue_based_forces.summed_merge_to_scalar(com, v2s);
+    if (atom_based.PF_or_PS_mode())
+      atom_based.distributed_forces.summed_merge_to_scalar(x, fda_settings.v2s);
+    if (residue_based.PF_or_PS_mode()) {
+  	  rvec *com = get_residues_com(x, mtop);
+      residue_based.distributed_forces.summed_merge_to_scalar(com, fda_settings.v2s);
       pf_x_inc(residue_based_forces, time_averaging_com, com);
       sfree(com);
     }
 
-    time_averages->steps++;
-    if ((time_averages->period != 0) && (time_averages->steps >= time_averages->period))
-      this->write_scalar_time_averages();
+    ++time_averaging_steps;
+    if (fda_settings.time_averaging_period != 0 and time_averaging_steps >= fda_settings.time_averaging_period)
+      write_scalar_time_averages();
   } else {
-    write_frame(x, top_global);
+    write_frame(x, mtop);
   }
 }
 
@@ -455,23 +462,23 @@ void FDA::write_scalar_time_averages()
   if (time_averaging_steps == 0) return;
   if (fda_settings.time_averaging_period == 1) return;
 
-  if (atom_based_forces.PF_or_PS_mode()) {
-    atom_based_forces.scalar_real_divide(time_averaging_steps);
-    if (atom_based_forces.compatibility_mode())
-      this->write_frame_atoms_scalar_compat(atom_based_forces, of_atoms, &nsteps_atoms, (AtomBased == FILE_OUT_COMPAT_ASCII));
+  if (atom_based.PF_or_PS_mode()) {
+    atom_based.distributed_forces.scalar_real_divide(time_averaging_steps);
+    if (atom_based.compatibility_mode())
+      write_frame_atoms_scalar_compat(atom_based_forces, of_atoms, &nsteps_atoms, (AtomBased == FILE_OUT_COMPAT_ASCII));
     else
-      this->write_frame_scalar(atom_based_forces, of_atoms, &nsteps_atoms);
-    pf_atoms_scalar_init(atom_based_forces);
+      write_frame_scalar(atom_based_forces, of_atoms, &nsteps_atoms);
+    atom_based.distributed_forces.scalar.clear();
   }
 
-  if (residue_based_forces.PF_or_PS_mode()) {
-    residue_based_forces.scalar_real_divide(time_averaging_steps);
+  if (residue_based.PF_or_PS_mode()) {
+    residue_based.distributed_forces.scalar_real_divide(time_averaging_steps);
     pf_x_real_div(time_averaging_com, fda_settings.syslen_residues, time_averaging_steps);
-    if (residue_based_forces.compatibility_mode())
-      this->write_frame_atoms_scalar_compat(residue_based_forces, of_residues, &nsteps_residues, (ResidueBased == FILE_OUT_COMPAT_ASCII));
+    if (residue_based.compatibility_mode())
+      write_frame_atoms_scalar_compat(residue_based_forces, of_residues, &nsteps_residues, (ResidueBased == FILE_OUT_COMPAT_ASCII));
     else
-      this->write_frame_scalar(residue_based_forces, of_residues, &nsteps_residues);
-    pf_atoms_scalar_init(residue_based_forces);
+      write_frame_scalar(residue_based_forces, of_residues, &nsteps_residues);
+    residue_based.distributed_forces.scalar.clear();
     clear_rvecs(syslen_residues, time_averages->com);
   }
 
@@ -480,10 +487,61 @@ void FDA::write_scalar_time_averages()
 
 void FDA::write_frame(rvec *x, gmx_mtop_t *mtop)
 {
-  rvec *com;
+  rvec *com = get_residues_com(x, mtop);
   atom_based.write_frame(x, nsteps);
   residue_based.write_frame(com, nsteps);
+  sfree(com);
   ++nsteps;
+}
+
+rvec* FDA::get_residues_com(rvec *x, gmx_mtop_t *mtop) const
+{
+  int moltype_index, mol_index, d;
+  int i, atom_index, atom_global_index, residue_global_index;
+  t_atoms *atoms;
+  t_atom *atom_info;
+  gmx_molblock_t *mb;
+  rvec r;
+  real *mass;
+  rvec *com;
+
+  snew(com, fda_settings.syslen_residues);
+  snew(mass, fda_settings.syslen_residues);
+
+  for (i = 0; i < fda_settings.syslen_residues; i++) {
+	mass[i] = 0.0;
+	for (d = 0; d < DIM; d++)
+	  com[i][d] = 0.0;
+  }
+
+  atom_global_index = 0;
+  for (moltype_index = 0; moltype_index < mtop->nmolblock; moltype_index++) {
+	mb = &mtop->molblock[moltype_index];
+	for (mol_index = 0; mol_index < mb->nmol; mol_index++) {
+	atoms = &mtop->moltype[mb->type].atoms;
+	  for(atom_index = 0; atom_index < atoms->nr; atom_index++) {
+		if ((fda->sys_in_g1[atom_global_index]) || (fda->sys_in_g2[atom_global_index])) {
+		  residue_global_index = fda->atom2residue[atom_global_index];
+		  atom_info=&atoms->atom[atom_index];
+		  mass[residue_global_index] += atom_info->m;
+		  svmul(atom_info->m, x[atom_global_index], r);
+		  rvec_inc(com[residue_global_index], r);
+		}
+		atom_global_index++;
+	  }
+	}
+  }
+
+  // There might be residues with no interesting atoms, so their mass would be set to the initial 0.0;
+  // float/double comparison can be tricky in general, but here it's used only to prevent division by 0
+  for (i = 0; i < fda_settings.syslen_residues; i++) {
+	if (mass[i] != 0.0)
+	  for (d = 0; d < DIM; d++)
+		com[i][d] /= mass[i];
+  }
+
+  sfree(mass);
+  return com;
 }
 
 } // namespace fda

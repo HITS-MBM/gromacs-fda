@@ -147,6 +147,14 @@ public:
 
 private:
 
+  /**
+   * Computes the COM for residues in system;
+   * only the atoms for which sys_in_g is non-zero are considered, such that the COM might
+   * not express the COM of the whole residue but the COM of the atoms of the residue which
+   * are interesting for PF
+   */
+  rvec *get_residues_com(rvec *x, gmx_mtop_t *mtop) const;
+
   /// Settings
   FDASettings const& fda_settings;
 

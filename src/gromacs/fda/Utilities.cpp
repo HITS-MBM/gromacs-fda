@@ -5,6 +5,7 @@
  *      Author: Bernd Doser, HITS gGmbH <bernd.doser@h-its.org>
  */
 
+#include "gromacs/math/vec.h"
 #include "Utilities.h"
 
 using namespace fda;
@@ -41,9 +42,9 @@ real vector2signedscalar(const rvec v, const rvec xi, const rvec xj, Vector2Scal
 	  break;
 	case Vector2Scalar::INVALID:
 	  /* this should not happen - make it visible! */
-	  return GMX_FLOAT_MAX;
 	  break;
   }
+  return GMX_FLOAT_MAX;
 }
 
 real vector2unsignedscalar(const rvec v, int i, int j, rvec *x)
