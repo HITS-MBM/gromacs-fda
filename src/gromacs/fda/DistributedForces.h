@@ -65,7 +65,7 @@ private:
   std::map<int, std::map<int, Vector>> summed;
 
   /// Detailed values of forces
-  std::map<int, std::map<int, std::array<Vector, InteractionType::num>>> detailed;
+  std::map<int, std::map<int, std::array<Vector, number_of_pure_interactions>>> detailed;
 
 };
 

@@ -15,7 +15,6 @@
 #include "gromacs/utility/real.h"
 #include "gromacs/utility/smalloc.h"
 #include "pf_array.h"
-#include "pf_interactions.h"
 #include "Utilities.h"
 
 static const real HALF    = 1.0 / 2.0;
@@ -54,7 +53,7 @@ FDA::~FDA()
   residue_based.write_compat_header(nsteps);
 }
 
-void FDA::add_bonded_nocheck(int i, int j, int type, rvec force)
+void FDA::add_bonded_nocheck(int i, int j, fda::InteractionType type, rvec force)
 {
   // the calling functions will not have i == j, but there is not such guarantee for ri and rj;
   // and it makes no sense to look at the interaction of a residue to itself
@@ -64,7 +63,7 @@ void FDA::add_bonded_nocheck(int i, int j, int type, rvec force)
     rvec force_residue;
     if (ri != rj) {
       switch(fda_settings.one_pair) {
-        case OnePair::DETAILED:
+        case fda::OnePair::DETAILED:
           if (ri > rj) {
             int_swap(&ri, &rj);
             clear_rvec(force_residue);
@@ -74,7 +73,7 @@ void FDA::add_bonded_nocheck(int i, int j, int type, rvec force)
             residue_based.distributed_forces.detailed[ri][rj][type] += force;
           }
           break;
-        case OnePair::SUMMED:
+        case fda::OnePair::SUMMED:
           if (ri > rj) {
             int_swap(&ri, &rj);
             clear_rvec(force_residue);
@@ -84,7 +83,7 @@ void FDA::add_bonded_nocheck(int i, int j, int type, rvec force)
             residue_based.distributed_forces.summed[ri][rj] += force;
           }
           break;
-        case OnePair::INVALID:
+        case fda::OnePair::INVALID:
           break;
       }
     }
@@ -96,19 +95,19 @@ void FDA::add_bonded_nocheck(int i, int j, int type, rvec force)
       rvec_opp(force);
     }
     switch(fda_settings.one_pair) {
-      case OnePair::DETAILED:
+      case fda::OnePair::DETAILED:
         atom_based.distributed_forces.detailed[i][j][type] += force;
         break;
-      case OnePair::SUMMED:
+      case fda::OnePair::SUMMED:
         atom_based.distributed_forces.summed[i][j] += force;
         break;
-      case OnePair::INVALID:
+      case fda::OnePair::INVALID:
         break;
     }
   }
 }
 
-void FDA::add_bonded(int i, int j, int type, rvec force)
+void FDA::add_bonded(int i, int j, fda::InteractionType type, rvec force)
 {
   // leave early if the interaction is not interesting
   if (!(fda_settings.type & type)) return;
@@ -117,7 +116,7 @@ void FDA::add_bonded(int i, int j, int type, rvec force)
   add_bonded_nocheck(i, j, type, force);
 }
 
-void FDA::add_nonbonded_single(int i, int j, int type, real force, real dx, real dy, real dz)
+void FDA::add_nonbonded_single(int i, int j, fda::InteractionType type, real force, real dx, real dy, real dz)
 {
   // leave early if the interaction is not interesting
   if (!(fda_settings.type & type)) return;
@@ -155,9 +154,9 @@ void FDA::add_angle(int ai, int aj, int ak, rvec f_i, rvec f_j, rvec f_k)
 	//fprintf(stderr, "f_j_i=%8f %8f %8f f_j_k=%8f %8f %8f, norm(f_j_i)=%8f, norm(f_j_k)=%8f\n", f_j_i[0], f_j_i[1], f_j_i[2], f_j_k[0], f_j_k[1], f_j_k[2], norm(f_j_i), norm(f_j_k));
 	//fprintf(stderr, "f_i_k=%8f %8f %8f f_k_i=%8f %8f %8f\n", f_i_k[0], f_i_k[1], f_i_k[2], f_k_i[0], f_k_i[1], f_k_i[2]);
 	//fprintf(stderr, "angle(urik, f_i_k)=%8f\n", acos(cos_angle(urik, f_i_k))*RAD2DEG);
-	add_bonded(aj, ai, PF_INTER_ANGLE, f_j_i);
-	add_bonded(ai, ak, PF_INTER_ANGLE, f_i_k);
-	add_bonded(aj, ak, PF_INTER_ANGLE, f_j_k);
+	add_bonded(aj, ai, fda::InteractionType::ANGLE, f_j_i);
+	add_bonded(ai, ak, fda::InteractionType::ANGLE, f_i_k);
+	add_bonded(aj, ak, fda::InteractionType::ANGLE, f_j_k);
 }
 
 void FDA::add_dihedral(int i, int j, int k, int l, rvec f_i, rvec f_j, rvec f_k, rvec f_l)
@@ -274,12 +273,12 @@ void FDA::add_dihedral(int i, int j, int k, int l, rvec f_i, rvec f_j, rvec f_k,
     print_vec("f_jpk_l", f_jpk_l);
     print_vec("f_j_k", f_j_k);
     print_vec("f_k_j", f_k_j);*/
-    add_bonded(j, i, PF_INTER_DIHEDRAL, f_j_i);
-    add_bonded(k, i, PF_INTER_DIHEDRAL, f_k_i);
-    add_bonded(l, i, PF_INTER_DIHEDRAL, f_l_i);
-    add_bonded(j, k, PF_INTER_DIHEDRAL, f_j_k);
-    add_bonded(j, l, PF_INTER_DIHEDRAL, f_j_l);
-    add_bonded(k, l, PF_INTER_DIHEDRAL, f_k_l);
+    add_bonded(j, i, fda::InteractionType::DIHEDRAL, f_j_i);
+    add_bonded(k, i, fda::InteractionType::DIHEDRAL, f_k_i);
+    add_bonded(l, i, fda::InteractionType::DIHEDRAL, f_l_i);
+    add_bonded(j, k, fda::InteractionType::DIHEDRAL, f_j_k);
+    add_bonded(j, l, fda::InteractionType::DIHEDRAL, f_j_l);
+    add_bonded(k, l, fda::InteractionType::DIHEDRAL, f_k_l);
 }
 
 void FDA::add_nonbonded(int i, int j, real pf_coul, real pf_lj, real dx, real dy, real dz)
@@ -288,16 +287,16 @@ void FDA::add_nonbonded(int i, int j, real pf_coul, real pf_lj, real dx, real dy
   rvec pf_lj_atom_v, pf_lj_residue_v, pf_coul_atom_v, pf_coul_residue_v;
 
   /* first check that the interaction is interesting before doing expensive calculations and atom lookup*/
-  if (!(fda_settings.type & PF_INTER_COULOMB))
-    if (!(fda_settings.type & PF_INTER_LJ))
+  if (!(fda_settings.type & fda::InteractionType::COULOMB))
+    if (!(fda_settings.type & fda::InteractionType::LJ))
       return;
     else {
-      add_nonbonded_single(i, j, PF_INTER_LJ, pf_lj, dx, dy, dz);
+      add_nonbonded_single(i, j, fda::InteractionType::LJ, pf_lj, dx, dy, dz);
       return;
     }
   else
-    if (!(fda_settings.type & PF_INTER_LJ)) {
-      add_nonbonded_single(i, j, PF_INTER_COULOMB, pf_coul, dx, dy, dz);
+    if (!(fda_settings.type & fda::InteractionType::LJ)) {
+      add_nonbonded_single(i, j, fda::InteractionType::COULOMB, pf_coul, dx, dy, dz);
       return;
     }
 
@@ -326,24 +325,24 @@ void FDA::add_nonbonded(int i, int j, real pf_coul, real pf_lj, real dx, real dy
       }
       /* for detailed interactions, it's necessary to calculate and add separately, but for summed this can be simplified */
       switch(fda_settings.one_pair) {
-        case OnePair::DETAILED:
+        case fda::OnePair::DETAILED:
           pf_coul_residue_v[0] = pf_coul_residue * dx;
           pf_coul_residue_v[1] = pf_coul_residue * dy;
           pf_coul_residue_v[2] = pf_coul_residue * dz;
-          residue_based.distributed_forces.detailed[ri][rj][PF_INTER_COULOMB] += pf_coul_residue_v;
+          residue_based.distributed_forces.detailed[ri][rj][fda::InteractionType::COULOMB] += pf_coul_residue_v;
           pf_lj_residue_v[0] = pf_lj_residue * dx;
           pf_lj_residue_v[1] = pf_lj_residue * dy;
           pf_lj_residue_v[2] = pf_lj_residue * dz;
-          residue_based.distributed_forces.detailed[ri][rj][PF_INTER_LJ] += pf_lj_residue_v;
+          residue_based.distributed_forces.detailed[ri][rj][fda::InteractionType::LJ] += pf_lj_residue_v;
           break;
-        case OnePair::SUMMED:
+        case fda::OnePair::SUMMED:
           pf_lj_coul = pf_lj_residue + pf_coul_residue;
           pf_coul_residue_v[0] = pf_lj_coul * dx;
           pf_coul_residue_v[1] = pf_lj_coul * dy;
           pf_coul_residue_v[2] = pf_lj_coul * dz;
           residue_based.distributed_forces.summed[ri][rj] += pf_coul_residue_v;
           break;
-        case OnePair::INVALID:
+        case fda::OnePair::INVALID:
           break;
       }
     }
@@ -358,24 +357,24 @@ void FDA::add_nonbonded(int i, int j, real pf_coul, real pf_lj, real dx, real dy
     }
     /* for detailed interactions, it's necessary to calculate and add separately, but for summed this can be simplified */
     switch(fda_settings.one_pair) {
-      case OnePair::DETAILED:
+      case fda::OnePair::DETAILED:
         pf_coul_atom_v[0] = pf_coul * dx;
         pf_coul_atom_v[1] = pf_coul * dy;
         pf_coul_atom_v[2] = pf_coul * dz;
-        atom_based.distributed_forces.detailed[i][j][PF_INTER_COULOMB] += pf_coul_atom_v;
+        atom_based.distributed_forces.detailed[i][j][fda::InteractionType::COULOMB] += pf_coul_atom_v;
         pf_lj_atom_v[0] = pf_lj * dx;
         pf_lj_atom_v[1] = pf_lj * dy;
         pf_lj_atom_v[2] = pf_lj * dz;
-        atom_based.distributed_forces.detailed[i][j][PF_INTER_LJ] += pf_lj_atom_v;
+        atom_based.distributed_forces.detailed[i][j][fda::InteractionType::LJ] += pf_lj_atom_v;
         break;
-      case OnePair::SUMMED:
+      case fda::OnePair::SUMMED:
         pf_lj_coul = pf_lj + pf_coul;
         pf_coul_atom_v[0] = pf_lj_coul * dx;
         pf_coul_atom_v[1] = pf_lj_coul * dy;
         pf_coul_atom_v[2] = pf_lj_coul * dz;
         atom_based.distributed_forces.summed[i][j] += pf_coul_atom_v;
         break;
-      case OnePair::INVALID:
+      case fda::OnePair::INVALID:
         break;
     }
   }

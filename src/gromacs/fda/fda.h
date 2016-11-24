@@ -69,16 +69,16 @@ public:
    * is done first (the original code), i/j/force are needed for the later atom->residue mapping
    * and saving in intermediate variables is needed
    */
-  void add_bonded_nocheck(int i, int j, int type, rvec force);
+  void add_bonded_nocheck(int i, int j, fda::InteractionType type, rvec force);
 
-  void add_bonded(int i, int j, int type, rvec force);
+  void add_bonded(int i, int j, fda::InteractionType type, rvec force);
 
   /**
    * Add a particular type of nonbonded interaction for the kernels where only one type of interaction is computed;
    * force is passed as scalar along with the distance vector (as dx, dy, dz) from which the vector force is
    * computed, the same way it's done in the nonbonded kernels
    */
-  void add_nonbonded_single(int i, int j, int type, real force, real dx, real dy, real dz);
+  void add_nonbonded_single(int i, int j, fda::InteractionType type, real force, real dx, real dy, real dz);
 
   /**
    * Add a nonbonded interaction for kernels where both Coulomb and LJ are computed;

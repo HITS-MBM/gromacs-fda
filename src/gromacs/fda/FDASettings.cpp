@@ -31,7 +31,7 @@ FDASettings::FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *mtop, bool
    time_averaging_period(1),
    sys_in_group1(syslen_atoms, 0),
    sys_in_group2(syslen_atoms, 0),
-   type(InteractionType::none)
+   type(InteractionType::NONE)
 {
   /// Parallel execution not implemented yet
   if (parallel_execution)
@@ -88,7 +88,7 @@ FDASettings::FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *mtop, bool
   std::stringstream(get_estr(&ninp, &inp, "type", "all")) >> type;
   std::cout << "Pairwise interactions selected: " << type << std::endl;
 
-  if (type == InteractionType::none)
+  if (type == InteractionType::NONE)
 	gmx_fatal(FARGS, "No interactions selected, no sense to compute pairwise forces.\n");
 
   // Read group names

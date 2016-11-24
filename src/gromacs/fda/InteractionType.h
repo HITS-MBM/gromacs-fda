@@ -14,39 +14,30 @@
 
 namespace fda {
 
-struct InteractionType
-{
-  static const int none      =      0;
-  static const int bond      = 1 << 0;
-  static const int angle     = 1 << 1;
-  static const int dihedral  = 1 << 2;
-  static const int polar     = 1 << 3;
-  static const int coulomb   = 1 << 4;
-  static const int lj        = 1 << 5;
-  static const int nb14      = 1 << 6;
-  static const int num       =      7;
-  static const int bonded    = bond + angle + dihedral;
-  static const int nonbonded = coulomb + lj + nb14;
-  static const int all       = bonded + nonbonded + polar;
-};
-
-#if 0
 enum class InteractionType : int
 {
-  BOND,
-  ANGLE,
-  DIHEDRAL,
-  POLAR,
-  COULOMB,
-  LJ,
-  NB14,
-  NUM
+  NONE      =      0,
+  BOND      = 1 << 0,
+  ANGLE     = 1 << 1,
+  DIHEDRAL  = 1 << 2,
+  POLAR     = 1 << 3,
+  COULOMB   = 1 << 4,
+  LJ        = 1 << 5,
+  NB14      = 1 << 6,
+  BONDED    = BOND + ANGLE + DIHEDRAL,
+  NONBONDED = COULOMB + LJ + NB14,
+  ALL       = BONDED + NONBONDED + POLAR
 };
+
+/// Dimension of detailed distributed forces array
+const int number_of_pure_interactions = 7;
 
 /// Output stream for InteractionType
 std::ostream& operator<<(std::ostream& os, InteractionType r)
 {
   switch(r) {
+  case InteractionType::NONE:
+    return os << "none";
     case InteractionType::BOND:
       return os << "bond";
     case InteractionType::ANGLE:
@@ -61,6 +52,12 @@ std::ostream& operator<<(std::ostream& os, InteractionType r)
       return os << "lj";
     case InteractionType::NB14:
       return os << "nb14";
+    case InteractionType::BONDED:
+      return os << "bonded";
+    case InteractionType::NONBONDED:
+      return os << "nonbonded";
+    case InteractionType::ALL:
+      return os << "all";
     default:
       return os << "invalid";
   }
@@ -71,6 +68,8 @@ std::istream& operator>>(std::istream& is, InteractionType& r)
 {
   std::string s;
   is >> s;
+  if (s == "none")
+	r = InteractionType::NONE;
   if (s == "bond")
 	r = InteractionType::BOND;
   else if (s == "angle")
@@ -85,12 +84,16 @@ std::istream& operator>>(std::istream& is, InteractionType& r)
 	r = InteractionType::LJ;
   else if (s == "nb14")
 	r = InteractionType::NB14;
+  else if (s == "bonded")
+	r = InteractionType::BONDED;
+  else if (s == "nonbonded")
+	r = InteractionType::NONBONDED;
+  else if (s == "all")
+	r = InteractionType::ALL;
   else
-	r = InteractionType::NUM;
+	throw std::runtime_error("InteractionType " + s + "unknown");
   return is;
 }
-
-#endif
 
 } // namespace fda
 

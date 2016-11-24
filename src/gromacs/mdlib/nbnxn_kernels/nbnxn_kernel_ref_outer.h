@@ -33,7 +33,6 @@
  * the research papers on the package. Check out http://www.gromacs.org.
  */
 
-#include "gromacs/fda/pf_interactions.h"
 #include "gromacs/fda/fda.h"
 
 #define UNROLLI    NBNXN_CPU_CLUSTER_I_SIZE

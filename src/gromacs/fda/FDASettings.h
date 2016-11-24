@@ -34,7 +34,7 @@ struct FDASettings
      syslen_atoms(0),
      syslen_residues(0),
 	 time_averaging_period(1),
-     type(InteractionType::none)
+     type(InteractionType::NONE)
   {}
 
   /// Construction by input file
@@ -133,7 +133,7 @@ struct FDASettings
   std::string groupname;
 
   /// Interaction types that are interesting, set based on input file; functions are supposed to test against this before calculating/storing data
-  int type;
+  InteractionType type;
 
   /// Stores the residue number for each atom; array of length syslen; only initialized if ResidueBased is non-zero
   std::vector<int> atom_2_residue;

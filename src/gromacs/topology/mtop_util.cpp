@@ -43,7 +43,6 @@
 #include <string.h>
 
 #include "gromacs/fda/pf_exclusions.h"
-#include "gromacs/fda/pf_interactions.h"
 #include "gromacs/math/vectypes.h"
 #include "gromacs/topology/atoms.h"
 #include "gromacs/topology/block.h"
@@ -952,7 +951,7 @@ static void pf_ilistcat(int ftype, t_ilist *dest, t_ilist *src, int copies,
                         int dnum, int snum)
 {
 	// Return if no bonded interaction is needed.
-	if (!(fda_data.type & (PF_INTER_BONDED + PF_INTER_NB14))) return;
+	if (!(fda_data.type & (fda::InteractionType::BONDED + fda::InteractionType::NB14))) return;
 
     int nral, c, i, a, atomIdx;
     char needed;

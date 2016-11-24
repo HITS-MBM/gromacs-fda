@@ -18,7 +18,6 @@
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/smalloc.h"
 #include "pf_exclusions.h"
-#include "pf_interactions.h"
 
 void fda_data_init(int nfile, const t_filenm fnm[])
 {
@@ -149,7 +148,7 @@ void pf_modify_energy_group_exclusions(gmx_mtop_t *mtop, t_inputrec *inputrec)
 	}
 
 	// If no nonbonded interactions are needed we simply exclude all energy groups
-	if (!(fda_data.type & (PF_INTER_NONBONDED))) {
+	if (!(fda_data.type & (fda::InteractionType::NONBONDED))) {
 
 		int i;
 		for (i = 0; i < inputrec->opts.ngener; ++i) inputrec->opts.egp_flags[i] = 1;

@@ -47,8 +47,8 @@
 
 #include <cmath>
 
-#include "gromacs/fda/pf_array.h"
-#include "gromacs/fda/pf_interactions.h"
+#include "gromacs/fda/fda.h"
+#include "gromacs/fda/InteractionType.h"
 #include "gromacs/math/functions.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/mdtypes/group.h"
@@ -517,7 +517,7 @@ do_pairs_general(int ftype, int nbonds,
         rvec_inc(f[ai], dx);
         rvec_dec(f[aj], dx);
 
-       	fda->add_bonded(ai, aj, PF_INTER_NB14, dx);
+       	fda->add_bonded(ai, aj, fda::InteractionType::NB14, dx);
 
         if (g)
         {

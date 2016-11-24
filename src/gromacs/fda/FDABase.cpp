@@ -9,6 +9,7 @@
 #include <iomanip>
 #include "FDABase.h"
 #include "gromacs/math/vec.h"
+#include "gromacs/utility/futil.h"
 #include "Utilities.h"
 
 namespace fda {
@@ -25,7 +26,7 @@ FDABase<Base>::FDABase(ResultType result_type, OnePair one_pair, int syslen, std
 	 one_pair(one_pair),
 	 v2s(v2s)
 {
-  if (PF_or_PS_mode()) make_backup(result_filename);
+  if (PF_or_PS_mode()) make_backup(result_filename.c_str());
   write_compat_header(1);
 }
 
@@ -35,6 +36,8 @@ void FDABase<Base>::write_frame(rvec *x, int nsteps)
   switch (one_pair) {
 	case OnePair::DETAILED:
 	  switch (result_type) {
+		case ResultType::NO:
+		  break;
 		case ResultType::PAIRWISE_FORCES_VECTOR:
 		  write_frame_detailed(x, true, nsteps);
 		  break;
@@ -59,6 +62,8 @@ void FDABase<Base>::write_frame(rvec *x, int nsteps)
 	  break;
 	case OnePair::SUMMED:
 	  switch (result_type) {
+		case ResultType::NO:
+		  break;
 		case ResultType::PAIRWISE_FORCES_VECTOR:
 		  write_frame_summed(x, true, nsteps);
 		  break;
@@ -85,6 +90,9 @@ void FDABase<Base>::write_frame(rvec *x, int nsteps)
 		  break;
 	  }
 	  break;
+	case OnePair::INVALID:
+	  gmx_fatal(FARGS, "OnePair is invalid.\n");
+	  break;
   }
 }
 
@@ -94,7 +102,7 @@ void FDABase<Base>::write_frame_detailed(rvec *x, bool bVector, int nsteps)
   result_file << "frame " << nsteps << std::endl;
   for (i = 0; i < atoms->len; i++) {
     ii = atoms->detailed[i].nr;
-    for (type = 1; type < PF_INTER_ALL; type <<= 1) {
+    for (type = 1; type < InteractionType::ALL; type <<= 1) {
       iad = pf_interaction_array_by_type(&(atoms->detailed[i].interactions), type);
       for (j = 0 ; j < iad->len; j++) {
         id = iad->array[j];
