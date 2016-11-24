@@ -51,16 +51,7 @@ class FDABase : Base
 public:
 
   FDABase(ResultType result_type, OnePair one_pair, int syslen, std::string const& result_filename,
-    bool no_end_zeros, Vector2Scalar v2s)
-   : Base(result_type == ResultType::VIRIAL_STRESS or result_type == ResultType::VIRIAL_STRESS_VON_MISES, syslen),
-	 result_type(result_type),
-	 distributed_forces(result_type, one_pair, syslen),
-	 total_forces(PF_or_PS_mode() and result_type == ResultType::PUNCTUAL_STRESS ? syslen : 0, 0.0),
-	 result_file(result_filename),
-	 no_end_zeros(no_end_zeros),
-	 one_pair(one_pair),
-	 v2s(v2s)
-  {}
+    bool no_end_zeros, Vector2Scalar v2s);
 
   bool compatibility_mode() const {
     return result_type == ResultType::COMPAT_BIN or
@@ -96,9 +87,21 @@ public:
 
   void write_total_forces();
 
-  void write_frame_atoms_compat(bool ascii);
+  void write_frame_atoms_compat();
 
-  void write_frame_atoms_summed_compat(rvec *x, bool ascii);
+  void write_frame_atoms_scalar_compat();
+
+  void write_frame_atoms_summed_compat(rvec *x);
+
+  /**
+   * Writes a header as in original PF implementation;
+   * as the original PF implementation calculated everything then wrote out everything,
+   * nsteps was known at the time when the file was written; however, to make it work
+   * when data is written as it comes (frame by frame), the header is written once when
+   * the file is open, but with nsteps=1 and space for up to 8 digits; when the file is
+   * closed, the header is written again, this time with the correct nsteps
+   */
+  void write_compat_header(int nsteps);
 
   /// The stress is the negative atom_vir value.
   void write_atom_virial_sum();

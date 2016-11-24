@@ -6,11 +6,28 @@
  */
 
 #include <cmath>
+#include <iomanip>
 #include "FDABase.h"
 #include "gromacs/math/vec.h"
 #include "Utilities.h"
 
 namespace fda {
+
+template <class Base>
+FDABase<Base>::FDABase(ResultType result_type, OnePair one_pair, int syslen, std::string const& result_filename,
+  bool no_end_zeros, Vector2Scalar v2s)
+ : Base(result_type == ResultType::VIRIAL_STRESS or result_type == ResultType::VIRIAL_STRESS_VON_MISES, syslen),
+	 result_type(result_type),
+	 distributed_forces(result_type, one_pair, syslen),
+	 total_forces(PF_or_PS_mode() and result_type == ResultType::PUNCTUAL_STRESS ? syslen : 0, 0.0),
+	 result_file(result_filename),
+	 no_end_zeros(no_end_zeros),
+	 one_pair(one_pair),
+	 v2s(v2s)
+{
+  if (pf_file_out_PF_or_PS()) make_backup(result_file);
+  write_compat_header(1);
+}
 
 template <class Base>
 void FDABase<Base>::write_frame(rvec *x, int nsteps)
@@ -61,7 +78,7 @@ void FDABase<Base>::write_frame(rvec *x, int nsteps)
 		case ResultType::COMPAT_BIN:
 		  break;
 		case ResultType::COMPAT_ASCII:
-		  write_frame_atoms_summed_compat(x, true);
+		  write_frame_atoms_summed_compat(x);
 		  break;
 		case ResultType::INVALID:
 		  gmx_fatal(FARGS, "Per atom summed output not implemented.\n");
@@ -178,9 +195,8 @@ void FDABase<Base>::write_total_forces()
 }
 
 template <>
-void FDABase<Atom>::write_frame_atoms_compat(DistributedForces const& forces, FILE *f, int *framenr, int interactions_count, int *fmatoms, int *index, real *force, char *interaction, gmx_bool ascii) {
-  int i;
-
+void FDABase<Atom>::write_frame_atoms_compat(int interactions_count, int *fmatoms, int *index, real *force, char *interaction)
+{
   if (ascii) {
     fprintf(f, "<begin_block>\n");
     fprintf(f, "%d\n", *framenr);
@@ -204,7 +220,7 @@ void FDABase<Atom>::write_frame_atoms_compat(DistributedForces const& forces, FI
 }
 
 template <>
-void FDABase<Atom>::write_frame_atoms_summed_compat(rvec *x, bool ascii)
+void FDABase<Atom>::write_frame_atoms_scalar_compat()
 {
   t_pf_atom_scalar i_atom_scalar;
   t_pf_interaction_scalar j_atom_scalar;
@@ -255,6 +271,81 @@ void FDABase<Atom>::write_frame_atoms_summed_compat(rvec *x, bool ascii)
   sfree(interaction);
 
   (*framenr)++;
+}
+
+template <>
+void FDABase<Atom>::write_frame_atoms_summed_compat(rvec *x)
+{
+  t_pf_atom_summed i_atom_summed;
+  t_pf_interaction_summed j_atom_summed;
+  t_pf_interaction_array_summed *ia_summed;
+  int i, j, ii, jj, c_ix;
+  gmx_int64_t interactions_count;
+  int *index;
+  real *force;
+  char *interaction;
+  int *fmatoms;
+
+  interactions_count = pf_atoms_summed_to_fm(atoms, &fmatoms);
+  if (interactions_count == 0)
+    return;
+
+  snew(index, interactions_count);
+  snew(force, interactions_count);
+  snew(interaction, interactions_count);
+
+  /* map between the arrays and a square matrix of size atoms->len;
+   * this assumes that g1 and g2 are identical because in the original PF implementation
+   * there was only one group and the file format was designed for only one group;
+   * this assumption is checked during pf_init
+   */
+  c_ix = 0;
+  for (i = 0; i < atoms->len; i++) {
+    i_atom_summed = atoms->summed[i];
+    ia_summed = &i_atom_summed.interactions;
+    /* i should be here the same as the atoms->sys2pf[i_atom_summed.nr], but this might not hold when running in parallel */
+    ii = atoms->sys2pf[i_atom_summed.nr];
+    for (j = 0; j < ia_summed->len; j++) {
+      j_atom_summed = ia_summed->array[j];
+      jj = atoms->sys2pf[j_atom_summed.jjnr];
+      //fprintf(stderr, "fm i=%d, j=%d, ii=%d, ii.len=%d, jj=%d, type=%d, fx=%e\n", i_atom_summed.nr, j_atom_summed.jjnr, ii, ia_summed->len, jj, j_atom_summed.type, j_atom_summed.force[0]);
+      /* try to simulate the half-matrix storage of the original PF implementation */
+      index[c_ix] = (ii > jj) ? (jj * atoms->len) + ii : (ii * atoms->len) + jj;
+      force[c_ix] = pf_vector2signedscalar(j_atom_summed.force, x[i_atom_summed.nr], x[j_atom_summed.jjnr], Vector2Scalar);
+      interaction[c_ix] = pf_compatibility_map_interaction(j_atom_summed.type);
+      c_ix++;
+    }
+  }
+
+  pf_write_frame_atoms_compat(atoms, f, framenr, interactions_count, fmatoms, index, force, interaction, ascii);
+
+  sfree(fmatoms);
+  sfree(index);
+  sfree(force);
+  sfree(interaction);
+
+  (*framenr)++;
+}
+
+template <class Base>
+void FDABase<Base>::write_compat_header(int nsteps)
+{
+  if (!PF_or_PS_mode() or !compatibility_mode()) return;
+
+  result_file << "<begin_block>" << std::endl;
+  result_file << "; Forcemat version " << FDASettings::compat_fm_version << std::endl;
+  result_file << "; Matrix containing pairwise forces." << std::endl;
+  result_file << "; Matrix dimension " << distributed_forces.len << " x " << distributed_forces.len << std::endl;
+  result_file << "version=" << FDASettings::compat_fm_version << std::endl;
+  result_file << "groupname=" << fda_settings.groupname << std::endl;
+  result_file << "writefreq=1" << std::endl;
+  // Reserve place for up to 8 digits for nsteps
+  result_file << "nsteps=" << std::setfill('0') << std::setw(8) << nsteps << std::endl;
+  result_file << "sysanr=" << syslen << std::endl;
+  result_file << "fmdim=" << distributed_forces.len << std::endl;
+  result_file << "intsize=" << sizeof(int) << std::endl;
+  result_file << "realsize=" << sizeof(real) << std::endl;
+  result_file << "<end_block>" << std::endl;
 }
 
 template <>

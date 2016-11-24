@@ -44,10 +44,16 @@ FDA::FDA(FDASettings const& fda_settings)
 {
   if (fda_settings.time_averaging_period != 1) {
     if (residue_based.PF_or_PS_mode()) {
-      snew(time_averaging_com, pf_global->syslen_residues);
-      clear_rvecs(pf_global->syslen_residues, pf_global->time_averages->com);
+      snew(time_averaging_com, fda_settings.syslen_residues);
+      clear_rvecs(fda_settings.syslen_residues, time_averaging_com);
     }
   }
+}
+
+FDA::~FDA()
+{
+  atom_based.write_compat_header(nsteps);
+  residue_based.write_compat_header(nsteps);
 }
 
 void FDA::add_bonded_nocheck(int i, int j, int type, rvec force)
@@ -465,9 +471,9 @@ void FDA::write_scalar_time_averages()
   if (atom_based.PF_or_PS_mode()) {
     atom_based.distributed_forces.scalar_real_divide(time_averaging_steps);
     if (atom_based.compatibility_mode())
-      write_frame_atoms_scalar_compat(atom_based_forces, of_atoms, &nsteps_atoms, (AtomBased == FILE_OUT_COMPAT_ASCII));
+      atom_based.write_frame_atoms_scalar_compat();
     else
-      write_frame_scalar(atom_based_forces, of_atoms, &nsteps_atoms);
+      atom_based.write_frame_scalar(nsteps);
     atom_based.distributed_forces.scalar.clear();
   }
 
@@ -475,11 +481,11 @@ void FDA::write_scalar_time_averages()
     residue_based.distributed_forces.scalar_real_divide(time_averaging_steps);
     pf_x_real_div(time_averaging_com, fda_settings.syslen_residues, time_averaging_steps);
     if (residue_based.compatibility_mode())
-      write_frame_atoms_scalar_compat(residue_based_forces, of_residues, &nsteps_residues, (ResidueBased == FILE_OUT_COMPAT_ASCII));
+      residue_based.write_frame_atoms_scalar_compat();
     else
-      write_frame_scalar(residue_based_forces, of_residues, &nsteps_residues);
+      residue_based.write_frame_scalar(nsteps);
     residue_based.distributed_forces.scalar.clear();
-    clear_rvecs(syslen_residues, time_averages->com);
+    clear_rvecs(fda_settings.syslen_residues, time_averaging_com);
   }
 
   time_averaging_steps = 0;
@@ -520,8 +526,8 @@ rvec* FDA::get_residues_com(rvec *x, gmx_mtop_t *mtop) const
 	for (mol_index = 0; mol_index < mb->nmol; mol_index++) {
 	atoms = &mtop->moltype[mb->type].atoms;
 	  for(atom_index = 0; atom_index < atoms->nr; atom_index++) {
-		if ((fda->sys_in_g1[atom_global_index]) || (fda->sys_in_g2[atom_global_index])) {
-		  residue_global_index = fda->atom2residue[atom_global_index];
+		if (fda_settings.atom_in_groups(atom_global_index)) {
+		  residue_global_index = fda_settings.atom_2_residue[atom_global_index];
 		  atom_info=&atoms->atom[atom_index];
 		  mass[residue_global_index] += atom_info->m;
 		  svmul(atom_info->m, x[atom_global_index], r);

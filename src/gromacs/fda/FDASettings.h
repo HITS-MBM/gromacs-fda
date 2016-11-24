@@ -40,9 +40,14 @@ struct FDASettings
   /// Construction by input file
   FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *mtop, bool parallel_execution);
 
+  /// Returns true if atom i is in fda groups
+  bool atom_in_groups(int i) const {
+	return (sys_in_group1[i] or sys_in_group2[i]);
+  }
+
   /// Returns true if atoms i and j are in fda groups
   bool atoms_in_groups(int i, int j) const {
-	return ((sys_in_group1[i] && sys_in_group2[j]) || (sys_in_group1[j] && sys_in_group2[i]));
+	return ((sys_in_group1[i] and sys_in_group2[j]) or (sys_in_group1[j] and sys_in_group2[i]));
   }
 
   /// Makes a list of residue numbers based on atom numbers of this group.
@@ -132,6 +137,9 @@ struct FDASettings
 
   /// Stores the residue number for each atom; array of length syslen; only initialized if ResidueBased is non-zero
   std::vector<int> atom_2_residue;
+
+  /// Version of force matrix implementation (compat mode)
+  static const std::string compat_fm_version;
 
 };
 

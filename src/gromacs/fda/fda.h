@@ -57,6 +57,10 @@ public:
   /// Default constructor
   FDA(FDASettings const& fda_settings = FDASettings());
 
+  /// Destructor
+  /// Write compat footer
+  ~FDA();
+
   /**
    * Checking is symmetrical for atoms i and j; one of them has to be from g1, the other one from g2;
    * the check below makes the atoms equivalent, make them always have the same order (i,j) and not (j,i) where i < j;

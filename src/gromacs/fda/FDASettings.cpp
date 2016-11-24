@@ -17,6 +17,8 @@
 
 using namespace fda;
 
+const std::string FDASettings::compat_fm_version = "1.5";
+
 FDASettings::FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *mtop, bool parallel_execution)
  : atom_based_result_type(ResultType::NO),
    residue_based_result_type(ResultType::NO),
