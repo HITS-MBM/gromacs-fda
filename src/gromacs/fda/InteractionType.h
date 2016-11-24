@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <iostream>
 #include <string>
+#include <type_traits>
 
 namespace fda {
 
@@ -29,8 +30,17 @@ enum class InteractionType : int
   ALL       = BONDED + NONBONDED + POLAR
 };
 
-/// Dimension of detailed distributed forces array
-const int number_of_pure_interactions = 7;
+using T = std::underlying_type<InteractionType>::type;
+
+inline InteractionType operator & (InteractionType lhs, InteractionType rhs)
+{
+  return (InteractionType)(static_cast<T>(lhs) & static_cast<T>(rhs));
+}
+
+inline bool operator ! (InteractionType i)
+{
+  return !static_cast<T>(i);
+}
 
 /// Output stream for InteractionType
 std::ostream& operator<<(std::ostream& os, InteractionType r)

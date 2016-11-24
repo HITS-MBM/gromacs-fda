@@ -11,13 +11,9 @@
 
 using namespace fda;
 
-DistributedForces::DistributedForces(ResultType result_type, OnePair one_pair, int syslen)
- : result_type(result_type),
-   one_pair(one_pair)
-{
-  // Allocates and fills with -1 the indexing table real atom number to pf number
-  if (result_type != ResultType::NO) sys2pf.resize(syslen, -1);
-}
+DistributedForces::DistributedForces(ResultType result_type)
+ : result_type(result_type)
+{}
 
 void DistributedForces::scalar_real_divide(real divisor)
 {

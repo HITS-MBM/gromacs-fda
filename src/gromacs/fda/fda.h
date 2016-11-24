@@ -39,13 +39,15 @@
 #ifndef SRC_GROMACS_FDA_FDA_H
 #define SRC_GROMACS_FDA_FDA_H
 
-#include "gromacs/utility/basedefinitions.h"
+#include "gromacs/math/vectypes.h"
+#include "gromacs/utility/real.h"
 
 #ifdef __cplusplus
 #include <cstdio>
 #include <vector>
 #include "FDABase.h"
 #include "FDASettings.h"
+#include "InteractionType.h"
 
 class FDA {
 public:

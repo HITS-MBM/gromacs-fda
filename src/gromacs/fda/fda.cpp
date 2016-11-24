@@ -24,17 +24,13 @@ static const real QUARTER = 0.25;
 FDA::FDA(fda::FDASettings const& fda_settings)
  : fda_settings(fda_settings),
    atom_based(fda_settings.atom_based_result_type,
-		      fda_settings.one_pair,
 			  fda_settings.syslen_atoms,
 		      fda_settings.atom_based_result_filename,
-			  fda_settings.no_end_zeros,
-			  fda_settings.v2s),
+			  fda_settings),
    residue_based(fda_settings.residue_based_result_type,
-		         fda_settings.one_pair,
 				 fda_settings.syslen_residues,
 				 fda_settings.residue_based_result_filename,
-		         fda_settings.no_end_zeros,
-				 fda_settings.v2s),
+		         fda_settings),
    time_averaging_steps(0),
    time_averaging_com(nullptr),
    nsteps(0)
@@ -68,9 +64,9 @@ void FDA::add_bonded_nocheck(int i, int j, fda::InteractionType type, rvec force
             int_swap(&ri, &rj);
             clear_rvec(force_residue);
             rvec_dec(force_residue, force);
-            residue_based.distributed_forces.detailed[ri][rj][type] += force_residue;
+            residue_based.distributed_forces.detailed[ri][rj][static_cast<int>(to_pure(type))] += force_residue;
           } else {
-            residue_based.distributed_forces.detailed[ri][rj][type] += force;
+            residue_based.distributed_forces.detailed[ri][rj][static_cast<int>(to_pure(type))] += force;
           }
           break;
         case fda::OnePair::SUMMED:
@@ -96,7 +92,7 @@ void FDA::add_bonded_nocheck(int i, int j, fda::InteractionType type, rvec force
     }
     switch(fda_settings.one_pair) {
       case fda::OnePair::DETAILED:
-        atom_based.distributed_forces.detailed[i][j][type] += force;
+        atom_based.distributed_forces.detailed[i][j][static_cast<int>(to_pure(type))] += force;
         break;
       case fda::OnePair::SUMMED:
         atom_based.distributed_forces.summed[i][j] += force;
@@ -329,11 +325,11 @@ void FDA::add_nonbonded(int i, int j, real pf_coul, real pf_lj, real dx, real dy
           pf_coul_residue_v[0] = pf_coul_residue * dx;
           pf_coul_residue_v[1] = pf_coul_residue * dy;
           pf_coul_residue_v[2] = pf_coul_residue * dz;
-          residue_based.distributed_forces.detailed[ri][rj][fda::InteractionType::COULOMB] += pf_coul_residue_v;
+          residue_based.distributed_forces.detailed[ri][rj][static_cast<int>(fda::PureInteractionType::COULOMB)] += pf_coul_residue_v;
           pf_lj_residue_v[0] = pf_lj_residue * dx;
           pf_lj_residue_v[1] = pf_lj_residue * dy;
           pf_lj_residue_v[2] = pf_lj_residue * dz;
-          residue_based.distributed_forces.detailed[ri][rj][fda::InteractionType::LJ] += pf_lj_residue_v;
+          residue_based.distributed_forces.detailed[ri][rj][static_cast<int>(fda::PureInteractionType::LJ)] += pf_lj_residue_v;
           break;
         case fda::OnePair::SUMMED:
           pf_lj_coul = pf_lj_residue + pf_coul_residue;
@@ -361,11 +357,11 @@ void FDA::add_nonbonded(int i, int j, real pf_coul, real pf_lj, real dx, real dy
         pf_coul_atom_v[0] = pf_coul * dx;
         pf_coul_atom_v[1] = pf_coul * dy;
         pf_coul_atom_v[2] = pf_coul * dz;
-        atom_based.distributed_forces.detailed[i][j][fda::InteractionType::COULOMB] += pf_coul_atom_v;
+        atom_based.distributed_forces.detailed[i][j][static_cast<int>(fda::PureInteractionType::COULOMB)] += pf_coul_atom_v;
         pf_lj_atom_v[0] = pf_lj * dx;
         pf_lj_atom_v[1] = pf_lj * dy;
         pf_lj_atom_v[2] = pf_lj * dz;
-        atom_based.distributed_forces.detailed[i][j][fda::InteractionType::LJ] += pf_lj_atom_v;
+        atom_based.distributed_forces.detailed[i][j][static_cast<int>(fda::PureInteractionType::LJ)] += pf_lj_atom_v;
         break;
       case fda::OnePair::SUMMED:
         pf_lj_coul = pf_lj + pf_coul;

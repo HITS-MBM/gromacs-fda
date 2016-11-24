@@ -15,16 +15,14 @@
 namespace fda {
 
 template <class Base>
-FDABase<Base>::FDABase(ResultType result_type, OnePair one_pair, int syslen, std::string const& result_filename,
-  bool no_end_zeros, Vector2Scalar v2s)
+FDABase<Base>::FDABase(ResultType result_type, int syslen, std::string const& result_filename, FDASettings const& fda_settings)
  : Base(result_type == ResultType::VIRIAL_STRESS or result_type == ResultType::VIRIAL_STRESS_VON_MISES, syslen),
 	 result_type(result_type),
-	 distributed_forces(result_type, one_pair, syslen),
+	 syslen(syslen),
+	 distributed_forces(result_type),
 	 total_forces(PF_or_PS_mode() and result_type == ResultType::PUNCTUAL_STRESS ? syslen : 0, 0.0),
 	 result_file(result_filename),
-	 no_end_zeros(no_end_zeros),
-	 one_pair(one_pair),
-	 v2s(v2s)
+	 fda_settings(fda_settings)
 {
   if (PF_or_PS_mode()) make_backup(result_filename.c_str());
   write_compat_header(1);
@@ -33,10 +31,11 @@ FDABase<Base>::FDABase(ResultType result_type, OnePair one_pair, int syslen, std
 template <class Base>
 void FDABase<Base>::write_frame(rvec *x, int nsteps)
 {
-  switch (one_pair) {
+  switch (fda_settings.one_pair) {
 	case OnePair::DETAILED:
 	  switch (result_type) {
 		case ResultType::NO:
+		  // do nothing
 		  break;
 		case ResultType::PAIRWISE_FORCES_VECTOR:
 		  write_frame_detailed(x, true, nsteps);
@@ -44,25 +43,30 @@ void FDABase<Base>::write_frame(rvec *x, int nsteps)
 		case ResultType::PAIRWISE_FORCES_SCALAR:
 		  write_frame_detailed(x, false, nsteps);
 		  break;
+		case ResultType::PUNCTUAL_STRESS:
+		  gmx_fatal(FARGS, "Punctual stress is not supported for detailed output.\n");
+		  break;
 		case ResultType::VIRIAL_STRESS:
-		  gmx_fatal(FARGS, "Per atom detailed output not supported for virial stress.\n");
+		  gmx_fatal(FARGS, "Virial stress is not supported for detailed output.\n");
 		  break;
 		case ResultType::VIRIAL_STRESS_VON_MISES:
-		  gmx_fatal(FARGS, "Per atom detailed output not supported for virial stress von mises.\n");
+		  gmx_fatal(FARGS, "Virial stress von Mises is not supported for detailed output.\n");
 		  break;
 		case ResultType::COMPAT_BIN:
+		  gmx_fatal(FARGS, "Compatibility binary mode is not supported for detailed output.\n");
 		  break;
 		case ResultType::COMPAT_ASCII:
-		  gmx_fatal(FARGS, "Can't map detailed pairwise interactions in compatibility mode.\n");
+		  gmx_fatal(FARGS, "Compatibility ascii mode is not supported for detailed output.\n");
 		  break;
 		case ResultType::INVALID:
-		  gmx_fatal(FARGS, "Per atom detailed output not implemented.\n");
+		  gmx_fatal(FARGS, "ResultType is invalid.\n");
 		  break;
 	  }
 	  break;
 	case OnePair::SUMMED:
 	  switch (result_type) {
 		case ResultType::NO:
+		  // do nothing
 		  break;
 		case ResultType::PAIRWISE_FORCES_VECTOR:
 		  write_frame_summed(x, true, nsteps);
@@ -81,12 +85,13 @@ void FDABase<Base>::write_frame(rvec *x, int nsteps)
 		  write_atom_virial_sum_von_mises();
 		  break;
 		case ResultType::COMPAT_BIN:
+		  gmx_fatal(FARGS, "Compatibility binary mode is not supported for summed output.\n");
 		  break;
 		case ResultType::COMPAT_ASCII:
 		  write_frame_atoms_summed_compat(x);
 		  break;
 		case ResultType::INVALID:
-		  gmx_fatal(FARGS, "Per atom summed output not implemented.\n");
+		  gmx_fatal(FARGS, "ResultType is invalid.\n");
 		  break;
 	  }
 	  break;
@@ -183,7 +188,7 @@ void FDABase<Base>::write_total_forces()
 {
   int j = total_forces.size();
   // Detect the last non-zero item
-  if (no_end_zeros) {
+  if (fda_settings.no_end_zeros) {
     for (; j > 0; --j)
       if (total_forces[j - 1] != 0.0)
         break;
@@ -202,10 +207,10 @@ void FDABase<Base>::write_total_forces()
   result_file << std::endl;
 }
 
-template <>
-void FDABase<Atom>::write_frame_atoms_compat(int interactions_count, int *fmatoms, int *index, real *force, char *interaction)
+template <class Base>
+void FDABase<Base>::write_frame_atoms_compat()
 {
-  if (ascii) {
+  if (result_type == ResultType::COMPAT_ASCII) {
     fprintf(f, "<begin_block>\n");
     fprintf(f, "%d\n", *framenr);
     fprintf(f, "%d\n", interactions_count);
@@ -214,8 +219,7 @@ void FDABase<Atom>::write_frame_atoms_compat(int interactions_count, int *fmatom
     pf_write_space_separated_real_array(f, force, interactions_count);
     pf_write_space_separated_char_array(f, interaction, interactions_count);
     fprintf(f, "<end_block>\n");
-  }
-  else {
+  } else {
     fwrite(framenr, sizeof(*framenr), 1, f);
     fwrite(&interactions_count, sizeof(interactions_count), 1, f);
     fwrite(fmatoms, sizeof(fmatoms[0]), atoms->len, f);
@@ -227,8 +231,8 @@ void FDABase<Atom>::write_frame_atoms_compat(int interactions_count, int *fmatom
   }
 }
 
-template <>
-void FDABase<Atom>::write_frame_atoms_scalar_compat()
+template <class Base>
+void FDABase<Base>::write_frame_atoms_scalar_compat()
 {
   t_pf_atom_scalar i_atom_scalar;
   t_pf_interaction_scalar j_atom_scalar;
@@ -281,8 +285,8 @@ void FDABase<Atom>::write_frame_atoms_scalar_compat()
   (*framenr)++;
 }
 
-template <>
-void FDABase<Atom>::write_frame_atoms_summed_compat(rvec *x)
+template <class Base>
+void FDABase<Base>::write_frame_atoms_summed_compat(rvec *x)
 {
   t_pf_atom_summed i_atom_summed;
   t_pf_interaction_summed j_atom_summed;
@@ -343,14 +347,14 @@ void FDABase<Base>::write_compat_header(int nsteps)
   result_file << "<begin_block>" << std::endl;
   result_file << "; Forcemat version " << FDASettings::compat_fm_version << std::endl;
   result_file << "; Matrix containing pairwise forces." << std::endl;
-  result_file << "; Matrix dimension " << distributed_forces.len << " x " << distributed_forces.len << std::endl;
+  result_file << "; Matrix dimension " << distributed_forces.size() << " x " << distributed_forces.size() << std::endl;
   result_file << "version=" << FDASettings::compat_fm_version << std::endl;
   result_file << "groupname=" << fda_settings.groupname << std::endl;
   result_file << "writefreq=1" << std::endl;
   // Reserve place for up to 8 digits for nsteps
   result_file << "nsteps=" << std::setfill('0') << std::setw(8) << nsteps << std::endl;
   result_file << "sysanr=" << syslen << std::endl;
-  result_file << "fmdim=" << distributed_forces.len << std::endl;
+  result_file << "fmdim=" << distributed_forces.size() << std::endl;
   result_file << "intsize=" << sizeof(int) << std::endl;
   result_file << "realsize=" << sizeof(real) << std::endl;
   result_file << "<end_block>" << std::endl;

@@ -11,6 +11,7 @@
 #include <iostream>
 #include <fstream>
 #include <vector>
+#include "FDASettings.h"
 #include "DistributedForces.h"
 #include "gromacs/topology/topology.h"
 #include "gromacs/utility/fatalerror.h"
@@ -50,8 +51,7 @@ class FDABase : Base
 {
 public:
 
-  FDABase(ResultType result_type, OnePair one_pair, int syslen, std::string const& result_filename,
-    bool no_end_zeros, Vector2Scalar v2s);
+  FDABase(ResultType result_type, int syslen, std::string const& result_filename, FDASettings const& fda_settings);
 
   bool compatibility_mode() const {
     return result_type == ResultType::COMPAT_BIN or
@@ -116,6 +116,9 @@ private:
   /// Result type
   ResultType result_type;
 
+  /// Total number of atoms/residues in the system
+  int syslen;
+
   /// Distributed forces
   DistributedForces distributed_forces;
 
@@ -125,15 +128,8 @@ private:
   /// Result file
   std::ofstream result_file;
 
-  /// If True, trim the line such that the zeros at the end are not written.
-  /// if False (default), all per atom/residue data is written.
-  bool no_end_zeros;
-
-  /// OnePair defines the way the interactions between the same pair of atoms are stored
-  OnePair one_pair;
-
-  /// Define conversion from vector to scalar
-  Vector2Scalar v2s;
+  /// For atom/residue unrelated settings
+  FDASettings fda_settings;
 
 };
 

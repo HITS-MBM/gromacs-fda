@@ -12,7 +12,7 @@
 #include <map>
 #include <vector>
 #include "ForceType.h"
-#include "InteractionType.h"
+#include "PureInteractionType.h"
 #include "OnePair.h"
 #include "ResultType.h"
 #include "Vector.h"
@@ -38,12 +38,14 @@ class DistributedForces
 public:
 
   /// Constructor
-  DistributedForces(ResultType result_type, OnePair one_pair, int syslen);
+  DistributedForces(ResultType result_type);
 
   /// Divide all scalar forces by the divisor
   void scalar_real_divide(real divisor);
 
   void summed_merge_to_scalar(const rvec *x, Vector2Scalar v2s);
+
+  size_t size() const { return scalar.size(); }
 
 private:
 
@@ -52,12 +54,6 @@ private:
   /// Result type
   ResultType result_type;
 
-  /// Detailed or summed storage
-  OnePair one_pair;
-
-  /// Indexing table: real atom nr. to index in the pf array; this has length equal to the total nr. of atoms in system
-  std::vector<int> sys2pf;
-
   /// Scalar values of forces
   std::map<int, std::map<int, real>> scalar;
 
@@ -65,7 +61,8 @@ private:
   std::map<int, std::map<int, Vector>> summed;
 
   /// Detailed values of forces
-  std::map<int, std::map<int, std::array<Vector, number_of_pure_interactions>>> detailed;
+  //std::map<int, std::map<int, std::array<Vector, number_of_pure_interactions>>> detailed;
+  std::map<int, std::map<int, std::array<Vector, static_cast<int>(PureInteractionType::NUMBER)>>> detailed;
 
 };
 
