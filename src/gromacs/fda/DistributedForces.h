@@ -58,9 +58,6 @@ private:
   /// Indexing table: real atom nr. to index in the pf array; this has length equal to the total nr. of atoms in system
   std::vector<int> sys2pf;
 
-  /// Number of interaction nodes
-  std::vector<int> syslen;
-
   /// Scalar values of forces
   std::map<int, std::map<int, real>> scalar;
 

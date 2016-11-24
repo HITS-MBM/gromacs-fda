@@ -155,18 +155,3 @@ void pf_atoms_divide(t_pf_atoms *atoms, int OnePair, real divisor) {
       break;
   }
 }
-
-/* this will be used only together with scalar interactions, so it's safe to use atoms->scalar */
-void pf_x_inc(t_pf_atoms *atoms, rvec *pf_x, const rvec *x) {
-  int i;
-
-  for (i = 0; i < atoms->len; i++)
-    rvec_inc(pf_x[i], x[atoms->scalar[i].nr]);
-}
-
-void pf_x_real_div(rvec *pf_x, int pf_x_len, real divisor) {
-  int i;
-
-  for (i = 0; i < pf_x_len; i++)
-    svdiv(divisor, pf_x[i]);
-}

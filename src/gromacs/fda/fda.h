@@ -46,16 +46,12 @@
 #include <vector>
 #include "FDABase.h"
 #include "FDASettings.h"
-#endif
 
-namespace fda {
-
-#ifdef __cplusplus
 class FDA {
 public:
 
   /// Default constructor
-  FDA(FDASettings const& fda_settings = FDASettings());
+  FDA(fda::FDASettings const& fda_settings = fda::FDASettings());
 
   /// Destructor
   /// Write compat footer
@@ -160,13 +156,13 @@ private:
   rvec *get_residues_com(rvec *x, gmx_mtop_t *mtop) const;
 
   /// Settings
-  FDASettings const& fda_settings;
+  fda::FDASettings const& fda_settings;
 
   /// Atom-based operation
-  FDABase<Atom> atom_based;
+  fda::FDABase<fda::Atom> atom_based;
 
   /// Residue-based operation
-  FDABase<Residue> residue_based;
+  fda::FDABase<fda::Residue> residue_based;
 
   /// Counter for current step, incremented for every call of pf_save_and_write_scalar_averages()
   /// When it reaches time_averages_steps, data is written
@@ -180,11 +176,10 @@ private:
   /// Incremented for each step written during run, also used to write the total number of steps at the end
   int nsteps;
 
-#else
-struct FDA {
-#endif
 };
 
-} // namespace fda
+#else
+struct FDA {};
+#endif
 
 #endif // SRC_GROMACS_FDA_FDA_H

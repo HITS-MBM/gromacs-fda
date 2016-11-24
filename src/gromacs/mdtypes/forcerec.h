@@ -403,8 +403,8 @@ typedef struct t_forcerec {
     /* Limit for printing large forces, negative is don't print */
     real print_force;
 
-    /* pf structure */
-    struct fda::FDA *fda;
+    /* FDA */
+    struct FDA *fda;
 
     /* coarse load balancing time measurement */
     double t_fnbf;

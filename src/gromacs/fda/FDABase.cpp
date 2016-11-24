@@ -25,7 +25,7 @@ FDABase<Base>::FDABase(ResultType result_type, OnePair one_pair, int syslen, std
 	 one_pair(one_pair),
 	 v2s(v2s)
 {
-  if (pf_file_out_PF_or_PS()) make_backup(result_file);
+  if (PF_or_PS_mode()) make_backup(result_filename);
   write_compat_header(1);
 }
 

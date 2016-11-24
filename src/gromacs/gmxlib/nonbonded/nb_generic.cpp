@@ -484,8 +484,8 @@ gmx_nb_generic_kernel(t_nblist *                nlist,
             f[j3+2]          = f[j3+2] - tz;
 
 	        /* pairwise forces */
-		    if (fda->PFPS) pf_atom_add_nonbonded(fr->fda, ii, jnr, pf_coul, pf_vdw, dx, dy, dz);
-		    if (fda->VS) pf_atom_virial_bond(fr->fda, ii, jnr, fscal, dx, dy, dz);
+		    fda->add_nonbonded(ii, jnr, pf_coul, pf_vdw, dx, dy, dz);
+		    fda->add_virial_bond(ii, jnr, fscal, dx, dy, dz);
         }
 
         f[ii3+0]         = f[ii3+0] + fix;

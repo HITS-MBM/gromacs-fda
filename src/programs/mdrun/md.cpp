@@ -679,7 +679,7 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
     }
 
     fda::FDASettings fda_settings(nfile, fnm, top_global, PAR(cr));
-    fr->fda = new fda::FDA(fda_settings);
+    fr->fda = new FDA(fda_settings);
 
     walltime_accounting_start(walltime_accounting);
     wallcycle_start(wcycle, ewcRUN);

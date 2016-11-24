@@ -9,8 +9,6 @@
 
 #include "fda.h"
 
-using namespace fda;
-
 #ifdef __cplusplus
 extern "C" {
 #endif

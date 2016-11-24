@@ -56,7 +56,8 @@ void fda_data_init(int nfile, const t_filenm fnm[])
 	// Get interaction type
     char tmpstr[STRLEN];
     STYPE("type", tmpstr, "all");
-    fda_data.type = pf_interactions_type_str2val(tmpstr);
+    // TODO:
+    //fda_data.type = pf_interactions_type_str2val(tmpstr);
 
 	STYPE("energy_grp_exclusion", tmpstr, "yes");
 	fda_data.FDA_nonbonded_exclusion_on = gmx_strcasecmp(tmpstr, "no") != 0;

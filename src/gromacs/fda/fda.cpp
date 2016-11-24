@@ -18,13 +18,11 @@
 #include "pf_interactions.h"
 #include "Utilities.h"
 
-namespace fda {
-
 static const real HALF    = 1.0 / 2.0;
 static const real THIRD   = 1.0 / 3.0;
 static const real QUARTER = 0.25;
 
-FDA::FDA(FDASettings const& fda_settings)
+FDA::FDA(fda::FDASettings const& fda_settings)
  : fda_settings(fda_settings),
    atom_based(fda_settings.atom_based_result_type,
 		      fda_settings.one_pair,
@@ -442,6 +440,13 @@ void FDA::add_virial_dihedral(int i, int j, int k, int l,
   add_virial(l, v, QUARTER);
 }
 
+//void pf_x_inc(t_pf_atoms *atoms, rvec *pf_x, const rvec *x) {
+//  int i;
+//
+//  for (i = 0; i < atoms->len; i++)
+//    rvec_inc(pf_x[i], x[atoms->scalar[i].nr]);
+//}
+
 void FDA::save_and_write_scalar_time_averages(rvec *x, gmx_mtop_t *mtop)
 {
   if (fda_settings.time_averaging_period != 1) {
@@ -451,7 +456,11 @@ void FDA::save_and_write_scalar_time_averages(rvec *x, gmx_mtop_t *mtop)
     if (residue_based.PF_or_PS_mode()) {
   	  rvec *com = get_residues_com(x, mtop);
       residue_based.distributed_forces.summed_merge_to_scalar(com, fda_settings.v2s);
-      pf_x_inc(residue_based_forces, time_averaging_com, com);
+      //pf_x_inc(residue_based_forces, time_averaging_com, com);
+      // TODO: Order of scalar forces in map is not the same as in com vector
+      // rvec_inc(a, b): a += b
+      for (size_t i = 0; i != residue_based.distributed_forces.scalar.size(); ++i)
+        rvec_inc(time_averaging_com[i], com[i]);
       sfree(com);
     }
 
@@ -462,6 +471,13 @@ void FDA::save_and_write_scalar_time_averages(rvec *x, gmx_mtop_t *mtop)
     write_frame(x, mtop);
   }
 }
+
+//void pf_x_real_div(rvec *pf_x, int pf_x_len, real divisor) {
+//  int i;
+//
+//  for (i = 0; i < pf_x_len; i++)
+//    svdiv(divisor, pf_x[i]);
+//}
 
 void FDA::write_scalar_time_averages()
 {
@@ -479,7 +495,8 @@ void FDA::write_scalar_time_averages()
 
   if (residue_based.PF_or_PS_mode()) {
     residue_based.distributed_forces.scalar_real_divide(time_averaging_steps);
-    pf_x_real_div(time_averaging_com, fda_settings.syslen_residues, time_averaging_steps);
+    //pf_x_real_div(time_averaging_com, fda_settings.syslen_residues, time_averaging_steps);
+    for (size_t i = 0; i != residue_based.distributed_forces.scalar.size(); ++i) svdiv(time_averaging_steps, time_averaging_com[i]);
     if (residue_based.compatibility_mode())
       residue_based.write_frame_atoms_scalar_compat();
     else
@@ -549,5 +566,3 @@ rvec* FDA::get_residues_com(rvec *x, gmx_mtop_t *mtop) const
   sfree(mass);
   return com;
 }
-
-} // namespace fda

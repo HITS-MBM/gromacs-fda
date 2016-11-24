@@ -10,9 +10,7 @@
 #include "gromacs/utility/basedefinitions.h"
 #include "gromacs/utility/real.h"
 
-#ifdef HAVE_CONFIG_H
-  #include <config.h>
-#endif
+using namespace fda;
 
 void pf_atom_add_bonded_nocheck(FDA *fda, int i, int j, int type, rvec force)
 {
