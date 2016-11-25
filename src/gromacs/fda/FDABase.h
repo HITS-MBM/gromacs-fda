@@ -77,9 +77,9 @@ public:
 
   void write_frame(rvec *x, int nsteps);
 
-  void write_frame_detailed(rvec *x, bool bVector, int nsteps);
+  void write_frame_detailed(rvec *x, bool print_vector, int nsteps);
 
-  void write_frame_summed(rvec *x, bool bVector, int nsteps);
+  void write_frame_summed(rvec *x, bool print_vector, int nsteps);
 
   void write_frame_scalar(int nsteps);
 

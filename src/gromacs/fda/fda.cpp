@@ -64,9 +64,9 @@ void FDA::add_bonded_nocheck(int i, int j, fda::InteractionType type, rvec force
             int_swap(&ri, &rj);
             clear_rvec(force_residue);
             rvec_dec(force_residue, force);
-            residue_based.distributed_forces.detailed[ri][rj][static_cast<int>(to_pure(type))] += force_residue;
+            residue_based.distributed_forces.detailed[ri][rj][to_index(to_pure(type))] += force_residue;
           } else {
-            residue_based.distributed_forces.detailed[ri][rj][static_cast<int>(to_pure(type))] += force;
+            residue_based.distributed_forces.detailed[ri][rj][to_index(to_pure(type))] += force;
           }
           break;
         case fda::OnePair::SUMMED:
@@ -92,7 +92,7 @@ void FDA::add_bonded_nocheck(int i, int j, fda::InteractionType type, rvec force
     }
     switch(fda_settings.one_pair) {
       case fda::OnePair::DETAILED:
-        atom_based.distributed_forces.detailed[i][j][static_cast<int>(to_pure(type))] += force;
+        atom_based.distributed_forces.detailed[i][j][to_index(to_pure(type))] += force;
         break;
       case fda::OnePair::SUMMED:
         atom_based.distributed_forces.summed[i][j] += force;
@@ -325,11 +325,11 @@ void FDA::add_nonbonded(int i, int j, real pf_coul, real pf_lj, real dx, real dy
           pf_coul_residue_v[0] = pf_coul_residue * dx;
           pf_coul_residue_v[1] = pf_coul_residue * dy;
           pf_coul_residue_v[2] = pf_coul_residue * dz;
-          residue_based.distributed_forces.detailed[ri][rj][static_cast<int>(fda::PureInteractionType::COULOMB)] += pf_coul_residue_v;
+          residue_based.distributed_forces.detailed[ri][rj][to_index(fda::PureInteractionType::COULOMB)] += pf_coul_residue_v;
           pf_lj_residue_v[0] = pf_lj_residue * dx;
           pf_lj_residue_v[1] = pf_lj_residue * dy;
           pf_lj_residue_v[2] = pf_lj_residue * dz;
-          residue_based.distributed_forces.detailed[ri][rj][static_cast<int>(fda::PureInteractionType::LJ)] += pf_lj_residue_v;
+          residue_based.distributed_forces.detailed[ri][rj][to_index(fda::PureInteractionType::LJ)] += pf_lj_residue_v;
           break;
         case fda::OnePair::SUMMED:
           pf_lj_coul = pf_lj_residue + pf_coul_residue;
@@ -357,11 +357,11 @@ void FDA::add_nonbonded(int i, int j, real pf_coul, real pf_lj, real dx, real dy
         pf_coul_atom_v[0] = pf_coul * dx;
         pf_coul_atom_v[1] = pf_coul * dy;
         pf_coul_atom_v[2] = pf_coul * dz;
-        atom_based.distributed_forces.detailed[i][j][static_cast<int>(fda::PureInteractionType::COULOMB)] += pf_coul_atom_v;
+        atom_based.distributed_forces.detailed[i][j][to_index(fda::PureInteractionType::COULOMB)] += pf_coul_atom_v;
         pf_lj_atom_v[0] = pf_lj * dx;
         pf_lj_atom_v[1] = pf_lj * dy;
         pf_lj_atom_v[2] = pf_lj * dz;
-        atom_based.distributed_forces.detailed[i][j][static_cast<int>(fda::PureInteractionType::LJ)] += pf_lj_atom_v;
+        atom_based.distributed_forces.detailed[i][j][to_index(fda::PureInteractionType::LJ)] += pf_lj_atom_v;
         break;
       case fda::OnePair::SUMMED:
         pf_lj_coul = pf_lj + pf_coul;
@@ -378,28 +378,28 @@ void FDA::add_nonbonded(int i, int j, real pf_coul, real pf_lj, real dx, real dy
 
 void FDA::add_virial(int ai, tensor v, real s)
 {
-	// Only symmetric tensor is used, therefore full multiplication is not as efficient
-	//atom_vir[ai] += s * v;
+  // Only symmetric tensor is used, therefore full multiplication is not as efficient
+  // atom_vir[ai] += s * v;
 
-    atom_based.virial_stress[ai](XX, XX) += s * v[XX][XX];
-    atom_based.virial_stress[ai](YY, YY) += s * v[YY][YY];
-    atom_based.virial_stress[ai](ZZ, ZZ) += s * v[ZZ][ZZ];
-    atom_based.virial_stress[ai](XX, YY) += s * v[XX][YY];
-    atom_based.virial_stress[ai](XX, ZZ) += s * v[XX][ZZ];
-    atom_based.virial_stress[ai](YY, ZZ) += s * v[YY][ZZ];
+  atom_based.virial_stress[ai](XX, XX) += s * v[XX][XX];
+  atom_based.virial_stress[ai](YY, YY) += s * v[YY][YY];
+  atom_based.virial_stress[ai](ZZ, ZZ) += s * v[ZZ][ZZ];
+  atom_based.virial_stress[ai](XX, YY) += s * v[XX][YY];
+  atom_based.virial_stress[ai](XX, ZZ) += s * v[XX][ZZ];
+  atom_based.virial_stress[ai](YY, ZZ) += s * v[YY][ZZ];
 }
 
 void FDA::add_virial_bond(int ai, int aj, real f, real dx, real dy, real dz)
 {
-	tensor v;
-	v[XX][XX] = dx * dx * f;
-	v[YY][YY] = dy * dy * f;
-	v[ZZ][ZZ] = dz * dz * f;
-	v[XX][YY] = dx * dy * f;
-	v[XX][ZZ] = dx * dz * f;
-	v[YY][ZZ] = dy * dz * f;
-	add_virial(ai, v, HALF);
-	add_virial(aj, v, HALF);
+  tensor v;
+  v[XX][XX] = dx * dx * f;
+  v[YY][YY] = dy * dy * f;
+  v[ZZ][ZZ] = dz * dz * f;
+  v[XX][YY] = dx * dy * f;
+  v[XX][ZZ] = dx * dz * f;
+  v[YY][ZZ] = dy * dz * f;
+  add_virial(ai, v, HALF);
+  add_virial(aj, v, HALF);
 }
 
 void FDA::add_virial_angle(int ai, int aj, int ak,

@@ -5,8 +5,8 @@
  *      Author: Bernd Doser, HITS gGmbH <bernd.doser@h-its.org>
  */
 
-#ifndef SRC_GROMACS_FDA_TENSOR_H_
-#define SRC_GROMACS_FDA_TENSOR_H_
+#ifndef SRC_GROMACS_FDA_UTILITIES_H_
+#define SRC_GROMACS_FDA_UTILITIES_H_
 
 #include "gromacs/math/vectypes.h"
 #include "gromacs/utility/real.h"
@@ -26,4 +26,4 @@ real vector2unsignedscalar(const rvec v, int i, int j, rvec *x);
 
 } // namespace fda
 
-#endif /* SRC_GROMACS_FDA_TENSOR_H_ */
+#endif /* SRC_GROMACS_FDA_UTILITIES_H_ */

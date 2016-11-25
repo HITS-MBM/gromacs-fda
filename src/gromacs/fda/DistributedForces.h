@@ -12,6 +12,7 @@
 #include <map>
 #include <vector>
 #include "ForceType.h"
+#include "gromacs/math/vectypes.h"
 #include "PureInteractionType.h"
 #include "OnePair.h"
 #include "ResultType.h"
@@ -50,6 +51,7 @@ public:
 private:
 
   friend class FDA;
+  template <class Base> friend class FDABase;
 
   /// Result type
   ResultType result_type;

@@ -8,30 +8,38 @@
 #ifndef SRC_GROMACS_FDA_VECTOR_H_
 #define SRC_GROMACS_FDA_VECTOR_H_
 
-#include "gromacs/math/vectypes.h"
+#include <array>
+#include "gromacs/utility/real.h"
 
 namespace fda {
 
-/// As currently no RAII algebra types are available in GROMACS
-/// a wrapper class is used around rvec.
+/// Simple vector class
+/// Workaround until GROMACS provides own RAII algebra types
 class Vector
 {
 public:
 
-	Vector()
-	{ v[0] = 0.0; v[1] = 0.0; v[2] = 0.0; }
+	Vector(real value = 0.0)
+	{ v[0] = value; v[1] = value; v[2] = value; }
 
-	void operator+=(rvec other)
+	Vector(real *v2)
+	{ v[0] = v2[0]; v[1] = v2[1]; v[2] = v2[2]; }
+
+	void operator+=(real *other)
 	{
 	    v[0] += other[0]; v[1] += other[1]; v[2] += other[2];
 	}
 
-	real* get_rvec() { return v; }
-	real const* get_rvec() const { return v; }
+	real& operator[](int p) { return v[p]; }
+	real const& operator[](int p) const { return v[p]; }
+
+	real* get_pointer() { return &v[0]; }
+	real const* get_pointer() const { return &v[0]; }
 
 private:
 
-	rvec v;
+	/// Static array with dimension = 3
+	std::array<real, 3> v;
 
 };
 

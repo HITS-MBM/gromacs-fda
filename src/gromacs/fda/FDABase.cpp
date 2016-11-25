@@ -7,9 +7,11 @@
 
 #include <cmath>
 #include <iomanip>
+#include <iostream>
 #include "FDABase.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/utility/futil.h"
+#include "PureInteractionType.h"
 #include "Utilities.h"
 
 namespace fda {
@@ -102,41 +104,40 @@ void FDABase<Base>::write_frame(rvec *x, int nsteps)
 }
 
 template <class Base>
-void FDABase<Base>::write_frame_detailed(rvec *x, bool bVector, int nsteps)
+void FDABase<Base>::write_frame_detailed(rvec *x, bool print_vector, int nsteps)
 {
   result_file << "frame " << nsteps << std::endl;
-  for (i = 0; i < atoms->len; i++) {
-    ii = atoms->detailed[i].nr;
-    for (type = 1; type < InteractionType::ALL; type <<= 1) {
-      iad = pf_interaction_array_by_type(&(atoms->detailed[i].interactions), type);
-      for (j = 0 ; j < iad->len; j++) {
-        id = iad->array[j];
-        jj = id.jjnr;
-        if (bVector)
-          result_file << i << " " << j << " " << id.force[XX] << " " << id.force[YY] << " " << id.force[ZZ] << " " << type << std::endl;
-        else
-          fprintf(f, "%ld %ld %e %d\n", (long int)ii, (long int)jj, vector2signedscalar(id.force, x[ii], x[jj], v2s), type);
+  for (auto const& v1 : distributed_forces.detailed) {
+    int i = v1.first;
+    for (auto const& v2 : v1.second) {
+      int j = v2.first;
+      for (int type = 0; type != to_index(PureInteractionType::NUMBER); ++type) {
+    	Vector force = v2.second[type];
+        if (print_vector) {
+          result_file << i << " " << j << " " << force[XX] << " " << force[YY] << " " << force[ZZ] << " " << type << std::endl;
+        } else {
+          result_file << i << " " << j << " " << vector2signedscalar(force.get_pointer(), x[i], x[j], fda_settings.v2s) << " " << type << std::endl;
+        }
       }
     }
   }
 }
 
 template <class Base>
-void FDABase<Base>::write_frame_summed(rvec *x, bool bVector, int nsteps)
+void FDABase<Base>::write_frame_summed(rvec *x, bool print_vector, int nsteps)
 {
   result_file << "frame " << nsteps << std::endl;
-  for (i = 0; i < atoms->len; i++) {
-    ii = atoms->summed[i].nr;
-    ias = atoms->summed[i].interactions;
-    for (j = 0 ; j < ias.len; j++) {
-      is = ias.array[j];
-      jj = is.jjnr;
-      //fprintf(stderr, "i=%ld j=%ld type=%s\n", ii, jj, pf_interactions_type_val2str(is.type));
-      if (bVector)
-        fprintf(f, "%ld %ld %e %e %e %d\n", (long int)ii, (long int)jj, is.force[XX], is.force[YY], is.force[ZZ], is.type);
-      else
-        fprintf(f, "%ld %ld %e %d\n", (long int)ii, (long int)jj, vector2signedscalar(is.force, x[ii], x[jj], v2s), is.type);
-    }
+  for (auto const& v1 : distributed_forces.summed) {
+	int i = v1.first;
+	for (auto const& v2 : v1.second) {
+	  int j = v2.first;
+	  Vector force = v2.second;
+	  if (print_vector) {
+	    result_file << i << " " << j << " " << force[XX] << " " << force[YY] << " " << force[ZZ] << " " << type << std::endl;
+	  } else {
+		result_file << i << " " << j << " " << vector2signedscalar(force.get_pointer(), x[i], x[j], fda_settings.v2s) << " " << type << std::endl;
+	  }
+	}
   }
 }
 
@@ -144,15 +145,13 @@ template <class Base>
 void FDABase<Base>::write_frame_scalar(int nsteps)
 {
   result_file << "frame " << nsteps << std::endl;
-  for (i = 0; i < atoms->len; i++) {
-    ii = atoms->scalar[i].nr;
-    ias = atoms->scalar[i].interactions;
-    for (j = 0 ; j < ias.len; j++) {
-      is = ias.array[j];
-      jj = is.jjnr;
-      //fprintf(stderr, "i=%ld j=%ld type=%s\n", ii, jj, pf_interactions_type_val2str(is.type));
-      fprintf(f, "%ld %ld %e %d\n", (long int)ii, (long int)jj, is.force, is.type);
-    }
+  for (auto const& v1 : distributed_forces.scalar) {
+	int i = v1.first;
+	for (auto const& v2 : v1.second) {
+	  int j = v2.first;
+	  real force = v2.second;
+      result_file << i << " " << j << " " << force << " " << type << std::endl;
+	}
   }
 }
 
@@ -166,12 +165,12 @@ void FDABase<Base>::sum_total_forces(rvec *x)
     for (auto const& v2 : v1.second) {
       int j = v2.first;
       real scalar_force;
-      switch (v2s) {
+      switch (fda_settings.v2s) {
         case Vector2Scalar::NORM:
-          scalar_force = norm(v2.second.get_rvec());
+          scalar_force = norm(v2.second.get_pointer());
           break;
         case Vector2Scalar::PROJECTION:
-          scalar_force = vector2unsignedscalar(v2.second.get_rvec(), i, j, x);
+          scalar_force = vector2unsignedscalar(v2.second.get_pointer(), i, j, x);
           break;
         default:
       	  gmx_fatal(FARGS, "Unknown option for Vector2Scalar.\n");

@@ -8,7 +8,7 @@
 #include "gromacs/math/vec.h"
 #include "Utilities.h"
 
-using namespace fda;
+namespace fda {
 
 real vector2signedscalar(const rvec v, const rvec xi, const rvec xj, Vector2Scalar v2s)
 {
@@ -58,3 +58,5 @@ real vector2unsignedscalar(const rvec v, int i, int j, rvec *x)
     return -p;
   return p;
 }
+
+} // namespace fda

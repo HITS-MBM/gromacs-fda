@@ -28,7 +28,7 @@ void DistributedForces::summed_merge_to_scalar(const rvec *x, Vector2Scalar v2s)
 	int i = si.first;
     for (auto& sj : si.second) {
       int j = sj.first;
-      scalar[i][j] += vector2signedscalar(sj.second.get_rvec(), x[i], x[j], v2s);
+      scalar[i][j] += vector2signedscalar(sj.second.get_pointer(), x[i], x[j], v2s);
     }
   }
 }

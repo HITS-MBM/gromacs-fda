@@ -8,6 +8,7 @@
 #ifndef SRC_GROMACS_FDA_PUREINTERACTIONTYPE_H_
 #define SRC_GROMACS_FDA_PUREINTERACTIONTYPE_H_
 
+#include <type_traits>
 #include "InteractionType.h"
 
 namespace fda {
@@ -24,6 +25,11 @@ enum class PureInteractionType : int
   NB14      = 6,
   NUMBER    = 7
 };
+
+constexpr typename std::underlying_type<PureInteractionType>::type to_index(PureInteractionType e)
+{
+  return static_cast<typename std::underlying_type<PureInteractionType>::type>(e);
+}
 
 PureInteractionType to_pure(InteractionType i)
 {
