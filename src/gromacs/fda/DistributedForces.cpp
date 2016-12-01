@@ -11,15 +11,11 @@
 
 using namespace fda;
 
-DistributedForces::DistributedForces(ResultType result_type)
- : result_type(result_type)
-{}
-
 void DistributedForces::scalar_real_divide(real divisor)
 {
   real inv = 1 / divisor;
   for (auto& si : scalar)
-    for (auto& sj : si.second) sj.second *= inv;
+    for (auto& sj : si.second) sj.second.force *= inv;
 }
 
 void DistributedForces::summed_merge_to_scalar(const rvec *x, Vector2Scalar v2s)
@@ -28,7 +24,7 @@ void DistributedForces::summed_merge_to_scalar(const rvec *x, Vector2Scalar v2s)
 	int i = si.first;
     for (auto& sj : si.second) {
       int j = sj.first;
-      scalar[i][j] += vector2signedscalar(sj.second.get_pointer(), x[i], x[j], v2s);
+      scalar[i][j].force += vector2signedscalar(sj.second.force.get_pointer(), x[i], x[j], v2s);
     }
   }
 }

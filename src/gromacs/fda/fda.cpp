@@ -64,9 +64,9 @@ void FDA::add_bonded_nocheck(int i, int j, fda::InteractionType type, rvec force
             int_swap(&ri, &rj);
             clear_rvec(force_residue);
             rvec_dec(force_residue, force);
-            residue_based.distributed_forces.detailed[ri][rj][to_index(to_pure(type))] += force_residue;
+            residue_based.distributed_forces.detailed[ri][rj].force[to_index(to_pure(type))] += force_residue;
           } else {
-            residue_based.distributed_forces.detailed[ri][rj][to_index(to_pure(type))] += force;
+            residue_based.distributed_forces.detailed[ri][rj].force[to_index(to_pure(type))] += force;
           }
           break;
         case fda::OnePair::SUMMED:
@@ -74,9 +74,9 @@ void FDA::add_bonded_nocheck(int i, int j, fda::InteractionType type, rvec force
             int_swap(&ri, &rj);
             clear_rvec(force_residue);
             rvec_dec(force_residue, force);
-            residue_based.distributed_forces.summed[ri][rj] += force_residue;
+            residue_based.distributed_forces.summed[ri][rj].force += force_residue;
           } else {
-            residue_based.distributed_forces.summed[ri][rj] += force;
+            residue_based.distributed_forces.summed[ri][rj].force += force;
           }
           break;
         case fda::OnePair::INVALID:
@@ -92,10 +92,10 @@ void FDA::add_bonded_nocheck(int i, int j, fda::InteractionType type, rvec force
     }
     switch(fda_settings.one_pair) {
       case fda::OnePair::DETAILED:
-        atom_based.distributed_forces.detailed[i][j][to_index(to_pure(type))] += force;
+        atom_based.distributed_forces.detailed[i][j].force[to_index(to_pure(type))] += force;
         break;
       case fda::OnePair::SUMMED:
-        atom_based.distributed_forces.summed[i][j] += force;
+        atom_based.distributed_forces.summed[i][j].force += force;
         break;
       case fda::OnePair::INVALID:
         break;

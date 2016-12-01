@@ -13,13 +13,30 @@
 #include <vector>
 #include "ForceType.h"
 #include "gromacs/math/vectypes.h"
+#include "InteractionType.h"
 #include "PureInteractionType.h"
 #include "OnePair.h"
-#include "ResultType.h"
 #include "Vector.h"
 #include "Vector2Scalar.h"
 
 namespace fda {
+
+struct ScalarForce
+{
+  real force;
+  InteractionType type;
+};
+
+struct SummedForce
+{
+  Vector force;
+  InteractionType type;
+};
+
+struct DetailedForce
+{
+  std::array<Vector, static_cast<int>(PureInteractionType::NUMBER)> force;
+};
 
 /**
  * Storage container for distributed forces
@@ -38,9 +55,6 @@ class DistributedForces
 {
 public:
 
-  /// Constructor
-  DistributedForces(ResultType result_type);
-
   /// Divide all scalar forces by the divisor
   void scalar_real_divide(real divisor);
 
@@ -53,18 +67,14 @@ private:
   friend class FDA;
   template <class Base> friend class FDABase;
 
-  /// Result type
-  ResultType result_type;
+  /// Map atom/residue pair to scalar forces
+  std::map<int, std::map<int, ScalarForce>> scalar;
 
-  /// Scalar values of forces
-  std::map<int, std::map<int, real>> scalar;
+  /// Map atom/residue pair to summed vector forces
+  std::map<int, std::map<int, SummedForce>> summed;
 
-  /// Vector values of forces
-  std::map<int, std::map<int, Vector>> summed;
-
-  /// Detailed values of forces
-  //std::map<int, std::map<int, std::array<Vector, number_of_pure_interactions>>> detailed;
-  std::map<int, std::map<int, std::array<Vector, static_cast<int>(PureInteractionType::NUMBER)>>> detailed;
+  /// Map atom/residue pair to detailed forces
+  std::map<int, std::map<int, DetailedForce>> detailed;
 
 };
 

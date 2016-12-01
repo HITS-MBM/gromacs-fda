@@ -87,12 +87,6 @@ public:
 
   void write_total_forces();
 
-  void write_frame_atoms_compat();
-
-  void write_frame_atoms_scalar_compat();
-
-  void write_frame_atoms_summed_compat(rvec *x);
-
   /**
    * Writes a header as in original PF implementation;
    * as the original PF implementation calculated everything then wrote out everything,
@@ -102,6 +96,12 @@ public:
    * closed, the header is written again, this time with the correct nsteps
    */
   void write_compat_header(int nsteps);
+
+  void write_frame_atoms_compat(int nsteps);
+
+  void write_frame_atoms_scalar_compat();
+
+  void write_frame_atoms_summed_compat(rvec *x);
 
   /// The stress is the negative atom_vir value.
   void write_atom_virial_sum();
