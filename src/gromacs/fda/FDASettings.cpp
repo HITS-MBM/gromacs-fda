@@ -110,6 +110,9 @@ FDASettings::FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *mtop, bool
   t_blocka *groups = init_index(opt2fn("-pfn", nfile, fnm), &group_names);
   if(groups->nr == 0) gmx_fatal(FARGS, "No groups found in the indexfile.\n");
 
+  // Map atoms to residues
+  fill_atom2residue(mtop);
+
   // Set sys_in_group arrays
   for (int i = 0; i != groups->nr; ++i) {
     std::vector<int> group_atoms;
@@ -177,8 +180,6 @@ FDASettings::FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *mtop, bool
 
   if ((stress_mode(atom_based_result_type) or stress_mode(residue_based_result_type)) and (one_pair != OnePair::SUMMED))
 	gmx_fatal(FARGS, "Per atom data can only be computed from summed interactions.\n");
-
-  fill_atom2residue(mtop);
 }
 
 std::vector<int> FDASettings::groupatoms2residues(std::vector<int> const& group_atoms) const
