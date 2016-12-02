@@ -196,8 +196,6 @@ struct FDA {};
 extern "C" {
 #endif
 
-//void fda_add_bonded_nocheck(struct FDA *fda, int i, int j, int type, rvec force);
-
 /**
  * Add a particular type of nonbonded interaction for the kernels where only one type of interaction is computed;
  * force is passed as scalar along with the distance vector (as dx, dy, dz) from which the vector force is
@@ -212,12 +210,6 @@ void fda_add_nonbonded_single(struct FDA *fda, int i, int j, int type, real forc
  * computed, the same way it's done in the nonbonded kernels
  */
 void fda_add_nonbonded(struct FDA *fda, int i, int j, real pf_coul, real pf_lj, real dx, real dy, real dz);
-
-/**
- * The atom virial can be expressed as a 6-real tensor, as it's symmetric.
- * To avoid defining a new tensor type, the 9-real tensor is used instead.
- */
-//void fda_virial_add(struct FDA *fda, int ai, tensor v, real s);
 
 /**
  * Origin on j, but for 2 atoms it doesn't matter.
