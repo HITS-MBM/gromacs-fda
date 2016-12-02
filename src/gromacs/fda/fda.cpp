@@ -561,14 +561,19 @@ rvec* FDA::get_residues_com(rvec *x, gmx_mtop_t *mtop) const
   return com;
 }
 
-void fda_add_nonbonded_single(FDA *fda, int i, int j, int type, real force, real dx, real dy, real dz)
-{
-  fda->add_nonbonded_single(i, j, static_cast<fda::InteractionType>(type), force, dx, dy, dz);
-}
-
 void fda_add_nonbonded(FDA *fda, int i, int j, real pf_coul, real pf_lj, real dx, real dy, real dz)
 {
   fda->add_nonbonded(i, j, pf_coul, pf_lj, dx, dy, dz);
+}
+
+void fda_add_nonbonded_coulomb(FDA *fda, int i, int j, real force, real dx, real dy, real dz)
+{
+  fda->add_nonbonded_single(i, j, fda::InteractionType::COULOMB, force, dx, dy, dz);
+}
+
+void fda_add_nonbonded_lj(FDA *fda, int i, int j, real force, real dx, real dy, real dz)
+{
+  fda->add_nonbonded_single(i, j, fda::InteractionType::LJ, force, dx, dy, dz);
 }
 
 void fda_virial_bond(FDA *fda, int ai, int aj, real f, real dx, real dy, real dz)

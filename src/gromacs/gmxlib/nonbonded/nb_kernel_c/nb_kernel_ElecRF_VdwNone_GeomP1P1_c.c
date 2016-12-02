@@ -184,7 +184,7 @@ nb_kernel_ElecRF_VdwNone_GeomP1P1_VF_c
             f[j_coord_offset+DIM*0+ZZ] -= tz;
 
             /* pairwise forces */
-            fda_add_nonbonded_single(fda, inr+0, jnr+0, InteractionType_COULOMB, felec, dx00, dy00, dz00);
+            fda_add_nonbonded_coulomb(fda, inr+0, jnr+0, felec, dx00, dy00, dz00);
             fda_virial_bond(fda, inr+0, jnr+0, fscal, dx00, dy00, dz00);
 
             /* Inner loop uses 32 flops */
@@ -353,7 +353,7 @@ nb_kernel_ElecRF_VdwNone_GeomP1P1_F_c
             f[j_coord_offset+DIM*0+ZZ] -= tz;
 
             /* pairwise forces */
-            fda_add_nonbonded_single(fda, inr+0, jnr+0, InteractionType_COULOMB, felec, dx00, dy00, dz00);
+            fda_add_nonbonded_coulomb(fda, inr+0, jnr+0, felec, dx00, dy00, dz00);
             fda_virial_bond(fda, inr+0, jnr+0, fscal, dx00, dy00, dz00);
 
             /* Inner loop uses 27 flops */

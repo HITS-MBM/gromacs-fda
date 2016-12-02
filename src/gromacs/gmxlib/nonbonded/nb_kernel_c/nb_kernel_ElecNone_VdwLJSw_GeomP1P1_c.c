@@ -220,7 +220,7 @@ nb_kernel_ElecNone_VdwLJSw_GeomP1P1_VF_c
             f[j_coord_offset+DIM*0+ZZ] -= tz;
 
             /* pairwise forces */
-            fda_add_nonbonded_single(fda, inr+0, jnr+0, InteractionType_LJ, fvdw, dx00, dy00, dz00);
+            fda_add_nonbonded_lj(fda, inr+0, jnr+0, fvdw, dx00, dy00, dz00);
             fda_virial_bond(fda, inr+0, jnr+0, fscal, dx00, dy00, dz00);
 
             }
@@ -427,7 +427,7 @@ nb_kernel_ElecNone_VdwLJSw_GeomP1P1_F_c
             f[j_coord_offset+DIM*0+ZZ] -= tz;
 
             /* pairwise forces */
-            fda_add_nonbonded_single(fda, inr+0, jnr+0, InteractionType_LJ, fvdw, dx00, dy00, dz00);
+            fda_add_nonbonded_lj(fda, inr+0, jnr+0, fvdw, dx00, dy00, dz00);
             fda_virial_bond(fda, inr+0, jnr+0, fscal, dx00, dy00, dz00);
 
             }
