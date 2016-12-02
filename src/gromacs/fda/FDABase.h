@@ -20,6 +20,9 @@
 #include "Tensor.h"
 #include "Vector2Scalar.h"
 
+/// Forwarding needed for friend declaration
+class FDA;
+
 namespace fda {
 
 /// Type for atom-based forces
@@ -111,7 +114,7 @@ public:
 
 private:
 
-  friend class FDA;
+  friend class ::FDA;
 
   /// Result type
   ResultType result_type;

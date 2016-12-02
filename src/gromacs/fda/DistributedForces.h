@@ -19,6 +19,9 @@
 #include "Vector.h"
 #include "Vector2Scalar.h"
 
+/// Forwarding needed for friend declaration
+class FDA;
+
 namespace fda {
 
 struct ScalarForce
@@ -64,7 +67,7 @@ public:
 
 private:
 
-  friend class FDA;
+  friend class ::FDA;
   template <class Base> friend class FDABase;
 
   /// Map atom/residue pair to scalar forces
