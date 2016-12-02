@@ -369,14 +369,14 @@
 #ifdef CALC_ENERGIES
                 /* pairwise forces */
 				if (fabs(fcoul) > PF_TINY_REAL_NUMBER && fabs(fvdw) > PF_TINY_REAL_NUMBER) {
-					pf_atom_add_nonbonded(fda, cellInv[ai], cellInv[aj], fcoul, fvdw, dx, dy, dz);
+					fda->add_nonbonded(cellInv[ai], cellInv[aj], fcoul, fvdw, dx, dy, dz);
 					//printf("Add vdw and coulomb %i %i %15.8f %15.8f\n",
 					//	ai, aj, fcoul, fvdw); fflush(stdout);
 				} else if (fabs(fcoul) > PF_TINY_REAL_NUMBER) {
-					pf_atom_add_nonbonded_single(fda, cellInv[ai], cellInv[aj], fda::InteractionType::COULOMB, fcoul, dx, dy, dz);
+					fda->add_nonbonded_single(cellInv[ai], cellInv[aj], fda::InteractionType::COULOMB, fcoul, dx, dy, dz);
 					//printf("Add coulomb %i %i %15.8f\n", ai, aj, fcoul); fflush(stdout);
 				} else if (fabs(fvdw) > PF_TINY_REAL_NUMBER) {
-					pf_atom_add_nonbonded_single(fda, cellInv[ai], cellInv[aj], fda::InteractionType::LJ, fscal, dx, dy, dz);
+					fda->add_nonbonded_single(cellInv[ai], cellInv[aj], fda::InteractionType::LJ, fscal, dx, dy, dz);
 					//printf("Add vdw %i %i %15.8f\n", ai, aj, fscal); fflush(stdout);
 				}
 #endif
@@ -389,7 +389,7 @@
 #ifdef CALC_ENERGIES
 				/* pairwise forces */
 				if (fabs(fcoul) > PF_TINY_REAL_NUMBER) {
-					pf_atom_add_nonbonded_single(fda, cellInv[ai], cellInv[aj], fda::InteractionType::COULOMB, fcoul, dx, dy, dz);
+					fda->add_nonbonded_single(cellInv[ai], cellInv[aj], fda::InteractionType::COULOMB, fcoul, dx, dy, dz);
 					//printf("Add coulomb %i %i %15.8f\n", ai, aj, fcoul); fflush(stdout);
 				}
 #endif
@@ -401,7 +401,7 @@
 #ifdef CALC_ENERGIES
             /* pairwise forces */
             if (fabs(fscal) > PF_TINY_REAL_NUMBER) {
-                pf_atom_add_nonbonded_single(fda, cellInv[ai], cellInv[aj], fda::InteractionType::LJ, fscal, dx, dy, dz);
+            	fda->add_nonbonded_single(cellInv[ai], cellInv[aj], fda::InteractionType::LJ, fscal, dx, dy, dz);
                 //printf("Add vdw %i %i %15.8f\n", ai, aj, fscal); fflush(stdout);
             }
 #endif

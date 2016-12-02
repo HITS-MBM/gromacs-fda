@@ -11,7 +11,6 @@
 #include <array>
 #include <map>
 #include <vector>
-#include "ForceType.h"
 #include "gromacs/math/vectypes.h"
 #include "InteractionType.h"
 #include "PureInteractionType.h"

@@ -14,7 +14,6 @@
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/real.h"
 #include "gromacs/utility/smalloc.h"
-#include "pf_array.h"
 #include "Utilities.h"
 
 static const real HALF    = 1.0 / 2.0;
@@ -167,7 +166,7 @@ void FDA::add_dihedral(int i, int j, int k, int l, rvec f_i, rvec f_j, rvec f_k,
 
     /* below computation can sometimes return before finishing to avoid division with very small numbers;
      * this situation can occur f.e. when all f_i, f_j, f_k and f_l are (almost) zero;
-     * in this case there is no call to pf_atom_add_bonded, no pairwise forces are recorded (which is different from recording zero forces!)
+     * in this case there is no call to fda_add_bonded, no pairwise forces are recorded (which is different from recording zero forces!)
      */
     //fprintf(stderr, "dihedral: i=%d, j=%d, k=%d, l=%d\n", i, j, k, l);
     /*print_vec("f_i", f_i);
@@ -325,18 +324,18 @@ void FDA::add_nonbonded(int i, int j, real pf_coul, real pf_lj, real dx, real dy
           pf_coul_residue_v[0] = pf_coul_residue * dx;
           pf_coul_residue_v[1] = pf_coul_residue * dy;
           pf_coul_residue_v[2] = pf_coul_residue * dz;
-          residue_based.distributed_forces.detailed[ri][rj][to_index(fda::PureInteractionType::COULOMB)] += pf_coul_residue_v;
+          residue_based.distributed_forces.detailed[ri][rj].force[to_index(fda::PureInteractionType::COULOMB)] += pf_coul_residue_v;
           pf_lj_residue_v[0] = pf_lj_residue * dx;
           pf_lj_residue_v[1] = pf_lj_residue * dy;
           pf_lj_residue_v[2] = pf_lj_residue * dz;
-          residue_based.distributed_forces.detailed[ri][rj][to_index(fda::PureInteractionType::LJ)] += pf_lj_residue_v;
+          residue_based.distributed_forces.detailed[ri][rj].force[to_index(fda::PureInteractionType::LJ)] += pf_lj_residue_v;
           break;
         case fda::OnePair::SUMMED:
           pf_lj_coul = pf_lj_residue + pf_coul_residue;
           pf_coul_residue_v[0] = pf_lj_coul * dx;
           pf_coul_residue_v[1] = pf_lj_coul * dy;
           pf_coul_residue_v[2] = pf_lj_coul * dz;
-          residue_based.distributed_forces.summed[ri][rj] += pf_coul_residue_v;
+          residue_based.distributed_forces.summed[ri][rj].force += pf_coul_residue_v;
           break;
         case fda::OnePair::INVALID:
           break;
@@ -357,18 +356,18 @@ void FDA::add_nonbonded(int i, int j, real pf_coul, real pf_lj, real dx, real dy
         pf_coul_atom_v[0] = pf_coul * dx;
         pf_coul_atom_v[1] = pf_coul * dy;
         pf_coul_atom_v[2] = pf_coul * dz;
-        atom_based.distributed_forces.detailed[i][j][to_index(fda::PureInteractionType::COULOMB)] += pf_coul_atom_v;
+        atom_based.distributed_forces.detailed[i][j].force[to_index(fda::PureInteractionType::COULOMB)] += pf_coul_atom_v;
         pf_lj_atom_v[0] = pf_lj * dx;
         pf_lj_atom_v[1] = pf_lj * dy;
         pf_lj_atom_v[2] = pf_lj * dz;
-        atom_based.distributed_forces.detailed[i][j][to_index(fda::PureInteractionType::LJ)] += pf_lj_atom_v;
+        atom_based.distributed_forces.detailed[i][j].force[to_index(fda::PureInteractionType::LJ)] += pf_lj_atom_v;
         break;
       case fda::OnePair::SUMMED:
         pf_lj_coul = pf_lj + pf_coul;
         pf_coul_atom_v[0] = pf_lj_coul * dx;
         pf_coul_atom_v[1] = pf_lj_coul * dy;
         pf_coul_atom_v[2] = pf_lj_coul * dz;
-        atom_based.distributed_forces.summed[i][j] += pf_coul_atom_v;
+        atom_based.distributed_forces.summed[i][j].force += pf_coul_atom_v;
         break;
       case fda::OnePair::INVALID:
         break;
@@ -560,4 +559,29 @@ rvec* FDA::get_residues_com(rvec *x, gmx_mtop_t *mtop) const
 
   sfree(mass);
   return com;
+}
+
+//void fda_add_bonded_nocheck(FDA *fda, int i, int j, int type, rvec force)
+//{
+//  fda->add_bonded_nocheck(i, j, static_cast<fda::InteractionType>(type), force);
+//}
+
+void fda_add_nonbonded_single(FDA *fda, int i, int j, int type, real force, real dx, real dy, real dz)
+{
+  fda->add_nonbonded_single(i, j, static_cast<fda::InteractionType>(type), force, dx, dy, dz);
+}
+
+void fda_add_nonbonded(FDA *fda, int i, int j, real pf_coul, real pf_lj, real dx, real dy, real dz)
+{
+  fda->add_nonbonded(i, j, pf_coul, pf_lj, dx, dy, dz);
+}
+
+//void fda_virial_add(FDA *fda, int ai, tensor v, real s)
+//{
+//  fda->add_virial(ai, v, s);
+//}
+
+void fda_virial_bond(FDA *fda, int ai, int aj, real f, real dx, real dy, real dz)
+{
+  fda->add_virial_bond(ai, aj, f, dx, dy, dz);
 }

@@ -23,35 +23,10 @@ enum class ResiduesRenumber : std::int8_t
 };
 
 /// Output stream for ResiduesRenumber
-std::ostream& operator<<(std::ostream& os, ResiduesRenumber r)
-{
-  switch(r) {
-    case ResiduesRenumber::AUTO:
-      return os << "auto";
-    case ResiduesRenumber::DO:
-      return os << "do";
-    case ResiduesRenumber::DONT:
-      return os << "dont";
-    default:
-      return os << "invalid";
-  }
-}
+std::ostream& operator << (std::ostream& os, ResiduesRenumber r);
 
 /// Input stream for ResiduesRenumber
-std::istream& operator>>(std::istream& is, ResiduesRenumber& r)
-{
-  std::string s;
-  is >> s;
-  if (s == "auto")
-	r = ResiduesRenumber::AUTO;
-  else if (s == "do")
-	r = ResiduesRenumber::DO;
-  else if (s == "dont")
-	r = ResiduesRenumber::DONT;
-  else
-	r = ResiduesRenumber::INVALID;
-  return is;
-}
+std::istream& operator >> (std::istream& is, ResiduesRenumber& r);
 
 } // namespace fda
 

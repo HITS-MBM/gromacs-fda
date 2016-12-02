@@ -40,7 +40,7 @@
 
 #include <cmath>
 
-#include "gromacs/fda/pf_array.h"
+#include "gromacs/fda/fda.h"
 #include "gromacs/gmxlib/nrnb.h"
 #include "gromacs/gmxlib/nonbonded/nb_kernel.h"
 #include "gromacs/gmxlib/nonbonded/nonbonded.h"

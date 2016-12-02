@@ -399,6 +399,10 @@ void FDABase<Atom>::write_atom_virial_sum_von_mises()
   result_file << std::endl;
 }
 
+template <>
+void FDABase<Residue>::write_atom_virial_sum_von_mises()
+{}
+
 /// template instantiation
 template class FDABase<Atom>;
 template class FDABase<Residue>;

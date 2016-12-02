@@ -40,8 +40,7 @@
 #include <math.h>
 
 #include "../nb_kernel.h"
-#include "gromacs/fda/pf_array.h"
-#include "gromacs/fda/pf_interactions.h"
+#include "gromacs/fda/fda.h"
 #include "gromacs/gmxlib/nrnb.h"
 
 /*
@@ -323,8 +322,8 @@ nb_kernel_ElecRFCut_VdwLJSh_GeomW4W4_VF_c
             f[j_coord_offset+DIM*0+ZZ] -= tz;
 
             /* pairwise forces */
-            pf_atom_add_nonbonded_single(fda, inr+0, jnr+0, InteractionType_LJ, fvdw, dx00, dy00, dz00);
-            pf_atom_virial_bond(fda, inr+0, jnr+0, fscal, dx00, dy00, dz00);
+            fda_add_nonbonded_single(fda, inr+0, jnr+0, InteractionType_LJ, fvdw, dx00, dy00, dz00);
+            fda_virial_bond(fda, inr+0, jnr+0, fscal, dx00, dy00, dz00);
 
             }
 
@@ -358,8 +357,8 @@ nb_kernel_ElecRFCut_VdwLJSh_GeomW4W4_VF_c
             f[j_coord_offset+DIM*1+ZZ] -= tz;
 
             /* pairwise forces */
-            pf_atom_add_nonbonded_single(fda, inr+1, jnr+1, InteractionType_COULOMB, felec, dx11, dy11, dz11);
-            pf_atom_virial_bond(fda, inr+1, jnr+1, fscal, dx11, dy11, dz11);
+            fda_add_nonbonded_single(fda, inr+1, jnr+1, InteractionType_COULOMB, felec, dx11, dy11, dz11);
+            fda_virial_bond(fda, inr+1, jnr+1, fscal, dx11, dy11, dz11);
 
             }
 
@@ -393,8 +392,8 @@ nb_kernel_ElecRFCut_VdwLJSh_GeomW4W4_VF_c
             f[j_coord_offset+DIM*2+ZZ] -= tz;
 
             /* pairwise forces */
-            pf_atom_add_nonbonded_single(fda, inr+1, jnr+2, InteractionType_COULOMB, felec, dx12, dy12, dz12);
-            pf_atom_virial_bond(fda, inr+1, jnr+2, fscal, dx12, dy12, dz12);
+            fda_add_nonbonded_single(fda, inr+1, jnr+2, InteractionType_COULOMB, felec, dx12, dy12, dz12);
+            fda_virial_bond(fda, inr+1, jnr+2, fscal, dx12, dy12, dz12);
 
             }
 
@@ -428,8 +427,8 @@ nb_kernel_ElecRFCut_VdwLJSh_GeomW4W4_VF_c
             f[j_coord_offset+DIM*3+ZZ] -= tz;
 
             /* pairwise forces */
-            pf_atom_add_nonbonded_single(fda, inr+1, jnr+3, InteractionType_COULOMB, felec, dx13, dy13, dz13);
-            pf_atom_virial_bond(fda, inr+1, jnr+3, fscal, dx13, dy13, dz13);
+            fda_add_nonbonded_single(fda, inr+1, jnr+3, InteractionType_COULOMB, felec, dx13, dy13, dz13);
+            fda_virial_bond(fda, inr+1, jnr+3, fscal, dx13, dy13, dz13);
 
             }
 
@@ -463,8 +462,8 @@ nb_kernel_ElecRFCut_VdwLJSh_GeomW4W4_VF_c
             f[j_coord_offset+DIM*1+ZZ] -= tz;
 
             /* pairwise forces */
-            pf_atom_add_nonbonded_single(fda, inr+2, jnr+1, InteractionType_COULOMB, felec, dx21, dy21, dz21);
-            pf_atom_virial_bond(fda, inr+2, jnr+1, fscal, dx21, dy21, dz21);
+            fda_add_nonbonded_single(fda, inr+2, jnr+1, InteractionType_COULOMB, felec, dx21, dy21, dz21);
+            fda_virial_bond(fda, inr+2, jnr+1, fscal, dx21, dy21, dz21);
 
             }
 
@@ -498,8 +497,8 @@ nb_kernel_ElecRFCut_VdwLJSh_GeomW4W4_VF_c
             f[j_coord_offset+DIM*2+ZZ] -= tz;
 
             /* pairwise forces */
-            pf_atom_add_nonbonded_single(fda, inr+2, jnr+2, InteractionType_COULOMB, felec, dx22, dy22, dz22);
-            pf_atom_virial_bond(fda, inr+2, jnr+2, fscal, dx22, dy22, dz22);
+            fda_add_nonbonded_single(fda, inr+2, jnr+2, InteractionType_COULOMB, felec, dx22, dy22, dz22);
+            fda_virial_bond(fda, inr+2, jnr+2, fscal, dx22, dy22, dz22);
 
             }
 
@@ -533,8 +532,8 @@ nb_kernel_ElecRFCut_VdwLJSh_GeomW4W4_VF_c
             f[j_coord_offset+DIM*3+ZZ] -= tz;
 
             /* pairwise forces */
-            pf_atom_add_nonbonded_single(fda, inr+2, jnr+3, InteractionType_COULOMB, felec, dx23, dy23, dz23);
-            pf_atom_virial_bond(fda, inr+2, jnr+3, fscal, dx23, dy23, dz23);
+            fda_add_nonbonded_single(fda, inr+2, jnr+3, InteractionType_COULOMB, felec, dx23, dy23, dz23);
+            fda_virial_bond(fda, inr+2, jnr+3, fscal, dx23, dy23, dz23);
 
             }
 
@@ -568,8 +567,8 @@ nb_kernel_ElecRFCut_VdwLJSh_GeomW4W4_VF_c
             f[j_coord_offset+DIM*1+ZZ] -= tz;
 
             /* pairwise forces */
-            pf_atom_add_nonbonded_single(fda, inr+3, jnr+1, InteractionType_COULOMB, felec, dx31, dy31, dz31);
-            pf_atom_virial_bond(fda, inr+3, jnr+1, fscal, dx31, dy31, dz31);
+            fda_add_nonbonded_single(fda, inr+3, jnr+1, InteractionType_COULOMB, felec, dx31, dy31, dz31);
+            fda_virial_bond(fda, inr+3, jnr+1, fscal, dx31, dy31, dz31);
 
             }
 
@@ -603,8 +602,8 @@ nb_kernel_ElecRFCut_VdwLJSh_GeomW4W4_VF_c
             f[j_coord_offset+DIM*2+ZZ] -= tz;
 
             /* pairwise forces */
-            pf_atom_add_nonbonded_single(fda, inr+3, jnr+2, InteractionType_COULOMB, felec, dx32, dy32, dz32);
-            pf_atom_virial_bond(fda, inr+3, jnr+2, fscal, dx32, dy32, dz32);
+            fda_add_nonbonded_single(fda, inr+3, jnr+2, InteractionType_COULOMB, felec, dx32, dy32, dz32);
+            fda_virial_bond(fda, inr+3, jnr+2, fscal, dx32, dy32, dz32);
 
             }
 
@@ -638,8 +637,8 @@ nb_kernel_ElecRFCut_VdwLJSh_GeomW4W4_VF_c
             f[j_coord_offset+DIM*3+ZZ] -= tz;
 
             /* pairwise forces */
-            pf_atom_add_nonbonded_single(fda, inr+3, jnr+3, InteractionType_COULOMB, felec, dx33, dy33, dz33);
-            pf_atom_virial_bond(fda, inr+3, jnr+3, fscal, dx33, dy33, dz33);
+            fda_add_nonbonded_single(fda, inr+3, jnr+3, InteractionType_COULOMB, felec, dx33, dy33, dz33);
+            fda_virial_bond(fda, inr+3, jnr+3, fscal, dx33, dy33, dz33);
 
             }
 
@@ -963,8 +962,8 @@ nb_kernel_ElecRFCut_VdwLJSh_GeomW4W4_F_c
             f[j_coord_offset+DIM*0+ZZ] -= tz;
 
             /* pairwise forces */
-            pf_atom_add_nonbonded_single(fda, inr+0, jnr+0, InteractionType_LJ, fvdw, dx00, dy00, dz00);
-            pf_atom_virial_bond(fda, inr+0, jnr+0, fscal, dx00, dy00, dz00);
+            fda_add_nonbonded_single(fda, inr+0, jnr+0, InteractionType_LJ, fvdw, dx00, dy00, dz00);
+            fda_virial_bond(fda, inr+0, jnr+0, fscal, dx00, dy00, dz00);
 
             }
 
@@ -994,8 +993,8 @@ nb_kernel_ElecRFCut_VdwLJSh_GeomW4W4_F_c
             f[j_coord_offset+DIM*1+ZZ] -= tz;
 
             /* pairwise forces */
-            pf_atom_add_nonbonded_single(fda, inr+1, jnr+1, InteractionType_COULOMB, felec, dx11, dy11, dz11);
-            pf_atom_virial_bond(fda, inr+1, jnr+1, fscal, dx11, dy11, dz11);
+            fda_add_nonbonded_single(fda, inr+1, jnr+1, InteractionType_COULOMB, felec, dx11, dy11, dz11);
+            fda_virial_bond(fda, inr+1, jnr+1, fscal, dx11, dy11, dz11);
 
             }
 
@@ -1025,8 +1024,8 @@ nb_kernel_ElecRFCut_VdwLJSh_GeomW4W4_F_c
             f[j_coord_offset+DIM*2+ZZ] -= tz;
 
             /* pairwise forces */
-            pf_atom_add_nonbonded_single(fda, inr+1, jnr+2, InteractionType_COULOMB, felec, dx12, dy12, dz12);
-            pf_atom_virial_bond(fda, inr+1, jnr+2, fscal, dx12, dy12, dz12);
+            fda_add_nonbonded_single(fda, inr+1, jnr+2, InteractionType_COULOMB, felec, dx12, dy12, dz12);
+            fda_virial_bond(fda, inr+1, jnr+2, fscal, dx12, dy12, dz12);
 
             }
 
@@ -1056,8 +1055,8 @@ nb_kernel_ElecRFCut_VdwLJSh_GeomW4W4_F_c
             f[j_coord_offset+DIM*3+ZZ] -= tz;
 
             /* pairwise forces */
-            pf_atom_add_nonbonded_single(fda, inr+1, jnr+3, InteractionType_COULOMB, felec, dx13, dy13, dz13);
-            pf_atom_virial_bond(fda, inr+1, jnr+3, fscal, dx13, dy13, dz13);
+            fda_add_nonbonded_single(fda, inr+1, jnr+3, InteractionType_COULOMB, felec, dx13, dy13, dz13);
+            fda_virial_bond(fda, inr+1, jnr+3, fscal, dx13, dy13, dz13);
 
             }
 
@@ -1087,8 +1086,8 @@ nb_kernel_ElecRFCut_VdwLJSh_GeomW4W4_F_c
             f[j_coord_offset+DIM*1+ZZ] -= tz;
 
             /* pairwise forces */
-            pf_atom_add_nonbonded_single(fda, inr+2, jnr+1, InteractionType_COULOMB, felec, dx21, dy21, dz21);
-            pf_atom_virial_bond(fda, inr+2, jnr+1, fscal, dx21, dy21, dz21);
+            fda_add_nonbonded_single(fda, inr+2, jnr+1, InteractionType_COULOMB, felec, dx21, dy21, dz21);
+            fda_virial_bond(fda, inr+2, jnr+1, fscal, dx21, dy21, dz21);
 
             }
 
@@ -1118,8 +1117,8 @@ nb_kernel_ElecRFCut_VdwLJSh_GeomW4W4_F_c
             f[j_coord_offset+DIM*2+ZZ] -= tz;
 
             /* pairwise forces */
-            pf_atom_add_nonbonded_single(fda, inr+2, jnr+2, InteractionType_COULOMB, felec, dx22, dy22, dz22);
-            pf_atom_virial_bond(fda, inr+2, jnr+2, fscal, dx22, dy22, dz22);
+            fda_add_nonbonded_single(fda, inr+2, jnr+2, InteractionType_COULOMB, felec, dx22, dy22, dz22);
+            fda_virial_bond(fda, inr+2, jnr+2, fscal, dx22, dy22, dz22);
 
             }
 
@@ -1149,8 +1148,8 @@ nb_kernel_ElecRFCut_VdwLJSh_GeomW4W4_F_c
             f[j_coord_offset+DIM*3+ZZ] -= tz;
 
             /* pairwise forces */
-            pf_atom_add_nonbonded_single(fda, inr+2, jnr+3, InteractionType_COULOMB, felec, dx23, dy23, dz23);
-            pf_atom_virial_bond(fda, inr+2, jnr+3, fscal, dx23, dy23, dz23);
+            fda_add_nonbonded_single(fda, inr+2, jnr+3, InteractionType_COULOMB, felec, dx23, dy23, dz23);
+            fda_virial_bond(fda, inr+2, jnr+3, fscal, dx23, dy23, dz23);
 
             }
 
@@ -1180,8 +1179,8 @@ nb_kernel_ElecRFCut_VdwLJSh_GeomW4W4_F_c
             f[j_coord_offset+DIM*1+ZZ] -= tz;
 
             /* pairwise forces */
-            pf_atom_add_nonbonded_single(fda, inr+3, jnr+1, InteractionType_COULOMB, felec, dx31, dy31, dz31);
-            pf_atom_virial_bond(fda, inr+3, jnr+1, fscal, dx31, dy31, dz31);
+            fda_add_nonbonded_single(fda, inr+3, jnr+1, InteractionType_COULOMB, felec, dx31, dy31, dz31);
+            fda_virial_bond(fda, inr+3, jnr+1, fscal, dx31, dy31, dz31);
 
             }
 
@@ -1211,8 +1210,8 @@ nb_kernel_ElecRFCut_VdwLJSh_GeomW4W4_F_c
             f[j_coord_offset+DIM*2+ZZ] -= tz;
 
             /* pairwise forces */
-            pf_atom_add_nonbonded_single(fda, inr+3, jnr+2, InteractionType_COULOMB, felec, dx32, dy32, dz32);
-            pf_atom_virial_bond(fda, inr+3, jnr+2, fscal, dx32, dy32, dz32);
+            fda_add_nonbonded_single(fda, inr+3, jnr+2, InteractionType_COULOMB, felec, dx32, dy32, dz32);
+            fda_virial_bond(fda, inr+3, jnr+2, fscal, dx32, dy32, dz32);
 
             }
 
@@ -1242,8 +1241,8 @@ nb_kernel_ElecRFCut_VdwLJSh_GeomW4W4_F_c
             f[j_coord_offset+DIM*3+ZZ] -= tz;
 
             /* pairwise forces */
-            pf_atom_add_nonbonded_single(fda, inr+3, jnr+3, InteractionType_COULOMB, felec, dx33, dy33, dz33);
-            pf_atom_virial_bond(fda, inr+3, jnr+3, fscal, dx33, dy33, dz33);
+            fda_add_nonbonded_single(fda, inr+3, jnr+3, InteractionType_COULOMB, felec, dx33, dy33, dz33);
+            fda_virial_bond(fda, inr+3, jnr+3, fscal, dx33, dy33, dz33);
 
             }
 

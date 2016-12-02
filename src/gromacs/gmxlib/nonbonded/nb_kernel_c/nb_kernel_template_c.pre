@@ -41,8 +41,7 @@
 #include <math.h>
 
 #include "../nb_kernel.h"
-#include "gromacs/fda/pf_array.h"
-#include "gromacs/fda/pf_interactions.h"
+#include "gromacs/fda/fda.h"
 #include "gromacs/gmxlib/nrnb.h"
 /* #endif */
 
@@ -834,16 +833,16 @@ void
 
             /* pairwise forces */
             /*         #if 'electrostatics' in INTERACTION_FLAGS[I][J] and 'vdw' in INTERACTION_FLAGS[I][J] */
-            pf_atom_add_nonbonded(fda, inr+{I}, jnr+{J}, felec, fvdw, dx{I}{J}, dy{I}{J}, dz{I}{J});
+            fda_add_nonbonded(fda, inr+{I}, jnr+{J}, felec, fvdw, dx{I}{J}, dy{I}{J}, dz{I}{J});
                 /* ## fprintf(stdout, "add coulomb and vdw %i %i %15.8f %15.8f\n", inr+{I}, jnr+{J}, felec, fvdw); */
             /*         #elif 'electrostatics' in INTERACTION_FLAGS[I][J] */
-            pf_atom_add_nonbonded_single(fda, inr+{I}, jnr+{J}, InteractionType_COULOMB, felec, dx{I}{J}, dy{I}{J}, dz{I}{J});
+            fda_add_nonbonded_single(fda, inr+{I}, jnr+{J}, InteractionType_COULOMB, felec, dx{I}{J}, dy{I}{J}, dz{I}{J});
                 /* ## fprintf(stdout, "add coulomb %i %i %15.8f\n", inr+{I}, jnr+{J}, felec); */
             /*         #elif 'vdw' in INTERACTION_FLAGS[I][J] */
-            pf_atom_add_nonbonded_single(fda, inr+{I}, jnr+{J}, InteractionType_LJ, fvdw, dx{I}{J}, dy{I}{J}, dz{I}{J});
+            fda_add_nonbonded_single(fda, inr+{I}, jnr+{J}, InteractionType_LJ, fvdw, dx{I}{J}, dy{I}{J}, dz{I}{J});
                 /* ## fprintf(stdout, "add vdw %i %i %15.8f\n", inr+{I}, jnr+{J}, fvdw); */
             /*        #endif */
-            pf_atom_virial_bond(fda, inr+{I}, jnr+{J}, fscal, dx{I}{J}, dy{I}{J}, dz{I}{J});
+            fda_virial_bond(fda, inr+{I}, jnr+{J}, fscal, dx{I}{J}, dy{I}{J}, dz{I}{J});
 
             /*         #define INNERFLOPS INNERFLOPS+9 */
             /*     #endif */

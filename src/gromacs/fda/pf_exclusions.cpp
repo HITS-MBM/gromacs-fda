@@ -9,6 +9,7 @@
 #include <climits>
 #include <cstdio>
 #include <cstring>
+#include "InteractionType.h"
 #include "gromacs/fileio/readinp.h"
 #include "gromacs/fileio/warninp.h"
 #include "gromacs/topology/block.h"
@@ -148,7 +149,7 @@ void pf_modify_energy_group_exclusions(gmx_mtop_t *mtop, t_inputrec *inputrec)
 	}
 
 	// If no nonbonded interactions are needed we simply exclude all energy groups
-	if (!(fda_data.type & (fda::InteractionType::NONBONDED))) {
+	if (!(fda_data.type & static_cast<int>(fda::InteractionType::NONBONDED))) {
 
 		int i;
 		for (i = 0; i < inputrec->opts.ngener; ++i) inputrec->opts.egp_flags[i] = 1;
