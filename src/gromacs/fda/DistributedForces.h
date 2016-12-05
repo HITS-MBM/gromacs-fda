@@ -12,7 +12,6 @@
 #include <map>
 #include <vector>
 #include "gromacs/math/vectypes.h"
-#include "InteractionType.h"
 #include "PureInteractionType.h"
 #include "OnePair.h"
 #include "Vector.h"
@@ -26,13 +25,15 @@ namespace fda {
 struct ScalarForce
 {
   real force;
-  InteractionType type;
+  /// Interaction type as bitset using int
+  int type;
 };
 
 struct SummedForce
 {
   Vector force;
-  InteractionType type;
+  /// Interaction type as bitset using int
+  int type;
 };
 
 struct DetailedForce
