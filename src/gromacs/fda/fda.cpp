@@ -390,6 +390,8 @@ void FDA::add_virial(int ai, tensor v, real s)
 
 void FDA::add_virial_bond(int ai, int aj, real f, real dx, real dy, real dz)
 {
+  if (!atom_based.VS_mode()) return;
+
   tensor v;
   v[XX][XX] = dx * dx * f;
   v[YY][YY] = dy * dy * f;
@@ -404,6 +406,8 @@ void FDA::add_virial_bond(int ai, int aj, real f, real dx, real dy, real dz)
 void FDA::add_virial_angle(int ai, int aj, int ak,
   rvec r_ij, rvec r_kj, rvec f_i, rvec f_k)
 {
+  if (!atom_based.VS_mode()) return;
+
   tensor v;
   v[XX][XX] = r_ij[XX] * f_i[XX] + r_kj[XX] * f_k[XX];
   v[YY][YY] = r_ij[YY] * f_i[YY] + r_kj[YY] * f_k[YY];
@@ -419,6 +423,8 @@ void FDA::add_virial_angle(int ai, int aj, int ak,
 void FDA::add_virial_dihedral(int i, int j, int k, int l,
   rvec f_i, rvec f_k, rvec f_l, rvec r_ij, rvec r_kj, rvec r_kl)
 {
+  if (!atom_based.VS_mode()) return;
+
   rvec r_lj;
   tensor v;
   rvec_sub(r_kj, r_kl, r_lj);
