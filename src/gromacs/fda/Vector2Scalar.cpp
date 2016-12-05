@@ -5,6 +5,8 @@
  *      Author: Bernd Doser, HITS gGmbH <bernd.doser@h-its.org>
  */
 
+#include <algorithm>
+#include <cctype>
 #include "Vector2Scalar.h"
 
 namespace fda {
@@ -25,6 +27,7 @@ std::istream& operator >> (std::istream& is, Vector2Scalar& r)
 {
   std::string s;
   is >> s;
+  std::transform(s.begin(), s.end(), s.begin(), tolower);
   if (s == "norm")
 	r = Vector2Scalar::NORM;
   else if (s == "projection")

@@ -19,12 +19,12 @@ namespace fda {
 template <class Base>
 FDABase<Base>::FDABase(ResultType result_type, int syslen, std::string const& result_filename, FDASettings const& fda_settings)
  : Base(result_type == ResultType::VIRIAL_STRESS or result_type == ResultType::VIRIAL_STRESS_VON_MISES, syslen),
-	 result_type(result_type),
-	 syslen(syslen),
-	 distributed_forces(),
-	 total_forces(PF_or_PS_mode() and result_type == ResultType::PUNCTUAL_STRESS ? syslen : 0, 0.0),
-	 result_file(result_filename),
-	 fda_settings(fda_settings)
+   result_type(result_type),
+   syslen(syslen),
+   distributed_forces(),
+   total_forces(PF_or_PS_mode() and result_type == ResultType::PUNCTUAL_STRESS ? syslen : 0, 0.0),
+   result_file(result_filename),
+   fda_settings(fda_settings)
 {
   if (PF_or_PS_mode()) make_backup(result_filename.c_str());
   write_compat_header(1);

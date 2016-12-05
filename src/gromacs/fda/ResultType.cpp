@@ -5,6 +5,8 @@
  *      Author: Bernd Doser, HITS gGmbH <bernd.doser@h-its.org>
  */
 
+#include <algorithm>
+#include <cctype>
 #include "ResultType.h"
 
 namespace fda {
@@ -13,7 +15,7 @@ std::ostream& operator << (std::ostream& os, ResultType r)
 {
   switch(r) {
     case ResultType::NO:
-      return os << "none";
+      return os << "no";
     case ResultType::PAIRWISE_FORCES_VECTOR:
       return os << "pairwise_forces_vector";
     case ResultType::PAIRWISE_FORCES_SCALAR:
@@ -37,7 +39,8 @@ std::istream& operator >> (std::istream& is, ResultType& r)
 {
   std::string s;
   is >> s;
-  if (s == "none")
+  std::transform(s.begin(), s.end(), s.begin(), tolower);
+  if (s == "no")
 	r = ResultType::NO;
   else if (s == "pairwise_forces_vector")
 	r = ResultType::PAIRWISE_FORCES_VECTOR;

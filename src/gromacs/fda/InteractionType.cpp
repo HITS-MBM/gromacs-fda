@@ -5,6 +5,8 @@
  *      Author: Bernd Doser, HITS gGmbH <bernd.doser@h-its.org>
  */
 
+#include <algorithm>
+#include <cctype>
 #include <stdexcept>
 #include "InteractionType.h"
 
@@ -44,6 +46,7 @@ std::istream& operator >> (std::istream& is, InteractionType& r)
 {
   std::string s;
   is >> s;
+  std::transform(s.begin(), s.end(), s.begin(), tolower);
   if (s == "none")
 	r = InteractionType::NONE;
   if (s == "bond")

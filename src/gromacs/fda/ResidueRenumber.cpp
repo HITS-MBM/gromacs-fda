@@ -5,6 +5,8 @@
  *      Author: Bernd Doser, HITS gGmbH <bernd.doser@h-its.org>
  */
 
+#include <algorithm>
+#include <cctype>
 #include "ResidueRenumber.h"
 
 namespace fda {
@@ -15,9 +17,9 @@ std::ostream& operator << (std::ostream& os, ResiduesRenumber r)
     case ResiduesRenumber::AUTO:
       return os << "auto";
     case ResiduesRenumber::DO:
-      return os << "do";
+      return os << "yes";
     case ResiduesRenumber::DONT:
-      return os << "dont";
+      return os << "no";
     default:
       return os << "invalid";
   }
@@ -27,11 +29,12 @@ std::istream& operator >> (std::istream& is, ResiduesRenumber& r)
 {
   std::string s;
   is >> s;
+  std::transform(s.begin(), s.end(), s.begin(), tolower);
   if (s == "auto")
 	r = ResiduesRenumber::AUTO;
-  else if (s == "do")
+  else if (s == "yes")
 	r = ResiduesRenumber::DO;
-  else if (s == "dont")
+  else if (s == "no")
 	r = ResiduesRenumber::DONT;
   else
 	r = ResiduesRenumber::INVALID;
