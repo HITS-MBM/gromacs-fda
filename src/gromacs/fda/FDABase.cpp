@@ -107,6 +107,7 @@ template <class Base>
 void FDABase<Base>::write_frame_detailed(rvec *x, bool print_vector, int nsteps)
 {
   result_file << "frame " << nsteps << std::endl;
+  result_file << std::scientific << std::setprecision(6);
   for (auto const& v1 : distributed_forces.detailed) {
     int i = v1.first;
     for (auto const& v2 : v1.second) {
@@ -127,6 +128,7 @@ template <class Base>
 void FDABase<Base>::write_frame_summed(rvec *x, bool print_vector, int nsteps)
 {
   result_file << "frame " << nsteps << std::endl;
+  result_file << std::scientific << std::setprecision(6);
   for (auto const& v1 : distributed_forces.summed) {
 	int i = v1.first;
 	for (auto const& v2 : v1.second) {
@@ -145,6 +147,7 @@ template <class Base>
 void FDABase<Base>::write_frame_scalar(int nsteps)
 {
   result_file << "frame " << nsteps << std::endl;
+  result_file << std::scientific << std::setprecision(6);
   for (auto const& v1 : distributed_forces.scalar) {
 	int i = v1.first;
 	for (auto const& v2 : v1.second) {

@@ -27,9 +27,11 @@ enum class PureInteractionType : int
   NUMBER    = 7
 };
 
-constexpr typename std::underlying_type<PureInteractionType>::type to_index(PureInteractionType e)
+using T = std::underlying_type<InteractionType>::type;
+
+constexpr T to_index(PureInteractionType e)
 {
-  return static_cast<typename std::underlying_type<PureInteractionType>::type>(e);
+  return static_cast<T>(e);
 }
 
 /// Conversion from InteractionType into PureInteractionType

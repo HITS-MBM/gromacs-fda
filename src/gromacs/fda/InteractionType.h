@@ -32,9 +32,19 @@ enum class InteractionType : int
 
 using T = std::underlying_type<InteractionType>::type;
 
+constexpr T to_index(InteractionType e)
+{
+  return static_cast<T>(e);
+}
+
 inline InteractionType operator & (InteractionType lhs, InteractionType rhs)
 {
   return (InteractionType)(static_cast<T>(lhs) & static_cast<T>(rhs));
+}
+
+inline InteractionType operator | (InteractionType lhs, InteractionType rhs)
+{
+  return (InteractionType)(static_cast<T>(lhs) | static_cast<T>(rhs));
 }
 
 inline InteractionType operator + (InteractionType lhs, InteractionType rhs)

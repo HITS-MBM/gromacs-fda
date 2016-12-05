@@ -24,6 +24,10 @@ namespace fda {
 
 struct ScalarForce
 {
+  ScalarForce()
+   : force(0.0), type(0)
+  {}
+
   real force;
   /// Interaction type as bitset using int
   int type;
@@ -31,6 +35,10 @@ struct ScalarForce
 
 struct SummedForce
 {
+  SummedForce()
+   : type(0)
+  {}
+
   Vector force;
   /// Interaction type as bitset using int
   int type;
