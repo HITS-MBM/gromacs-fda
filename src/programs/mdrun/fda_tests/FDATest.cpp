@@ -118,9 +118,9 @@ INSTANTIATE_TEST_CASE_P(AllFDATests, FDATest, ::testing::Values(
     TestDataStructure("glycine_trimer_group_excl6", "pfa", "pfr"),
     TestDataStructure("glycine_trimer_group_bonded_excl1", "pfa", "pfr"),
     TestDataStructure("glycine_trimer_virial_stress", "vsa", ""),
-    TestDataStructure("glycine_trimer_virial_stress_von_mises", "vma", ""),
-    TestDataStructure("vwf_a2_domain_nframes1_pairwise_forces_scalar", "pfa", "pfr", "traj.xtc"),
-    TestDataStructure("vwf_a2_domain_nframes1_punctual_stress", "psa", "psr", "traj.xtc"),
-    TestDataStructure("vwf_a2_domain_nframes10_pairwise_forces_scalar", "pfa", "pfr", "traj.xtc"),
-    TestDataStructure("vwf_a2_domain_nframes10_punctual_stress", "psa", "psr", "traj.xtc")
+    TestDataStructure("glycine_trimer_virial_stress_von_mises", "vma", "")
+//    TestDataStructure("vwf_a2_domain_nframes1_pairwise_forces_scalar", "pfa", "pfr", "traj.xtc"),
+//    TestDataStructure("vwf_a2_domain_nframes1_punctual_stress", "psa", "psr", "traj.xtc"),
+//    TestDataStructure("vwf_a2_domain_nframes10_pairwise_forces_scalar", "pfa", "pfr", "traj.xtc"),
+//    TestDataStructure("vwf_a2_domain_nframes10_punctual_stress", "psa", "psr", "traj.xtc")
 ));

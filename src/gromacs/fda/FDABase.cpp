@@ -22,7 +22,7 @@ FDABase<Base>::FDABase(ResultType result_type, int syslen, std::string const& re
    result_type(result_type),
    syslen(syslen),
    distributed_forces(),
-   total_forces(PF_or_PS_mode() and result_type == ResultType::PUNCTUAL_STRESS ? syslen : 0, 0.0),
+   total_forces(PF_or_PS_mode() and result_type == ResultType::PUNCTUAL_STRESS ? syslen : 0),
    result_file(result_filename),
    fda_settings(fda_settings)
 {
@@ -101,6 +101,10 @@ void FDABase<Base>::write_frame(rvec *x, int nsteps)
 	  gmx_fatal(FARGS, "OnePair is invalid.\n");
 	  break;
   }
+  // Clear arrays for next frame
+  distributed_forces.detailed.clear();
+  distributed_forces.summed.clear();
+  distributed_forces.scalar.clear();
 }
 
 template <class Base>
@@ -108,6 +112,7 @@ void FDABase<Base>::write_frame_detailed(rvec *x, bool print_vector, int nsteps)
 {
   result_file << "frame " << nsteps << std::endl;
   result_file << std::scientific << std::setprecision(6);
+
   for (auto const& v1 : distributed_forces.detailed) {
     int i = v1.first;
     for (auto const& v2 : v1.second) {
@@ -129,6 +134,7 @@ void FDABase<Base>::write_frame_summed(rvec *x, bool print_vector, int nsteps)
 {
   result_file << "frame " << nsteps << std::endl;
   result_file << std::scientific << std::setprecision(6);
+
   for (auto const& v1 : distributed_forces.summed) {
 	int i = v1.first;
 	for (auto const& v2 : v1.second) {
@@ -148,6 +154,7 @@ void FDABase<Base>::write_frame_scalar(int nsteps)
 {
   result_file << "frame " << nsteps << std::endl;
   result_file << std::scientific << std::setprecision(6);
+
   for (auto const& v1 : distributed_forces.scalar) {
 	int i = v1.first;
 	for (auto const& v2 : v1.second) {
@@ -160,7 +167,7 @@ void FDABase<Base>::write_frame_scalar(int nsteps)
 template <class Base>
 void FDABase<Base>::sum_total_forces(rvec *x)
 {
-  for (auto& v : total_forces) v = 0.0;
+  std::fill(total_forces.begin(), total_forces.end(), 0.0);
 
   for (auto const& v1 : distributed_forces.summed) {
     int i = v1.first;
@@ -187,6 +194,8 @@ void FDABase<Base>::sum_total_forces(rvec *x)
 template <class Base>
 void FDABase<Base>::write_total_forces()
 {
+  result_file << std::scientific << std::setprecision(6);
+
   int j = total_forces.size();
   // Detect the last non-zero item
   if (fda_settings.no_end_zeros) {

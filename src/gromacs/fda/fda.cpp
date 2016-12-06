@@ -466,8 +466,10 @@ void FDA::save_and_write_scalar_time_averages(rvec *x, gmx_mtop_t *mtop)
       //pf_x_inc(residue_based_forces, time_averaging_com, com);
       // TODO: Order of scalar forces in map is not the same as in com vector
       // rvec_inc(a, b): a += b
-      for (size_t i = 0; i != residue_based.distributed_forces.scalar.size(); ++i)
+      for (auto e : residue_based.distributed_forces.scalar) {
+    	int i = e.first;
         rvec_inc(time_averaging_com[i], com[i]);
+      }
       sfree(com);
     }
 
