@@ -1,39 +1,8 @@
 /*
- * Arrays of pairwise forces. This is a compromise between memory required to
- * store the pairwise forces and the CPU time needed to access them (insert,
- * lookup).
- * For each atom i there is a struct containing several arrays; there are
- * separate arrays for each interaction type, so there is no need to keep an
- * extra 'type' field. Each interaction takes space for one atom index and a
- * real vector containing the value of the force.
- * The arrays are grown as needed, through memory reallocations, similar to the
- * nonbonded lists; to avoid too many reallocations (memory management can be
- * expensive especially with certain MPI implementations which register memory
- * to achieve zero copy), they are always done by increasing the current size
- * with a factor > 1. However, this factor should be kept small enough to
- * avoid allocating too much memory which will then remain unused.
- * For each array there is a counter for the number of items currently in use
- * and one for the number of items for which space was allocated. If they are
- * equal and there is a request for storing another interaction, a reallocation
- * will happen.
- * Lookup is done through a linear search in the array. This uses CPU time, but
- * saves memory - organizing the items in a binary tree would require 2
- * pointers per interaction and allocations cannot be done in bulk anymore.
- * Insertion can be done directly at the end if it's known that the jjnr does
- * not already exist in the list; otherwise a linear search is needed.
+ * fda.h
  *
- * For the case of summed up forces per pair, a different set of data structures
- * are needed; the main reason is the extra data present in the summed up
- * interaction structure (the type) - it makes no sense to use a single structure
- * and ignore this field for the detailed storage of interactions, as this will
- * increase significantly the storage requirements. Furthermore, when storing
- * the atoms in group1, it makes no sense to keep all those NULL pointers
- * towards lists of interactions.
- * 
- * NOTE: all structures are defined for atoms, but are then used for both atoms and residues;
- * it made no sense to define new ones as they are functionally the same
- * 
- * Copyright Bogdan Costescu 2010-2013
+ *  Created on: Oct 31, 2016
+ *      Author: Bernd Doser, HITS gGmbH <bernd.doser@h-its.org>
  */
 
 #ifndef SRC_GROMACS_FDA_FDA_H
@@ -48,6 +17,7 @@
 #include "FDABase.h"
 #include "FDASettings.h"
 #include "InteractionType.h"
+#include "PureInteractionType.h"
 
 class FDA {
 public:

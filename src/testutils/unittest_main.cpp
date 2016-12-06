@@ -41,8 +41,9 @@
  */
 
 #include <gtest/gtest.h>
+
+#include "../gromacs/fda/Exclusions.h"
 #include "gmxpre.h"
-#include "gromacs/fda/pf_exclusions.h"
 #include "testutils/testinit.h"
 
 #ifndef TEST_DATA_PATH

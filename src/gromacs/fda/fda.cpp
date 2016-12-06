@@ -20,6 +20,8 @@ static const real HALF    = 1.0 / 2.0;
 static const real THIRD   = 1.0 / 3.0;
 static const real QUARTER = 0.25;
 
+using namespace fda;
+
 FDA::FDA(fda::FDASettings const& fda_settings)
  : fda_settings(fda_settings),
    atom_based(fda_settings.atom_based_result_type,
@@ -74,10 +76,10 @@ void FDA::add_bonded_nocheck(int i, int j, fda::InteractionType type, rvec force
             clear_rvec(force_residue);
             rvec_dec(force_residue, force);
             residue_based.distributed_forces.summed[ri][rj].force += force_residue;
-            residue_based.distributed_forces.summed[ri][rj].type |= to_index(type);
+            residue_based.distributed_forces.summed[ri][rj].type |= type;
           } else {
             residue_based.distributed_forces.summed[ri][rj].force += force;
-            residue_based.distributed_forces.summed[ri][rj].type |= to_index(type);
+            residue_based.distributed_forces.summed[ri][rj].type |= type;
           }
           break;
         case fda::OnePair::INVALID:
@@ -97,7 +99,7 @@ void FDA::add_bonded_nocheck(int i, int j, fda::InteractionType type, rvec force
         break;
       case fda::OnePair::SUMMED:
         atom_based.distributed_forces.summed[i][j].force += force;
-        atom_based.distributed_forces.summed[i][j].type |= to_index(type);
+        atom_based.distributed_forces.summed[i][j].type |= type;
         break;
       case fda::OnePair::INVALID:
         break;
@@ -152,9 +154,9 @@ void FDA::add_angle(int ai, int aj, int ak, rvec f_i, rvec f_j, rvec f_k)
 	//fprintf(stderr, "f_j_i=%8f %8f %8f f_j_k=%8f %8f %8f, norm(f_j_i)=%8f, norm(f_j_k)=%8f\n", f_j_i[0], f_j_i[1], f_j_i[2], f_j_k[0], f_j_k[1], f_j_k[2], norm(f_j_i), norm(f_j_k));
 	//fprintf(stderr, "f_i_k=%8f %8f %8f f_k_i=%8f %8f %8f\n", f_i_k[0], f_i_k[1], f_i_k[2], f_k_i[0], f_k_i[1], f_k_i[2]);
 	//fprintf(stderr, "angle(urik, f_i_k)=%8f\n", acos(cos_angle(urik, f_i_k))*RAD2DEG);
-	add_bonded(aj, ai, fda::InteractionType::ANGLE, f_j_i);
-	add_bonded(ai, ak, fda::InteractionType::ANGLE, f_i_k);
-	add_bonded(aj, ak, fda::InteractionType::ANGLE, f_j_k);
+	add_bonded(aj, ai, fda::InteractionType_ANGLE, f_j_i);
+	add_bonded(ai, ak, fda::InteractionType_ANGLE, f_i_k);
+	add_bonded(aj, ak, fda::InteractionType_ANGLE, f_j_k);
 }
 
 void FDA::add_dihedral(int i, int j, int k, int l, rvec f_i, rvec f_j, rvec f_k, rvec f_l)
@@ -271,12 +273,12 @@ void FDA::add_dihedral(int i, int j, int k, int l, rvec f_i, rvec f_j, rvec f_k,
     print_vec("f_jpk_l", f_jpk_l);
     print_vec("f_j_k", f_j_k);
     print_vec("f_k_j", f_k_j);*/
-    add_bonded(j, i, fda::InteractionType::DIHEDRAL, f_j_i);
-    add_bonded(k, i, fda::InteractionType::DIHEDRAL, f_k_i);
-    add_bonded(l, i, fda::InteractionType::DIHEDRAL, f_l_i);
-    add_bonded(j, k, fda::InteractionType::DIHEDRAL, f_j_k);
-    add_bonded(j, l, fda::InteractionType::DIHEDRAL, f_j_l);
-    add_bonded(k, l, fda::InteractionType::DIHEDRAL, f_k_l);
+    add_bonded(j, i, fda::InteractionType_DIHEDRAL, f_j_i);
+    add_bonded(k, i, fda::InteractionType_DIHEDRAL, f_k_i);
+    add_bonded(l, i, fda::InteractionType_DIHEDRAL, f_l_i);
+    add_bonded(j, k, fda::InteractionType_DIHEDRAL, f_j_k);
+    add_bonded(j, l, fda::InteractionType_DIHEDRAL, f_j_l);
+    add_bonded(k, l, fda::InteractionType_DIHEDRAL, f_k_l);
 }
 
 void FDA::add_nonbonded(int i, int j, real pf_coul, real pf_lj, real dx, real dy, real dz)
@@ -285,16 +287,16 @@ void FDA::add_nonbonded(int i, int j, real pf_coul, real pf_lj, real dx, real dy
   rvec pf_lj_atom_v, pf_lj_residue_v, pf_coul_atom_v, pf_coul_residue_v;
 
   /* first check that the interaction is interesting before doing expensive calculations and atom lookup*/
-  if (!(fda_settings.type & fda::InteractionType::COULOMB))
-    if (!(fda_settings.type & fda::InteractionType::LJ))
+  if (!(fda_settings.type & fda::InteractionType_COULOMB))
+    if (!(fda_settings.type & fda::InteractionType_LJ))
       return;
     else {
-      add_nonbonded_single(i, j, fda::InteractionType::LJ, pf_lj, dx, dy, dz);
+      add_nonbonded_single(i, j, fda::InteractionType_LJ, pf_lj, dx, dy, dz);
       return;
     }
   else
-    if (!(fda_settings.type & fda::InteractionType::LJ)) {
-      add_nonbonded_single(i, j, fda::InteractionType::COULOMB, pf_coul, dx, dy, dz);
+    if (!(fda_settings.type & fda::InteractionType_LJ)) {
+      add_nonbonded_single(i, j, fda::InteractionType_COULOMB, pf_coul, dx, dy, dz);
       return;
     }
 
@@ -339,7 +341,7 @@ void FDA::add_nonbonded(int i, int j, real pf_coul, real pf_lj, real dx, real dy
           pf_coul_residue_v[1] = pf_lj_coul * dy;
           pf_coul_residue_v[2] = pf_lj_coul * dz;
           residue_based.distributed_forces.summed[ri][rj].force += pf_coul_residue_v;
-          residue_based.distributed_forces.summed[ri][rj].type |= to_index(fda::InteractionType::COULOMB | fda::InteractionType::LJ);
+          residue_based.distributed_forces.summed[ri][rj].type |= fda::InteractionType_COULOMB | fda::InteractionType_LJ;
           break;
         case fda::OnePair::INVALID:
           break;
@@ -372,7 +374,7 @@ void FDA::add_nonbonded(int i, int j, real pf_coul, real pf_lj, real dx, real dy
         pf_coul_atom_v[1] = pf_lj_coul * dy;
         pf_coul_atom_v[2] = pf_lj_coul * dz;
         atom_based.distributed_forces.summed[i][j].force += pf_coul_atom_v;
-        atom_based.distributed_forces.summed[i][j].type |= to_index(fda::InteractionType::COULOMB | fda::InteractionType::LJ);
+        atom_based.distributed_forces.summed[i][j].type |= fda::InteractionType_COULOMB | fda::InteractionType_LJ;
         break;
       case fda::OnePair::INVALID:
         break;
@@ -579,12 +581,12 @@ void fda_add_nonbonded(FDA *fda, int i, int j, real pf_coul, real pf_lj, real dx
 
 void fda_add_nonbonded_coulomb(FDA *fda, int i, int j, real force, real dx, real dy, real dz)
 {
-  fda->add_nonbonded_single(i, j, fda::InteractionType::COULOMB, force, dx, dy, dz);
+  fda->add_nonbonded_single(i, j, fda::InteractionType_COULOMB, force, dx, dy, dz);
 }
 
 void fda_add_nonbonded_lj(FDA *fda, int i, int j, real force, real dx, real dy, real dz)
 {
-  fda->add_nonbonded_single(i, j, fda::InteractionType::LJ, force, dx, dy, dz);
+  fda->add_nonbonded_single(i, j, fda::InteractionType_LJ, force, dx, dy, dz);
 }
 
 void fda_virial_bond(FDA *fda, int ai, int aj, real f, real dx, real dy, real dz)

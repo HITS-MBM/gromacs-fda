@@ -8,60 +8,29 @@
 #ifndef SRC_GROMACS_FDA_INTERACTIONTYPE_H_
 #define SRC_GROMACS_FDA_INTERACTIONTYPE_H_
 
-#include <cstdint>
-#include <iostream>
 #include <string>
-#include <type_traits>
 
 namespace fda {
 
-enum class InteractionType : int
-{
-  NONE      =      0,
-  BOND      = 1 << 0,
-  ANGLE     = 1 << 1,
-  DIHEDRAL  = 1 << 2,
-  POLAR     = 1 << 3,
-  COULOMB   = 1 << 4,
-  LJ        = 1 << 5,
-  NB14      = 1 << 6,
-  BONDED    = BOND + ANGLE + DIHEDRAL,
-  NONBONDED = COULOMB + LJ + NB14,
-  ALL       = BONDED + NONBONDED + POLAR
-};
+using InteractionType = int;
 
-using T = std::underlying_type<InteractionType>::type;
+static const int InteractionType_NONE      =      0;
+static const int InteractionType_BOND      = 1 << 0;
+static const int InteractionType_ANGLE     = 1 << 1;
+static const int InteractionType_DIHEDRAL  = 1 << 2;
+static const int InteractionType_POLAR     = 1 << 3;
+static const int InteractionType_COULOMB   = 1 << 4;
+static const int InteractionType_LJ        = 1 << 5;
+static const int InteractionType_NB14      = 1 << 6;
+static const int InteractionType_BONDED    = InteractionType_BOND + InteractionType_ANGLE + InteractionType_DIHEDRAL;
+static const int InteractionType_NONBONDED = InteractionType_COULOMB + InteractionType_LJ + InteractionType_NB14;
+static const int InteractionType_ALL       = InteractionType_BONDED + InteractionType_NONBONDED + InteractionType_POLAR;
 
-constexpr T to_index(InteractionType e)
-{
-  return static_cast<T>(e);
-}
+/// Convert string into InteractionType
+std::string to_string(InteractionType i);
 
-inline InteractionType operator & (InteractionType lhs, InteractionType rhs)
-{
-  return (InteractionType)(static_cast<T>(lhs) & static_cast<T>(rhs));
-}
-
-inline InteractionType operator | (InteractionType lhs, InteractionType rhs)
-{
-  return (InteractionType)(static_cast<T>(lhs) | static_cast<T>(rhs));
-}
-
-inline InteractionType operator + (InteractionType lhs, InteractionType rhs)
-{
-  return (InteractionType)(static_cast<T>(lhs) + static_cast<T>(rhs));
-}
-
-inline bool operator ! (InteractionType i)
-{
-  return !static_cast<T>(i);
-}
-
-/// Output stream for InteractionType
-std::ostream& operator << (std::ostream& os, InteractionType r);
-
-/// Input stream for InteractionType
-std::istream& operator >> (std::istream& is, InteractionType& r);
+/// Convert InteractionType into string
+InteractionType from_string(std::string const& s);
 
 } // namespace fda
 

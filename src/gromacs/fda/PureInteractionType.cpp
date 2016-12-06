@@ -13,19 +13,19 @@ namespace fda {
 PureInteractionType to_pure(InteractionType i)
 {
   switch(i) {
-	case InteractionType::BOND:
+	case InteractionType_BOND:
 	  return PureInteractionType::BOND;
-	case InteractionType::ANGLE:
+	case InteractionType_ANGLE:
 	  return PureInteractionType::ANGLE;
-	case InteractionType::DIHEDRAL:
+	case InteractionType_DIHEDRAL:
 	  return PureInteractionType::DIHEDRAL;
-	case InteractionType::POLAR:
+	case InteractionType_POLAR:
 	  return PureInteractionType::POLAR;
-	case InteractionType::COULOMB:
+	case InteractionType_COULOMB:
 	  return PureInteractionType::COULOMB;
-	case InteractionType::LJ:
+	case InteractionType_LJ:
 	  return PureInteractionType::LJ;
-	case InteractionType::NB14:
+	case InteractionType_NB14:
 	  return PureInteractionType::NB14;
 	default:
 	  throw std::runtime_error("Is not a pure interaction");
@@ -36,19 +36,19 @@ InteractionType from_pure(PureInteractionType i)
 {
   switch(i) {
 	case PureInteractionType::BOND:
-	  return InteractionType::BOND;
+	  return InteractionType_BOND;
 	case PureInteractionType::ANGLE:
-	  return InteractionType::ANGLE;
+	  return InteractionType_ANGLE;
 	case PureInteractionType::DIHEDRAL:
-	  return InteractionType::DIHEDRAL;
+	  return InteractionType_DIHEDRAL;
 	case PureInteractionType::POLAR:
-	  return InteractionType::POLAR;
+	  return InteractionType_POLAR;
 	case PureInteractionType::COULOMB:
-	  return InteractionType::COULOMB;
+	  return InteractionType_COULOMB;
 	case PureInteractionType::LJ:
-	  return InteractionType::LJ;
+	  return InteractionType_LJ;
 	case PureInteractionType::NB14:
-	  return InteractionType::NB14;
+	  return InteractionType_NB14;
 	default:
 	  throw std::runtime_error("Is not a pure interaction");
   }

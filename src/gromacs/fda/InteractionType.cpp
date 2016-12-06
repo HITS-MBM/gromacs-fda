@@ -12,66 +12,64 @@
 
 namespace fda {
 
-std::ostream& operator << (std::ostream& os, InteractionType r)
+std::string to_string(InteractionType i)
 {
-  switch(r) {
-  case InteractionType::NONE:
-    return os << "none";
-    case InteractionType::BOND:
-      return os << "bond";
-    case InteractionType::ANGLE:
-      return os << "angle";
-    case InteractionType::DIHEDRAL:
-      return os << "dihedral";
-    case InteractionType::POLAR:
-      return os << "polar";
-    case InteractionType::COULOMB:
-      return os << "coulomb";
-    case InteractionType::LJ:
-      return os << "lj";
-    case InteractionType::NB14:
-      return os << "nb14";
-    case InteractionType::BONDED:
-      return os << "bonded";
-    case InteractionType::NONBONDED:
-      return os << "nonbonded";
-    case InteractionType::ALL:
-      return os << "all";
+  switch(i) {
+  case InteractionType_NONE:
+    return "none";
+    case InteractionType_BOND:
+      return "bond";
+    case InteractionType_ANGLE:
+      return "angle";
+    case InteractionType_DIHEDRAL:
+      return "dihedral";
+    case InteractionType_POLAR:
+      return "polar";
+    case InteractionType_COULOMB:
+      return "coulomb";
+    case InteractionType_LJ:
+      return "lj";
+    case InteractionType_NB14:
+      return "nb14";
+    case InteractionType_BONDED:
+      return "bonded";
+    case InteractionType_NONBONDED:
+      return "nonbonded";
+    case InteractionType_ALL:
+      return "all";
     default:
-      return os << "invalid";
+      return "invalid";
   }
 }
 
-std::istream& operator >> (std::istream& is, InteractionType& r)
+InteractionType from_string(std::string const& s)
 {
-  std::string s;
-  is >> s;
-  std::transform(s.begin(), s.end(), s.begin(), tolower);
-  if (s == "none")
-	r = InteractionType::NONE;
-  if (s == "bond")
-	r = InteractionType::BOND;
-  else if (s == "angle")
-	r = InteractionType::ANGLE;
-  else if (s == "dihedral")
-	r = InteractionType::DIHEDRAL;
-  else if (s == "polar")
-	r = InteractionType::POLAR;
-  else if (s == "coulomb")
-	r = InteractionType::COULOMB;
-  else if (s == "lj")
-	r = InteractionType::LJ;
-  else if (s == "nb14")
-	r = InteractionType::NB14;
-  else if (s == "bonded")
-	r = InteractionType::BONDED;
-  else if (s == "nonbonded")
-	r = InteractionType::NONBONDED;
-  else if (s == "all")
-	r = InteractionType::ALL;
+  std::string s_lower_case(s);
+  std::transform(s_lower_case.begin(), s_lower_case.end(), s_lower_case.begin(), tolower);
+  if (s_lower_case == "none")
+	return InteractionType_NONE;
+  if (s_lower_case == "bond")
+	return InteractionType_BOND;
+  else if (s_lower_case == "angle")
+	return InteractionType_ANGLE;
+  else if (s_lower_case == "dihedral")
+	return InteractionType_DIHEDRAL;
+  else if (s_lower_case == "polar")
+	return InteractionType_POLAR;
+  else if (s_lower_case == "coulomb")
+	return InteractionType_COULOMB;
+  else if (s_lower_case == "lj")
+	return InteractionType_LJ;
+  else if (s_lower_case == "nb14")
+	return InteractionType_NB14;
+  else if (s_lower_case == "bonded")
+	return InteractionType_BONDED;
+  else if (s_lower_case == "nonbonded")
+	return InteractionType_NONBONDED;
+  else if (s_lower_case == "all")
+	return InteractionType_ALL;
   else
 	throw std::runtime_error("InteractionType " + s + "unknown");
-  return is;
 }
 
 } // namespace fda

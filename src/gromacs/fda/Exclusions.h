@@ -1,16 +1,17 @@
 /*
- * pf_exclusions.h
+ * Exclusions.h
  *
  *  Created on: Sep 29, 2014
  *      Author: Bernd Doser, HITS gGmbH <bernd.doser@h-its.org>
  */
 
-#ifndef PF_EXCLUSIONS_H_
-#define PF_EXCLUSIONS_H_
+#ifndef SRC_GROMACS_FDA_EXCLUSIONS_H_
+#define SRC_GROMACS_FDA_EXCLUSIONS_H_
 
 #include "gromacs/commandline/filenm.h"
 #include "gromacs/mdtypes/inputrec.h"
 #include "gromacs/utility/cstringutil.h"
+#include "InteractionType.h"
 
 struct gmx_groups_t;
 struct gmx_mtop_t;
@@ -40,9 +41,9 @@ typedef struct {
     int           g2idx; /* FDA groups index 2 (defined in pfi-file) */
 	t_blocka*     groups; /* groups defined in pfn-file */
 	char**        groupnames;/* groupnames defined in pfn-file */
-	int           type; /* interaction type */
-	char          FDA_nonbonded_exclusion_on; /* switch FDA nonbonded exclusions on/off (default: on) */
-	char          FDA_bonded_exclusion_on; /* switch FDA bonded exclusions on/off (default: on) */
+	fda::InteractionType type; /* interaction type */
+	bool FDA_nonbonded_exclusion_on; /* switch FDA nonbonded exclusions on/off (default: on) */
+	bool FDA_bonded_exclusion_on; /* switch FDA bonded exclusions on/off (default: on) */
 } FDA_data;
 
 //! Global data structure
@@ -80,4 +81,4 @@ void pf_modify_energy_group_exclusions(gmx_mtop_t *mtop, t_inputrec *inputrec);
 }
 #endif
 
-#endif /* PF_EXCLUSIONS_H_ */
+#endif /* SRC_GROMACS_FDA_EXCLUSIONS_H_ */

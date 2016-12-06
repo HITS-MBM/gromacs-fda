@@ -31,7 +31,7 @@ FDASettings::FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *mtop, bool
    time_averaging_period(1),
    sys_in_group1(syslen_atoms, 0),
    sys_in_group2(syslen_atoms, 0),
-   type(InteractionType::NONE)
+   type(InteractionType_NONE)
 {
   /// Parallel execution not implemented yet
   if (parallel_execution)
@@ -85,10 +85,12 @@ FDASettings::FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *mtop, bool
   if ((compatibility_mode(atom_based_result_type) or compatibility_mode(residue_based_result_type)) and v2s != Vector2Scalar::NORM)
 	gmx_fatal(FARGS, "When using compat mode, pf_vector2scalar should be set to norm.\n");
 
-  std::stringstream(get_estr(&ninp, &inp, "type", "all")) >> type;
-  std::cout << "Pairwise interactions selected: " << type << std::endl;
+  std::string type_string;
+  std::stringstream(get_estr(&ninp, &inp, "type", "all")) >> type_string;
+  type = from_string(type_string);
+  std::cout << "Pairwise interactions selected: " << type_string << std::endl;
 
-  if (type == InteractionType::NONE)
+  if (type == InteractionType_NONE)
 	gmx_fatal(FARGS, "No interactions selected, no sense to compute pairwise forces.\n");
 
   // Read group names

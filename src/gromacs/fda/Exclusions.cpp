@@ -1,5 +1,5 @@
 /*
- * pf_exclusions.c
+ * Exclusions.c
  *
  *  Created on: Sep 29, 2014
  *      Author: Bernd Doser, HITS gGmbH <bernd.doser@h-its.org>
@@ -9,7 +9,8 @@
 #include <climits>
 #include <cstdio>
 #include <cstring>
-#include "InteractionType.h"
+#include <sstream>
+#include "Exclusions.h"
 #include "gromacs/fileio/readinp.h"
 #include "gromacs/fileio/warninp.h"
 #include "gromacs/topology/block.h"
@@ -18,7 +19,6 @@
 #include "gromacs/utility/basedefinitions.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/smalloc.h"
-#include "pf_exclusions.h"
 
 void fda_data_init(int nfile, const t_filenm fnm[])
 {
@@ -42,8 +42,7 @@ void fda_data_init(int nfile, const t_filenm fnm[])
 	fda_data.groups = init_index(opt2fn("-pfn", nfile, fnm), &fda_data.groupnames);
 
 	// Get group number
-	int i;
-	for (i = 0; i < fda_data.groups->nr; ++i) {
+	for (int i = 0; i < fda_data.groups->nr; ++i) {
 		if (gmx_strcasecmp(fda_data.groupnames[i], fda_data.g1name) == 0) fda_data.g1idx = i;
 		if (gmx_strcasecmp(fda_data.groupnames[i], fda_data.g2name) == 0) fda_data.g2idx = i;
 	}
@@ -54,16 +53,12 @@ void fda_data_init(int nfile, const t_filenm fnm[])
 	#endif
 
 	// Get interaction type
-    char tmpstr[STRLEN];
-    STYPE("type", tmpstr, "all");
-    // TODO:
-    //fda_data.type = pf_interactions_type_str2val(tmpstr);
+	std::string type_string;
+    std::stringstream(get_estr(&ninp, &inp, "type", "all")) >> type_string;
+    fda_data.type = fda::from_string(type_string);
 
-	STYPE("energy_grp_exclusion", tmpstr, "yes");
-	fda_data.FDA_nonbonded_exclusion_on = gmx_strcasecmp(tmpstr, "no") != 0;
-
-	STYPE("bonded_exclusion", tmpstr, "yes");
-	fda_data.FDA_bonded_exclusion_on = gmx_strcasecmp(tmpstr, "no") != 0;
+    fda_data.FDA_nonbonded_exclusion_on = strcasecmp(get_estr(&ninp, &inp, "energy_grp_exclusion", "no"), "no");
+    fda_data.FDA_bonded_exclusion_on = strcasecmp(get_estr(&ninp, &inp, "bonded_exclusion", "no"), "no");
 }
 
 int pf_add_name_to_energygrp(char* name, gmx_groups_t* groups)
@@ -149,7 +144,7 @@ void pf_modify_energy_group_exclusions(gmx_mtop_t *mtop, t_inputrec *inputrec)
 	}
 
 	// If no nonbonded interactions are needed we simply exclude all energy groups
-	if (!(fda_data.type & static_cast<int>(fda::InteractionType::NONBONDED))) {
+	if (!(fda_data.type & fda::InteractionType_NONBONDED)) {
 
 		int i;
 		for (i = 0; i < inputrec->opts.ngener; ++i) inputrec->opts.egp_flags[i] = 1;

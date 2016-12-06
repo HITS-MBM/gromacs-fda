@@ -199,7 +199,7 @@ real morse_bonds(int nbonds,
             pf_forcevector[m]   = fij;
         }
 
-        fda->add_bonded(ai, aj, fda::InteractionType::BOND, pf_forcevector);
+        fda->add_bonded(ai, aj, fda::InteractionType_BOND, pf_forcevector);
         fda->add_virial_bond(ai, aj, fbond, dx[XX], dx[YY], dx[ZZ]);
     }                                         /*  83 TOTAL    */
     return vtot;
@@ -266,7 +266,7 @@ real cubic_bonds(int nbonds,
             pf_forcevector[m]   = fij;
         }
 
-        fda->add_bonded(ai, aj, fda::InteractionType::BOND, pf_forcevector);
+        fda->add_bonded(ai, aj, fda::InteractionType_BOND, pf_forcevector);
         fda->add_virial_bond(ai, aj, fbond, dx[XX], dx[YY], dx[ZZ]);
 
     }                                         /*  54 TOTAL    */
@@ -340,7 +340,7 @@ real FENE_bonds(int nbonds,
             pf_forcevector[m]   = fij;
         }
 
-        fda->add_bonded(ai, aj, fda::InteractionType::BOND, pf_forcevector);
+        fda->add_bonded(ai, aj, fda::InteractionType_BOND, pf_forcevector);
         fda->add_virial_bond(ai, aj, fbond, dx[XX], dx[YY], dx[ZZ]);
 
     }                                         /*  58 TOTAL    */
@@ -434,7 +434,7 @@ real bonds(int nbonds,
             pf_forcevector[m]   = fij;
         }
 
-        fda->add_bonded(ai, aj, fda::InteractionType::BOND, pf_forcevector);
+        fda->add_bonded(ai, aj, fda::InteractionType_BOND, pf_forcevector);
         fda->add_virial_bond(ai, aj, fbond, dx[XX], dx[YY], dx[ZZ]);
 
     }               /* 59 TOTAL	*/
@@ -540,7 +540,7 @@ real restraint_bonds(int nbonds,
             pf_forcevector[m]   = fij;
         }
 
-        fda->add_bonded(ai, aj, fda::InteractionType::BOND, pf_forcevector);
+        fda->add_bonded(ai, aj, fda::InteractionType_BOND, pf_forcevector);
         fda->add_virial_bond(ai, aj, fbond, dx[XX], dx[YY], dx[ZZ]);
 
     }                   /* 59 TOTAL	*/
@@ -602,7 +602,7 @@ real polarize(int nbonds,
             pf_forcevector[m]   = fij;
         }
 
-        fda->add_bonded(ai, aj, fda::InteractionType::POLAR, pf_forcevector);
+        fda->add_bonded(ai, aj, fda::InteractionType_POLAR, pf_forcevector);
         fda->add_virial_bond(ai, aj, fbond, dx[XX], dx[YY], dx[ZZ]);
 
     }               /* 59 TOTAL	*/
@@ -673,7 +673,7 @@ real anharm_polarize(int nbonds,
             pf_forcevector[m]   = fij;
         }
 
-        fda->add_bonded(ai, aj, fda::InteractionType::POLAR, pf_forcevector);
+        fda->add_bonded(ai, aj, fda::InteractionType_POLAR, pf_forcevector);
         fda->add_virial_bond(ai, aj, fbond, dx[XX], dx[YY], dx[ZZ]);
 
     }               /* 72 TOTAL	*/
@@ -818,7 +818,7 @@ real water_pol(int nbonds,
             	pf_forcevector[m]   = fij;
             }
 
-            fda->add_bonded(aS, aD, fda::InteractionType::POLAR, pf_forcevector);
+            fda->add_bonded(aS, aD, fda::InteractionType_POLAR, pf_forcevector);
             for (m = 0; (m < DIM); m++)
                 fda->add_virial_bond(aS, aD, nW[m] * dHH[m] * dOD[m], kdx[XX], kdx[YY], kdx[ZZ]);
 
@@ -867,7 +867,7 @@ static real do_1_thole(const rvec xi, const rvec xj, rvec fi, rvec fj,
         pf_forcevector[m]   = fff;
     }             /* 15 */
 
-    fda->add_bonded(ai, aj, fda::InteractionType::POLAR, pf_forcevector);
+    fda->add_bonded(ai, aj, fda::InteractionType_POLAR, pf_forcevector);
     fda->add_virial_bond(ai, aj, fscal, r12[XX], r12[YY], r12[ZZ]);
 
     return v0*v1; /* 1 */
@@ -1355,7 +1355,7 @@ real urey_bradley(int nbonds,
             pf_forcevector[m]   = fik;
         }
 
-        fda->add_bonded(ai, ak, fda::InteractionType::BOND, pf_forcevector);
+        fda->add_bonded(ai, ak, fda::InteractionType_BOND, pf_forcevector);
         fda->add_virial_bond(ai, ak, fbond, r_ik[XX], r_ik[YY], r_ik[ZZ]);
 
     }
@@ -2319,12 +2319,12 @@ static real low_angres(int nbonds,
             }
 
             {
-            	fda->add_bonded(ai, aj, fda::InteractionType::ANGLE, f_i);
-            	fda->add_bonded(aj, ai, fda::InteractionType::ANGLE, n_f_i);
+            	fda->add_bonded(ai, aj, fda::InteractionType_ANGLE, f_i);
+            	fda->add_bonded(aj, ai, fda::InteractionType_ANGLE, n_f_i);
 				if (!bZAxis)
 				{
-					fda->add_bonded(ak, al, fda::InteractionType::ANGLE, f_k);
-					fda->add_bonded(al, ak, fda::InteractionType::ANGLE, n_f_k);
+					fda->add_bonded(ak, al, fda::InteractionType_ANGLE, f_k);
+					fda->add_bonded(al, ak, fda::InteractionType_ANGLE, n_f_k);
 				}
             }
             gmx_fatal(FARGS, "Not implemented yet.");
@@ -3458,7 +3458,7 @@ real g96bonds(int nbonds,
             pf_forcevector[m]   = fij;
         }
 
-        fda->add_bonded(ai, aj, fda::InteractionType::BOND, pf_forcevector);
+        fda->add_bonded(ai, aj, fda::InteractionType_BOND, pf_forcevector);
         fda->add_virial_bond(ai, aj, fbond, dx[XX], dx[YY], dx[ZZ]);
 
     }               /* 44 TOTAL	*/
@@ -3821,7 +3821,7 @@ real tab_bonds(int nbonds,
             pf_forcevector[m]   = fij;
         }
 
-        fda->add_bonded(ai, aj, fda::InteractionType::BOND, pf_forcevector);
+        fda->add_bonded(ai, aj, fda::InteractionType_BOND, pf_forcevector);
         fda->add_virial_bond(ai, aj, fbond, dx[XX], dx[YY], dx[ZZ]);
 
     }               /* 62 TOTAL	*/

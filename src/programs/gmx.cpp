@@ -37,11 +37,11 @@
  *
  * \author Teemu Murtola <teemu.murtola@gmail.com>
  */
+#include "../gromacs/fda/Exclusions.h"
 #include "gmxpre.h"
 
 #include "gromacs/commandline/cmdlineinit.h"
 #include "gromacs/commandline/cmdlinemodulemanager.h"
-#include "gromacs/fda/pf_exclusions.h"
 #include "gromacs/selection/selhelp.h"
 #include "gromacs/trajectoryanalysis/modules.h"
 #include "gromacs/utility/exceptions.h"

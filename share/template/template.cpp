@@ -35,8 +35,8 @@
 #include <string>
 #include <vector>
 
+#include "../../src/gromacs/fda/Exclusions.h"
 #include "gromacs/trajectoryanalysis.h"
-#include "gromacs/fda/pf_exclusions.h"
 
 //! FDA global object
 FDA_data fda_data;

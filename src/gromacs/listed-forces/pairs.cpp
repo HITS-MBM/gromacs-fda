@@ -517,7 +517,7 @@ do_pairs_general(int ftype, int nbonds,
         rvec_inc(f[ai], dx);
         rvec_dec(f[aj], dx);
 
-       	fda->add_bonded(ai, aj, fda::InteractionType::NB14, dx);
+       	fda->add_bonded(ai, aj, fda::InteractionType_NB14, dx);
 
         if (g)
         {

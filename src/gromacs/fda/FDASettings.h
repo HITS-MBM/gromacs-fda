@@ -34,7 +34,7 @@ struct FDASettings
      syslen_atoms(0),
      syslen_residues(0),
 	 time_averaging_period(1),
-     type(InteractionType::NONE)
+     type(InteractionType_NONE)
   {}
 
   /// Construction by input file
