@@ -8,12 +8,12 @@
 #ifndef SRC_GROMACS_FDA_DISTRIBUTEDFORCES_H_
 #define SRC_GROMACS_FDA_DISTRIBUTEDFORCES_H_
 
-#include <array>
+#include <stddef.h>
 #include <map>
-#include <vector>
 #include "gromacs/math/vectypes.h"
-#include "PureInteractionType.h"
-#include "OnePair.h"
+#include "gromacs/utility/real.h"
+#include "DetailedForce.h"
+#include "Force.h"
 #include "Vector.h"
 #include "Vector2Scalar.h"
 
@@ -21,33 +21,6 @@
 class FDA;
 
 namespace fda {
-
-struct ScalarForce
-{
-  ScalarForce()
-   : force(0.0), type(0)
-  {}
-
-  real force;
-  /// Interaction type as bitset using int
-  int type;
-};
-
-struct SummedForce
-{
-  SummedForce()
-   : type(0)
-  {}
-
-  Vector force;
-  /// Interaction type as bitset using int
-  int type;
-};
-
-struct DetailedForce
-{
-  std::array<Vector, static_cast<int>(PureInteractionType::NUMBER)> force;
-};
 
 /**
  * Storage container for distributed forces
@@ -79,10 +52,10 @@ private:
   template <class Base> friend class FDABase;
 
   /// Map atom/residue pair to scalar forces
-  std::map<int, std::map<int, ScalarForce>> scalar;
+  std::map<int, std::map<int, Force<real>>> scalar;
 
   /// Map atom/residue pair to summed vector forces
-  std::map<int, std::map<int, SummedForce>> summed;
+  std::map<int, std::map<int, Force<Vector>>> summed;
 
   /// Map atom/residue pair to detailed forces
   std::map<int, std::map<int, DetailedForce>> detailed;

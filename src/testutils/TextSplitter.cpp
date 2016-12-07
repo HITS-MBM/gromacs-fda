@@ -2,7 +2,7 @@
  * TextSplitter.cpp
  *
  *  Created on: Sep 1, 2014
- *      Author: Bernd Doser, HITS gGmbH
+ *      Author: Bernd Doser, HITS gGmbH <bernd.doser@h-its.org>
  */
 
 #include <fstream>

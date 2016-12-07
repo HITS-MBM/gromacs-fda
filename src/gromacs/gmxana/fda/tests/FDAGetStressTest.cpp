@@ -2,15 +2,13 @@
  * FDAGetStressTest.cpp
  *
  *  Created on: Apr 2, 2015
- *      Author: Bernd Doser, HITS gGmbH
+ *      Author: Bernd Doser, HITS gGmbH <bernd.doser@h-its.org>
  */
 
 #include <iostream>
 #include <string>
 #include <vector>
-
 #include <gtest/gtest.h>
-
 #include "gromacs/gmxana/fda/Helpers.h"
 #include "gromacs/gmxana/gmx_ana.h"
 #include "gromacs/options/filenameoption.h"
@@ -93,7 +91,7 @@ TEST_P(FDAGetStress, Basic)
     LogicallyEqualComparer<weight_by_magnitude,ignore_sign> comparer(error_factor);
 
     // compare atom pairs
-    EXPECT_TRUE((compare(TextSplitter(GetParam().reference), TextSplitter(GetParam().result), comparer)));
+    EXPECT_TRUE((equal(TextSplitter(GetParam().reference), TextSplitter(GetParam().result), comparer)));
 
     gmx_chdir(cwd.c_str());
 }

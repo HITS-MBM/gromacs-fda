@@ -2,7 +2,7 @@
  * FDATest.cpp
  *
  *  Created on: Sep 1, 2014
- *      Author: Bernd Doser, HITS gGmbH
+ *      Author: Bernd Doser, HITS gGmbH <bernd.doser@h-its.org>
  */
 
 #include <iostream>
@@ -14,6 +14,7 @@
 #include "gromacs/utility/path.h"
 #include "gromacs/utility/real.h"
 #include "gromacs/gmxpreprocess/grompp.h"
+#include "PairwiseForces.h"
 #include "programs/mdrun/mdrun_main.h"
 #include "testutils/cmdlinetest.h"
 #include "testutils/integrationtests.h"
@@ -28,18 +29,21 @@ struct TestDataStructure
         std::string const& testDirectory,
         std::string const& atomFileExtension,
         std::string const& residueFileExtension,
-        std::string const& trajectoryFilename = "traj.trr"
+        std::string const& trajectoryFilename = "traj.trr",
+        bool is_vector = false
     )
       : testDirectory(testDirectory),
         atomFileExtension(atomFileExtension),
         residueFileExtension(residueFileExtension),
-        trajectoryFilename(trajectoryFilename)
+        trajectoryFilename(trajectoryFilename),
+		is_vector(is_vector)
     {}
 
     std::string testDirectory;
     std::string atomFileExtension;
     std::string residueFileExtension;
     std::string trajectoryFilename;
+    bool is_vector;
 };
 
 } // namespace anonymous
@@ -90,9 +94,25 @@ TEST_P(FDATest, Basic)
 
     LogicallyEqualComparer<weight_by_magnitude, ignore_sign> comparer(error_factor);
 
-    // Compare files
-    if (!GetParam().atomFileExtension.empty()) EXPECT_TRUE((compare(TextSplitter(atomFilename), TextSplitter(atomReference), comparer)));
-    if (!GetParam().residueFileExtension.empty()) EXPECT_TRUE((compare(TextSplitter(residueFilename), TextSplitter(residueReference), comparer)));
+    // Check results
+    if (!GetParam().atomFileExtension.empty()) {
+    	if (GetParam().atomFileExtension == "pfa")
+    		if (!GetParam().is_vector)
+    		    EXPECT_TRUE((fda::PairwiseForces<fda::Force<fda::Vector>>(atomFilename).equal(
+    			    fda::PairwiseForces<fda::Force<fda::Vector>>(atomReference), comparer)));
+    		else
+		        EXPECT_TRUE((fda::PairwiseForces<fda::Force<real>>(atomFilename).equal(
+			        fda::PairwiseForces<fda::Force<real>>(atomReference), comparer)));
+    	else
+    	    EXPECT_TRUE((equal(TextSplitter(atomFilename), TextSplitter(atomReference), comparer)));
+    }
+    if (!GetParam().residueFileExtension.empty()) {
+    	if (GetParam().atomFileExtension == "pfa")
+    		EXPECT_TRUE((fda::PairwiseForces<fda::Force<real>>(residueFilename).equal(
+                fda::PairwiseForces<fda::Force<real>>(residueReference), comparer)));
+    	else
+    	    EXPECT_TRUE((equal(TextSplitter(residueFilename), TextSplitter(residueReference), comparer)));
+    }
 
     gmx_chdir(cwd.c_str());
 }
@@ -102,10 +122,10 @@ INSTANTIATE_TEST_CASE_P(AllFDATests, FDATest, ::testing::Values(
     TestDataStructure("alagly_pairwise_forces_scalar_atom_based", "pfa", ""),
     TestDataStructure("alagly_pairwise_forces_scalar_no_residue_based", "pfa", ""),
     TestDataStructure("alagly_pairwise_forces_scalar_detailed_no_residue_based", "pfa", ""),
-    TestDataStructure("alagly_pairwise_forces_vector", "pfa", "pfr"),
+    TestDataStructure("alagly_pairwise_forces_vector", "pfa", "pfr", "traj.trr", true),
     TestDataStructure("alagly_punctual_stress", "psa", "psr"),
     TestDataStructure("alagly_pairwise_forces_scalar_detailed_nonbonded", "pfa", "pfr"),
-    TestDataStructure("alagly_pairwise_forces_vector_detailed_nonbonded", "pfa", "pfr"),
+    TestDataStructure("alagly_pairwise_forces_vector_detailed_nonbonded", "pfa", "pfr", "traj.trr", true),
     TestDataStructure("alagly_verlet_summed_scalar", "pfa", "pfr"),
     TestDataStructure("alagly_group_excl", "pfa", "pfr"),
     TestDataStructure("alagly_group_excl_uncomplete_cgs", "pfa", "pfr"),
@@ -116,9 +136,9 @@ INSTANTIATE_TEST_CASE_P(AllFDATests, FDATest, ::testing::Values(
     TestDataStructure("glycine_trimer_group_excl4", "pfa", "pfr"),
     TestDataStructure("glycine_trimer_group_excl5", "pfa", "pfr"),
     TestDataStructure("glycine_trimer_group_excl6", "pfa", "pfr"),
-    TestDataStructure("glycine_trimer_group_bonded_excl1", "pfa", "pfr"),
-    TestDataStructure("glycine_trimer_virial_stress", "vsa", ""),
-    TestDataStructure("glycine_trimer_virial_stress_von_mises", "vma", "")
+    TestDataStructure("glycine_trimer_group_bonded_excl1", "pfa", "pfr")
+//    TestDataStructure("glycine_trimer_virial_stress", "vsa", ""),
+//    TestDataStructure("glycine_trimer_virial_stress_von_mises", "vma", "")
 //    TestDataStructure("vwf_a2_domain_nframes1_pairwise_forces_scalar", "pfa", "pfr", "traj.xtc"),
 //    TestDataStructure("vwf_a2_domain_nframes1_punctual_stress", "psa", "psr", "traj.xtc"),
 //    TestDataStructure("vwf_a2_domain_nframes10_pairwise_forces_scalar", "pfa", "pfr", "traj.xtc"),

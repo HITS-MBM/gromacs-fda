@@ -9,6 +9,7 @@
 #define SRC_GROMACS_FDA_VECTOR_H_
 
 #include <array>
+#include <iostream>
 #include "gromacs/utility/real.h"
 
 namespace fda {
@@ -42,6 +43,18 @@ private:
 	std::array<real, 3> v;
 
 };
+
+/// Output stream
+inline std::ostream& operator << (std::ostream& os, Vector const& v)
+{
+  return os << v[0] << v[1] << v[2];
+}
+
+/// Input stream
+inline std::istream& operator >> (std::istream& is, Vector & v)
+{
+  return is >> v[0] >> v[1] >> v[2];
+}
 
 } // namespace fda
 

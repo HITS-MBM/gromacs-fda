@@ -2,7 +2,7 @@
  * FDAGraphTest.cpp
  *
  *  Created on: Feb 4, 2015
- *      Author: Bernd Doser, HITS gGmbH
+ *      Author: Bernd Doser, HITS gGmbH <bernd.doser@h-its.org>
  */
 
 #include <iostream>
@@ -94,7 +94,7 @@ TEST_P(FDAGraphTest, Basic)
     LogicallyEqualComparer<weight_by_magnitude,ignore_sign> comparer(error_factor);
 
     // compare atom pairs
-    EXPECT_TRUE((compare(TextSplitter(GetParam().reference), TextSplitter(GetParam().result), comparer)));
+    EXPECT_TRUE((equal(TextSplitter(GetParam().reference), TextSplitter(GetParam().result), comparer)));
 
 	gmx_chdir(cwd.c_str());
 }

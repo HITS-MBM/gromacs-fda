@@ -9,7 +9,7 @@
 #include "gromacs/utility/fatalerror.h"
 #include "Utilities.h"
 
-using namespace fda;
+namespace fda {
 
 void DistributedForces::scalar_real_divide(real divisor)
 {
@@ -28,3 +28,5 @@ void DistributedForces::summed_merge_to_scalar(const rvec *x, Vector2Scalar v2s)
     }
   }
 }
+
+} // namespace fda

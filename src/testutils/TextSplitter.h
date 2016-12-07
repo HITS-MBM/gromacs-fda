@@ -2,7 +2,7 @@
  * TextSplitter.h
  *
  *  Created on: Sep 1, 2014
- *      Author: Bernd Doser, HITS gGmbH
+ *      Author: Bernd Doser, HITS gGmbH <bernd.doser@h-its.org>
  */
 
 #ifndef TEXTSPLITTER_H_
@@ -33,7 +33,7 @@ public:
 private:
 
 	template <class Comparer>
-	friend bool compare (TextSplitter const& t1, TextSplitter const& t2, Comparer const& comparer);
+	friend bool equal(TextSplitter const& t1, TextSplitter const& t2, Comparer const& comparer);
 
 	std::vector<int> integers_;
 	std::vector<std::string> strings_;
@@ -50,7 +50,7 @@ bool isType(std::string const& s)
 }
 
 template <class Comparer>
-bool compare (TextSplitter const& t1, TextSplitter const& t2, Comparer const& comparer)
+bool equal(TextSplitter const& t1, TextSplitter const& t2, Comparer const& comparer)
 {
 	if (t1.integers_.size() != t2.integers_.size()) {
 		std::cout << "TextSplitter: wrong integers size" << std::endl;
