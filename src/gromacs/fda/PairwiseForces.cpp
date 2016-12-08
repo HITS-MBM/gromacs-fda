@@ -15,7 +15,7 @@ namespace fda {
 template <typename ForceType>
 PairwiseForces<ForceType>::PairwiseForces(std::string const& filename)
 {
-	int i, j, type;
+	int i, j;
 	ForceType force;
 	PairwiseForceType pairwise_forces;
 	std::ifstream is(filename);

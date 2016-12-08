@@ -117,12 +117,14 @@ void FDABase<Base>::write_frame_detailed(rvec *x, bool print_vector, int nsteps)
     int i = v1.first;
     for (auto const& v2 : v1.second) {
       int j = v2.first;
-      for (int type = 0; type != to_index(PureInteractionType::NUMBER); ++type) {
+      for (int type = 0; type != static_cast<int>(PureInteractionType::NUMBER); ++type) {
     	Vector force = v2.second.force[type];
+    	if (v2.second.number[type] == 0) continue;
+    	InteractionType interaction_type = from_pure(static_cast<PureInteractionType>(type));
         if (print_vector) {
-          result_file << i << " " << j << " " << force[XX] << " " << force[YY] << " " << force[ZZ] << " " << type << std::endl;
+          result_file << i << " " << j << " " << force[XX] << " " << force[YY] << " " << force[ZZ] << " " << interaction_type << std::endl;
         } else {
-          result_file << i << " " << j << " " << vector2signedscalar(force.get_pointer(), x[i], x[j], fda_settings.v2s) << " " << type << std::endl;
+          result_file << i << " " << j << " " << vector2signedscalar(force.get_pointer(), x[i], x[j], fda_settings.v2s) << " " << interaction_type << std::endl;
         }
       }
     }

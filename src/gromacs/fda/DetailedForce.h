@@ -16,7 +16,13 @@ namespace fda {
 
 struct DetailedForce
 {
+  DetailedForce() : number{0} {}
+
+  /// Vector force separated for each interaction type
   std::array<Vector, static_cast<int>(PureInteractionType::NUMBER)> force;
+
+  /// Number of forces for each interaction type
+  std::array<int, static_cast<int>(PureInteractionType::NUMBER)> number;
 };
 
 } // namespace fda

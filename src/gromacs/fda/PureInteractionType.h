@@ -34,6 +34,12 @@ constexpr T to_index(PureInteractionType e)
   return static_cast<T>(e);
 }
 
+// Doesn't work, do'nt know why
+//PureInteractionType& operator ++ (PureInteractionType& p)
+//{
+//  //return static_cast<InteractionType>(++static_cast<T>(p));
+//}
+
 /// Conversion from InteractionType into PureInteractionType
 PureInteractionType to_pure(InteractionType i);
 

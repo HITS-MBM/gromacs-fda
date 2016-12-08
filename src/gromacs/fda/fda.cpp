@@ -59,15 +59,18 @@ void FDA::add_bonded_nocheck(int i, int j, fda::InteractionType type, rvec force
     int rj = fda_settings.get_atom2residue(j);
     rvec force_residue;
     if (ri != rj) {
+      int index;
       switch(fda_settings.one_pair) {
         case fda::OnePair::DETAILED:
+          index = to_index(to_pure(type));
+          ++residue_based.distributed_forces.detailed[ri][rj].number[index];
           if (ri > rj) {
             int_swap(&ri, &rj);
             clear_rvec(force_residue);
             rvec_dec(force_residue, force);
-            residue_based.distributed_forces.detailed[ri][rj].force[to_index(to_pure(type))] += force_residue;
+            residue_based.distributed_forces.detailed[ri][rj].force[index] += force_residue;
           } else {
-            residue_based.distributed_forces.detailed[ri][rj].force[to_index(to_pure(type))] += force;
+            residue_based.distributed_forces.detailed[ri][rj].force[index] += force;
           }
           break;
         case fda::OnePair::SUMMED:
@@ -93,9 +96,12 @@ void FDA::add_bonded_nocheck(int i, int j, fda::InteractionType type, rvec force
       int_swap(&i, &j);
       rvec_opp(force);
     }
+    int index;
     switch(fda_settings.one_pair) {
       case fda::OnePair::DETAILED:
-        atom_based.distributed_forces.detailed[i][j].force[to_index(to_pure(type))] += force;
+        index = to_index(to_pure(type));
+        ++atom_based.distributed_forces.detailed[i][j].number[index];
+        atom_based.distributed_forces.detailed[i][j].force[index] += force;
         break;
       case fda::OnePair::SUMMED:
         atom_based.distributed_forces.summed[i][j].force += force;
@@ -324,16 +330,21 @@ void FDA::add_nonbonded(int i, int j, real pf_coul, real pf_lj, real dx, real dy
         pf_coul_residue = pf_coul;
       }
       /* for detailed interactions, it's necessary to calculate and add separately, but for summed this can be simplified */
+      int index;
       switch(fda_settings.one_pair) {
         case fda::OnePair::DETAILED:
+          index = to_index(fda::PureInteractionType::COULOMB);
+          ++residue_based.distributed_forces.detailed[ri][rj].number[index];
           pf_coul_residue_v[0] = pf_coul_residue * dx;
           pf_coul_residue_v[1] = pf_coul_residue * dy;
           pf_coul_residue_v[2] = pf_coul_residue * dz;
-          residue_based.distributed_forces.detailed[ri][rj].force[to_index(fda::PureInteractionType::COULOMB)] += pf_coul_residue_v;
+          residue_based.distributed_forces.detailed[ri][rj].force[index] += pf_coul_residue_v;
+          index = to_index(fda::PureInteractionType::LJ);
+          ++residue_based.distributed_forces.detailed[ri][rj].number[index];
           pf_lj_residue_v[0] = pf_lj_residue * dx;
           pf_lj_residue_v[1] = pf_lj_residue * dy;
           pf_lj_residue_v[2] = pf_lj_residue * dz;
-          residue_based.distributed_forces.detailed[ri][rj].force[to_index(fda::PureInteractionType::LJ)] += pf_lj_residue_v;
+          residue_based.distributed_forces.detailed[ri][rj].force[index] += pf_lj_residue_v;
           break;
         case fda::OnePair::SUMMED:
           pf_lj_coul = pf_lj_residue + pf_coul_residue;
@@ -357,16 +368,21 @@ void FDA::add_nonbonded(int i, int j, real pf_coul, real pf_lj, real dx, real dy
       pf_coul = -pf_coul;
     }
     /* for detailed interactions, it's necessary to calculate and add separately, but for summed this can be simplified */
+    int index;
     switch(fda_settings.one_pair) {
       case fda::OnePair::DETAILED:
+        index = to_index(fda::PureInteractionType::COULOMB);
+        ++atom_based.distributed_forces.detailed[i][j].number[index];
         pf_coul_atom_v[0] = pf_coul * dx;
         pf_coul_atom_v[1] = pf_coul * dy;
         pf_coul_atom_v[2] = pf_coul * dz;
-        atom_based.distributed_forces.detailed[i][j].force[to_index(fda::PureInteractionType::COULOMB)] += pf_coul_atom_v;
+        atom_based.distributed_forces.detailed[i][j].force[index] += pf_coul_atom_v;
+        index = to_index(fda::PureInteractionType::LJ);
+        ++atom_based.distributed_forces.detailed[i][j].number[index];
         pf_lj_atom_v[0] = pf_lj * dx;
         pf_lj_atom_v[1] = pf_lj * dy;
         pf_lj_atom_v[2] = pf_lj * dz;
-        atom_based.distributed_forces.detailed[i][j].force[to_index(fda::PureInteractionType::LJ)] += pf_lj_atom_v;
+        atom_based.distributed_forces.detailed[i][j].force[index] += pf_lj_atom_v;
         break;
       case fda::OnePair::SUMMED:
         pf_lj_coul = pf_lj + pf_coul;

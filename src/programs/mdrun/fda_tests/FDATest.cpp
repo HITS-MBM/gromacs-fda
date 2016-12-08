@@ -9,12 +9,12 @@
 #include <string>
 #include <vector>
 #include <gtest/gtest.h>
+#include "gromacs/fda/PairwiseForces.h"
 #include "gromacs/options/filenameoption.h"
 #include "gromacs/utility/futil.h"
 #include "gromacs/utility/path.h"
 #include "gromacs/utility/real.h"
 #include "gromacs/gmxpreprocess/grompp.h"
-#include "PairwiseForces.h"
 #include "programs/mdrun/mdrun_main.h"
 #include "testutils/cmdlinetest.h"
 #include "testutils/integrationtests.h"
