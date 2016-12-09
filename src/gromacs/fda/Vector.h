@@ -26,6 +26,19 @@ public:
 	Vector(real *v2)
 	{ v[0] = v2[0]; v[1] = v2[1]; v[2] = v2[2]; }
 
+    bool operator == (Vector const& other) const {
+	  return v[0] == other.v[0] and v[1] == other.v[1] and v[2] == other.v[2];
+    }
+
+    bool operator != (Vector const& other) const {
+	  return !operator == (other);
+    }
+
+    template <class Comparer>
+    bool equal(Vector const& other, Comparer const& comparer) const {
+      return comparer(v[0], other.v[0]) and comparer(v[1], other.v[1]) and comparer(v[2], other.v[2]);
+    }
+
 	void operator+=(real *other)
 	{
 	    v[0] += other[0]; v[1] += other[1]; v[2] += other[2];
@@ -47,7 +60,7 @@ private:
 /// Output stream
 inline std::ostream& operator << (std::ostream& os, Vector const& v)
 {
-  return os << v[0] << v[1] << v[2];
+  return os << v[0] << " " << v[1] << " " << v[2];
 }
 
 /// Input stream

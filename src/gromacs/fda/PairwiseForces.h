@@ -35,46 +35,84 @@ public:
 	template <class Comparer>
 	bool equal(PairwiseForces const& other, Comparer const& comparer) const
 	{
-		if (all_pairwise_forces.size() != other.all_pairwise_forces.size()) {
-			std::cout << "number of frames       = " << all_pairwise_forces.size() << std::endl;
-			std::cout << "number of frames (ref) = " << other.all_pairwise_forces.size() << std::endl;
-			return false;
-		}
-		for (size_t frame = 0; frame !=  all_pairwise_forces.size(); ++frame) {
-            auto pairwise_force = all_pairwise_forces[frame];
-            auto other_pairwise_force = other.all_pairwise_forces[frame];
-    		if (pairwise_force.size() != other_pairwise_force.size()) {
-    			std::cout << "frame number = " << frame << std::endl;
-    			std::cout << "number of first atoms       = " << pairwise_force.size() << std::endl;
-    			std::cout << "number of first atoms (ref) = " << other_pairwise_force.size() << std::endl;
-    			return false;
-    		}
+		bool result = true;
+		if (all_pairwise_forces.size() != other.all_pairwise_forces.size()) result = false;
 
-    		// std::zip would be nice; avoid boost::zip as boost was ejected by gromacs
-            for (auto const& atom_i : pairwise_force) {
-            	auto other_atom_i = other_pairwise_force.find(atom_i.first);
-                if (other_atom_i == other_pairwise_force.end()) return false;
-                if (atom_i.second.size() != other_atom_i->second.size()) {
-        			std::cout << "frame number = " << frame << std::endl;
-        			std::cout << "atom i = " << atom_i.first << std::endl;
-        			std::cout << "number of second atoms       = " << atom_i.second.size() << std::endl;
-        			std::cout << "number of second atoms (ref) = " << other_atom_i->second.size() << std::endl;
-        			return false;
-        		}
+		// std::zip would be nice; avoid boost::zip as boost was ejected by gromacs
+		for (size_t frame = 0; frame !=  all_pairwise_forces.size(); ++frame) {
+            auto pairwise_forces = all_pairwise_forces[frame];
+            auto other_pairwise_forces = other.all_pairwise_forces[frame];
+    		if (pairwise_forces.size() != other_pairwise_forces.size()) result = false;
+
+    		for (size_t i = 0; i !=  pairwise_forces.size(); ++i) {
+                auto pairwise_force = pairwise_forces[i];
+                auto other_pairwise_force = other_pairwise_forces[i];
+        		if (!pairwise_force.equal(other_pairwise_force, comparer)) result = false;
     		}
 		}
-		return true;
+		if (!result) {
+		    std::cout << "actual\n" << *this << std::endl;
+		    std::cout << "expected\n" << other << std::endl;
+		}
+		return result;
 	}
 
 private:
 
 	FRIEND_TEST(PairwiseForcesTest, DefaultConstructor);
-	FRIEND_TEST(PairwiseForcesTest, ReadFile);
+	FRIEND_TEST(PairwiseForcesTest, ReadFile1);
+	FRIEND_TEST(PairwiseForcesTest, ReadFile2);
+	FRIEND_TEST(PairwiseForcesTest, ReadFile3);
 
-	typedef typename std::map<int, std::map<int, ForceType>> PairwiseForceType;
+    /// Output stream
+	friend std::ostream& operator << (std::ostream& os, PairwiseForces const& pf)
+	{
+	  for (size_t i = 0; i != pf.all_pairwise_forces.size(); ++i) {
+	    os << "frame " << i << std::endl;
+	    for (auto const& e : pf.all_pairwise_forces[i]) {
+	    	os << e.i << " "
+	    	   << e.j << " "
+	    	   << e.force << std::endl;
+	    }
+	  }
+	  return os;
+	}
 
-	std::vector<PairwiseForceType> all_pairwise_forces;
+	struct PairwiseForce {
+
+		PairwiseForce(int i, int j, ForceType force)
+		 : i(i), j(j), force(force)
+		{}
+
+		bool operator == (PairwiseForce const& other) const {
+			return i == other.i and j == other.j and force == other.force;
+		}
+
+		bool operator != (PairwiseForce const& other) const {
+			return !operator == (other);
+		}
+
+		template <class Comparer>
+		bool equal(PairwiseForce const& other, Comparer const& comparer) const {
+			return i == other.i and j == other.j and force.equal(other.force, comparer);
+		}
+
+		int i;
+		int j;
+		ForceType force;
+	};
+
+	typedef typename std::vector<PairwiseForce> PairwiseForceList;
+
+	std::vector<PairwiseForceList> all_pairwise_forces;
 };
+
+/// Input stream
+template <typename T>
+std::istream& operator >> (std::istream& is, PairwiseForces<T> & pf)
+{
+  return is;
+}
 
 } // namespace fda
 

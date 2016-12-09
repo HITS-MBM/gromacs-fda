@@ -97,7 +97,7 @@ TEST_P(FDATest, Basic)
     // Check results
     if (!GetParam().atomFileExtension.empty()) {
     	if (GetParam().atomFileExtension == "pfa")
-    		if (!GetParam().is_vector)
+    		if (GetParam().is_vector)
     		    EXPECT_TRUE((fda::PairwiseForces<fda::Force<fda::Vector>>(atomFilename).equal(
     			    fda::PairwiseForces<fda::Force<fda::Vector>>(atomReference), comparer)));
     		else
@@ -107,9 +107,13 @@ TEST_P(FDATest, Basic)
     	    EXPECT_TRUE((equal(TextSplitter(atomFilename), TextSplitter(atomReference), comparer)));
     }
     if (!GetParam().residueFileExtension.empty()) {
-    	if (GetParam().atomFileExtension == "pfa")
-    		EXPECT_TRUE((fda::PairwiseForces<fda::Force<real>>(residueFilename).equal(
-                fda::PairwiseForces<fda::Force<real>>(residueReference), comparer)));
+    	if (GetParam().residueFileExtension == "pfr")
+    		if (GetParam().is_vector)
+    		    EXPECT_TRUE((fda::PairwiseForces<fda::Force<fda::Vector>>(residueFilename).equal(
+                    fda::PairwiseForces<fda::Force<fda::Vector>>(residueReference), comparer)));
+    		else
+	            EXPECT_TRUE((fda::PairwiseForces<fda::Force<real>>(residueFilename).equal(
+                    fda::PairwiseForces<fda::Force<real>>(residueReference), comparer)));
     	else
     	    EXPECT_TRUE((equal(TextSplitter(residueFilename), TextSplitter(residueReference), comparer)));
     }
