@@ -63,13 +63,14 @@ void FDA::add_bonded_nocheck(int i, int j, fda::InteractionType type, rvec force
       switch(fda_settings.one_pair) {
         case fda::OnePair::DETAILED:
           index = to_index(to_pure(type));
-          ++residue_based.distributed_forces.detailed[ri][rj].number[index];
           if (ri > rj) {
             int_swap(&ri, &rj);
             clear_rvec(force_residue);
             rvec_dec(force_residue, force);
+            ++residue_based.distributed_forces.detailed[ri][rj].number[index];
             residue_based.distributed_forces.detailed[ri][rj].force[index] += force_residue;
           } else {
+            ++residue_based.distributed_forces.detailed[ri][rj].number[index];
             residue_based.distributed_forces.detailed[ri][rj].force[index] += force;
           }
           break;
@@ -133,6 +134,117 @@ void FDA::add_nonbonded_single(int i, int j, fda::InteractionType type, real for
   force_v[1] = force * dy;
   force_v[2] = force * dz;
   add_bonded_nocheck(i, j, type, force_v);
+}
+
+void FDA::add_nonbonded(int i, int j, real pf_coul, real pf_lj, real dx, real dy, real dz)
+{
+  real pf_lj_residue, pf_coul_residue, pf_lj_coul;
+  rvec pf_lj_atom_v, pf_lj_residue_v, pf_coul_atom_v, pf_coul_residue_v;
+
+  /* first check that the interaction is interesting before doing expensive calculations and atom lookup*/
+  if (!(fda_settings.type & fda::InteractionType_COULOMB))
+    if (!(fda_settings.type & fda::InteractionType_LJ))
+      return;
+    else {
+      add_nonbonded_single(i, j, fda::InteractionType_LJ, pf_lj, dx, dy, dz);
+      return;
+    }
+  else
+    if (!(fda_settings.type & fda::InteractionType_LJ)) {
+      add_nonbonded_single(i, j, fda::InteractionType_COULOMB, pf_coul, dx, dy, dz);
+      return;
+    }
+
+  if (!fda_settings.atoms_in_groups(i, j)) return;
+
+  /* checking is symmetrical for atoms i and j; one of them has to be from g1, the other one from g2
+   * however, if only residue_based_result_type is non-zero, atoms won't be initialized... so the conversion to residue numebers needs to be done here already;
+   * the check below makes the atoms equivalent, make them always have the same order (i,j) and not (j,i) where i < j;
+   * force is the force atom j exerts on atom i; if i and j are switched, the force goes in opposite direction
+   * it's possible that i > j, but ri < rj, so the force has to be handled separately for each of them
+   */
+  if (residue_based.PF_or_PS_mode()) {
+    /* the calling functions will not have i == j, but there is not such guarantee for ri and rj;
+     * and it makes no sense to look at the interaction of a residue to itself
+     */
+    int ri = fda_settings.get_atom2residue(i);
+    int rj = fda_settings.get_atom2residue(j);
+    if (ri != rj) {
+      if (ri > rj) {
+        int tmp = rj; rj = ri; ri = tmp; // swap
+        pf_lj_residue = -pf_lj;
+        pf_coul_residue = -pf_coul;
+      } else {
+        pf_lj_residue = pf_lj;
+        pf_coul_residue = pf_coul;
+      }
+      /* for detailed interactions, it's necessary to calculate and add separately, but for summed this can be simplified */
+      int index;
+      switch(fda_settings.one_pair) {
+        case fda::OnePair::DETAILED:
+          index = to_index(fda::PureInteractionType::COULOMB);
+          ++residue_based.distributed_forces.detailed[ri][rj].number[index];
+          pf_coul_residue_v[0] = pf_coul_residue * dx;
+          pf_coul_residue_v[1] = pf_coul_residue * dy;
+          pf_coul_residue_v[2] = pf_coul_residue * dz;
+          residue_based.distributed_forces.detailed[ri][rj].force[index] += pf_coul_residue_v;
+          index = to_index(fda::PureInteractionType::LJ);
+          ++residue_based.distributed_forces.detailed[ri][rj].number[index];
+          pf_lj_residue_v[0] = pf_lj_residue * dx;
+          pf_lj_residue_v[1] = pf_lj_residue * dy;
+          pf_lj_residue_v[2] = pf_lj_residue * dz;
+          residue_based.distributed_forces.detailed[ri][rj].force[index] += pf_lj_residue_v;
+          break;
+        case fda::OnePair::SUMMED:
+          pf_lj_coul = pf_lj_residue + pf_coul_residue;
+          pf_coul_residue_v[0] = pf_lj_coul * dx;
+          pf_coul_residue_v[1] = pf_lj_coul * dy;
+          pf_coul_residue_v[2] = pf_lj_coul * dz;
+          residue_based.distributed_forces.summed[ri][rj].force += pf_coul_residue_v;
+          residue_based.distributed_forces.summed[ri][rj].type |= fda::InteractionType_COULOMB | fda::InteractionType_LJ;
+          break;
+        case fda::OnePair::INVALID:
+          break;
+      }
+    }
+  }
+
+  /* i & j as well as pf_lj & pf_coul are not used after this point, so it's safe to operate on their values directly */
+  if (atom_based.PF_or_PS_mode()) {
+    if (i > j) {
+      int tmp = j; j = i; i = tmp; // swap
+      pf_lj = -pf_lj;
+      pf_coul = -pf_coul;
+    }
+    /* for detailed interactions, it's necessary to calculate and add separately, but for summed this can be simplified */
+    int index;
+    switch(fda_settings.one_pair) {
+      case fda::OnePair::DETAILED:
+        index = to_index(fda::PureInteractionType::COULOMB);
+        ++atom_based.distributed_forces.detailed[i][j].number[index];
+        pf_coul_atom_v[0] = pf_coul * dx;
+        pf_coul_atom_v[1] = pf_coul * dy;
+        pf_coul_atom_v[2] = pf_coul * dz;
+        atom_based.distributed_forces.detailed[i][j].force[index] += pf_coul_atom_v;
+        index = to_index(fda::PureInteractionType::LJ);
+        ++atom_based.distributed_forces.detailed[i][j].number[index];
+        pf_lj_atom_v[0] = pf_lj * dx;
+        pf_lj_atom_v[1] = pf_lj * dy;
+        pf_lj_atom_v[2] = pf_lj * dz;
+        atom_based.distributed_forces.detailed[i][j].force[index] += pf_lj_atom_v;
+        break;
+      case fda::OnePair::SUMMED:
+        pf_lj_coul = pf_lj + pf_coul;
+        pf_coul_atom_v[0] = pf_lj_coul * dx;
+        pf_coul_atom_v[1] = pf_lj_coul * dy;
+        pf_coul_atom_v[2] = pf_lj_coul * dz;
+        atom_based.distributed_forces.summed[i][j].force += pf_coul_atom_v;
+        atom_based.distributed_forces.summed[i][j].type |= fda::InteractionType_COULOMB | fda::InteractionType_LJ;
+        break;
+      case fda::OnePair::INVALID:
+        break;
+    }
+  }
 }
 
 void FDA::add_angle(int ai, int aj, int ak, rvec f_i, rvec f_j, rvec f_k)
@@ -285,117 +397,6 @@ void FDA::add_dihedral(int i, int j, int k, int l, rvec f_i, rvec f_j, rvec f_k,
     add_bonded(j, k, fda::InteractionType_DIHEDRAL, f_j_k);
     add_bonded(j, l, fda::InteractionType_DIHEDRAL, f_j_l);
     add_bonded(k, l, fda::InteractionType_DIHEDRAL, f_k_l);
-}
-
-void FDA::add_nonbonded(int i, int j, real pf_coul, real pf_lj, real dx, real dy, real dz)
-{
-  real pf_lj_residue, pf_coul_residue, pf_lj_coul;
-  rvec pf_lj_atom_v, pf_lj_residue_v, pf_coul_atom_v, pf_coul_residue_v;
-
-  /* first check that the interaction is interesting before doing expensive calculations and atom lookup*/
-  if (!(fda_settings.type & fda::InteractionType_COULOMB))
-    if (!(fda_settings.type & fda::InteractionType_LJ))
-      return;
-    else {
-      add_nonbonded_single(i, j, fda::InteractionType_LJ, pf_lj, dx, dy, dz);
-      return;
-    }
-  else
-    if (!(fda_settings.type & fda::InteractionType_LJ)) {
-      add_nonbonded_single(i, j, fda::InteractionType_COULOMB, pf_coul, dx, dy, dz);
-      return;
-    }
-
-  if (!fda_settings.atoms_in_groups(i, j)) return;
-
-  /* checking is symmetrical for atoms i and j; one of them has to be from g1, the other one from g2
-   * however, if only residue_based_result_type is non-zero, atoms won't be initialized... so the conversion to residue numebers needs to be done here already;
-   * the check below makes the atoms equivalent, make them always have the same order (i,j) and not (j,i) where i < j;
-   * force is the force atom j exerts on atom i; if i and j are switched, the force goes in opposite direction
-   * it's possible that i > j, but ri < rj, so the force has to be handled separately for each of them
-   */
-  if (residue_based.PF_or_PS_mode()) {
-    /* the calling functions will not have i == j, but there is not such guarantee for ri and rj;
-     * and it makes no sense to look at the interaction of a residue to itself
-     */
-    int ri = fda_settings.get_atom2residue(i);
-    int rj = fda_settings.get_atom2residue(j);
-    if (ri != rj) {
-      if (ri > rj) {
-        int tmp = rj; rj = ri; ri = tmp; // swap
-        pf_lj_residue = -pf_lj;
-        pf_coul_residue = -pf_coul;
-      } else {
-        pf_lj_residue = pf_lj;
-        pf_coul_residue = pf_coul;
-      }
-      /* for detailed interactions, it's necessary to calculate and add separately, but for summed this can be simplified */
-      int index;
-      switch(fda_settings.one_pair) {
-        case fda::OnePair::DETAILED:
-          index = to_index(fda::PureInteractionType::COULOMB);
-          ++residue_based.distributed_forces.detailed[ri][rj].number[index];
-          pf_coul_residue_v[0] = pf_coul_residue * dx;
-          pf_coul_residue_v[1] = pf_coul_residue * dy;
-          pf_coul_residue_v[2] = pf_coul_residue * dz;
-          residue_based.distributed_forces.detailed[ri][rj].force[index] += pf_coul_residue_v;
-          index = to_index(fda::PureInteractionType::LJ);
-          ++residue_based.distributed_forces.detailed[ri][rj].number[index];
-          pf_lj_residue_v[0] = pf_lj_residue * dx;
-          pf_lj_residue_v[1] = pf_lj_residue * dy;
-          pf_lj_residue_v[2] = pf_lj_residue * dz;
-          residue_based.distributed_forces.detailed[ri][rj].force[index] += pf_lj_residue_v;
-          break;
-        case fda::OnePair::SUMMED:
-          pf_lj_coul = pf_lj_residue + pf_coul_residue;
-          pf_coul_residue_v[0] = pf_lj_coul * dx;
-          pf_coul_residue_v[1] = pf_lj_coul * dy;
-          pf_coul_residue_v[2] = pf_lj_coul * dz;
-          residue_based.distributed_forces.summed[ri][rj].force += pf_coul_residue_v;
-          residue_based.distributed_forces.summed[ri][rj].type |= fda::InteractionType_COULOMB | fda::InteractionType_LJ;
-          break;
-        case fda::OnePair::INVALID:
-          break;
-      }
-    }
-  }
-
-  /* i & j as well as pf_lj & pf_coul are not used after this point, so it's safe to operate on their values directly */
-  if (atom_based.PF_or_PS_mode()) {
-    if (i > j) {
-      int tmp = j; j = i; i = tmp; // swap
-      pf_lj = -pf_lj;
-      pf_coul = -pf_coul;
-    }
-    /* for detailed interactions, it's necessary to calculate and add separately, but for summed this can be simplified */
-    int index;
-    switch(fda_settings.one_pair) {
-      case fda::OnePair::DETAILED:
-        index = to_index(fda::PureInteractionType::COULOMB);
-        ++atom_based.distributed_forces.detailed[i][j].number[index];
-        pf_coul_atom_v[0] = pf_coul * dx;
-        pf_coul_atom_v[1] = pf_coul * dy;
-        pf_coul_atom_v[2] = pf_coul * dz;
-        atom_based.distributed_forces.detailed[i][j].force[index] += pf_coul_atom_v;
-        index = to_index(fda::PureInteractionType::LJ);
-        ++atom_based.distributed_forces.detailed[i][j].number[index];
-        pf_lj_atom_v[0] = pf_lj * dx;
-        pf_lj_atom_v[1] = pf_lj * dy;
-        pf_lj_atom_v[2] = pf_lj * dz;
-        atom_based.distributed_forces.detailed[i][j].force[index] += pf_lj_atom_v;
-        break;
-      case fda::OnePair::SUMMED:
-        pf_lj_coul = pf_lj + pf_coul;
-        pf_coul_atom_v[0] = pf_lj_coul * dx;
-        pf_coul_atom_v[1] = pf_lj_coul * dy;
-        pf_coul_atom_v[2] = pf_lj_coul * dz;
-        atom_based.distributed_forces.summed[i][j].force += pf_coul_atom_v;
-        atom_based.distributed_forces.summed[i][j].type |= fda::InteractionType_COULOMB | fda::InteractionType_LJ;
-        break;
-      case fda::OnePair::INVALID:
-        break;
-    }
-  }
 }
 
 void FDA::add_virial(int ai, tensor v, real s)
