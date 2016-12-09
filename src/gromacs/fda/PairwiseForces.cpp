@@ -51,6 +51,7 @@ PairwiseForces<ForceType>::PairwiseForces(std::string const& filename)
 			std::cerr << token << std::endl;
 			throw;
 		}
+
 		is >> j >> force;
 		pairwise_forces.push_back(PairwiseForce(i,j,force));
     }

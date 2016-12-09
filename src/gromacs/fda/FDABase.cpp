@@ -378,6 +378,8 @@ void FDABase<Base>::write_frame_atoms_summed_compat(rvec *x)
 template <>
 void FDABase<Atom>::write_atom_virial_sum()
 {
+  result_file << std::scientific << std::setprecision(6);
+
   bool first = true;
   for (auto const& v : virial_stress) {
     if (!first) result_file << " ";
@@ -404,6 +406,8 @@ real tensor_to_vonmises(Tensor t)
 template <>
 void FDABase<Atom>::write_atom_virial_sum_von_mises()
 {
+  result_file << std::scientific << std::setprecision(6);
+
   bool first = true;
   for (auto const& v : virial_stress) {
 	if (!first) result_file << " ";

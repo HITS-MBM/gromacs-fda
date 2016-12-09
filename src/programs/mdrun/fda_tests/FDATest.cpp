@@ -56,6 +56,8 @@ class FDATest : public ::testing::WithParamInterface<TestDataStructure>,
 //! Test body for FDA
 TEST_P(FDATest, Basic)
 {
+	std::cout << GetParam().testDirectory << std::endl;
+
     std::string cwd = gmx::Path::getWorkingDirectory();
     std::string dataPath = std::string(fileManager_.getInputDataDirectory()) + "/data";
     std::string testPath = fileManager_.getTemporaryFilePath("/" + GetParam().testDirectory);
@@ -140,11 +142,11 @@ INSTANTIATE_TEST_CASE_P(AllFDATests, FDATest, ::testing::Values(
     TestDataStructure("glycine_trimer_group_excl4", "pfa", "pfr"),
     TestDataStructure("glycine_trimer_group_excl5", "pfa", "pfr"),
     TestDataStructure("glycine_trimer_group_excl6", "pfa", "pfr"),
-    TestDataStructure("glycine_trimer_group_bonded_excl1", "pfa", "pfr")
-//    TestDataStructure("glycine_trimer_virial_stress", "vsa", ""),
-//    TestDataStructure("glycine_trimer_virial_stress_von_mises", "vma", "")
-//    TestDataStructure("vwf_a2_domain_nframes1_pairwise_forces_scalar", "pfa", "pfr", "traj.xtc"),
-//    TestDataStructure("vwf_a2_domain_nframes1_punctual_stress", "psa", "psr", "traj.xtc"),
-//    TestDataStructure("vwf_a2_domain_nframes10_pairwise_forces_scalar", "pfa", "pfr", "traj.xtc"),
-//    TestDataStructure("vwf_a2_domain_nframes10_punctual_stress", "psa", "psr", "traj.xtc")
+    TestDataStructure("glycine_trimer_group_bonded_excl1", "pfa", "pfr"),
+    TestDataStructure("glycine_trimer_virial_stress", "vsa", ""),
+    TestDataStructure("glycine_trimer_virial_stress_von_mises", "vma", ""),
+    TestDataStructure("vwf_a2_domain_nframes1_pairwise_forces_scalar", "pfa", "pfr", "traj.xtc"),
+    TestDataStructure("vwf_a2_domain_nframes1_punctual_stress", "psa", "psr", "traj.xtc"),
+    TestDataStructure("vwf_a2_domain_nframes10_pairwise_forces_scalar", "pfa", "pfr", "traj.xtc"),
+    TestDataStructure("vwf_a2_domain_nframes10_punctual_stress", "psa", "psr", "traj.xtc")
 ));

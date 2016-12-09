@@ -50,10 +50,10 @@ public:
         		if (!pairwise_force.equal(other_pairwise_force, comparer)) result = false;
     		}
 		}
-		if (!result) {
-		    std::cout << "actual\n" << *this << std::endl;
-		    std::cout << "expected\n" << other << std::endl;
-		}
+//		if (!result) {
+//		    std::cout << "actual\n" << *this << std::endl;
+//		    std::cout << "expected\n" << other << std::endl;
+//		}
 		return result;
 	}
 

@@ -291,11 +291,14 @@ void FDA::add_dihedral(int i, int j, int k, int l, rvec f_i, rvec f_j, rvec f_k,
      * this situation can occur f.e. when all f_i, f_j, f_k and f_l are (almost) zero;
      * in this case there is no call to fda_add_bonded, no pairwise forces are recorded (which is different from recording zero forces!)
      */
-    //fprintf(stderr, "dihedral: i=%d, j=%d, k=%d, l=%d\n", i, j, k, l);
-    /*print_vec("f_i", f_i);
-    print_vec("f_j", f_j);
-    print_vec("f_k", f_k);
-    print_vec("f_l", f_l);*/
+    if (norm(f_i) + norm(f_j) + norm(f_k) + norm(f_l) == 0.0) {
+//      std::cout << "dihedral: i, j, k, l = " << i << " " << j << " " << k << " " << l << std::endl;
+//      std::cout << "f_i = " << f_i[0] << " " << f_i[1] << " " << f_i[2] << std::endl;
+//      std::cout << "f_j = " << f_j[0] << " " << f_j[1] << " " << f_j[2] << std::endl;
+//      std::cout << "f_k = " << f_k[0] << " " << f_k[1] << " " << f_k[2] << std::endl;
+//      std::cout << "f_l = " << f_l[0] << " " << f_l[1] << " " << f_l[2] << std::endl;
+      return;
+    }
     /* below computation needs -f_j and -f_k */
     clear_rvec(f_mj);
     rvec_sub(f_mj, f_j, f_mj);
