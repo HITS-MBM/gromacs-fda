@@ -8,11 +8,12 @@
 #ifndef SRC_GROMACS_FDA_DISTRIBUTEDFORCES_H_
 #define SRC_GROMACS_FDA_DISTRIBUTEDFORCES_H_
 
-#include <stddef.h>
 #include <map>
+#include <vector>
 #include "gromacs/math/vectypes.h"
 #include "gromacs/utility/real.h"
 #include "DetailedForce.h"
+#include "FDASettings.h"
 #include "Force.h"
 #include "Vector.h"
 #include "Vector2Scalar.h"
@@ -39,10 +40,31 @@ class DistributedForces
 {
 public:
 
+  /// Constructor
+  DistributedForces(int syslen, FDASettings const& fda_settings);
+
+  void add_scalar(int i, int j, real force, InteractionType type);
+
+  void add_summed(int i, int j, Vector const& force, InteractionType type);
+
+  void add_detailed(int i, int j, Vector const& force, PureInteractionType type);
+
+  void write_detailed_vector(std::ostream& os) const;
+
+  void write_detailed_scalar(std::ostream& os, rvec *x) const;
+
+  void write_summed_vector(std::ostream& os) const;
+
+  void write_summed_scalar(std::ostream& os, rvec *x) const;
+
+  void write_scalar(std::ostream& os) const;
+
+  void write_total_forces(std::ostream& os, rvec *x) const;
+
   /// Divide all scalar forces by the divisor
   void scalar_real_divide(real divisor);
 
-  void summed_merge_to_scalar(const rvec *x, Vector2Scalar v2s);
+  void summed_merge_to_scalar(const rvec *x);
 
   size_t size() const { return scalar.size(); }
 
@@ -51,14 +73,26 @@ private:
   friend class ::FDA;
   template <class Base> friend class FDABase;
 
+  /// Total number of atoms/residues in the system
+  int syslen;
+
+  /// Returns position of atom j in force array
+  std::map<int, int> lookup;
+
+  /// Returns atom index j of the position in force array
+  std::map<int, int> reverse_lookup;
+
   /// Map atom/residue pair to scalar forces
-  std::map<int, std::map<int, Force<real>>> scalar;
+  std::vector<std::vector<Force<real>>> scalar;
 
   /// Map atom/residue pair to summed vector forces
-  std::map<int, std::map<int, Force<Vector>>> summed;
+  std::vector<std::vector<Force<Vector>>> summed;
 
   /// Map atom/residue pair to detailed forces
-  std::map<int, std::map<int, DetailedForce>> detailed;
+  std::vector<std::vector<DetailedForce>> detailed;
+
+  /// For atom/residue unrelated settings
+  FDASettings fda_settings;
 
 };
 

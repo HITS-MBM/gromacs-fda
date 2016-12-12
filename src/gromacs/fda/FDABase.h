@@ -88,7 +88,7 @@ public:
 
   void sum_total_forces(rvec *x);
 
-  void write_total_forces();
+  void write_total_forces(rvec *x);
 
   /**
    * Writes a header as in original PF implementation;
@@ -124,9 +124,6 @@ private:
 
   /// Distributed forces
   DistributedForces distributed_forces;
-
-  /// Total force per atom
-  std::vector<real> total_forces;
 
   /// Result file
   std::ofstream result_file;

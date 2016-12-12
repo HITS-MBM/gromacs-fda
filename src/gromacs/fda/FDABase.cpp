@@ -21,11 +21,11 @@ FDABase<Base>::FDABase(ResultType result_type, int syslen, std::string const& re
  : Base(result_type == ResultType::VIRIAL_STRESS or result_type == ResultType::VIRIAL_STRESS_VON_MISES, syslen),
    result_type(result_type),
    syslen(syslen),
-   distributed_forces(),
-   total_forces(PF_or_PS_mode() and result_type == ResultType::PUNCTUAL_STRESS ? syslen : 0),
+   distributed_forces(syslen, fda_settings),
    result_file(result_filename),
    fda_settings(fda_settings)
 {
+  result_file << std::scientific << std::setprecision(6);
   if (PF_or_PS_mode()) make_backup(result_filename.c_str());
   write_compat_header(1);
 }
@@ -77,8 +77,7 @@ void FDABase<Base>::write_frame(rvec *x, int nsteps)
 		  write_frame_summed(x, false, nsteps);
 		  break;
 		case ResultType::PUNCTUAL_STRESS:
-		  sum_total_forces(x);
-		  write_total_forces();
+		  write_total_forces(x);
 		  break;
 		case ResultType::VIRIAL_STRESS:
 		  write_atom_virial_sum();
@@ -111,112 +110,33 @@ template <class Base>
 void FDABase<Base>::write_frame_detailed(rvec *x, bool print_vector, int nsteps)
 {
   result_file << "frame " << nsteps << std::endl;
-  result_file << std::scientific << std::setprecision(6);
-
-  for (auto const& v1 : distributed_forces.detailed) {
-    int i = v1.first;
-    for (auto const& v2 : v1.second) {
-      int j = v2.first;
-      for (int type = 0; type != static_cast<int>(PureInteractionType::NUMBER); ++type) {
-    	Vector force = v2.second.force[type];
-    	if (v2.second.number[type] == 0) continue;
-    	InteractionType interaction_type = from_pure(static_cast<PureInteractionType>(type));
-        if (print_vector) {
-          result_file << i << " " << j << " " << force[XX] << " " << force[YY] << " " << force[ZZ] << " " << interaction_type << std::endl;
-        } else {
-          result_file << i << " " << j << " " << vector2signedscalar(force.get_pointer(), x[i], x[j], fda_settings.v2s) << " " << interaction_type << std::endl;
-        }
-      }
-    }
-  }
+  if (print_vector)
+    distributed_forces.write_detailed_vector(result_file);
+  else
+    distributed_forces.write_detailed_scalar(result_file, x);
 }
 
 template <class Base>
 void FDABase<Base>::write_frame_summed(rvec *x, bool print_vector, int nsteps)
 {
   result_file << "frame " << nsteps << std::endl;
-  result_file << std::scientific << std::setprecision(6);
-
-  for (auto const& v1 : distributed_forces.summed) {
-	int i = v1.first;
-	for (auto const& v2 : v1.second) {
-	  int j = v2.first;
-	  Vector force = v2.second.force;
-	  if (print_vector) {
-	    result_file << i << " " << j << " " << force[XX] << " " << force[YY] << " " << force[ZZ] << " " << v2.second.type << std::endl;
-	  } else {
-		result_file << i << " " << j << " " << vector2signedscalar(force.get_pointer(), x[i], x[j], fda_settings.v2s) << " " << v2.second.type << std::endl;
-	  }
-	}
-  }
+  if (print_vector)
+    distributed_forces.write_summed_vector(result_file);
+  else
+    distributed_forces.write_summed_scalar(result_file, x);
 }
 
 template <class Base>
 void FDABase<Base>::write_frame_scalar(int nsteps)
 {
   result_file << "frame " << nsteps << std::endl;
-  result_file << std::scientific << std::setprecision(6);
-
-  for (auto const& v1 : distributed_forces.scalar) {
-	int i = v1.first;
-	for (auto const& v2 : v1.second) {
-	  int j = v2.first;
-      result_file << i << " " << j << " " << v2.second.force << " " << v2.second.type << std::endl;
-	}
-  }
+  distributed_forces.write_scalar(result_file);
 }
 
 template <class Base>
-void FDABase<Base>::sum_total_forces(rvec *x)
+void FDABase<Base>::write_total_forces(rvec *x)
 {
-  std::fill(total_forces.begin(), total_forces.end(), 0.0);
-
-  for (auto const& v1 : distributed_forces.summed) {
-    int i = v1.first;
-    for (auto const& v2 : v1.second) {
-      int j = v2.first;
-      real scalar_force;
-      switch (fda_settings.v2s) {
-        case Vector2Scalar::NORM:
-          scalar_force = norm(v2.second.force.get_pointer());
-          break;
-        case Vector2Scalar::PROJECTION:
-          scalar_force = vector2unsignedscalar(v2.second.force.get_pointer(), i, j, x);
-          break;
-        default:
-      	  gmx_fatal(FARGS, "Unknown option for Vector2Scalar.\n");
-          break;
-      }
-      total_forces[i] += scalar_force;
-      total_forces[j] += scalar_force;
-    }
-  }
-}
-
-template <class Base>
-void FDABase<Base>::write_total_forces()
-{
-  result_file << std::scientific << std::setprecision(6);
-
-  int j = total_forces.size();
-  // Detect the last non-zero item
-  if (fda_settings.no_end_zeros) {
-    for (; j > 0; --j)
-      if (total_forces[j - 1] != 0.0)
-        break;
-  }
-
-  // j holds the index of first zero item or the length of force
-  bool first_on_line = true;
-  for (int i = 0; i < j; ++i) {
-    if (first_on_line) {
-      result_file << total_forces[i];
-      first_on_line = false;
-    } else {
-      result_file << " " << total_forces[i];
-    }
-  }
-  result_file << std::endl;
+  distributed_forces.write_total_forces(result_file, x);
 }
 
 template <class Base>

@@ -39,7 +39,12 @@ public:
       return comparer(v[0], other.v[0]) and comparer(v[1], other.v[1]) and comparer(v[2], other.v[2]);
     }
 
-	void operator+=(real *other)
+	void operator += (Vector const& other)
+	{
+	    v[0] += other[0]; v[1] += other[1]; v[2] += other[2];
+	}
+
+	void operator += (real *other)
 	{
 	    v[0] += other[0]; v[1] += other[1]; v[2] += other[2];
 	}

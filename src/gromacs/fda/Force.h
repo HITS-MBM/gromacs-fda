@@ -31,6 +31,11 @@ struct Force
 	return !operator == (other);
   }
 
+  void operator += (Force const& other) {
+	force += other.force;
+    type |= other.type;
+  }
+
   template <class Comparer>
   bool equal(Force const& other, Comparer const& comparer) const;
 
