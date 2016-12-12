@@ -90,8 +90,8 @@ TEST_P(FDATest, Basic)
 
     ASSERT_FALSE(gmx_mdrun(callRerun.argc(), callRerun.argv()));
 
-    const double error_factor = 1.0e4;
-    const bool weight_by_magnitude = false;
+    const double error_factor = 1e4;
+    const bool weight_by_magnitude = true;
     const bool ignore_sign = true;
 
     LogicallyEqualComparer<weight_by_magnitude, ignore_sign> comparer(error_factor);
