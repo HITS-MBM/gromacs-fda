@@ -35,26 +35,26 @@ public:
 	template <class Comparer>
 	bool equal(PairwiseForces const& other, Comparer const& comparer) const
 	{
-		bool result = true;
-		if (all_pairwise_forces.size() != other.all_pairwise_forces.size()) result = false;
+		if (all_pairwise_forces.size() != other.all_pairwise_forces.size()) return false;
 
 		// std::zip would be nice; avoid boost::zip as boost was ejected by gromacs
 		for (size_t frame = 0; frame !=  all_pairwise_forces.size(); ++frame) {
             auto pairwise_forces = all_pairwise_forces[frame];
             auto other_pairwise_forces = other.all_pairwise_forces[frame];
-    		if (pairwise_forces.size() != other_pairwise_forces.size()) result = false;
+    		if (pairwise_forces.size() != other_pairwise_forces.size()) return false;
 
     		for (size_t i = 0; i !=  pairwise_forces.size(); ++i) {
                 auto pairwise_force = pairwise_forces[i];
                 auto other_pairwise_force = other_pairwise_forces[i];
-        		if (!pairwise_force.equal(other_pairwise_force, comparer)) result = false;
+        		if (!pairwise_force.equal(other_pairwise_force, comparer)) {
+        			std::cout << "i (actual, expected) = " << pairwise_force.i << " " << other_pairwise_force.i << std::endl;
+        			std::cout << "j (actual, expected) = " << pairwise_force.j << " " << other_pairwise_force.j << std::endl;
+        			std::cout << "force (actual, expected) = " << pairwise_force.force << " " << other_pairwise_force.force << std::endl;
+        			return false;
+        		}
     		}
 		}
-//		if (!result) {
-//		    std::cout << "actual\n" << *this << std::endl;
-//		    std::cout << "expected\n" << other << std::endl;
-//		}
-		return result;
+		return true;
 	}
 
 private:

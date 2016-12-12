@@ -88,9 +88,11 @@ TEST_P(FDATest, Basic)
     if (!GetParam().atomFileExtension.empty()) callRerun.addOption(atomOption.c_str(), atomFilename.c_str());
     if (!GetParam().residueFileExtension.empty()) callRerun.addOption(residueOption.c_str(), residueFilename.c_str());
 
+	std::cout << "command: " << callRerun.toString() << std::endl;
+
     ASSERT_FALSE(gmx_mdrun(callRerun.argc(), callRerun.argv()));
 
-    const double error_factor = 1e4;
+    const double error_factor = 1e2;
     const bool weight_by_magnitude = true;
     const bool ignore_sign = true;
 
