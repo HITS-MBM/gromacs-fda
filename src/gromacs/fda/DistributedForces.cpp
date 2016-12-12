@@ -24,51 +24,60 @@ void DistributedForces::add_scalar(int i, int j, real force, InteractionType typ
 {
   if (i > j) throw std::runtime_error("Only upper triangle allowed (i < j).");
 
+  auto& scalar_i = scalar[i];
+
   int pos_j;
   if (lookup.count(j)) {
     pos_j = lookup[j];
   } else {
-	pos_j = scalar[i].size();
+	pos_j = scalar_i.size();
+	scalar_i.resize(scalar_i.size() + 1);
 	lookup[j] = pos_j;
 	reverse_lookup[pos_j] = j;
   }
 
-  scalar[i][pos_j].force += force;
-  scalar[i][pos_j].type |= type;
+  scalar_i[pos_j].force += force;
+  scalar_i[pos_j].type |= type;
 }
 
 void DistributedForces::add_summed(int i, int j, Vector const& force, InteractionType type)
 {
   if (i > j) throw std::runtime_error("Only upper triangle allowed (i < j).");
 
+  auto& summed_i = summed[i];
+
   int pos_j;
   if (lookup.count(j)) {
     pos_j = lookup[j];
   } else {
-	pos_j = scalar[i].size();
+	pos_j = summed_i.size();
+	summed_i.resize(summed_i.size() + 1);
 	lookup[j] = pos_j;
 	reverse_lookup[pos_j] = j;
   }
 
-  summed[i][pos_j].force += force;
-  summed[i][pos_j].type |= type;
+  summed_i[pos_j].force += force;
+  summed_i[pos_j].type |= type;
 }
 
 void DistributedForces::add_detailed(int i, int j, Vector const& force, PureInteractionType type)
 {
   if (i > j) throw std::runtime_error("Only upper triangle allowed (i < j).");
 
+  auto& detailed_i = detailed[i];
+
   int pos_j;
   if (lookup.count(j)) {
     pos_j = lookup[j];
   } else {
-	pos_j = scalar[i].size();
+	pos_j = detailed_i.size();
+	detailed_i.resize(detailed_i.size() + 1);
 	lookup[j] = pos_j;
 	reverse_lookup[pos_j] = j;
   }
 
-  detailed[i][pos_j].force[to_index(type)] += force;
-  ++detailed[i][pos_j].number[to_index(type)];
+  detailed_i[pos_j].force[to_index(type)] += force;
+  ++detailed_i[pos_j].number[to_index(type)];
 }
 
 void DistributedForces::write_detailed_vector(std::ostream& os) const
