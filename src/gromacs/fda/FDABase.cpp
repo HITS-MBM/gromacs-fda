@@ -101,9 +101,7 @@ void FDABase<Base>::write_frame(rvec *x, int nsteps)
 	  break;
   }
   // Clear arrays for next frame
-  distributed_forces.detailed.clear();
-  distributed_forces.summed.clear();
-  distributed_forces.scalar.clear();
+  distributed_forces.clear();
 }
 
 template <class Base>
@@ -147,14 +145,14 @@ void FDABase<Base>::write_compat_header(int nsteps)
   result_file << "<begin_block>" << std::endl;
   result_file << "; Forcemat version " << FDASettings::compat_fm_version << std::endl;
   result_file << "; Matrix containing pairwise forces." << std::endl;
-  result_file << "; Matrix dimension " << distributed_forces.size() << " x " << distributed_forces.size() << std::endl;
+  result_file << "; Matrix dimension " << syslen << " x " << syslen << std::endl;
   result_file << "version=" << FDASettings::compat_fm_version << std::endl;
   result_file << "groupname=" << fda_settings.groupname << std::endl;
   result_file << "writefreq=1" << std::endl;
   // Reserve place for up to 8 digits for nsteps
   result_file << "nsteps=" << std::setfill('0') << std::setw(8) << nsteps << std::endl;
   result_file << "sysanr=" << syslen << std::endl;
-  result_file << "fmdim=" << distributed_forces.size() << std::endl;
+  result_file << "fmdim=" << syslen << std::endl;
   result_file << "intsize=" << sizeof(int) << std::endl;
   result_file << "realsize=" << sizeof(real) << std::endl;
   result_file << "<end_block>" << std::endl;

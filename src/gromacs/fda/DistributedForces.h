@@ -43,6 +43,9 @@ public:
   /// Constructor
   DistributedForces(int syslen, FDASettings const& fda_settings);
 
+  /// Clear all array for the next frame
+  void clear();
+
   void add_scalar(int i, int j, real force, InteractionType type);
 
   void add_summed(int i, int j, Vector const& force, InteractionType type);
@@ -66,8 +69,6 @@ public:
 
   void summed_merge_to_scalar(const rvec *x);
 
-  size_t size() const { return scalar.size(); }
-
 private:
 
   friend class ::FDA;
@@ -77,10 +78,10 @@ private:
   int syslen;
 
   /// Returns position of atom j in force array
-  std::map<int, int> lookup;
+  std::vector<std::map<int, int>> lookup;
 
   /// Returns atom index j of the position in force array
-  std::map<int, int> reverse_lookup;
+  std::vector<std::map<int, int>> reverse_lookup;
 
   /// Map atom/residue pair to scalar forces
   std::vector<std::vector<Force<real>>> scalar;

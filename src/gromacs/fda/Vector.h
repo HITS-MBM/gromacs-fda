@@ -26,12 +26,14 @@ public:
 	Vector(real *v2)
 	{ v[0] = v2[0]; v[1] = v2[1]; v[2] = v2[2]; }
 
-    bool operator == (Vector const& other) const {
-	  return v[0] == other.v[0] and v[1] == other.v[1] and v[2] == other.v[2];
+    bool operator == (Vector const& other) const
+    {
+	  return !operator != (other);
     }
 
-    bool operator != (Vector const& other) const {
-	  return !operator == (other);
+    bool operator != (Vector const& other) const
+    {
+  	  return v[0] != other.v[0] or v[1] != other.v[1] or v[2] != other.v[2];
     }
 
     template <class Comparer>
