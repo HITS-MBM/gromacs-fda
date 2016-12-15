@@ -5,6 +5,7 @@
  *      Author: Bernd Doser, HITS gGmbH <bernd.doser@h-its.org>
  */
 
+#include <algorithm>
 #include "DistributedForces.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/utility/fatalerror.h"
@@ -14,8 +15,7 @@ namespace fda {
 
 DistributedForces::DistributedForces(int syslen, FDASettings const& fda_settings)
  : syslen(syslen),
-   lookup(syslen),
-   reverse_lookup(syslen),
+   indices(syslen),
    scalar(syslen),
    summed(syslen),
    detailed(syslen),
@@ -24,11 +24,10 @@ DistributedForces::DistributedForces(int syslen, FDASettings const& fda_settings
 
 void DistributedForces::clear()
 {
+  for (auto& e : indices) e.clear();
   for (auto& e : scalar) e.clear();
   for (auto& e : summed) e.clear();
   for (auto& e : detailed) e.clear();
-  for (auto& e : lookup) e.clear();
-  for (auto& e : reverse_lookup) e.clear();
 }
 
 void DistributedForces::add_scalar(int i, int j, real force, InteractionType type)
@@ -36,21 +35,16 @@ void DistributedForces::add_scalar(int i, int j, real force, InteractionType typ
   if (i > j) throw std::runtime_error("Only upper triangle allowed (i < j).");
 
   auto & scalar_i = scalar[i];
-  auto & lookup_i = lookup[i];
-  auto & reverse_lookup_i = reverse_lookup[i];
+  auto & indices_i = indices[i];
 
-  int pos_j;
-  if (lookup_i.count(j)) {
-    pos_j = lookup_i[j];
+  auto iter = std::find(indices_i.begin(), indices_i.end(), j);
+
+  if (iter == indices_i.end()) {
+    indices_i.push_back(j);
+    scalar_i.push_back(Force<real>(force, type));
   } else {
-	pos_j = scalar_i.size();
-	scalar_i.resize(pos_j + 1);
-	lookup_i[j] = pos_j;
-	reverse_lookup_i[pos_j] = j;
+	scalar_i[std::distance(indices_i.begin(), iter)] += Force<real>(force, type);
   }
-
-  scalar_i[pos_j].force += force;
-  scalar_i[pos_j].type |= type;
 }
 
 void DistributedForces::add_summed(int i, int j, Vector const& force, InteractionType type)
@@ -58,21 +52,16 @@ void DistributedForces::add_summed(int i, int j, Vector const& force, Interactio
   if (i > j) throw std::runtime_error("Only upper triangle allowed (i < j).");
 
   auto & summed_i = summed[i];
-  auto & lookup_i = lookup[i];
-  auto & reverse_lookup_i = reverse_lookup[i];
+  auto & indices_i = indices[i];
 
-  int pos_j;
-  if (lookup_i.count(j)) {
-    pos_j = lookup_i[j];
+  auto iter = std::find(indices_i.begin(), indices_i.end(), j);
+
+  if (iter == indices_i.end()) {
+	indices_i.push_back(j);
+	summed_i.push_back(Force<Vector>(force, type));
   } else {
-	pos_j = summed_i.size();
-	summed_i.resize(pos_j + 1);
-	lookup_i[j] = pos_j;
-	reverse_lookup_i[pos_j] = j;
+	summed_i[std::distance(indices_i.begin(), iter)] += Force<Vector>(force, type);
   }
-
-  summed_i[pos_j].force += force;
-  summed_i[pos_j].type |= type;
 }
 
 void DistributedForces::add_detailed(int i, int j, Vector const& force, PureInteractionType type)
@@ -80,30 +69,25 @@ void DistributedForces::add_detailed(int i, int j, Vector const& force, PureInte
   if (i > j) throw std::runtime_error("Only upper triangle allowed (i < j).");
 
   auto & detailed_i = detailed[i];
-  auto & lookup_i = lookup[i];
-  auto & reverse_lookup_i = reverse_lookup[i];
+  auto & indices_i = indices[i];
 
-  int pos_j;
-  if (lookup_i.count(j)) {
-    pos_j = lookup_i[j];
+  auto iter = std::find(indices_i.begin(), indices_i.end(), j);
+
+  if (iter == indices_i.end()) {
+	indices_i.push_back(j);
+	detailed_i.push_back(DetailedForce(force, type));
   } else {
-	pos_j = detailed_i.size();
-	detailed_i.resize(pos_j + 1);
-	lookup_i[j] = pos_j;
-	reverse_lookup_i[pos_j] = j;
+	detailed_i[std::distance(indices_i.begin(), iter)].add(force, type);
   }
-
-  detailed_i[pos_j].force[to_index(type)] += force;
-  ++detailed_i[pos_j].number[to_index(type)];
 }
 
 void DistributedForces::write_detailed_vector(std::ostream& os) const
 {
   for (size_t i = 0; i != detailed.size(); ++i) {
 	auto const& detailed_i = detailed[i];
-	auto const& reverse_lookup_i = reverse_lookup[i];
+	auto const& indices_i = indices[i];
     for (size_t p = 0; p != detailed_i.size(); ++p) {
-  	  size_t j = reverse_lookup_i.at(p);
+  	  size_t j = indices_i[p];
       auto const& detailed_j = detailed_i[p];
       for (int type = 0; type != static_cast<int>(PureInteractionType::NUMBER); ++type) {
     	if (detailed_j.number[type] == 0) continue;
@@ -120,9 +104,9 @@ void DistributedForces::write_detailed_scalar(std::ostream& os, rvec *x) const
 {
   for (size_t i = 0; i != detailed.size(); ++i) {
 	auto const& detailed_i = detailed[i];
-	auto const& reverse_lookup_i = reverse_lookup[i];
+	auto const& indices_i = indices[i];
     for (size_t p = 0; p != detailed_i.size(); ++p) {
-   	  size_t j = reverse_lookup_i.at(p);
+      size_t j = indices_i[p];
       auto const& detailed_j = detailed_i[p];
       for (int type = 0; type != static_cast<int>(PureInteractionType::NUMBER); ++type) {
     	if (detailed_j.number[type] == 0) continue;
@@ -139,9 +123,9 @@ void DistributedForces::write_summed_vector(std::ostream& os) const
 {
   for (size_t i = 0; i != summed.size(); ++i) {
 	auto const& summed_i = summed[i];
-	auto const& reverse_lookup_i = reverse_lookup[i];
+	auto const& indices_i = indices[i];
 	for (size_t p = 0; p != summed_i.size(); ++p) {
-	  size_t j = reverse_lookup_i.at(p);
+	  size_t j = indices_i[p];
 	  auto const& summed_j = summed_i[p];
       Vector const& force = summed_j.force;
       os << i << " " << j << " "
@@ -155,9 +139,9 @@ void DistributedForces::write_summed_scalar(std::ostream& os, rvec *x) const
 {
   for (size_t i = 0; i != summed.size(); ++i) {
 	auto const& summed_i = summed[i];
-	auto const& reverse_lookup_i = reverse_lookup[i];
+	auto const& indices_i = indices[i];
 	for (size_t p = 0; p != summed_i.size(); ++p) {
-	  size_t j = reverse_lookup_i.at(p);
+	  size_t j = indices_i[p];
 	  auto const& summed_j = summed_i[p];
       os << i << " " << j << " "
          << vector2signedscalar(summed_j.force.get_pointer(), x[i], x[j], fda_settings.v2s) << " "
@@ -170,9 +154,9 @@ void DistributedForces::write_scalar(std::ostream& os) const
 {
   for (size_t i = 0; i != scalar.size(); ++i) {
 	auto const& scalar_i = scalar[i];
-	auto const& reverse_lookup_i = reverse_lookup[i];
+	auto const& indices_i = indices[i];
 	for (size_t p = 0; p != scalar_i.size(); ++p) {
-	  size_t j = reverse_lookup_i.at(p);
+	  size_t j = indices_i[p];
 	  auto const& scalar_j = scalar_i[p];
 	  os << i << " " << j << " "
 	     << scalar_j.force << " "
@@ -186,9 +170,9 @@ void DistributedForces::write_total_forces(std::ostream& os, rvec *x) const
   std::vector<real> total_forces(syslen, 0.0);
   for (size_t i = 0; i != summed.size(); ++i) {
 	auto const& summed_i = summed[i];
-	auto const& reverse_lookup_i = reverse_lookup[i];
+	auto const& indices_i = indices[i];
 	for (size_t p = 0; p != summed_i.size(); ++p) {
-      size_t j = reverse_lookup_i.at(p);
+	  size_t j = indices_i[p];
 	  auto const& summed_j = summed_i[p];
       real scalar_force;
       switch (fda_settings.v2s) {
@@ -240,10 +224,10 @@ void DistributedForces::summed_merge_to_scalar(const rvec *x)
   for (size_t i = 0; i != summed.size(); ++i) {
     auto & scalar_i = scalar[i];
     auto const& summed_i = summed[i];
-	auto const& reverse_lookup_i = reverse_lookup[i];
+	auto const& indices_i = indices[i];
     scalar_i.resize(summed_i.size());
     for (size_t p = 0; p != summed_i.size(); ++p) {
-  	  size_t j = reverse_lookup_i.at(p);
+  	  size_t j = indices_i[p];
       auto & scalar_j = scalar_i[p];
       auto const& summed_j = summed_i[p];
       scalar_j.force += vector2signedscalar(summed_j.force.get_pointer(), x[i], x[j], fda_settings.v2s);

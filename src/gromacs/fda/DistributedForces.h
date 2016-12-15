@@ -77,23 +77,20 @@ private:
   /// Total number of atoms/residues in the system
   int syslen;
 
-  /// Returns position of atom j in force array
-  std::vector<std::map<int, int>> lookup;
+  /// Indices of second atom (j)
+  std::vector<std::vector<int>> indices;
 
-  /// Returns atom index j of the position in force array
-  std::vector<std::map<int, int>> reverse_lookup;
-
-  /// Map atom/residue pair to scalar forces
+  /// Scalar force pairs
   std::vector<std::vector<Force<real>>> scalar;
 
-  /// Map atom/residue pair to summed vector forces
+  /// Summed vector force pairs
   std::vector<std::vector<Force<Vector>>> summed;
 
-  /// Map atom/residue pair to detailed forces
+  /// Detailed force pairs
   std::vector<std::vector<DetailedForce>> detailed;
 
-  /// For atom/residue unrelated settings
-  FDASettings fda_settings;
+  /// FDA settings
+  FDASettings const& fda_settings;
 
 };
 
