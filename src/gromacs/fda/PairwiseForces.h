@@ -107,13 +107,6 @@ private:
 	std::vector<PairwiseForceList> all_pairwise_forces;
 };
 
-/// Input stream
-template <typename T>
-std::istream& operator >> (std::istream& is, PairwiseForces<T> & pf)
-{
-  return is;
-}
-
 } // namespace fda
 
 #endif /* SRC_GROMACS_FDA_PAIRWISEFORCES_H_ */

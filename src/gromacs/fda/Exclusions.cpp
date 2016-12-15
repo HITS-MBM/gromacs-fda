@@ -57,8 +57,8 @@ void fda_data_init(int nfile, const t_filenm fnm[])
     std::stringstream(get_estr(&ninp, &inp, "type", "all")) >> type_string;
     fda_data.type = fda::from_string(type_string);
 
-    fda_data.FDA_nonbonded_exclusion_on = strcasecmp(get_estr(&ninp, &inp, "energy_grp_exclusion", "no"), "no");
-    fda_data.FDA_bonded_exclusion_on = strcasecmp(get_estr(&ninp, &inp, "bonded_exclusion", "no"), "no");
+    fda_data.FDA_nonbonded_exclusion_on = strcasecmp(get_estr(&ninp, &inp, "energy_grp_exclusion", "yes"), "no");
+    fda_data.FDA_bonded_exclusion_on = strcasecmp(get_estr(&ninp, &inp, "bonded_exclusion", "yes"), "no");
 }
 
 int pf_add_name_to_energygrp(char* name, gmx_groups_t* groups)
