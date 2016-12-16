@@ -45,21 +45,6 @@ FDASettings::FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *mtop, bool
 	  gmx_fatal(FARGS, "-pfi option (pairwise forces configuration) specified, an index file (-pfn) is also needed.\n");
   } else {
 	gmx_fatal(FARGS, "No pairwise forces input file, no sense to compute pairwise forces.\n");
-	return;
-  }
-
-  // Check for valid input options using time averaging
-  if (time_averaging_period != 1) {
-	if (one_pair != OnePair::SUMMED)
-	  gmx_fatal(FARGS, "Can only save scalar time averages from summed interactions.\n");
-	if (PF_or_PS_mode(atom_based_result_type)) {
-	  if (!(compatibility_mode(atom_based_result_type) or atom_based_result_type == ResultType::PAIRWISE_FORCES_SCALAR))
-		gmx_fatal(FARGS, "Can only use time averages with scalar or compatibility output.\n");
-	}
-	if (PF_or_PS_mode(residue_based_result_type)) {
-	  if (!(compatibility_mode(residue_based_result_type) or residue_based_result_type == ResultType::PAIRWISE_FORCES_SCALAR))
-		gmx_fatal(FARGS, "Can only use time averages with scalar or compatibility output.\n");
-	}
   }
 
   // Use GROMACS function to read lines of form key = value from input file
@@ -67,6 +52,28 @@ FDASettings::FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *mtop, bool
   warninp_t wi = init_warning(FALSE, 0);
   int ninp;
   t_inpfile *inp = read_inpfile(pf_file_in, &ninp, wi);
+
+  // Check for deprecated keywords
+  std::vector<std::pair<std::string, std::string>> deprecated_keywords{
+	{"pf_onepair", "onepair"},
+	{"pf_group1", "group1"},
+	{"pf_group2", "group2"},
+	{"pf_type", "type"},
+	{"pf_atombased", "atombased"},
+	{"pf_residuebased", "residuebased"},
+	{"pf_vector2scalar", "vector2scalar"},
+	{"pf_residuesrenumber", "residuesrenumber"},
+	{"pf_time_averages_period", "time_averages_period"},
+	{"pf_no_end_zeros", "no_end_zeros"}
+  };
+  for (auto const& pair : deprecated_keywords) {
+    if (search_einp(ninp, inp, pair.first.c_str()) != -1) {
+  	  std::string message = "Deprecated keyword '" + pair.first + "' was used, please use '" + pair.second + "' instead.\n";
+	  gmx_fatal(FARGS, message.c_str());
+    }
+  }
+
+  // Read result types
   std::stringstream(get_estr(&ninp, &inp, "atombased", "no")) >> atom_based_result_type;
   std::stringstream(get_estr(&ninp, &inp, "residuebased", "no")) >> residue_based_result_type;
 
@@ -139,6 +146,20 @@ FDASettings::FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *mtop, bool
   time_averaging_period = get_eint(&ninp, &inp, "time_averages_period", 1, wi);
   if (time_averaging_period < 0)
 	gmx_fatal(FARGS, "Invalid value for time_averages_period: %d\n", time_averaging_period);
+
+  // Check for valid input options using time averaging
+  if (time_averaging_period != 1) {
+	if (one_pair != OnePair::SUMMED)
+	  gmx_fatal(FARGS, "Can only save scalar time averages from summed interactions.\n");
+	if (PF_or_PS_mode(atom_based_result_type)) {
+	  if (!(compatibility_mode(atom_based_result_type) or atom_based_result_type == ResultType::PAIRWISE_FORCES_SCALAR))
+		gmx_fatal(FARGS, "Can only use time averages with scalar or compatibility output.\n");
+	}
+	if (PF_or_PS_mode(residue_based_result_type)) {
+	  if (!(compatibility_mode(residue_based_result_type) or residue_based_result_type == ResultType::PAIRWISE_FORCES_SCALAR))
+		gmx_fatal(FARGS, "Can only use time averages with scalar or compatibility output.\n");
+	}
+  }
 
   // Check if groups are defined for PF/PF mode
   if (PF_or_PS_mode(atom_based_result_type) or PF_or_PS_mode(residue_based_result_type)) {

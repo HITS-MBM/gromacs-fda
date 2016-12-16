@@ -57,7 +57,7 @@ std::istream& operator >> (std::istream& is, ResultType& r)
   else if (s == "compat_ascii")
 	r = ResultType::COMPAT_ASCII;
   else
-	r = ResultType::INVALID;
+    throw std::runtime_error("Unknown option " + s);
   return is;
 }
 

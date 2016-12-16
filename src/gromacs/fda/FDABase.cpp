@@ -60,9 +60,6 @@ void FDABase<Base>::write_frame(rvec *x, int nsteps)
 		case ResultType::COMPAT_ASCII:
 		  gmx_fatal(FARGS, "Compatibility ascii mode is not supported for detailed output.\n");
 		  break;
-		case ResultType::INVALID:
-		  gmx_fatal(FARGS, "ResultType is invalid.\n");
-		  break;
 	  }
 	  break;
 	case OnePair::SUMMED:
@@ -90,9 +87,6 @@ void FDABase<Base>::write_frame(rvec *x, int nsteps)
 		  break;
 		case ResultType::COMPAT_ASCII:
 		  write_frame_atoms_summed_compat(x);
-		  break;
-		case ResultType::INVALID:
-		  gmx_fatal(FARGS, "ResultType is invalid.\n");
 		  break;
 	  }
 	  break;
