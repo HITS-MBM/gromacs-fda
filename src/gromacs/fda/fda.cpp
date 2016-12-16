@@ -447,7 +447,6 @@ void FDA::add_virial_dihedral(int i, int j, int k, int l,
 void FDA::save_and_write_scalar_time_averages(rvec *x, gmx_mtop_t *mtop)
 {
   if (fda_settings.time_averaging_period != 1) {
-    // First save the data
     if (atom_based.PF_or_PS_mode())
       atom_based.distributed_forces.summed_merge_to_scalar(x);
     if (residue_based.PF_or_PS_mode()) {
@@ -458,19 +457,20 @@ void FDA::save_and_write_scalar_time_averages(rvec *x, gmx_mtop_t *mtop)
       }
       sfree(com);
     }
-
     ++time_averaging_steps;
     if (fda_settings.time_averaging_period != 0 and time_averaging_steps >= fda_settings.time_averaging_period)
       write_scalar_time_averages();
   } else {
     write_frame(x, mtop);
   }
+  // Clear arrays for next frame
+  atom_based.distributed_forces.clear();
+  residue_based.distributed_forces.clear();
 }
 
 void FDA::write_scalar_time_averages()
 {
   if (time_averaging_steps == 0) return;
-  if (fda_settings.time_averaging_period == 1) return;
 
   if (atom_based.PF_or_PS_mode()) {
     atom_based.distributed_forces.scalar_real_divide(time_averaging_steps);
@@ -478,18 +478,19 @@ void FDA::write_scalar_time_averages()
       atom_based.write_frame_atoms_scalar_compat();
     else
       atom_based.write_frame_scalar(nsteps);
-    atom_based.distributed_forces.scalar.clear();
+    atom_based.distributed_forces.clear_scalar();
   }
 
   if (residue_based.PF_or_PS_mode()) {
     residue_based.distributed_forces.scalar_real_divide(time_averaging_steps);
     //pf_x_real_div(time_averaging_com, fda_settings.syslen_residues, time_averaging_steps);
-    for (size_t i = 0; i != residue_based.distributed_forces.scalar.size(); ++i) svdiv(time_averaging_steps, time_averaging_com[i]);
+    for (size_t i = 0; i != residue_based.distributed_forces.scalar.size(); ++i)
+      svdiv(time_averaging_steps, time_averaging_com[i]);
     if (residue_based.compatibility_mode())
       residue_based.write_frame_atoms_scalar_compat();
     else
       residue_based.write_frame_scalar(nsteps);
-    residue_based.distributed_forces.scalar.clear();
+    residue_based.distributed_forces.clear_scalar();
     clear_rvecs(fda_settings.syslen_residues, time_averaging_com);
   }
 

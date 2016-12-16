@@ -43,10 +43,11 @@ public:
   /// Constructor
   DistributedForces(int syslen, FDASettings const& fda_settings);
 
-  /// Clear all array for the next frame
+  /// Clear summed/detailed array for the next frame
   void clear();
 
-  void add_scalar(int i, int j, real force, InteractionType type);
+  /// Clear scalar array
+  void clear_scalar();
 
   void add_summed(int i, int j, Vector const& force, InteractionType type);
 
@@ -79,6 +80,9 @@ private:
 
   /// Indices of second atom (j)
   std::vector<std::vector<int>> indices;
+
+  /// Indices of second atom (j)
+  std::vector<std::vector<int>> scalar_indices;
 
   /// Scalar force pairs
   std::vector<std::vector<Force<real>>> scalar;

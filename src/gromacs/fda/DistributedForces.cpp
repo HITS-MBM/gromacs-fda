@@ -16,6 +16,7 @@ namespace fda {
 DistributedForces::DistributedForces(int syslen, FDASettings const& fda_settings)
  : syslen(syslen),
    indices(syslen),
+   scalar_indices(syslen),
    scalar(syslen),
    summed(syslen),
    detailed(syslen),
@@ -25,26 +26,14 @@ DistributedForces::DistributedForces(int syslen, FDASettings const& fda_settings
 void DistributedForces::clear()
 {
   for (auto& e : indices) e.clear();
-  for (auto& e : scalar) e.clear();
   for (auto& e : summed) e.clear();
   for (auto& e : detailed) e.clear();
 }
 
-void DistributedForces::add_scalar(int i, int j, real force, InteractionType type)
+void DistributedForces::clear_scalar()
 {
-  if (i > j) throw std::runtime_error("Only upper triangle allowed (i < j).");
-
-  auto & scalar_i = scalar[i];
-  auto & indices_i = indices[i];
-
-  auto iter = std::find(indices_i.begin(), indices_i.end(), j);
-
-  if (iter == indices_i.end()) {
-    indices_i.push_back(j);
-    scalar_i.push_back(Force<real>(force, type));
-  } else {
-	scalar_i[std::distance(indices_i.begin(), iter)] += Force<real>(force, type);
-  }
+  for (auto& e : scalar_indices) e.clear();
+  for (auto& e : scalar) e.clear();
 }
 
 void DistributedForces::add_summed(int i, int j, Vector const& force, InteractionType type)
@@ -154,9 +143,9 @@ void DistributedForces::write_scalar(std::ostream& os) const
 {
   for (size_t i = 0; i != scalar.size(); ++i) {
 	auto const& scalar_i = scalar[i];
-	auto const& indices_i = indices[i];
+	auto const& scalar_indices_i = scalar_indices[i];
 	for (size_t p = 0; p != scalar_i.size(); ++p) {
-	  size_t j = indices_i[p];
+	  size_t j = scalar_indices_i[p];
 	  auto const& scalar_j = scalar_i[p];
 	  os << i << " " << j << " "
 	     << scalar_j.force << " "
@@ -214,7 +203,7 @@ void DistributedForces::write_total_forces(std::ostream& os, rvec *x) const
 
 void DistributedForces::scalar_real_divide(real divisor)
 {
-  real inv = 1 / divisor;
+  real inv = 1.0 / divisor;
   for (auto& scalar_i : scalar)
     for (auto& scalar_j : scalar_i) scalar_j.force *= inv;
 }
@@ -223,15 +212,20 @@ void DistributedForces::summed_merge_to_scalar(const rvec *x)
 {
   for (size_t i = 0; i != summed.size(); ++i) {
     auto & scalar_i = scalar[i];
+    auto & scalar_indices_i = scalar_indices[i];
     auto const& summed_i = summed[i];
 	auto const& indices_i = indices[i];
-    scalar_i.resize(summed_i.size());
     for (size_t p = 0; p != summed_i.size(); ++p) {
   	  size_t j = indices_i[p];
-      auto & scalar_j = scalar_i[p];
       auto const& summed_j = summed_i[p];
-      scalar_j.force += vector2signedscalar(summed_j.force.get_pointer(), x[i], x[j], fda_settings.v2s);
-      scalar_j.type |= summed_j.type;
+  	  auto iter = std::find(scalar_indices_i.begin(), scalar_indices_i.end(), j);
+  	  Force<real> scalar_force(vector2signedscalar(summed_j.force.get_pointer(), x[i], x[j], fda_settings.v2s), summed_j.type);
+  	  if (iter == scalar_indices_i.end()) {
+  		scalar_indices_i.push_back(j);
+  		scalar_i.push_back(scalar_force);
+  	  } else {
+  		scalar_i[std::distance(scalar_indices_i.begin(), iter)] += scalar_force;
+  	  }
     }
   }
 }

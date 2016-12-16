@@ -100,8 +100,6 @@ void FDABase<Base>::write_frame(rvec *x, int nsteps)
 	  gmx_fatal(FARGS, "OnePair is invalid.\n");
 	  break;
   }
-  // Clear arrays for next frame
-  distributed_forces.clear();
 }
 
 template <class Base>
