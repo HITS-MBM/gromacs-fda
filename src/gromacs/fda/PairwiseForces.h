@@ -11,7 +11,6 @@
 #include <map>
 #include <string>
 #include <vector>
-#include <gtest/gtest_prod.h>
 #include "gromacs/fda/Force.h"
 #include "gromacs/fda/Vector.h"
 #include "gromacs/utility/real.h"
@@ -59,10 +58,10 @@ public:
 
 private:
 
-	FRIEND_TEST(PairwiseForcesTest, DefaultConstructor);
-	FRIEND_TEST(PairwiseForcesTest, ReadFile1);
-	FRIEND_TEST(PairwiseForcesTest, ReadFile2);
-	FRIEND_TEST(PairwiseForcesTest, ReadFile3);
+	friend class PairwiseForcesTest_DefaultConstructor_Test;
+	friend class PairwiseForcesTest_ReadFile1_Test;
+	friend class PairwiseForcesTest_ReadFile2_Test;
+	friend class PairwiseForcesTest_ReadFile3_Test;
 
     /// Output stream
 	friend std::ostream& operator << (std::ostream& os, PairwiseForces const& pf)
