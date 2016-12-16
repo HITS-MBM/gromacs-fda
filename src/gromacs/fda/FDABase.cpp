@@ -90,9 +90,6 @@ void FDABase<Base>::write_frame(rvec *x, int nsteps)
 		  break;
 	  }
 	  break;
-	case OnePair::INVALID:
-	  gmx_fatal(FARGS, "OnePair is invalid.\n");
-	  break;
   }
 }
 

@@ -33,9 +33,6 @@ real vector2signedscalar(const rvec v, const rvec xi, const rvec xj, Vector2Scal
 	  // it's minus c to go along the norm based calculation above: positive cos = in the same direction = attractive = negative
 	  return -c * norm(v);
 	  break;
-	case Vector2Scalar::INVALID:
-	  // this should not happen - make it visible!
-	  break;
   }
   return GMX_FLOAT_MAX;
 }

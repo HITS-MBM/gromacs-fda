@@ -18,8 +18,7 @@ enum class ResiduesRenumber : std::int8_t
 {
   AUTO,
   DO,
-  DONT,
-  INVALID
+  DONT
 };
 
 /// Output stream for ResiduesRenumber

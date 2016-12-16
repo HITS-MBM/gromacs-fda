@@ -33,7 +33,7 @@ std::istream& operator >> (std::istream& is, Vector2Scalar& r)
   else if (s == "projection")
 	r = Vector2Scalar::PROJECTION;
   else
-	r = Vector2Scalar::INVALID;
+	throw std::runtime_error("Unknown option " + s);
   return is;
 }
 

@@ -80,8 +80,6 @@ void FDA::add_bonded_nocheck(int i, int j, fda::InteractionType type, rvec force
             residue_based.distributed_forces.add_summed(ri, rj, force, type);
           }
           break;
-        case fda::OnePair::INVALID:
-          break;
       }
     }
   }
@@ -97,8 +95,6 @@ void FDA::add_bonded_nocheck(int i, int j, fda::InteractionType type, rvec force
         break;
       case fda::OnePair::SUMMED:
         atom_based.distributed_forces.add_summed(i, j, force, type);
-        break;
-      case fda::OnePair::INVALID:
         break;
     }
   }
@@ -187,8 +183,6 @@ void FDA::add_nonbonded(int i, int j, real pf_coul, real pf_lj, real dx, real dy
           pf_coul_residue_v[2] = pf_lj_coul * dz;
           residue_based.distributed_forces.add_summed(ri, rj, pf_coul_residue_v, fda::InteractionType_COULOMB | fda::InteractionType_LJ);
           break;
-        case fda::OnePair::INVALID:
-          break;
       }
     }
   }
@@ -217,8 +211,6 @@ void FDA::add_nonbonded(int i, int j, real pf_coul, real pf_lj, real dx, real dy
         pf_coul_atom_v[1] = pf_lj_coul * dy;
         pf_coul_atom_v[2] = pf_lj_coul * dz;
         atom_based.distributed_forces.add_summed(i, j, pf_coul_atom_v, fda::InteractionType_COULOMB | fda::InteractionType_LJ);
-        break;
-      case fda::OnePair::INVALID:
         break;
     }
   }

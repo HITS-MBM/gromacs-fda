@@ -33,7 +33,7 @@ std::istream& operator >> (std::istream& is, OnePair& r)
   else if (s == "summed")
 	r = OnePair::SUMMED;
   else
-	r = OnePair::INVALID;
+    throw std::runtime_error("Unknown option " + s);
   return is;
 }
 

@@ -37,7 +37,7 @@ std::istream& operator >> (std::istream& is, ResiduesRenumber& r)
   else if (s == "no")
 	r = ResiduesRenumber::DONT;
   else
-	r = ResiduesRenumber::INVALID;
+    throw std::runtime_error("Unknown option " + s);
   return is;
 }
 

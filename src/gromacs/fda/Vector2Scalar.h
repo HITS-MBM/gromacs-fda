@@ -19,9 +19,8 @@ namespace fda {
 /// setting rather than creating separates modes for norm and projection.
 enum class Vector2Scalar : std::int8_t
 {
-  NORM,        ///< Takes the norm of the vector
-  PROJECTION,  ///< Takes the projection of the force on the direction of the 2 atoms
-  INVALID
+  NORM,       ///< Takes the norm of the vector
+  PROJECTION  ///< Takes the projection of the force on the direction of the 2 atoms
 };
 
 /// Output stream for Vector2Scalar

@@ -278,8 +278,6 @@ void FDASettings::fill_atom2residue(gmx_mtop_t *mtop)
         atom_2_residue = a2r_resnr;
         syslen_residues = resnrmax + 1;
       break;
-    case ResiduesRenumber::INVALID:
-      break;
   }
 }
 
