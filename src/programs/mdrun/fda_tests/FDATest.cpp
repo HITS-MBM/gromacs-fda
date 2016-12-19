@@ -26,16 +26,20 @@ struct TestDataStructure
 	TestDataStructure(
 		std::string const& testDirectory,
 		std::string const& atomFileExtension,
-		std::string const& residueFileExtension
+		std::string const& residueFileExtension,
+		bool must_die = false
 	)
 	  : testDirectory(testDirectory),
 		atomFileExtension(atomFileExtension),
-		residueFileExtension(residueFileExtension)
+		residueFileExtension(residueFileExtension),
+		must_die(must_die)
 	{}
 
     std::string testDirectory;
     std::string atomFileExtension;
     std::string residueFileExtension;
+
+    bool must_die;
 };
 
 } // namespace anonymous
@@ -78,19 +82,26 @@ TEST_P(FDATest, Basic)
     if (!GetParam().atomFileExtension.empty()) callRerun.addOption(atomOption.c_str(), atomFilename.c_str());
     if (!GetParam().residueFileExtension.empty()) callRerun.addOption(residueOption.c_str(), residueFilename.c_str());
 
-    ASSERT_FALSE(gmx_mdrun(callRerun.argc(), callRerun.argv()));
+    std::cout << "command: " << callRerun.toString() << std::endl;
 
-    const double error_factor = 1.0e4;
-    const bool weight_by_magnitude = false;
-    const bool ignore_sign = true;
+    if (GetParam().must_die) {
+      EXPECT_EXIT(gmx_mdrun(callRerun.argc(), callRerun.argv()), ::testing::ExitedWithCode(255), "");
+    } else {
+		ASSERT_FALSE(gmx_mdrun(callRerun.argc(), callRerun.argv()));
 
-    LogicallyEqualComparer<weight_by_magnitude,ignore_sign> comparer(error_factor);
+		const double error_factor = 1.0e4;
+		const bool weight_by_magnitude = false;
+		const bool ignore_sign = true;
 
-    // Compare files
-    if (!GetParam().atomFileExtension.empty()) EXPECT_TRUE((compare(TextSplitter(atomFilename), TextSplitter(atomReference), comparer)));
-    if (!GetParam().residueFileExtension.empty()) EXPECT_TRUE((compare(TextSplitter(residueFilename), TextSplitter(residueReference), comparer)));
+		LogicallyEqualComparer<weight_by_magnitude,ignore_sign> comparer(error_factor);
 
-	gmx_chdir(cwd.c_str());
+
+		// Compare files
+		if (!GetParam().atomFileExtension.empty()) EXPECT_TRUE((compare(TextSplitter(atomFilename), TextSplitter(atomReference), comparer)));
+		if (!GetParam().residueFileExtension.empty()) EXPECT_TRUE((compare(TextSplitter(residueFilename), TextSplitter(residueReference), comparer)));
+
+		gmx_chdir(cwd.c_str());
+    }
 }
 
 INSTANTIATE_TEST_CASE_P(AllFDATests, FDATest, ::testing::Values(
@@ -111,5 +122,7 @@ INSTANTIATE_TEST_CASE_P(AllFDATests, FDATest, ::testing::Values(
     TestDataStructure("glycine_trimer_group_excl6", "pfa", "pfr"),
     TestDataStructure("glycine_trimer_group_bonded_excl1", "pfa", "pfr"),
     TestDataStructure("glycine_trimer_virial_stress", "vsa", ""),
-    TestDataStructure("glycine_trimer_virial_stress_von_mises", "vma", "")
+    TestDataStructure("glycine_trimer_virial_stress_von_mises", "vma", ""),
+    TestDataStructure("alagly_deprecated_keywords", "pfa", "pfr", true),
+    TestDataStructure("alagly_unknown_option", "pfa", "pfr", true)
 ));
