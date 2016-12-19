@@ -88,7 +88,7 @@ TEST_P(FDATest, Basic)
     std::cout << "command: " << callRerun.toString() << std::endl;
 
     if (GetParam().must_die) {
-      EXPECT_EXIT(gmx_mdrun(callRerun.argc(), callRerun.argv()), ::testing::ExitedWithCode(255), "");
+      EXPECT_EXIT(gmx_mdrun(callRerun.argc(), callRerun.argv()), ::testing::ExitedWithCode(1), "");
     } else {
         ASSERT_FALSE(gmx_mdrun(callRerun.argc(), callRerun.argv()));
 
