@@ -30,13 +30,15 @@ struct TestDataStructure
         std::string const& atomFileExtension,
         std::string const& residueFileExtension,
         std::string const& trajectoryFilename = "traj.trr",
-        bool is_vector = false
+        bool is_vector = false,
+        bool must_die = false
     )
       : testDirectory(testDirectory),
         atomFileExtension(atomFileExtension),
         residueFileExtension(residueFileExtension),
         trajectoryFilename(trajectoryFilename),
-		is_vector(is_vector)
+        is_vector(is_vector),
+        must_die(must_die)
     {}
 
     std::string testDirectory;
@@ -44,6 +46,7 @@ struct TestDataStructure
     std::string residueFileExtension;
     std::string trajectoryFilename;
     bool is_vector;
+    bool must_die;
 };
 
 } // namespace anonymous
@@ -56,7 +59,7 @@ class FDATest : public ::testing::WithParamInterface<TestDataStructure>,
 //! Test body for FDA
 TEST_P(FDATest, Basic)
 {
-	std::cout << GetParam().testDirectory << std::endl;
+    std::cout << GetParam().testDirectory << std::endl;
 
     std::string cwd = gmx::Path::getWorkingDirectory();
     std::string dataPath = std::string(fileManager_.getInputDataDirectory()) + "/data";
@@ -88,41 +91,44 @@ TEST_P(FDATest, Basic)
     if (!GetParam().atomFileExtension.empty()) callRerun.addOption(atomOption.c_str(), atomFilename.c_str());
     if (!GetParam().residueFileExtension.empty()) callRerun.addOption(residueOption.c_str(), residueFilename.c_str());
 
-	std::cout << "command: " << callRerun.toString() << std::endl;
+    std::cout << "command: " << callRerun.toString() << std::endl;
 
-    ASSERT_FALSE(gmx_mdrun(callRerun.argc(), callRerun.argv()));
-
-    const double error_factor = 1e2;
-    const bool weight_by_magnitude = true;
-    const bool ignore_sign = true;
-
-    LogicallyEqualComparer<weight_by_magnitude, ignore_sign> comparer(error_factor);
-
-    // Check results
-    if (!GetParam().atomFileExtension.empty()) {
-    	if (GetParam().atomFileExtension == "pfa")
-    		if (GetParam().is_vector)
-    		    EXPECT_TRUE((fda::PairwiseForces<fda::Force<fda::Vector>>(atomFilename).equal(
-    			    fda::PairwiseForces<fda::Force<fda::Vector>>(atomReference), comparer)));
-    		else
-		        EXPECT_TRUE((fda::PairwiseForces<fda::Force<real>>(atomFilename).equal(
-			        fda::PairwiseForces<fda::Force<real>>(atomReference), comparer)));
-    	else
-    	    EXPECT_TRUE((equal(TextSplitter(atomFilename), TextSplitter(atomReference), comparer)));
-    }
-    if (!GetParam().residueFileExtension.empty()) {
-    	if (GetParam().residueFileExtension == "pfr")
-    		if (GetParam().is_vector)
-    		    EXPECT_TRUE((fda::PairwiseForces<fda::Force<fda::Vector>>(residueFilename).equal(
-                    fda::PairwiseForces<fda::Force<fda::Vector>>(residueReference), comparer)));
-    		else
-	            EXPECT_TRUE((fda::PairwiseForces<fda::Force<real>>(residueFilename).equal(
-                    fda::PairwiseForces<fda::Force<real>>(residueReference), comparer)));
-    	else
-    	    EXPECT_TRUE((equal(TextSplitter(residueFilename), TextSplitter(residueReference), comparer)));
-    }
-
-    gmx_chdir(cwd.c_str());
+    if (GetParam().must_die) {
+      EXPECT_EXIT(gmx_mdrun(callRerun.argc(), callRerun.argv()), ::testing::ExitedWithCode(255), "");
+    } else {
+        ASSERT_FALSE(gmx_mdrun(callRerun.argc(), callRerun.argv()));
+        
+        const double error_factor = 1e2;
+        const bool weight_by_magnitude = true;
+        const bool ignore_sign = true;
+        
+        LogicallyEqualComparer<weight_by_magnitude, ignore_sign> comparer(error_factor);
+        
+        // Check results
+        if (!GetParam().atomFileExtension.empty()) {
+        	if (GetParam().atomFileExtension == "pfa")
+        		if (GetParam().is_vector)
+        		    EXPECT_TRUE((fda::PairwiseForces<fda::Force<fda::Vector>>(atomFilename).equal(
+        			    fda::PairwiseForces<fda::Force<fda::Vector>>(atomReference), comparer)));
+        		else
+            	        EXPECT_TRUE((fda::PairwiseForces<fda::Force<real>>(atomFilename).equal(
+            		        fda::PairwiseForces<fda::Force<real>>(atomReference), comparer)));
+        	else
+        	    EXPECT_TRUE((equal(TextSplitter(atomFilename), TextSplitter(atomReference), comparer)));
+        }
+        if (!GetParam().residueFileExtension.empty()) {
+        	if (GetParam().residueFileExtension == "pfr")
+        		if (GetParam().is_vector)
+        		    EXPECT_TRUE((fda::PairwiseForces<fda::Force<fda::Vector>>(residueFilename).equal(
+                        fda::PairwiseForces<fda::Force<fda::Vector>>(residueReference), comparer)));
+        		else
+                        EXPECT_TRUE((fda::PairwiseForces<fda::Force<real>>(residueFilename).equal(
+                        fda::PairwiseForces<fda::Force<real>>(residueReference), comparer)));
+        	else
+        	    EXPECT_TRUE((equal(TextSplitter(residueFilename), TextSplitter(residueReference), comparer)));
+        }
+        
+        gmx_chdir(cwd.c_str());
 }
 
 INSTANTIATE_TEST_CASE_P(AllFDATests, FDATest, ::testing::Values(
@@ -147,6 +153,8 @@ INSTANTIATE_TEST_CASE_P(AllFDATests, FDATest, ::testing::Values(
     TestDataStructure("glycine_trimer_group_bonded_excl1", "pfa", "pfr"),
     TestDataStructure("glycine_trimer_virial_stress", "vsa", ""),
     TestDataStructure("glycine_trimer_virial_stress_von_mises", "vma", ""),
+    TestDataStructure("alagly_deprecated_keywords", "pfa", "pfr", true),
+    TestDataStructure("alagly_unknown_option", "pfa", "pfr", true),
     TestDataStructure("vwf_a2_domain_nframes1_pairwise_forces_scalar", "pfa", "pfr", "traj.xtc"),
     TestDataStructure("vwf_a2_domain_nframes1_punctual_stress", "psa", "psr", "traj.xtc"),
     TestDataStructure("vwf_a2_domain_nframes10_pairwise_forces_scalar", "pfa", "pfr", "traj.xtc"),
