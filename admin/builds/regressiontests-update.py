@@ -1,7 +1,7 @@
 #
 # This file is part of the GROMACS molecular simulation package.
 #
-# Copyright (c) 2012,2013,2014, by the GROMACS development team, led by
+# Copyright (c) 2016, by the GROMACS development team, led by
 # Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
 # and including many others, as listed in the AUTHORS file in the
 # top-level source directory and at http://www.gromacs.org.
@@ -32,9 +32,33 @@
 # To help us fund GROMACS development, we humbly ask that you cite
 # the research papers on the package. Check out http://www.gromacs.org.
 
-# the name of the target operating system
-set(CMAKE_SYSTEM_NAME BlueGeneP-static CACHE STRING "Cross-compiling for BlueGene/P")
+import os.path
 
-# set the compiler
-set(CMAKE_C_COMPILER mpixlc_r)
-set(CMAKE_CXX_COMPILER mpixlcxx_r)
+# TODO when merging this to master, update gcc to 4.8
+build_options = ['gcc-4.7', 'cmake-3.4.3']
+extra_projects = [Project.REGRESSIONTESTS]
+
+def run_build(context, cmake_opts):
+    context.chdir(context.workspace.build_dir)
+    context.run_cmake(cmake_opts)
+    context.build_target(target=None)
+
+    context.chdir(context.workspace.get_project_dir(Project.REGRESSIONTESTS))
+    cmd = ['perl', 'gmxtest.pl', 'all']
+    if cmake_opts['GMX_DOUBLE'] == 'ON':
+        cmd += ['-double']
+    context.run_cmd(cmd, failure_message='Regression tests failed to execute')
+
+def do_build(context):
+    cmake_opts=dict()
+    cmake_opts['CMAKE_BUILD_TYPE'] = 'Reference'
+    context.env.set_env_var('GMX_NO_TERM', '1')
+    context.env.prepend_path_env(os.path.join(context.workspace.build_dir, 'bin'))
+
+    cmake_opts['GMX_DOUBLE'] = 'ON'
+    run_build(context, cmake_opts)
+
+    cmake_opts['GMX_DOUBLE'] = 'OFF'
+    run_build(context, cmake_opts)
+
+    context.workspace.upload_revision(project=Project.REGRESSIONTESTS, file_glob='*reference*')
