@@ -604,7 +604,23 @@ t_pf_global *pf_init(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global) {
   fprintf(stderr, "%s\n", get_estr(&ninp, &inp, "group1", "Protein"));
   fprintf(stderr, "%s\n", get_estr(&ninp, &inp, "group2", "Protein"));
   }
-*/  
+*/
+
+  // Check for deprecated keywords
+  const char *deprecated_keywords[] = {"pf_onepair", "pf_group1", "pf_group2", "pf_type",
+    "pf_atombased", "pf_residuebased", "pf_vector2scalar", "pf_residuesrenumber",
+	"pf_time_averages_period", "pf_no_end_zeros"};
+
+  const char *new_keywords[] = {"onepair", "group1", "group2", "type",
+    "atombased", "residuebased", "vector2scalar", "residuesrenumber",
+	"time_averages_period", "no_end_zeros"};
+
+  for (i = 0; i != sizeof(deprecated_keywords)/sizeof(deprecated_keywords[0]); ++i) {
+    if (search_einp(ninp, inp, deprecated_keywords[i]) != -1) {
+      gmx_fatal(FARGS, "Deprecated keyword %s was used, please use %s instead.\n",
+        deprecated_keywords[i], new_keywords[i]);
+    }
+  }
 
   /* OnePair has to be initialized before the atoms/residues are initialized
    * because the data structures used for storing atoms/residues depend on it
@@ -613,6 +629,10 @@ t_pf_global *pf_init(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global) {
   STYPE("onepair", tmpstr, "summed");
   if (strcasecmp(tmpstr, "detailed") == 0)
     pf_global->OnePair = PF_ONEPAIR_DETAILED;
+  else if (strcasecmp(tmpstr, "summed") == 0)
+    pf_global->OnePair = PF_ONEPAIR_SUMMED;
+  else
+    gmx_fatal(FARGS, "Unknown option %s for keyword onepair.\n", tmpstr);
 
   /* obtain in g1name and g2name the names of the 2 groups */
   STYPE("group1", g1name, "Protein");
@@ -624,16 +644,21 @@ t_pf_global *pf_init(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global) {
   fprintf(stderr, "Pairwise forces for groups: %s and %s\n", g1name, g2name);
 
   STYPE("atombased", tmpstr, "no");
-  pf_global->AtomBased = FILE_OUT_NONE;
+  pf_global->AtomBased = -1;
   for (i = 0; i < FILE_OUT_NR; i++)
     if (strcasecmp(tmpstr, pf_file_out_atom_option[i]) == 0)
       pf_global->AtomBased = i;
+  if (pf_global->AtomBased == -1)
+    gmx_fatal(FARGS, "Unknown option %s for keyword atombased.\n", tmpstr);
+
 
   STYPE("residuebased", tmpstr, "no");
-  pf_global->ResidueBased = FILE_OUT_NONE;
+  pf_global->ResidueBased = -1;
   for (i = 0; i < FILE_OUT_NR; i++)
     if (strcasecmp(tmpstr, pf_file_out_residue_option[i]) == 0)
       pf_global->ResidueBased = i;
+  if (pf_global->ResidueBased == -1)
+    gmx_fatal(FARGS, "Unknown option %s for keyword residuebased.\n", tmpstr);
 
   pf_global->PFPS = pf_file_out_PF_or_PS(pf_global->AtomBased) || pf_file_out_PF_or_PS(pf_global->ResidueBased) ? 1 : 0;
   pf_global->VS = pf_file_out_VS(pf_global->AtomBased) || pf_file_out_VS(pf_global->ResidueBased) ? 1 : 0;
@@ -653,10 +678,12 @@ t_pf_global *pf_init(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global) {
     gmx_fatal(FARGS, "Per atom data can only be computed from summed interactions.\n");
 
   STYPE("residuesrenumber", tmpstr, "auto");
-  pf_global->ResiduesRenumber = PF_RESIDUE_RENUMBER_AUTO;
+  pf_global->ResiduesRenumber = -1;
   for (i = 0; i < PF_RESIDUE_RENUMBER_NR; i++)
     if (strcasecmp(tmpstr, pf_residue_renumber_option[i]) == 0)
       pf_global->ResiduesRenumber = i;
+  if (pf_global->ResiduesRenumber == -1)
+    gmx_fatal(FARGS, "Unknown option %s for keyword residuesrenumber.\n", tmpstr);
   fprintf(stderr, "ResidueRenumber: %s\n", pf_residue_renumber_option[pf_global->ResiduesRenumber]);
   
   pf_global->syslen_atoms = top_global->natoms;
@@ -714,10 +741,12 @@ t_pf_global *pf_init(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global) {
   }
 
   STYPE("vector2scalar", tmpstr, "norm");
-  pf_global->Vector2Scalar = PF_VECTOR2SCALAR_NORM;
+  pf_global->Vector2Scalar = -1;
   for (i = 0; i < PF_VECTOR2SCALAR_NR; i++)
     if (strcasecmp(tmpstr, pf_vector2scalar_option[i]) == 0)
       pf_global->Vector2Scalar = i;
+  if (pf_global->Vector2Scalar == -1)
+    gmx_fatal(FARGS, "Unknown option %s for keyword vector2scalar.\n", tmpstr);
   fprintf(stderr, "Vector2Scalar: %s\n", pf_vector2scalar_option[pf_global->Vector2Scalar]);
   if (((pf_in_compatibility_mode(pf_global->AtomBased)) || (pf_in_compatibility_mode(pf_global->ResidueBased))) &&
     (pf_global->Vector2Scalar != PF_VECTOR2SCALAR_NORM))
@@ -750,9 +779,12 @@ t_pf_global *pf_init(int nfile, const t_filenm fnm[], gmx_mtop_t *top_global) {
   }
 
   STYPE("no_end_zeros", tmpstr, "no");
-  pf_global->no_end_zeros = FALSE;
-  if (strcasecmp(tmpstr, "no") != 0)
+  if (strcasecmp(tmpstr, "no") == 0)
+    pf_global->no_end_zeros = FALSE;
+  else if (strcasecmp(tmpstr, "yes") == 0)
     pf_global->no_end_zeros = TRUE;
+  else
+    gmx_fatal(FARGS, "Unknown option %s for keyword no_end_zeros.\n", tmpstr);
 
   //fprintf(stderr, "pf_init done\n");
   return pf_global;
