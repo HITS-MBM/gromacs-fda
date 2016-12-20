@@ -16,14 +16,14 @@ namespace fda {
 
 enum class ResultType : std::int8_t
 {
-  NO,                       // no storing (default)
-  PAIRWISE_FORCES_VECTOR,
-  PAIRWISE_FORCES_SCALAR,
-  PUNCTUAL_STRESS,
-  VIRIAL_STRESS,
-  VIRIAL_STRESS_VON_MISES,
-  COMPAT_BIN,               // DEPRICATED! compatibility mode (signed scalars) in binary
-  COMPAT_ASCII              // DEPRICATED! compatibility mode (signed scalars) in ascii
+    NO,                       // no storing (default)
+    PAIRWISE_FORCES_VECTOR,
+    PAIRWISE_FORCES_SCALAR,
+    PUNCTUAL_STRESS,
+    VIRIAL_STRESS,
+    VIRIAL_STRESS_VON_MISES,
+    COMPAT_BIN,               // DEPRICATED! compatibility mode (signed scalars) in binary
+    COMPAT_ASCII              // DEPRICATED! compatibility mode (signed scalars) in ascii
 };
 
 /// Output stream for ResultType

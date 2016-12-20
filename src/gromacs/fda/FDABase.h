@@ -29,18 +29,18 @@ namespace fda {
 /// Virial stress is only needed for atom-based forces
 struct Atom
 {
-  Atom(bool VS_mode, int syslen)
-   : virial_stress(VS_mode ? syslen : 0)
-  {}
+    Atom(bool VS_mode, int syslen)
+     : virial_stress(VS_mode ? syslen : 0)
+    {}
 
-  /// Virial stress
-  std::vector<Tensor> virial_stress;
+    /// Virial stress
+    std::vector<Tensor> virial_stress;
 };
 
 /// Type for residue-based forces
 struct Residue
 {
-  Residue(bool, int) {}
+    Residue(bool, int) {}
 };
 
 /**
@@ -54,82 +54,82 @@ class FDABase : Base
 {
 public:
 
-  FDABase(ResultType result_type, int syslen, std::string const& result_filename, FDASettings const& fda_settings);
+    FDABase(ResultType result_type, int syslen, std::string const& result_filename, FDASettings const& fda_settings);
 
-  bool compatibility_mode() const {
-    return result_type == ResultType::COMPAT_BIN or
-    	   result_type == ResultType::COMPAT_ASCII;
-  }
+    bool compatibility_mode() const {
+        return result_type == ResultType::COMPAT_BIN or
+               result_type == ResultType::COMPAT_ASCII;
+    }
 
-  bool stress_mode() const {
-    return result_type == ResultType::PUNCTUAL_STRESS or
-    	   result_type == ResultType::VIRIAL_STRESS or
-		   result_type == ResultType::VIRIAL_STRESS_VON_MISES;
-  }
+    bool stress_mode() const {
+        return result_type == ResultType::PUNCTUAL_STRESS or
+               result_type == ResultType::VIRIAL_STRESS or
+               result_type == ResultType::VIRIAL_STRESS_VON_MISES;
+    }
 
-  bool PF_or_PS_mode() const {
-	return result_type == ResultType::PAIRWISE_FORCES_VECTOR or
-		   result_type == ResultType::PAIRWISE_FORCES_SCALAR or
-		   result_type == ResultType::PUNCTUAL_STRESS;
-  }
+    bool PF_or_PS_mode() const {
+        return result_type == ResultType::PAIRWISE_FORCES_VECTOR or
+               result_type == ResultType::PAIRWISE_FORCES_SCALAR or
+               result_type == ResultType::PUNCTUAL_STRESS;
+    }
 
-  bool VS_mode() const {
-	return result_type == ResultType::VIRIAL_STRESS or
-		   result_type == ResultType::VIRIAL_STRESS_VON_MISES;
-  }
+    bool VS_mode() const {
+        return result_type == ResultType::VIRIAL_STRESS or
+               result_type == ResultType::VIRIAL_STRESS_VON_MISES;
+    }
 
-  void write_frame(rvec *x, int nsteps);
+    void write_frame(rvec *x, int nsteps);
 
-  void write_frame_detailed(rvec *x, bool print_vector, int nsteps);
+    void write_frame_detailed(rvec *x, bool print_vector, int nsteps);
 
-  void write_frame_summed(rvec *x, bool print_vector, int nsteps);
+    void write_frame_summed(rvec *x, bool print_vector, int nsteps);
 
-  void write_frame_scalar(int nsteps);
+    void write_frame_scalar(int nsteps);
 
-  void sum_total_forces(rvec *x);
+    void sum_total_forces(rvec *x);
 
-  void write_total_forces(rvec *x);
+    void write_total_forces(rvec *x);
 
-  /**
-   * Writes a header as in original PF implementation;
-   * as the original PF implementation calculated everything then wrote out everything,
-   * nsteps was known at the time when the file was written; however, to make it work
-   * when data is written as it comes (frame by frame), the header is written once when
-   * the file is open, but with nsteps=1 and space for up to 8 digits; when the file is
-   * closed, the header is written again, this time with the correct nsteps
-   */
-  void write_compat_header(int nsteps);
+    /**
+     * Writes a header as in original PF implementation;
+     * as the original PF implementation calculated everything then wrote out everything,
+     * nsteps was known at the time when the file was written; however, to make it work
+     * when data is written as it comes (frame by frame), the header is written once when
+     * the file is open, but with nsteps=1 and space for up to 8 digits; when the file is
+     * closed, the header is written again, this time with the correct nsteps
+     */
+    void write_compat_header(int nsteps);
 
-  void write_frame_atoms_compat(int nsteps);
+    void write_frame_atoms_compat(int nsteps);
 
-  void write_frame_atoms_scalar_compat();
+    void write_frame_atoms_scalar_compat();
 
-  void write_frame_atoms_summed_compat(rvec *x);
+    void write_frame_atoms_summed_compat(rvec *x);
 
-  /// The stress is the negative atom_vir value.
-  void write_atom_virial_sum();
+    /// The stress is the negative atom_vir value.
+    void write_atom_virial_sum();
 
-  /// For von Mises no negative values are needed, since all items are squared.
-  void write_atom_virial_sum_von_mises();
+    /// For von Mises no negative values are needed, since all items are squared.
+    void write_atom_virial_sum_von_mises();
 
 private:
 
-  friend class ::FDA;
+    friend class ::FDA;
 
-  /// Result type
-  ResultType result_type;
+    /// Result type
+    ResultType result_type;
 
-  /// Total number of atoms/residues in the system
-  int syslen;
+    /// Total number of atoms/residues in the system
+    int syslen;
 
-  /// Distributed forces
-  DistributedForces distributed_forces;
+    /// Distributed forces
+    DistributedForces distributed_forces;
 
-  /// Result file
-  std::ofstream result_file;
+    /// Result file
+    std::ofstream result_file;
 
-  /// For atom/residue unrelated settings
-  FDASettings fda_settings;
+    /// For atom/residue unrelated settings
+    FDASettings fda_settings;
 
 };
 

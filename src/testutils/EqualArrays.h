@@ -2,7 +2,7 @@
  * EqualArrays.h
  *
  *  Created on: Feb 20, 2015
- *      Author: Bernd Doser, HITS gGmbH
+ *      Author: Bernd Doser, HITS gGmbH <bernd.doser@h-its.org>
  */
 
 #ifndef EQUALARRAYS_H_

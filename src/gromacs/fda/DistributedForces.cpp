@@ -25,209 +25,209 @@ DistributedForces::DistributedForces(int syslen, FDASettings const& fda_settings
 
 void DistributedForces::clear()
 {
-  for (auto& e : indices) e.clear();
-  for (auto& e : summed) e.clear();
-  for (auto& e : detailed) e.clear();
+    for (auto& e : indices) e.clear();
+    for (auto& e : summed) e.clear();
+    for (auto& e : detailed) e.clear();
 }
 
 void DistributedForces::clear_scalar()
 {
-  for (auto& e : scalar_indices) e.clear();
-  for (auto& e : scalar) e.clear();
+    for (auto& e : scalar_indices) e.clear();
+    for (auto& e : scalar) e.clear();
 }
 
 void DistributedForces::add_summed(int i, int j, Vector const& force, InteractionType type)
 {
-  if (i > j) throw std::runtime_error("Only upper triangle allowed (i < j).");
+    if (i > j) throw std::runtime_error("Only upper triangle allowed (i < j).");
 
-  auto & summed_i = summed[i];
-  auto & indices_i = indices[i];
+    auto & summed_i = summed[i];
+    auto & indices_i = indices[i];
 
-  auto iter = std::find(indices_i.begin(), indices_i.end(), j);
+    auto iter = std::find(indices_i.begin(), indices_i.end(), j);
 
-  if (iter == indices_i.end()) {
-	indices_i.push_back(j);
-	summed_i.push_back(Force<Vector>(force, type));
-  } else {
-	summed_i[std::distance(indices_i.begin(), iter)] += Force<Vector>(force, type);
-  }
+    if (iter == indices_i.end()) {
+        indices_i.push_back(j);
+        summed_i.push_back(Force<Vector>(force, type));
+    } else {
+        summed_i[std::distance(indices_i.begin(), iter)] += Force<Vector>(force, type);
+    }
 }
 
 void DistributedForces::add_detailed(int i, int j, Vector const& force, PureInteractionType type)
 {
-  if (i > j) throw std::runtime_error("Only upper triangle allowed (i < j).");
+    if (i > j) throw std::runtime_error("Only upper triangle allowed (i < j).");
 
-  auto & detailed_i = detailed[i];
-  auto & indices_i = indices[i];
+    auto & detailed_i = detailed[i];
+    auto & indices_i = indices[i];
 
-  auto iter = std::find(indices_i.begin(), indices_i.end(), j);
+    auto iter = std::find(indices_i.begin(), indices_i.end(), j);
 
-  if (iter == indices_i.end()) {
-	indices_i.push_back(j);
-	detailed_i.push_back(DetailedForce(force, type));
-  } else {
-	detailed_i[std::distance(indices_i.begin(), iter)].add(force, type);
-  }
+    if (iter == indices_i.end()) {
+        indices_i.push_back(j);
+        detailed_i.push_back(DetailedForce(force, type));
+    } else {
+        detailed_i[std::distance(indices_i.begin(), iter)].add(force, type);
+    }
 }
 
 void DistributedForces::write_detailed_vector(std::ostream& os) const
 {
-  for (size_t i = 0; i != detailed.size(); ++i) {
-	auto const& detailed_i = detailed[i];
-	auto const& indices_i = indices[i];
-    for (size_t p = 0; p != detailed_i.size(); ++p) {
-  	  size_t j = indices_i[p];
-      auto const& detailed_j = detailed_i[p];
-      for (int type = 0; type != static_cast<int>(PureInteractionType::NUMBER); ++type) {
-    	if (detailed_j.number[type] == 0) continue;
-    	Vector const& force = detailed_j.force[type];
-        os << i << " " << j << " "
-           << force[XX] << " " << force[YY] << " " << force[ZZ] << " "
-           << from_pure(static_cast<PureInteractionType>(type)) << std::endl;
-      }
+    for (size_t i = 0; i != detailed.size(); ++i) {
+        auto const& detailed_i = detailed[i];
+        auto const& indices_i = indices[i];
+        for (size_t p = 0; p != detailed_i.size(); ++p) {
+            size_t j = indices_i[p];
+            auto const& detailed_j = detailed_i[p];
+            for (int type = 0; type != static_cast<int>(PureInteractionType::NUMBER); ++type) {
+                if (detailed_j.number[type] == 0) continue;
+                Vector const& force = detailed_j.force[type];
+                os << i << " " << j << " "
+                   << force[XX] << " " << force[YY] << " " << force[ZZ] << " "
+                   << from_pure(static_cast<PureInteractionType>(type)) << std::endl;
+            }
+        }
     }
-  }
 }
 
 void DistributedForces::write_detailed_scalar(std::ostream& os, rvec *x) const
 {
-  for (size_t i = 0; i != detailed.size(); ++i) {
-	auto const& detailed_i = detailed[i];
-	auto const& indices_i = indices[i];
-    for (size_t p = 0; p != detailed_i.size(); ++p) {
-      size_t j = indices_i[p];
-      auto const& detailed_j = detailed_i[p];
-      for (int type = 0; type != static_cast<int>(PureInteractionType::NUMBER); ++type) {
-    	if (detailed_j.number[type] == 0) continue;
-    	Vector const& force = detailed_j.force[type];
-        os << i << " " << j << " "
-           << vector2signedscalar(force.get_pointer(), x[i], x[j], fda_settings.v2s) << " "
-		   << from_pure(static_cast<PureInteractionType>(type)) << std::endl;
-      }
+    for (size_t i = 0; i != detailed.size(); ++i) {
+        auto const& detailed_i = detailed[i];
+        auto const& indices_i = indices[i];
+        for (size_t p = 0; p != detailed_i.size(); ++p) {
+            size_t j = indices_i[p];
+            auto const& detailed_j = detailed_i[p];
+            for (int type = 0; type != static_cast<int>(PureInteractionType::NUMBER); ++type) {
+                if (detailed_j.number[type] == 0) continue;
+                Vector const& force = detailed_j.force[type];
+                os << i << " " << j << " "
+                   << vector2signedscalar(force.get_pointer(), x[i], x[j], fda_settings.v2s) << " "
+                   << from_pure(static_cast<PureInteractionType>(type)) << std::endl;
+            }
+        }
     }
-  }
 }
 
 void DistributedForces::write_summed_vector(std::ostream& os) const
 {
-  for (size_t i = 0; i != summed.size(); ++i) {
-	auto const& summed_i = summed[i];
-	auto const& indices_i = indices[i];
-	for (size_t p = 0; p != summed_i.size(); ++p) {
-	  size_t j = indices_i[p];
-	  auto const& summed_j = summed_i[p];
-      Vector const& force = summed_j.force;
-      os << i << " " << j << " "
-         << force[XX] << " " << force[YY] << " " << force[ZZ] << " "
-		 << summed_j.type << std::endl;
-	}
-  }
+    for (size_t i = 0; i != summed.size(); ++i) {
+        auto const& summed_i = summed[i];
+        auto const& indices_i = indices[i];
+        for (size_t p = 0; p != summed_i.size(); ++p) {
+            size_t j = indices_i[p];
+            auto const& summed_j = summed_i[p];
+            Vector const& force = summed_j.force;
+            os << i << " " << j << " "
+               << force[XX] << " " << force[YY] << " " << force[ZZ] << " "
+               << summed_j.type << std::endl;
+        }
+    }
 }
 
 void DistributedForces::write_summed_scalar(std::ostream& os, rvec *x) const
 {
-  for (size_t i = 0; i != summed.size(); ++i) {
-	auto const& summed_i = summed[i];
-	auto const& indices_i = indices[i];
-	for (size_t p = 0; p != summed_i.size(); ++p) {
-	  size_t j = indices_i[p];
-	  auto const& summed_j = summed_i[p];
-      os << i << " " << j << " "
-         << vector2signedscalar(summed_j.force.get_pointer(), x[i], x[j], fda_settings.v2s) << " "
-		 << summed_j.type << std::endl;
-	}
-  }
+    for (size_t i = 0; i != summed.size(); ++i) {
+        auto const& summed_i = summed[i];
+        auto const& indices_i = indices[i];
+        for (size_t p = 0; p != summed_i.size(); ++p) {
+            size_t j = indices_i[p];
+            auto const& summed_j = summed_i[p];
+            os << i << " " << j << " "
+               << vector2signedscalar(summed_j.force.get_pointer(), x[i], x[j], fda_settings.v2s) << " "
+               << summed_j.type << std::endl;
+        }
+    }
 }
 
 void DistributedForces::write_scalar(std::ostream& os) const
 {
-  for (size_t i = 0; i != scalar.size(); ++i) {
-	auto const& scalar_i = scalar[i];
-	auto const& scalar_indices_i = scalar_indices[i];
-	for (size_t p = 0; p != scalar_i.size(); ++p) {
-	  size_t j = scalar_indices_i[p];
-	  auto const& scalar_j = scalar_i[p];
-	  os << i << " " << j << " "
-	     << scalar_j.force << " "
-		 << scalar_j.type << std::endl;
-	}
-  }
+    for (size_t i = 0; i != scalar.size(); ++i) {
+        auto const& scalar_i = scalar[i];
+        auto const& scalar_indices_i = scalar_indices[i];
+        for (size_t p = 0; p != scalar_i.size(); ++p) {
+            size_t j = scalar_indices_i[p];
+            auto const& scalar_j = scalar_i[p];
+            os << i << " " << j << " "
+               << scalar_j.force << " "
+               << scalar_j.type << std::endl;
+        }
+    }
 }
 
 void DistributedForces::write_total_forces(std::ostream& os, rvec *x) const
 {
-  std::vector<real> total_forces(syslen, 0.0);
-  for (size_t i = 0; i != summed.size(); ++i) {
-	auto const& summed_i = summed[i];
-	auto const& indices_i = indices[i];
-	for (size_t p = 0; p != summed_i.size(); ++p) {
-	  size_t j = indices_i[p];
-	  auto const& summed_j = summed_i[p];
-      real scalar_force;
-      switch (fda_settings.v2s) {
-        case Vector2Scalar::NORM:
-          scalar_force = norm(summed_j.force.get_pointer());
-          break;
-        case Vector2Scalar::PROJECTION:
-          scalar_force = vector2unsignedscalar(summed_j.force.get_pointer(), i, j, x);
-          break;
-        default:
-      	  gmx_fatal(FARGS, "Unknown option for Vector2Scalar.\n");
-          break;
-      }
-      total_forces[i] += scalar_force;
-      total_forces[j] += scalar_force;
+    std::vector<real> total_forces(syslen, 0.0);
+    for (size_t i = 0; i != summed.size(); ++i) {
+        auto const& summed_i = summed[i];
+        auto const& indices_i = indices[i];
+        for (size_t p = 0; p != summed_i.size(); ++p) {
+            size_t j = indices_i[p];
+            auto const& summed_j = summed_i[p];
+            real scalar_force;
+            switch (fda_settings.v2s) {
+                case Vector2Scalar::NORM:
+                    scalar_force = norm(summed_j.force.get_pointer());
+                    break;
+                case Vector2Scalar::PROJECTION:
+                    scalar_force = vector2unsignedscalar(summed_j.force.get_pointer(), i, j, x);
+                    break;
+                default:
+                    gmx_fatal(FARGS, "Unknown option for Vector2Scalar.\n");
+                    break;
+            }
+            total_forces[i] += scalar_force;
+            total_forces[j] += scalar_force;
+        }
     }
-  }
 
-  int j = total_forces.size();
-  // Detect the last non-zero item
-  if (fda_settings.no_end_zeros) {
-    for (; j > 0; --j)
-      if (total_forces[j - 1] != 0.0)
-        break;
-  }
-
-  // j holds the index of first zero item or the length of force
-  bool first_on_line = true;
-  for (int i = 0; i < j; ++i) {
-    if (first_on_line) {
-      os << total_forces[i];
-      first_on_line = false;
-    } else {
-      os << " " << total_forces[i];
+    int j = total_forces.size();
+    // Detect the last non-zero item
+    if (fda_settings.no_end_zeros) {
+        for (; j > 0; --j)
+            if (total_forces[j - 1] != 0.0)
+                break;
     }
-  }
-  os << std::endl;
+
+    // j holds the index of first zero item or the length of force
+    bool first_on_line = true;
+    for (int i = 0; i < j; ++i) {
+        if (first_on_line) {
+            os << total_forces[i];
+            first_on_line = false;
+        } else {
+            os << " " << total_forces[i];
+        }
+    }
+    os << std::endl;
 }
 
 void DistributedForces::scalar_real_divide(real divisor)
 {
-  real inv = 1.0 / divisor;
-  for (auto& scalar_i : scalar)
-    for (auto& scalar_j : scalar_i) scalar_j.force *= inv;
+    real inv = 1.0 / divisor;
+    for (auto& scalar_i : scalar)
+        for (auto& scalar_j : scalar_i) scalar_j.force *= inv;
 }
 
 void DistributedForces::summed_merge_to_scalar(const rvec *x)
 {
-  for (size_t i = 0; i != summed.size(); ++i) {
-    auto & scalar_i = scalar[i];
-    auto & scalar_indices_i = scalar_indices[i];
-    auto const& summed_i = summed[i];
-	auto const& indices_i = indices[i];
-    for (size_t p = 0; p != summed_i.size(); ++p) {
-  	  size_t j = indices_i[p];
-      auto const& summed_j = summed_i[p];
-  	  auto iter = std::find(scalar_indices_i.begin(), scalar_indices_i.end(), j);
-  	  Force<real> scalar_force(vector2signedscalar(summed_j.force.get_pointer(), x[i], x[j], fda_settings.v2s), summed_j.type);
-  	  if (iter == scalar_indices_i.end()) {
-  		scalar_indices_i.push_back(j);
-  		scalar_i.push_back(scalar_force);
-  	  } else {
-  		scalar_i[std::distance(scalar_indices_i.begin(), iter)] += scalar_force;
-  	  }
+    for (size_t i = 0; i != summed.size(); ++i) {
+        auto & scalar_i = scalar[i];
+        auto & scalar_indices_i = scalar_indices[i];
+        auto const& summed_i = summed[i];
+        auto const& indices_i = indices[i];
+        for (size_t p = 0; p != summed_i.size(); ++p) {
+            size_t j = indices_i[p];
+            auto const& summed_j = summed_i[p];
+            auto iter = std::find(scalar_indices_i.begin(), scalar_indices_i.end(), j);
+            Force<real> scalar_force(vector2signedscalar(summed_j.force.get_pointer(), x[i], x[j], fda_settings.v2s), summed_j.type);
+            if (iter == scalar_indices_i.end()) {
+                scalar_indices_i.push_back(j);
+                scalar_i.push_back(scalar_force);
+            } else {
+                scalar_i[std::distance(scalar_indices_i.begin(), iter)] += scalar_force;
+            }
+        }
     }
-  }
 }
 
 } // namespace fda

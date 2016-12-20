@@ -16,31 +16,31 @@ namespace fda {
 
 struct DetailedForce
 {
-  /// Default constructor
-  DetailedForce()
-   : number{0}
-  {}
+    /// Default constructor
+    DetailedForce()
+     : number{0}
+    {}
 
-  DetailedForce(Vector force_in, PureInteractionType type)
-   : number{0}
-  {
-	int i = to_index(type);
-	force[i] = force_in;
-    ++number[i];
-  }
+    DetailedForce(Vector force_in, PureInteractionType type)
+     : number{0}
+    {
+        int i = to_index(type);
+        force[i] = force_in;
+        ++number[i];
+    }
 
-  void add(Vector force_in, PureInteractionType type)
-  {
-	int i = to_index(type);
-	force[i] += force_in;
-    ++number[i];
-  }
+    void add(Vector force_in, PureInteractionType type)
+    {
+        int i = to_index(type);
+        force[i] += force_in;
+        ++number[i];
+    }
 
-  /// Vector force separated for each interaction type
-  std::array<Vector, static_cast<int>(PureInteractionType::NUMBER)> force;
+    /// Vector force separated for each interaction type
+    std::array<Vector, static_cast<int>(PureInteractionType::NUMBER)> force;
 
-  /// Number of forces for each interaction type
-  std::array<int, static_cast<int>(PureInteractionType::NUMBER)> number;
+    /// Number of forces for each interaction type
+    std::array<int, static_cast<int>(PureInteractionType::NUMBER)> number;
 };
 
 } // namespace fda

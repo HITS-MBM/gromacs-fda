@@ -17,9 +17,9 @@ namespace fda {
 /// OnePair defines the way the interactions between the same pair of atoms are stored
 enum class OnePair : std::int8_t
 {
-  DETAILED, ///< each interaction is stored separately
-            ///< it's possible to have the same pair in several interaction lists (default)
-  SUMMED    ///< each interaction is stored once
+    DETAILED, ///< each interaction is stored separately
+              ///< it's possible to have the same pair in several interaction lists (default)
+    SUMMED    ///< each interaction is stored once
 };
 
 /// Output stream for OnePair

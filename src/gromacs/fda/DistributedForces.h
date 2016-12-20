@@ -27,7 +27,7 @@ namespace fda {
  * Storage container for distributed forces
  * Same structure for atom and residue based distribution
  *
- * TODO: the bonded interaction type  might be possible to be reduced to a
+ * TODO: the bonded interaction type might be possible to be reduced to a
  * single real vector (=eliminate jjnr) as the atoms interacting are known
  * at simulation start and do not change (also their order in the bond list
  * doesn't change). This would however require an extra step of looking up
@@ -40,61 +40,61 @@ class DistributedForces
 {
 public:
 
-  /// Constructor
-  DistributedForces(int syslen, FDASettings const& fda_settings);
+    /// Constructor
+    DistributedForces(int syslen, FDASettings const& fda_settings);
 
-  /// Clear summed/detailed array for the next frame
-  void clear();
+    /// Clear summed/detailed array for the next frame
+    void clear();
 
-  /// Clear scalar array
-  void clear_scalar();
+    /// Clear scalar array
+    void clear_scalar();
 
-  void add_summed(int i, int j, Vector const& force, InteractionType type);
+    void add_summed(int i, int j, Vector const& force, InteractionType type);
 
-  void add_detailed(int i, int j, Vector const& force, PureInteractionType type);
+    void add_detailed(int i, int j, Vector const& force, PureInteractionType type);
 
-  void write_detailed_vector(std::ostream& os) const;
+    void write_detailed_vector(std::ostream& os) const;
 
-  void write_detailed_scalar(std::ostream& os, rvec *x) const;
+    void write_detailed_scalar(std::ostream& os, rvec *x) const;
 
-  void write_summed_vector(std::ostream& os) const;
+    void write_summed_vector(std::ostream& os) const;
 
-  void write_summed_scalar(std::ostream& os, rvec *x) const;
+    void write_summed_scalar(std::ostream& os, rvec *x) const;
 
-  void write_scalar(std::ostream& os) const;
+    void write_scalar(std::ostream& os) const;
 
-  void write_total_forces(std::ostream& os, rvec *x) const;
+    void write_total_forces(std::ostream& os, rvec *x) const;
 
-  /// Divide all scalar forces by the divisor
-  void scalar_real_divide(real divisor);
+    /// Divide all scalar forces by the divisor
+    void scalar_real_divide(real divisor);
 
-  void summed_merge_to_scalar(const rvec *x);
+    void summed_merge_to_scalar(const rvec *x);
 
 private:
 
-  friend class ::FDA;
-  template <class Base> friend class FDABase;
+    friend class ::FDA;
+    template <class Base> friend class FDABase;
 
-  /// Total number of atoms/residues in the system
-  int syslen;
+    /// Total number of atoms/residues in the system
+    int syslen;
 
-  /// Indices of second atom (j)
-  std::vector<std::vector<int>> indices;
+    /// Indices of second atom (j)
+    std::vector<std::vector<int>> indices;
 
-  /// Indices of second atom (j)
-  std::vector<std::vector<int>> scalar_indices;
+    /// Indices of second atom (j)
+    std::vector<std::vector<int>> scalar_indices;
 
-  /// Scalar force pairs
-  std::vector<std::vector<Force<real>>> scalar;
+    /// Scalar force pairs
+    std::vector<std::vector<Force<real>>> scalar;
 
-  /// Summed vector force pairs
-  std::vector<std::vector<Force<Vector>>> summed;
+    /// Summed vector force pairs
+    std::vector<std::vector<Force<Vector>>> summed;
 
-  /// Detailed force pairs
-  std::vector<std::vector<DetailedForce>> detailed;
+    /// Detailed force pairs
+    std::vector<std::vector<DetailedForce>> detailed;
 
-  /// FDA settings
-  FDASettings const& fda_settings;
+    /// FDA settings
+    FDASettings const& fda_settings;
 
 };
 

@@ -35,15 +35,15 @@ static int FDA_egp_flags[PF_GROUP_DIM2] = {
 #define FDA_BONDEXCL_PRINT_DEBUG_OFF
 
 typedef struct {
-	char          g1name[STRLEN]; /* groupname of FDA group 1 (defined in pfi-file) */
-	char          g2name[STRLEN]; /* groupname of FDA group 2 (defined in pfi-file) */
+    char          g1name[STRLEN]; /* groupname of FDA group 1 (defined in pfi-file) */
+    char          g2name[STRLEN]; /* groupname of FDA group 2 (defined in pfi-file) */
     int           g1idx; /* FDA groups index 1 (defined in pfi-file) */
     int           g2idx; /* FDA groups index 2 (defined in pfi-file) */
-	t_blocka*     groups; /* groups defined in pfn-file */
-	char**        groupnames;/* groupnames defined in pfn-file */
-	fda::InteractionType type; /* interaction type */
-	bool FDA_nonbonded_exclusion_on; /* switch FDA nonbonded exclusions on/off (default: on) */
-	bool FDA_bonded_exclusion_on; /* switch FDA bonded exclusions on/off (default: on) */
+    t_blocka*     groups; /* groups defined in pfn-file */
+    char**        groupnames;/* groupnames defined in pfn-file */
+    fda::InteractionType type; /* interaction type */
+    bool FDA_nonbonded_exclusion_on; /* switch FDA nonbonded exclusions on/off (default: on) */
+    bool FDA_bonded_exclusion_on; /* switch FDA bonded exclusions on/off (default: on) */
 } FDA_data;
 
 //! Global data structure

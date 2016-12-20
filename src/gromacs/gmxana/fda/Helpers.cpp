@@ -2,7 +2,7 @@
  * Helpers.cpp
  *
  *  Created on: Feb 12, 2015
- *      Author: Bernd Doser, HITS gGmbH
+ *      Author: Bernd Doser, HITS gGmbH <bernd.doser@h-its.org>
  */
 
 #include "Helpers.h"

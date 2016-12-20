@@ -16,9 +16,9 @@ namespace fda {
 
 enum class ResiduesRenumber : std::int8_t
 {
-  AUTO,
-  DO,
-  DONT
+    AUTO,
+    DO,
+    DONT
 };
 
 /// Output stream for ResiduesRenumber

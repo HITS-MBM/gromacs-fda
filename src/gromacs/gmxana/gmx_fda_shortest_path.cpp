@@ -1,3 +1,10 @@
+/*
+ * gmx_fda_shortest_path.cpp
+ *
+ *  Created on: Feb 13, 2015
+ *      Author: Bernd Doser, HITS gGmbH <bernd.doser@h-its.org>
+ */
+
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -5,7 +12,6 @@
 #include <iostream>
 #include <string>
 #include <vector>
-
 #include "fda/BoostGraph.h"
 #include "fda/EnumParser.h"
 #include "fda/FrameType.h"

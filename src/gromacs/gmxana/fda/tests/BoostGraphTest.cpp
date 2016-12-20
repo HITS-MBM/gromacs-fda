@@ -2,7 +2,7 @@
  * BoostGraphTest.cpp
  *
  *  Created on: Feb 19, 2015
- *      Author: Bernd Doser, HITS gGmbH
+ *      Author: Bernd Doser, HITS gGmbH <bernd.doser@h-its.org>
  */
 
 #include <gtest/gtest.h>

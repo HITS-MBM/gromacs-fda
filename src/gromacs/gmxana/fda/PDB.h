@@ -2,7 +2,7 @@
  * PDB.h
  *
  *  Created on: Feb 23, 2015
- *      Author: Bernd Doser, HITS gGmbH
+ *      Author: Bernd Doser, HITS gGmbH <bernd.doser@h-its.org>
  */
 
 #ifndef PDB_H_

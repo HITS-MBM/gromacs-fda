@@ -2,7 +2,7 @@
  * Graph.cpp
  *
  *  Created on: Jan 27, 2015
- *      Author: Bernd Doser, HITS gGmbH
+ *      Author: Bernd Doser, HITS gGmbH <bernd.doser@h-its.org>
  */
 
 #include <algorithm>

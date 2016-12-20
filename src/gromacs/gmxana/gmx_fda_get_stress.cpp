@@ -1,3 +1,10 @@
+/*
+ * gmx_fda_get_stress.cpp
+ *
+ *  Created on: Feb 13, 2015
+ *      Author: Bernd Doser, HITS gGmbH <bernd.doser@h-its.org>
+ */
+
 #include <algorithm>
 #include <cmath>
 #include <fstream>
@@ -7,7 +14,6 @@
 #include <sstream>
 #include <cstddef>
 #include <vector>
-
 #include "fda/Graph.h"
 #include "fda/Helpers.h"
 #include "gmx_ana.h"

@@ -2,7 +2,7 @@
  * LogicallyErrorComparer.h
  *
  *  Created on: Oct 9, 2014
- *      Author: Bernd Doser, HITS gGmbH
+ *      Author: Bernd Doser, HITS gGmbH <bernd.doser@h-its.org>
  */
 
 #ifndef LOGICALLYERRORCOMPARER_H_

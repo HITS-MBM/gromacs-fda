@@ -2,7 +2,7 @@
  * FrameType.h
  *
  *  Created on: Apr 2, 2015
- *      Author: Bernd Doser, HITS gGmbH
+ *      Author: Bernd Doser, HITS gGmbH <bernd.doser@h-its.org>
  */
 
 #ifndef FRAMETYPE_H_

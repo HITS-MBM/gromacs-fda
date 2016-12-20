@@ -2,7 +2,7 @@
  * BoostGraph.h
  *
  *  Created on: Feb 13, 2015
- *      Author: Bernd Doser, HITS gGmbH
+ *      Author: Bernd Doser, HITS gGmbH <bernd.doser@h-its.org>
  */
 
 #ifndef BOOSTGRAPH_H_

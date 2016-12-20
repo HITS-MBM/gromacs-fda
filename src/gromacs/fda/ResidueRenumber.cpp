@@ -13,32 +13,32 @@ namespace fda {
 
 std::ostream& operator << (std::ostream& os, ResiduesRenumber r)
 {
-  switch(r) {
-    case ResiduesRenumber::AUTO:
-      return os << "auto";
-    case ResiduesRenumber::DO:
-      return os << "yes";
-    case ResiduesRenumber::DONT:
-      return os << "no";
-    default:
-      return os << "invalid";
-  }
+    switch(r) {
+        case ResiduesRenumber::AUTO:
+            return os << "auto";
+        case ResiduesRenumber::DO:
+            return os << "yes";
+        case ResiduesRenumber::DONT:
+            return os << "no";
+        default:
+            return os << "invalid";
+    }
 }
 
 std::istream& operator >> (std::istream& is, ResiduesRenumber& r)
 {
-  std::string s;
-  is >> s;
-  std::transform(s.begin(), s.end(), s.begin(), tolower);
-  if (s == "auto")
-	r = ResiduesRenumber::AUTO;
-  else if (s == "yes")
-	r = ResiduesRenumber::DO;
-  else if (s == "no")
-	r = ResiduesRenumber::DONT;
-  else
-    throw std::runtime_error("Unknown option " + s);
-  return is;
+    std::string s;
+    is >> s;
+    std::transform(s.begin(), s.end(), s.begin(), tolower);
+    if (s == "auto")
+        r = ResiduesRenumber::AUTO;
+    else if (s == "yes")
+        r = ResiduesRenumber::DO;
+    else if (s == "no")
+        r = ResiduesRenumber::DONT;
+    else
+        throw std::runtime_error("Unknown option " + s);
+    return is;
 }
 
 } // namespace fda

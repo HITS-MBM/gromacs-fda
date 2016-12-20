@@ -20,47 +20,48 @@ class Vector
 {
 public:
 
-	Vector(real value = 0.0)
-	{ v[0] = value; v[1] = value; v[2] = value; }
+    Vector(real value = 0.0)
+    { v[0] = value; v[1] = value; v[2] = value; }
 
-	Vector(real *v2)
-	{ v[0] = v2[0]; v[1] = v2[1]; v[2] = v2[2]; }
+    Vector(real *v2)
+    { v[0] = v2[0]; v[1] = v2[1]; v[2] = v2[2]; }
 
     bool operator == (Vector const& other) const
     {
-	  return !operator != (other);
+      return !operator != (other);
     }
 
     bool operator != (Vector const& other) const
     {
-  	  return v[0] != other.v[0] or v[1] != other.v[1] or v[2] != other.v[2];
+        return v[0] != other.v[0] or v[1] != other.v[1] or v[2] != other.v[2];
     }
 
     template <class Comparer>
-    bool equal(Vector const& other, Comparer const& comparer) const {
+    bool equal(Vector const& other, Comparer const& comparer) const
+    {
       return comparer(v[0], other.v[0]) and comparer(v[1], other.v[1]) and comparer(v[2], other.v[2]);
     }
 
-	void operator += (Vector const& other)
-	{
-	    v[0] += other[0]; v[1] += other[1]; v[2] += other[2];
-	}
+    void operator += (Vector const& other)
+    {
+        v[0] += other[0]; v[1] += other[1]; v[2] += other[2];
+    }
 
-	void operator += (real *other)
-	{
-	    v[0] += other[0]; v[1] += other[1]; v[2] += other[2];
-	}
+    void operator += (real *other)
+    {
+        v[0] += other[0]; v[1] += other[1]; v[2] += other[2];
+    }
 
-	real& operator[](int p) { return v[p]; }
-	real const& operator[](int p) const { return v[p]; }
+    real& operator [] (int p) { return v[p]; }
+    real const& operator[](int p) const { return v[p]; }
 
-	real* get_pointer() { return &v[0]; }
-	real const* get_pointer() const { return &v[0]; }
+    real* get_pointer() { return &v[0]; }
+    real const* get_pointer() const { return &v[0]; }
 
 private:
 
-	/// Static array with dimension = 3
-	std::array<real, 3> v;
+    /// Static array with dimension = 3
+    std::array<real, 3> v;
 
 };
 

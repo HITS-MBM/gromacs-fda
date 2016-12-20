@@ -1,10 +1,16 @@
+/*
+ * gmx_fda_view_stress.cpp
+ *
+ *  Created on: Feb 13, 2015
+ *      Author: Bernd Doser, HITS gGmbH <bernd.doser@h-its.org>
+ */
+
 #include <cmath>
 #include <cstdio>
 #include <iostream>
 #include <limits>
 #include <string>
 #include <vector>
-
 #include "fda/EnumParser.h"
 #include "fda/FrameType.h"
 #include "fda/Helpers.h"

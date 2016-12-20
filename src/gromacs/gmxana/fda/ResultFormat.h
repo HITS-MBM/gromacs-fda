@@ -2,7 +2,7 @@
  * ResultFormat.h
  *
  *  Created on: Apr 14, 2015
- *      Author: Bernd Doser, HITS gGmbH
+ *      Author: Bernd Doser, HITS gGmbH <bernd.doser@h-its.org>
  */
 
 #ifndef RESULTFORMAT_H_
