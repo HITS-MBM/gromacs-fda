@@ -1,12 +1,13 @@
 /*
- * fda.cpp
+ * FDA.cpp
  *
  *  Created on: Oct 31, 2016
  *      Author: Bernd Doser, HITS gGmbH <bernd.doser@h-its.org>
  */
 
 #include <sstream>
-#include "fda.h"
+
+#include "FDA.h"
 #include "gromacs/fileio/readinp.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/math/vectypes.h"

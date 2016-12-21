@@ -46,6 +46,7 @@
 
 #include <algorithm>
 
+#include "../../gromacs/fda/FDA.h"
 #include "thread_mpi/threads.h"
 
 #include "gromacs/commandline/filenm.h"
@@ -54,7 +55,6 @@
 #include "gromacs/domdec/domdec_struct.h"
 #include "gromacs/ewald/pme.h"
 #include "gromacs/ewald/pme-load-balancing.h"
-#include "gromacs/fda/fda.h"
 #include "gromacs/fileio/trxio.h"
 #include "gromacs/gmxlib/md_logging.h"
 #include "gromacs/gmxlib/network.h"

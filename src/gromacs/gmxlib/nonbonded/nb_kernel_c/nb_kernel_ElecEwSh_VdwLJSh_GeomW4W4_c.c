@@ -39,8 +39,8 @@
 #include "config.h"
 #include <math.h>
 
+#include "../../../fda/FDA.h"
 #include "../nb_kernel.h"
-#include "gromacs/fda/fda.h"
 #include "gromacs/gmxlib/nrnb.h"
 
 /*

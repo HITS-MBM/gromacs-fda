@@ -54,7 +54,7 @@
 
 #include <algorithm>
 
-#include "gromacs/fda/fda.h"
+#include "../fda/FDA.h"
 #include "gromacs/fda/InteractionType.h"
 #include "gromacs/listed-forces/pairs.h"
 #include "gromacs/math/functions.h"

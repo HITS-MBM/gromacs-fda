@@ -1,5 +1,5 @@
 /*
- * fda.h
+ * FDA.h
  *
  *  Created on: Oct 31, 2016
  *      Author: Bernd Doser, HITS gGmbH <bernd.doser@h-its.org>

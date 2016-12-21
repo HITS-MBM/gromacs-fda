@@ -49,7 +49,7 @@
 
 #include <stdio.h>
 
-#include "gromacs/fda/fda.h"
+#include "../fda/FDA.h"
 #include "gromacs/gmxlib/nrnb.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/mdtypes/fcdata.h"

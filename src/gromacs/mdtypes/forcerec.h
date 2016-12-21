@@ -37,7 +37,7 @@
 #ifndef GMX_MDTYPES_TYPES_FORCEREC_H
 #define GMX_MDTYPES_TYPES_FORCEREC_H
 
-#include "gromacs/fda/fda.h"
+#include "../fda/FDA.h"
 #include "gromacs/math/vectypes.h"
 #include "gromacs/mdtypes/interaction_const.h"
 #include "gromacs/mdtypes/md_enums.h"

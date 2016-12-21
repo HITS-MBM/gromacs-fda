@@ -33,7 +33,7 @@
  * the research papers on the package. Check out http://www.gromacs.org.
  */
 
-#include "gromacs/fda/fda.h"
+#include "../../fda/FDA.h"
 
 #define UNROLLI    NBNXN_CPU_CLUSTER_I_SIZE
 #define UNROLLJ    NBNXN_CPU_CLUSTER_I_SIZE
