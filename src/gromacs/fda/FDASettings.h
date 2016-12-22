@@ -141,6 +141,12 @@ struct FDASettings
     /// Version of force matrix implementation (compat mode)
     static const std::string compat_fm_version;
 
+    /// Use nonbonded exclusions (default: on)
+    bool nonbonded_exclusion_on;
+
+    /// Use bonded exclusions (default: on)
+    bool bonded_exclusion_on;
+
 };
 
 } // namespace fda

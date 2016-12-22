@@ -749,6 +749,11 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
         please_cite(fplog, "Berendsen95a");
     }
 
+#ifdef BUILD_WITH_FDA
+    std::shared_ptr<fda::FDASettings> ptr_fda_settings;
+    std::shared_ptr<FDA> ptr_fda;
+#endif
+
     snew(state, 1);
     if (SIMMASTER(cr))
     {
@@ -756,8 +761,8 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
         read_tpx_state(ftp2fn(efTPR, nfile, fnm), inputrec, state, mtop);
 
 #ifdef BUILD_WITH_FDA
-        fda::FDASettings fda_settings(nfile, fnm, mtop, PAR(cr));
-        // Initialize FDA global array
+        ptr_fda_settings = std::make_shared<fda::FDASettings>(nfile, fnm, mtop, PAR(cr));
+        ptr_fda = std::make_shared<FDA>(*ptr_fda_settings);
         fda_data_init(nfile, fnm);
 #endif
 
@@ -1186,6 +1191,10 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
                       nbpu_opt,
                       FALSE,
                       pforce);
+
+#ifdef BUILD_WITH_FDA
+        fr->fda = ptr_fda.get();
+#endif
 
         /* Initialize QM-MM */
         if (fr->bQMMM)

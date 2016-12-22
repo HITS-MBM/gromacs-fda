@@ -203,6 +203,10 @@ FDASettings::FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *mtop, bool
 
     if ((stress_mode(atom_based_result_type) or stress_mode(residue_based_result_type)) and (one_pair != OnePair::SUMMED))
         gmx_fatal(FARGS, "Per atom data can only be computed from summed interactions.\n");
+
+    // Energy groups exclusions
+    nonbonded_exclusion_on = strcasecmp(get_estr(&ninp, &inp, "energy_grp_exclusion", "yes"), "no");
+    bonded_exclusion_on = strcasecmp(get_estr(&ninp, &inp, "bonded_exclusion", "yes"), "no");
 }
 
 std::vector<int> FDASettings::groupatoms2residues(std::vector<int> const& group_atoms) const

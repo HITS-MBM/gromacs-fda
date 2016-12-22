@@ -46,7 +46,6 @@
 
 #include <algorithm>
 
-#include "../../gromacs/fda/FDA.h"
 #include "thread_mpi/threads.h"
 
 #include "gromacs/commandline/filenm.h"
@@ -55,6 +54,7 @@
 #include "gromacs/domdec/domdec_struct.h"
 #include "gromacs/ewald/pme.h"
 #include "gromacs/ewald/pme-load-balancing.h"
+#include "gromacs/fda/FDA.h"
 #include "gromacs/fileio/trxio.h"
 #include "gromacs/gmxlib/md_logging.h"
 #include "gromacs/gmxlib/network.h"
@@ -675,9 +675,6 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
         }
         fprintf(fplog, "\n");
     }
-
-    fda::FDASettings fda_settings(nfile, fnm, top_global, PAR(cr));
-    fr->fda = new FDA(fda_settings);
 
     walltime_accounting_start(walltime_accounting);
     wallcycle_start(wcycle, ewcRUN);
