@@ -31,7 +31,9 @@ FDASettings::FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *mtop, bool
    time_averaging_period(1),
    sys_in_group1(syslen_atoms, 0),
    sys_in_group2(syslen_atoms, 0),
-   type(InteractionType_NONE)
+   type(InteractionType_NONE),
+   nonbonded_exclusion_on(true),
+   bonded_exclusion_on(true)
 {
     /// Parallel execution not implemented yet
     if (parallel_execution)
@@ -105,6 +107,15 @@ FDASettings::FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *mtop, bool
     std::stringstream(get_estr(&ninp, &inp, "group1", "Protein")) >> name_group1;
     std::stringstream(get_estr(&ninp, &inp, "group2", "Protein")) >> name_group2;
     std::cout << "Pairwise forces for groups: " << name_group1 << " and " << name_group2 << std::endl;
+
+    // Get atom indices of groups defined in pfn-file
+    groups = init_index(opt2fn("-pfn", nfile, fnm), &groupnames);
+
+    // Get group number
+    for (int i = 0; i < groups->nr; ++i) {
+        if (gmx_strcasecmp(groupnames[i], name_group1.c_str()) == 0) index_group1 = i;
+        if (gmx_strcasecmp(groupnames[i], name_group2.c_str()) == 0) index_group2 = i;
+    }
 
     // Check if using compatibility mode, there should be only one group
     if (compatibility_mode(atom_based_result_type) or compatibility_mode(residue_based_result_type)) {

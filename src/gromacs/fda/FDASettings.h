@@ -34,7 +34,9 @@ struct FDASettings
        syslen_atoms(0),
        syslen_residues(0),
        time_averaging_period(1),
-       type(InteractionType_NONE)
+       type(InteractionType_NONE),
+	   nonbonded_exclusion_on(true),
+	   bonded_exclusion_on(true)
     {}
 
     /// Construction by input file
@@ -146,6 +148,18 @@ struct FDASettings
 
     /// Use bonded exclusions (default: on)
     bool bonded_exclusion_on;
+
+    /// FDA groups index 1 (defined in pfi-file)
+    int index_group1;
+
+    /// FDA groups index 2 (defined in pfi-file)
+    int index_group2;
+
+    /// groups defined in pfn-file
+    t_blocka* groups;
+
+    /// groupnames defined in pfn-file
+    char** groupnames;
 
 };
 

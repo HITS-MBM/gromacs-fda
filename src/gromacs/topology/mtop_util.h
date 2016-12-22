@@ -41,6 +41,7 @@
 
 #include <vector>
 
+#include "gromacs/fda/FDASettings.h"
 #include "gromacs/utility/basedefinitions.h"
 
 struct gmx_localtop_t;
@@ -259,7 +260,9 @@ gmx_mtop_global_atoms(const gmx_mtop_t *mtop);
  * be sorted to the end.
  */
 gmx_localtop_t *
-gmx_mtop_generate_local_top(const gmx_mtop_t *mtop, bool freeEnergyInteractionsAtEnd);
+gmx_mtop_generate_local_top(const gmx_mtop_t *mtop,
+                            bool freeEnergyInteractionsAtEnd,
+                            fda::FDASettings *ptr_fda_settings);
 
 
 /* Converts a gmx_mtop_t struct to t_topology.

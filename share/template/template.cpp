@@ -35,11 +35,7 @@
 #include <string>
 #include <vector>
 
-#include "../../src/gromacs/fda/Exclusions.h"
 #include "gromacs/trajectoryanalysis.h"
-
-//! FDA global object
-FDA_data fda_data;
 
 using namespace gmx;
 

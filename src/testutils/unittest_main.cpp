@@ -41,7 +41,6 @@
  */
 
 #include <gtest/gtest.h>
-#include "gromacs/fda/Exclusions.h"
 #include "gmxpre.h"
 #include "testutils/testinit.h"
 
@@ -59,9 +58,6 @@
 //! Whether the test expects/supports running with multiple MPI ranks.
 #define TEST_USES_MPI false
 #endif
-
-//! FDA global object
-FDA_data fda_data;
 
 /*! \brief
  * Initializes unit testing for \ref module_testutils.

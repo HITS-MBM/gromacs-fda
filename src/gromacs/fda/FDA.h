@@ -16,8 +16,26 @@
 #include <vector>
 #include "FDABase.h"
 #include "FDASettings.h"
+#include "gromacs/mdtypes/inputrec.h"
 #include "InteractionType.h"
 #include "PureInteractionType.h"
+
+#define PF_GROUP_IDX_FDA1  0
+#define PF_GROUP_IDX_FDA2  1
+#define PF_GROUP_IDX_FDA12 2
+#define PF_GROUP_IDX_REST  3
+#define PF_GROUP_DIM       4
+#define PF_GROUP_DIM2      PF_GROUP_DIM*PF_GROUP_DIM
+
+static int FDA_egp_flags[PF_GROUP_DIM2] = {
+    1, 0, 0, 1,
+    0, 1, 0, 1,
+    0, 0, 0, 1,
+    1, 1, 1, 1
+};
+
+#define FDA_PRINT_DEBUG_OFF
+#define FDA_BONDEXCL_PRINT_DEBUG_OFF
 
 class FDA {
 public:
@@ -117,6 +135,11 @@ public:
 
     void write_frame(rvec *x, gmx_mtop_t *mtop);
 
+    /// Main routine for FDA exclusions
+    void modify_energy_group_exclusions(gmx_mtop_t *mtop, t_inputrec *inputrec) const;
+
+    fda::FDASettings get_settings() const { return fda_settings; }
+
 private:
 
     /**
@@ -126,6 +149,19 @@ private:
      * are interesting for PF
      */
     rvec *get_residues_com(rvec *x, gmx_mtop_t *mtop) const;
+
+    /// Append group to energy groups, returns the position index
+    int add_name_to_energygrp(char* name, gmx_groups_t* groups) const;
+
+    /// FDA groups must not be defined over complete charge groups.
+    /// This group redefine the energy group array with respect to the charge groups.
+    void respect_charge_groups(unsigned char* array, gmx_mtop_t const* mtop) const;
+
+    /// Return position of group in energy groups array, if not found exit with fatal error
+    int get_index_in_energygrp(char const* name, gmx_groups_t const* groups) const;
+
+    /// Print exclusion table as matrix
+    void print_exclusion_table(int* egp_flags, int dim) const;
 
     /// Settings
     fda::FDASettings const& fda_settings;

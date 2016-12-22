@@ -420,7 +420,8 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
     }
     else
     {
-        top = gmx_mtop_generate_local_top(top_global, ir->efep != efepNO);
+        fda::FDASettings fda_settings = fr->fda->get_settings();
+        top = gmx_mtop_generate_local_top(top_global, ir->efep != efepNO, &fda_settings);
 
         state    = serial_init_local_state(state_global);
 

@@ -36,10 +36,6 @@
 #include "gromacs/commandline/cmdlinemodule.h"
 #include "gromacs/commandline/cmdlinemodulemanager.h"
 #include "mdrun/mdrun_main.h"
-#include "../gromacs/fda/Exclusions.h"
-
-//! FDA global object
-FDA_data fda_data;
 
 namespace
 {

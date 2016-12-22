@@ -54,7 +54,6 @@
 
 #include <algorithm>
 
-#include "../../gromacs/fda/Exclusions.h"
 #include "gromacs/commandline/filenm.h"
 #include "gromacs/domdec/domdec.h"
 #include "gromacs/domdec/domdec_struct.h"
@@ -763,12 +762,8 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
 #ifdef BUILD_WITH_FDA
         ptr_fda_settings = std::make_shared<fda::FDASettings>(nfile, fnm, mtop, PAR(cr));
         ptr_fda = std::make_shared<FDA>(*ptr_fda_settings);
-        fda_data_init(nfile, fnm);
+        ptr_fda->modify_energy_group_exclusions(mtop, inputrec);
 #endif
-
-    	// Exclusions for FDA must be generated directly behind the file import.
-    	// Call of pf_init would be too late, since neighbor lists allocation will be before.
-        pf_modify_energy_group_exclusions(mtop, inputrec);
 
         if (inputrec->cutoff_scheme == ecutsVERLET)
         {
