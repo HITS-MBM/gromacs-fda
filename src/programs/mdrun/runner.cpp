@@ -755,8 +755,11 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
         /* Read (nearly) all data required for the simulation */
         read_tpx_state(ftp2fn(efTPR, nfile, fnm), inputrec, state, mtop);
 
+#ifdef BUILD_WITH_FDA
+        fda::FDASettings fda_settings(nfile, fnm, mtop, PAR(cr));
         // Initialize FDA global array
         fda_data_init(nfile, fnm);
+#endif
 
     	// Exclusions for FDA must be generated directly behind the file import.
     	// Call of pf_init would be too late, since neighbor lists allocation will be before.
