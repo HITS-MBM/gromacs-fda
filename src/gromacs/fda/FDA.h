@@ -20,23 +20,6 @@
 #include "InteractionType.h"
 #include "PureInteractionType.h"
 
-#define PF_GROUP_IDX_FDA1  0
-#define PF_GROUP_IDX_FDA2  1
-#define PF_GROUP_IDX_FDA12 2
-#define PF_GROUP_IDX_REST  3
-#define PF_GROUP_DIM       4
-#define PF_GROUP_DIM2      PF_GROUP_DIM*PF_GROUP_DIM
-
-static int FDA_egp_flags[PF_GROUP_DIM2] = {
-    1, 0, 0, 1,
-    0, 1, 0, 1,
-    0, 0, 0, 1,
-    1, 1, 1, 1
-};
-
-#define FDA_PRINT_DEBUG_OFF
-#define FDA_BONDEXCL_PRINT_DEBUG_OFF
-
 class FDA {
 public:
 

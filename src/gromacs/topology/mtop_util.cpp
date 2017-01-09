@@ -1164,7 +1164,7 @@ static void gen_local_top(const gmx_mtop_t *mtop,
             }
             else if (!(bMergeConstr && ftype == F_CONSTRNC))
             {
-            	if (ptr_fda_settings->bonded_exclusion_on)
+            	if (ptr_fda_settings and ptr_fda_settings->bonded_exclusion_on)
                     pf_ilistcat(ftype, &idef->il[ftype], &molt->ilist[ftype],
                              molb->nmol, destnr, srcnr, *ptr_fda_settings);
             	else
@@ -1235,7 +1235,6 @@ t_topology gmx_mtop_t_to_t_topology(gmx_mtop_t *mtop)
     gmx_localtop_t ltop;
     t_topology     top;
 
-    gmx_fatal(FARGS, "FDA: not implemented");
     gen_local_top(mtop, false, FALSE, &ltop, nullptr);
     ltop.idef.ilsort = ilsortUNKNOWN;
 

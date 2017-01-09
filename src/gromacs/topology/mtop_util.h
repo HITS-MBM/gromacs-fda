@@ -262,7 +262,7 @@ gmx_mtop_global_atoms(const gmx_mtop_t *mtop);
 gmx_localtop_t *
 gmx_mtop_generate_local_top(const gmx_mtop_t *mtop,
                             bool freeEnergyInteractionsAtEnd,
-                            fda::FDASettings *ptr_fda_settings);
+                            fda::FDASettings *ptr_fda_settings = nullptr);
 
 
 /* Converts a gmx_mtop_t struct to t_topology.
