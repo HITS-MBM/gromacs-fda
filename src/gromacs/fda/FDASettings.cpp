@@ -33,7 +33,11 @@ FDASettings::FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *mtop, bool
    sys_in_group2(syslen_atoms, 0),
    type(InteractionType_NONE),
    nonbonded_exclusion_on(true),
-   bonded_exclusion_on(true)
+   bonded_exclusion_on(true),
+   index_group1(-1),
+   index_group2(-1),
+   groups(nullptr),
+   groupnames(nullptr)
 {
     /// Parallel execution not implemented yet
     if (parallel_execution)

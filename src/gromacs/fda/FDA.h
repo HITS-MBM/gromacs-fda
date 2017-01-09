@@ -134,7 +134,7 @@ private:
     rvec *get_residues_com(rvec *x, gmx_mtop_t *mtop) const;
 
     /// Append group to energy groups, returns the position index
-    int add_name_to_energygrp(char* name, gmx_groups_t* groups) const;
+    int add_name_to_energygrp(char const* name, gmx_groups_t* groups) const;
 
     /// FDA groups must not be defined over complete charge groups.
     /// This group redefine the energy group array with respect to the charge groups.

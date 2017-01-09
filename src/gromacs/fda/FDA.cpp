@@ -23,22 +23,19 @@ static const real HALF    = 1.0 / 2.0;
 static const real THIRD   = 1.0 / 3.0;
 static const real QUARTER = 0.25;
 
-#define PF_GROUP_IDX_FDA1  0
-#define PF_GROUP_IDX_FDA2  1
-#define PF_GROUP_IDX_FDA12 2
-#define PF_GROUP_IDX_REST  3
-#define PF_GROUP_DIM       4
-#define PF_GROUP_DIM2      PF_GROUP_DIM*PF_GROUP_DIM
+static const int FDA_GROUP_IDX_FDA1 = 0;
+static const int FDA_GROUP_IDX_FDA2 = 1;
+static const int FDA_GROUP_IDX_FDA12 = 2;
+static const int FDA_GROUP_IDX_REST = 3;
+static const int FDA_GROUP_DIM = 4;
+static const int FDA_GROUP_DIM2 = FDA_GROUP_DIM * FDA_GROUP_DIM;
 
-static int FDA_egp_flags[PF_GROUP_DIM2] = {
+static int FDA_egp_flags[FDA_GROUP_DIM2] = {
     1, 0, 0, 1,
     0, 1, 0, 1,
     0, 0, 0, 1,
     1, 1, 1, 1
 };
-
-#define FDA_PRINT_DEBUG_OFF
-#define FDA_BONDEXCL_PRINT_DEBUG_OFF
 
 FDA::FDA(fda::FDASettings const& fda_settings)
  : fda_settings(fda_settings),
@@ -543,20 +540,20 @@ void FDA::modify_energy_group_exclusions(gmx_mtop_t *mtop, t_inputrec *inputrec)
 
         // First set all atoms to energy group "rest" ...
         for (int i = 0; i < mtop->natoms; ++i) {
-            mtop->groups.grpnr[egcENER][i] = PF_GROUP_IDX_REST;
+            mtop->groups.grpnr[egcENER][i] = FDA_GROUP_IDX_REST;
         }
 
         // ... and then overwrite the defined atoms with FDA group 1
         for (int i = fda_settings.groups->index[fda_settings.index_group1]; i < fda_settings.groups->index[fda_settings.index_group1 + 1]; ++i) {
-            mtop->groups.grpnr[egcENER][fda_settings.groups->a[i]] = PF_GROUP_IDX_FDA1;
+            mtop->groups.grpnr[egcENER][fda_settings.groups->a[i]] = FDA_GROUP_IDX_FDA1;
         }
 
         // ... and FDA group 2
         for (int i = fda_settings.groups->index[fda_settings.index_group2]; i < fda_settings.groups->index[fda_settings.index_group2 + 1]; ++i) {
-            if (mtop->groups.grpnr[egcENER][fda_settings.groups->a[i]] == PF_GROUP_IDX_FDA1)
-                mtop->groups.grpnr[egcENER][fda_settings.groups->a[i]] = PF_GROUP_IDX_FDA12;
+            if (mtop->groups.grpnr[egcENER][fda_settings.groups->a[i]] == FDA_GROUP_IDX_FDA1)
+                mtop->groups.grpnr[egcENER][fda_settings.groups->a[i]] = FDA_GROUP_IDX_FDA12;
             else
-                mtop->groups.grpnr[egcENER][fda_settings.groups->a[i]] = PF_GROUP_IDX_FDA2;
+                mtop->groups.grpnr[egcENER][fda_settings.groups->a[i]] = FDA_GROUP_IDX_FDA2;
         }
 
         respect_charge_groups(mtop->groups.grpnr[egcENER],mtop);
@@ -575,17 +572,17 @@ void FDA::modify_energy_group_exclusions(gmx_mtop_t *mtop, t_inputrec *inputrec)
         #endif
 
         // Lookup table energy group index to group index
-        mtop->groups.grps[egcENER].nr = PF_GROUP_DIM;
-        snew(mtop->groups.grps[egcENER].nm_ind, PF_GROUP_DIM);
+        mtop->groups.grps[egcENER].nr = FDA_GROUP_DIM;
+        snew(mtop->groups.grps[egcENER].nm_ind, FDA_GROUP_DIM);
         mtop->groups.grps[egcENER].nm_ind[0] = mtop_g1idx;
         mtop->groups.grps[egcENER].nm_ind[1] = mtop_g2idx;
         mtop->groups.grps[egcENER].nm_ind[1] = mtop_g3idx;
         mtop->groups.grps[egcENER].nm_ind[2] = mtop_rest_idx;
 
         // Write egp_flags table
-        inputrec->opts.ngener = PF_GROUP_DIM;
-        snew(inputrec->opts.egp_flags,PF_GROUP_DIM2);
-        for (int i = 0; i < PF_GROUP_DIM2; ++i) inputrec->opts.egp_flags[i] = FDA_egp_flags[i];
+        inputrec->opts.ngener = FDA_GROUP_DIM;
+        snew(inputrec->opts.egp_flags,FDA_GROUP_DIM2);
+        for (int i = 0; i < FDA_GROUP_DIM2; ++i) inputrec->opts.egp_flags[i] = FDA_egp_flags[i];
 
     } else {
 
@@ -598,29 +595,29 @@ void FDA::modify_energy_group_exclusions(gmx_mtop_t *mtop, t_inputrec *inputrec)
 
         // First set all atoms to energy group "rest" ...
         for (int i = 0; i < mtop->natoms; ++i) {
-            FDA_eg[i] = PF_GROUP_IDX_REST;
+            FDA_eg[i] = FDA_GROUP_IDX_REST;
         }
 
         // ... and then overwrite the defined atoms with FDA group 1
         for (int i = fda_settings.groups->index[fda_settings.index_group1]; i < fda_settings.groups->index[fda_settings.index_group1 + 1]; ++i) {
-            FDA_eg[fda_settings.groups->a[i]] = PF_GROUP_IDX_FDA1;
+            FDA_eg[fda_settings.groups->a[i]] = FDA_GROUP_IDX_FDA1;
         }
 
         // ... and FDA group 2
         for (int i = fda_settings.groups->index[fda_settings.index_group2]; i < fda_settings.groups->index[fda_settings.index_group2 + 1]; ++i) {
-            FDA_eg[fda_settings.groups->a[i]] = PF_GROUP_IDX_FDA2;
+            FDA_eg[fda_settings.groups->a[i]] = FDA_GROUP_IDX_FDA2;
         }
 
         respect_charge_groups(FDA_eg, mtop);
 
         // new values with prefix c_ for combined groups
-        int c_ngener = PF_GROUP_DIM * inputrec->opts.ngener;
+        int c_ngener = FDA_GROUP_DIM * inputrec->opts.ngener;
         unsigned char* c_eg;
         snew(c_eg, mtop->natoms);
 
         // Generate new energy group indices as combination of original energy groups and FDA groups
         for (int i = 0; i < mtop->natoms; ++i) {
-            c_eg[i] = mtop->groups.grpnr[egcENER][i] * PF_GROUP_DIM + FDA_eg[i];
+            c_eg[i] = mtop->groups.grpnr[egcENER][i] * FDA_GROUP_DIM + FDA_eg[i];
         }
 
         int* c_egp_flags;
@@ -633,16 +630,16 @@ void FDA::modify_energy_group_exclusions(gmx_mtop_t *mtop, t_inputrec *inputrec)
 
         #ifdef FDA_PRINT_DEBUG_ON
             printf("=== DEBUG === FDA_egp_flags\n");
-            print_exclusion_table(FDA_egp_flags, PF_GROUP_DIM);
+            print_exclusion_table(FDA_egp_flags, FDA_GROUP_DIM);
         #endif
 
         // Build new exclusion table
         for (int i = 0; i < inputrec->opts.ngener; ++i) {
             for (int j = 0; j < inputrec->opts.ngener; ++j) {
-                for (int k = 0; k < PF_GROUP_DIM; ++k) {
-                    for (int l = 0; l < PF_GROUP_DIM; ++l) {
-                        c_egp_flags[(i*PF_GROUP_DIM+k)*c_ngener + (j*PF_GROUP_DIM+l)] =
-                            inputrec->opts.egp_flags[i*inputrec->opts.ngener+j] || FDA_egp_flags[k*PF_GROUP_DIM+l];
+                for (int k = 0; k < FDA_GROUP_DIM; ++k) {
+                    for (int l = 0; l < FDA_GROUP_DIM; ++l) {
+                        c_egp_flags[(i*FDA_GROUP_DIM+k)*c_ngener + (j*FDA_GROUP_DIM+l)] =
+                            inputrec->opts.egp_flags[i*inputrec->opts.ngener+j] || FDA_egp_flags[k*FDA_GROUP_DIM+l];
                     }
                 }
             }
@@ -669,7 +666,7 @@ void FDA::modify_energy_group_exclusions(gmx_mtop_t *mtop, t_inputrec *inputrec)
         }
 
         // Add additional group names
-        for (int i = 0; i < inputrec->opts.ngener * (PF_GROUP_DIM - 1); ++i) {
+        for (int i = 0; i < inputrec->opts.ngener * (FDA_GROUP_DIM - 1); ++i) {
             sprintf(buffer, "FDA%d", i + inputrec->opts.ngener);
             add_name_to_energygrp(buffer, &mtop->groups);
         }
@@ -786,7 +783,7 @@ rvec* FDA::get_residues_com(rvec *x, gmx_mtop_t *mtop) const
     return com;
 }
 
-int FDA::add_name_to_energygrp(char* name, gmx_groups_t* groups) const
+int FDA::add_name_to_energygrp(char const* name, gmx_groups_t* groups) const
 {
     int index = groups->ngrpname;
     if (index == 255)
@@ -822,13 +819,13 @@ void FDA::respect_charge_groups(unsigned char* array, gmx_mtop_t const* mtop) co
                length = chargeGroupsIndex[k+1] - chargeGroupsIndex[k];
                found_FDA1 = false; found_FDA2 = false; found_REST = false;
                for (l = 0; l < length; ++l) {
-                   if (p[l] == PF_GROUP_IDX_FDA1) found_FDA1 = true;
-                   if (p[l] == PF_GROUP_IDX_FDA2) found_FDA2 = true;
-                   if (p[l] == PF_GROUP_IDX_REST) found_REST = true;
+                   if (p[l] == FDA_GROUP_IDX_FDA1) found_FDA1 = true;
+                   if (p[l] == FDA_GROUP_IDX_FDA2) found_FDA2 = true;
+                   if (p[l] == FDA_GROUP_IDX_REST) found_REST = true;
                }
-               if (found_FDA1 && found_FDA2) for (l = 0; l < length; ++l) p[l] = PF_GROUP_IDX_FDA12;
-               else if (found_FDA1 && found_REST) for (l = 0; l < length; ++l) p[l] = PF_GROUP_IDX_FDA1;
-               else if (found_FDA2 && found_REST) for (l = 0; l < length; ++l) p[l] = PF_GROUP_IDX_FDA2;
+               if (found_FDA1 && found_FDA2) for (l = 0; l < length; ++l) p[l] = FDA_GROUP_IDX_FDA12;
+               else if (found_FDA1 && found_REST) for (l = 0; l < length; ++l) p[l] = FDA_GROUP_IDX_FDA1;
+               else if (found_FDA2 && found_REST) for (l = 0; l < length; ++l) p[l] = FDA_GROUP_IDX_FDA2;
                p += length;
             }
         }
