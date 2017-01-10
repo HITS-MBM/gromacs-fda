@@ -6,6 +6,7 @@
  */
 
 #include <algorithm>
+#include "CompatInteractionType.h"
 #include "DistributedForces.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/utility/fatalerror.h"
@@ -240,7 +241,7 @@ void DistributedForces::write_scalar_compat_ascii(std::ostream& os) const
         auto const& scalar_i = scalar[i];
         for (size_t p = 0; p != scalar_i.size(); ++p) {
             auto const& scalar_j = scalar_i[p];
-            os << scalar_j.type << " ";
+            os << to_index(to_compat(scalar_j.type)) << " ";
         }
     }
     os << std::endl;
@@ -287,7 +288,7 @@ void DistributedForces::write_summed_compat_ascii(std::ostream& os, rvec *x) con
         auto const& summed_i = summed[i];
         for (size_t p = 0; p != summed_i.size(); ++p) {
             auto const& summed_j = summed_i[p];
-            os << summed_j.type << " ";
+            os << to_index(to_compat(summed_j.type)) << " ";
         }
     }
     os << std::endl;
@@ -331,7 +332,8 @@ void DistributedForces::write_scalar_compat_bin(std::ostream& os) const
         auto const& scalar_i = scalar[i];
         for (size_t p = 0; p != scalar_i.size(); ++p) {
             auto const& scalar_j = scalar_i[p];
-            os.write(reinterpret_cast<const char*>(&scalar_j.type), sizeof(scalar_j.type));
+            auto type = to_index(to_compat(scalar_j.type));
+            os.write(reinterpret_cast<const char*>(&type), sizeof(type));
         }
     }
 }
@@ -377,7 +379,8 @@ void DistributedForces::write_summed_compat_bin(std::ostream& os, rvec *x) const
         auto const& summed_i = summed[i];
         for (size_t p = 0; p != summed_i.size(); ++p) {
             auto const& summed_j = summed_i[p];
-            os.write(reinterpret_cast<const char*>(&summed_j.type), sizeof(summed_j.type));
+            auto type = to_index(to_compat(summed_j.type));
+            os.write(reinterpret_cast<const char*>(&type), sizeof(type));
         }
     }
 }

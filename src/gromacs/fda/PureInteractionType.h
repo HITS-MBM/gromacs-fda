@@ -37,7 +37,7 @@ constexpr T to_index(PureInteractionType e)
 /// Conversion from InteractionType into PureInteractionType
 PureInteractionType to_pure(InteractionType i);
 
-/// Conversion from PurInteractionType into InteractionType
+/// Conversion from PureInteractionType into InteractionType
 InteractionType from_pure(PureInteractionType i);
 
 } // namespace fda
