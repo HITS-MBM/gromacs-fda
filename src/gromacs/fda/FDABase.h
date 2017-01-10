@@ -100,11 +100,9 @@ public:
      */
     void write_compat_header(int nsteps);
 
-    void write_frame_atoms_compat(int nsteps);
+    void write_frame_scalar_compat(int nsteps);
 
-    void write_frame_atoms_scalar_compat();
-
-    void write_frame_atoms_summed_compat(rvec *x);
+    void write_frame_summed_compat(rvec *x, int nsteps);
 
     /// The stress is the negative atom_vir value.
     void write_atom_virial_sum();

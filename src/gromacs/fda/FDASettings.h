@@ -35,9 +35,9 @@ struct FDASettings
        syslen_residues(0),
        time_averaging_period(1),
        type(InteractionType_NONE),
-	   nonbonded_exclusion_on(true),
-	   bonded_exclusion_on(true),
-	   index_group1(-1),
+       nonbonded_exclusion_on(true),
+       bonded_exclusion_on(true),
+       index_group1(-1),
        index_group2(-1),
        groups(nullptr),
        groupnames(nullptr)
@@ -146,6 +146,9 @@ struct FDASettings
 
     /// Version of force matrix implementation (compat mode)
     static const std::string compat_fm_version;
+
+    /// Mark the end of an entry in binary output files (compat mode)
+    static const int compat_new_entry;
 
     /// Use nonbonded exclusions (default: on)
     bool nonbonded_exclusion_on;

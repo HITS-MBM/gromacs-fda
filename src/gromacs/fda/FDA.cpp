@@ -482,7 +482,7 @@ void FDA::write_scalar_time_averages()
     if (atom_based.PF_or_PS_mode()) {
         atom_based.distributed_forces.scalar_real_divide(time_averaging_steps);
         if (atom_based.compatibility_mode())
-            atom_based.write_frame_atoms_scalar_compat();
+            atom_based.write_frame_scalar_compat(nsteps);
         else
             atom_based.write_frame_scalar(nsteps);
         atom_based.distributed_forces.clear_scalar();
@@ -494,7 +494,7 @@ void FDA::write_scalar_time_averages()
         for (size_t i = 0; i != residue_based.distributed_forces.scalar.size(); ++i)
             svdiv(time_averaging_steps, time_averaging_com[i]);
         if (residue_based.compatibility_mode())
-            residue_based.write_frame_atoms_scalar_compat();
+            residue_based.write_frame_scalar_compat(nsteps);
         else
             residue_based.write_frame_scalar(nsteps);
         residue_based.distributed_forces.clear_scalar();

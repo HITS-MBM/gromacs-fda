@@ -201,6 +201,187 @@ void DistributedForces::write_total_forces(std::ostream& os, rvec *x) const
     os << std::endl;
 }
 
+void DistributedForces::write_scalar_compat_ascii(std::ostream& os) const
+{
+    // Print total number of interactions
+    int nb_interactions = 0;
+    for (auto const& s : scalar) nb_interactions += s.size();
+    os << nb_interactions << std::endl;
+
+    // Print atom indices which have interactions
+    for (size_t i = 0; i != scalar.size(); ++i) {
+        if (!scalar[i].empty()) os << i << " ";
+    }
+    os << std::endl;
+
+    // Print indices
+    for (size_t i = 0; i != scalar.size(); ++i) {
+        auto const& scalar_i = scalar[i];
+        auto const& scalar_indices_i = scalar_indices[i];
+        for (size_t p = 0; p != scalar_i.size(); ++p) {
+            size_t j = scalar_indices_i[p];
+            os << (i > j ? j * syslen + i : i * syslen + j) << " ";
+        }
+    }
+    os << std::endl;
+
+    // Print forces
+    for (size_t i = 0; i != scalar.size(); ++i) {
+        auto const& scalar_i = scalar[i];
+        for (size_t p = 0; p != scalar_i.size(); ++p) {
+            auto const& scalar_j = scalar_i[p];
+            os << scalar_j.force << " ";
+        }
+    }
+    os << std::endl;
+
+    // Print types
+    for (size_t i = 0; i != scalar.size(); ++i) {
+        auto const& scalar_i = scalar[i];
+        for (size_t p = 0; p != scalar_i.size(); ++p) {
+            auto const& scalar_j = scalar_i[p];
+            os << scalar_j.type << " ";
+        }
+    }
+    os << std::endl;
+}
+
+void DistributedForces::write_summed_compat_ascii(std::ostream& os, rvec *x) const
+{
+    // Print total number of interactions
+    int nb_interactions = 0;
+    for (auto const& s : summed) nb_interactions += s.size();
+    os << nb_interactions << std::endl;
+
+    // Print atom indices which have interactions
+    for (size_t i = 0; i != summed.size(); ++i) {
+        if (!summed[i].empty()) os << i << " ";
+    }
+    os << std::endl;
+
+    // Print indices
+    for (size_t i = 0; i != summed.size(); ++i) {
+        auto const& summed_i = summed[i];
+        auto const& summed_indices_i = indices[i];
+        for (size_t p = 0; p != summed_i.size(); ++p) {
+            size_t j = summed_indices_i[p];
+            os << (i > j ? j * syslen + i : i * syslen + j) << " ";
+        }
+    }
+    os << std::endl;
+
+    // Print forces
+    for (size_t i = 0; i != summed.size(); ++i) {
+        auto const& summed_i = summed[i];
+        auto const& summed_indices_i = indices[i];
+        for (size_t p = 0; p != summed_i.size(); ++p) {
+            size_t j = summed_indices_i[p];
+            auto const& summed_j = summed_i[p];
+            os << vector2signedscalar(summed_j.force.get_pointer(), x[i], x[j], fda_settings.v2s) << " ";
+        }
+    }
+    os << std::endl;
+
+    // Print types
+    for (size_t i = 0; i != summed.size(); ++i) {
+        auto const& summed_i = summed[i];
+        for (size_t p = 0; p != summed_i.size(); ++p) {
+            auto const& summed_j = summed_i[p];
+            os << summed_j.type << " ";
+        }
+    }
+    os << std::endl;
+}
+
+void DistributedForces::write_scalar_compat_bin(std::ostream& os) const
+{
+    // Print total number of interactions
+    int nb_interactions = 0;
+    for (auto const& s : scalar) nb_interactions += s.size();
+    os.write(reinterpret_cast<const char*>(&nb_interactions), sizeof(nb_interactions));
+
+    // Print atom indices which have interactions
+    for (size_t i = 0; i != scalar.size(); ++i) {
+        if (!scalar[i].empty())
+            os.write(reinterpret_cast<const char*>(&i), sizeof(i));
+    }
+
+    // Print indices
+    for (size_t i = 0; i != scalar.size(); ++i) {
+        auto const& scalar_i = scalar[i];
+        auto const& scalar_indices_i = scalar_indices[i];
+        for (size_t p = 0; p != scalar_i.size(); ++p) {
+            size_t j = scalar_indices_i[p];
+            int index = i > j ? j * syslen + i : i * syslen + j;
+            os.write(reinterpret_cast<const char*>(&index), sizeof(index));
+        }
+    }
+
+    // Print forces
+    for (size_t i = 0; i != scalar.size(); ++i) {
+        auto const& scalar_i = scalar[i];
+        for (size_t p = 0; p != scalar_i.size(); ++p) {
+            auto const& scalar_j = scalar_i[p];
+            os.write(reinterpret_cast<const char*>(&scalar_j.force), sizeof(scalar_j.force));
+        }
+    }
+
+    // Print types
+    for (size_t i = 0; i != scalar.size(); ++i) {
+        auto const& scalar_i = scalar[i];
+        for (size_t p = 0; p != scalar_i.size(); ++p) {
+            auto const& scalar_j = scalar_i[p];
+            os.write(reinterpret_cast<const char*>(&scalar_j.type), sizeof(scalar_j.type));
+        }
+    }
+}
+
+void DistributedForces::write_summed_compat_bin(std::ostream& os, rvec *x) const
+{
+    // Print total number of interactions
+    int nb_interactions = 0;
+    for (auto const& s : summed) nb_interactions += s.size();
+    os.write(reinterpret_cast<const char*>(&nb_interactions), sizeof(nb_interactions));
+
+    // Print atom indices which have interactions
+    for (size_t i = 0; i != summed.size(); ++i) {
+        if (!scalar[i].empty())
+            os.write(reinterpret_cast<const char*>(&i), sizeof(i));
+    }
+
+    // Print indices
+    for (size_t i = 0; i != summed.size(); ++i) {
+        auto const& summed_i = summed[i];
+        auto const& summed_indices_i = indices[i];
+        for (size_t p = 0; p != summed_i.size(); ++p) {
+            size_t j = summed_indices_i[p];
+            int index = i > j ? j * syslen + i : i * syslen + j;
+            os.write(reinterpret_cast<const char*>(&index), sizeof(index));
+        }
+    }
+
+    // Print forces
+    for (size_t i = 0; i != summed.size(); ++i) {
+        auto const& summed_i = summed[i];
+        auto const& summed_indices_i = indices[i];
+        for (size_t p = 0; p != summed_i.size(); ++p) {
+            size_t j = summed_indices_i[p];
+            auto const& summed_j = summed_i[p];
+            real force = vector2signedscalar(summed_j.force.get_pointer(), x[i], x[j], fda_settings.v2s);
+            os.write(reinterpret_cast<const char*>(&force), sizeof(force));
+        }
+    }
+
+    // Print types
+    for (size_t i = 0; i != summed.size(); ++i) {
+        auto const& summed_i = summed[i];
+        for (size_t p = 0; p != summed_i.size(); ++p) {
+            auto const& summed_j = summed_i[p];
+            os.write(reinterpret_cast<const char*>(&summed_j.type), sizeof(summed_j.type));
+        }
+    }
+}
+
 void DistributedForces::scalar_real_divide(real divisor)
 {
     real inv = 1.0 / divisor;

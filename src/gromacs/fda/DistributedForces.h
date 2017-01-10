@@ -65,6 +65,14 @@ public:
 
     void write_total_forces(std::ostream& os, rvec *x) const;
 
+    void write_scalar_compat_ascii(std::ostream& os) const;
+
+    void write_summed_compat_ascii(std::ostream& os, rvec *x) const;
+
+    void write_scalar_compat_bin(std::ostream& os) const;
+
+    void write_summed_compat_bin(std::ostream& os, rvec *x) const;
+
     /// Divide all scalar forces by the divisor
     void scalar_real_divide(real divisor);
 

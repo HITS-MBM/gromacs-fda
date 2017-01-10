@@ -86,7 +86,7 @@ void FDABase<Base>::write_frame(rvec *x, int nsteps)
                     gmx_fatal(FARGS, "Compatibility binary mode is not supported for summed output.\n");
                     break;
                 case ResultType::COMPAT_ASCII:
-                    write_frame_atoms_summed_compat(x);
+                    write_frame_summed_compat(x, nsteps);
                     break;
             }
             break;
@@ -148,145 +148,36 @@ void FDABase<Base>::write_compat_header(int nsteps)
 }
 
 template <class Base>
-void FDABase<Base>::write_frame_atoms_compat(int nsteps)
+void FDABase<Base>::write_frame_scalar_compat(int nsteps)
 {
-    throw std::runtime_error("Not implemented yet");
     if (result_type == ResultType::COMPAT_ASCII) {
         result_file << "<begin_block>" << std::endl;
         result_file << nsteps << std::endl;
-//        result_file << interactions_count << std::endl;
-//        pf_write_space_separated_int_array(f, fmatoms, atoms->len);
-//        pf_write_space_separated_int_array(f, index, interactions_count);
-//        pf_write_space_separated_real_array(f, force, interactions_count);
-//        pf_write_space_separated_char_array(f, interaction, interactions_count);
+        distributed_forces.write_scalar_compat_ascii(result_file);
         result_file << "<end_block>" << std::endl;
     } else {
-//        fwrite(framenr, sizeof(*framenr), 1, f);
-//        fwrite(&interactions_count, sizeof(interactions_count), 1, f);
-//        fwrite(fmatoms, sizeof(fmatoms[0]), atoms->len, f);
-//        fwrite(index, sizeof(index[0]), interactions_count, f);
-//        fwrite(force, sizeof(force[0]), interactions_count, f);
-//        fwrite(interaction, sizeof(interaction[0]), interactions_count, f);
-//        i = PF_COMPAT_NEW_ENTRY;
-//        fwrite(&i, sizeof(i), 1, f);
+        result_file.write(reinterpret_cast<const char *>(&nsteps), sizeof(nsteps));
+        distributed_forces.write_scalar_compat_bin(result_file);
     }
 }
 
 template <class Base>
-void FDABase<Base>::write_frame_atoms_scalar_compat()
+void FDABase<Base>::write_frame_summed_compat(rvec *x, int nsteps)
 {
-    throw std::runtime_error("Not implemented yet");
-//    t_pf_atom_scalar i_atom_scalar;
-//    t_pf_interaction_scalar j_atom_scalar;
-//    t_pf_interaction_array_scalar *ia_scalar;
-//    int i, j, ii, jj, c_ix;
-//    gmx_int64_t interactions_count;
-//    int *index;
-//    real *force;
-//    char *interaction;
-//    int *fmatoms;
-//
-//    interactions_count = pf_atoms_scalar_to_fm(atoms, &fmatoms);
-//    if (interactions_count == 0)
-//        return;
-//
-//    snew(index, interactions_count);
-//    snew(force, interactions_count);
-//    snew(interaction, interactions_count);
-//
-//    /* map between the arrays and a square matrix of size atoms->len;
-//     * this assumes that g1 and g2 are identical because in the original PF implementation
-//     * there was only one group and the file format was designed for only one group;
-//     * this assumption is checked during pf_init
-//     */
-//    c_ix = 0;
-//    for (i = 0; i < atoms->len; i++) {
-//        i_atom_scalar = atoms->scalar[i];
-//        ia_scalar = &i_atom_scalar.interactions;
-//        /* i should be here the same as the atoms->sys2pf[i_atom_scalar.nr], but this might not hold when running in parallel */
-//        ii = atoms->sys2pf[i_atom_scalar.nr];
-//        for (j = 0; j < ia_scalar->len; j++) {
-//            j_atom_scalar = ia_scalar->array[j];
-//            jj = atoms->sys2pf[j_atom_scalar.jjnr];
-//            //fprintf(stderr, "fm i=%d, j=%d, ii=%d, ii.len=%d, jj=%d, type=%d, fx=%e\n", i_atom_scalar.nr, j_atom_scalar.jjnr, ii, ia_scalar->len, jj, j_atom_scalar.type, j_atom_scalar.force);
-//            /* try to simulate the half-matrix storage of the original PF implementation */
-//            index[c_ix] = (ii > jj) ? (jj * atoms->len) + ii : (ii * atoms->len) + jj;
-//            force[c_ix] = j_atom_scalar.force;
-//            interaction[c_ix] = pf_compatibility_map_interaction(j_atom_scalar.type);
-//            c_ix++;
-//        }
-//    }
-//
-//    pf_write_frame_atoms_compat(atoms, f, framenr, interactions_count, fmatoms, index, force, interaction, ascii);
-//
-//    sfree(fmatoms);
-//    sfree(index);
-//    sfree(force);
-//    sfree(interaction);
-//
-//    (*framenr)++;
-}
-
-template <class Base>
-void FDABase<Base>::write_frame_atoms_summed_compat(rvec *x)
-{
-    throw std::runtime_error("Not implemented yet");
-//    t_pf_atom_summed i_atom_summed;
-//    t_pf_interaction_summed j_atom_summed;
-//    t_pf_interaction_array_summed *ia_summed;
-//    int i, j, ii, jj, c_ix;
-//    gmx_int64_t interactions_count;
-//    int *index;
-//    real *force;
-//    char *interaction;
-//    int *fmatoms;
-//
-//    interactions_count = pf_atoms_summed_to_fm(atoms, &fmatoms);
-//    if (interactions_count == 0)
-//        return;
-//
-//    snew(index, interactions_count);
-//    snew(force, interactions_count);
-//    snew(interaction, interactions_count);
-//
-//    /* map between the arrays and a square matrix of size atoms->len;
-//     * this assumes that g1 and g2 are identical because in the original PF implementation
-//     * there was only one group and the file format was designed for only one group;
-//     * this assumption is checked during pf_init
-//     */
-//    c_ix = 0;
-//    for (i = 0; i < atoms->len; i++) {
-//        i_atom_summed = atoms->summed[i];
-//        ia_summed = &i_atom_summed.interactions;
-//        /* i should be here the same as the atoms->sys2pf[i_atom_summed.nr], but this might not hold when running in parallel */
-//        ii = atoms->sys2pf[i_atom_summed.nr];
-//        for (j = 0; j < ia_summed->len; j++) {
-//            j_atom_summed = ia_summed->array[j];
-//            jj = atoms->sys2pf[j_atom_summed.jjnr];
-//            //fprintf(stderr, "fm i=%d, j=%d, ii=%d, ii.len=%d, jj=%d, type=%d, fx=%e\n", i_atom_summed.nr, j_atom_summed.jjnr, ii, ia_summed->len, jj, j_atom_summed.type, j_atom_summed.force[0]);
-//            /* try to simulate the half-matrix storage of the original PF implementation */
-//            index[c_ix] = (ii > jj) ? (jj * atoms->len) + ii : (ii * atoms->len) + jj;
-//            force[c_ix] = pf_vector2signedscalar(j_atom_summed.force, x[i_atom_summed.nr], x[j_atom_summed.jjnr], Vector2Scalar);
-//            interaction[c_ix] = pf_compatibility_map_interaction(j_atom_summed.type);
-//            c_ix++;
-//        }
-//    }
-//
-//    pf_write_frame_atoms_compat(atoms, f, framenr, interactions_count, fmatoms, index, force, interaction, ascii);
-//
-//    sfree(fmatoms);
-//    sfree(index);
-//    sfree(force);
-//    sfree(interaction);
-//
-//    (*framenr)++;
+    if (result_type == ResultType::COMPAT_ASCII) {
+        result_file << "<begin_block>" << std::endl;
+        result_file << nsteps << std::endl;
+        distributed_forces.write_summed_compat_ascii(result_file, x);
+        result_file << "<end_block>" << std::endl;
+    } else {
+        result_file.write(reinterpret_cast<const char *>(&nsteps), sizeof(nsteps));
+        distributed_forces.write_summed_compat_bin(result_file, x);
+    }
 }
 
 template <>
 void FDABase<Atom>::write_atom_virial_sum()
 {
-    result_file << std::scientific << std::setprecision(6);
-
     bool first = true;
     for (auto const& v : virial_stress) {
         if (!first) result_file << " ";
@@ -313,8 +204,6 @@ real tensor_to_vonmises(Tensor t)
 template <>
 void FDABase<Atom>::write_atom_virial_sum_von_mises()
 {
-    result_file << std::scientific << std::setprecision(6);
-
     bool first = true;
     for (auto const& v : virial_stress) {
         if (!first) result_file << " ";
