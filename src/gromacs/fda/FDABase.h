@@ -105,10 +105,10 @@ public:
     void write_frame_summed_compat(rvec *x, int nsteps);
 
     /// The stress is the negative atom_vir value.
-    void write_atom_virial_sum();
+    void write_virial_sum();
 
     /// For von Mises no negative values are needed, since all items are squared.
-    void write_atom_virial_sum_von_mises();
+    void write_virial_sum_von_mises();
 
 private:
 

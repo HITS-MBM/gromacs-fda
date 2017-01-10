@@ -77,10 +77,10 @@ void FDABase<Base>::write_frame(rvec *x, int nsteps)
                     write_total_forces(x);
                     break;
                 case ResultType::VIRIAL_STRESS:
-                    write_atom_virial_sum();
+                    write_virial_sum();
                     break;
                 case ResultType::VIRIAL_STRESS_VON_MISES:
-                    write_atom_virial_sum_von_mises();
+                    write_virial_sum_von_mises();
                     break;
                 case ResultType::COMPAT_BIN:
                     gmx_fatal(FARGS, "Compatibility binary mode is not supported for summed output.\n");
@@ -176,7 +176,7 @@ void FDABase<Base>::write_frame_summed_compat(rvec *x, int nsteps)
 }
 
 template <>
-void FDABase<Atom>::write_atom_virial_sum()
+void FDABase<Atom>::write_virial_sum()
 {
     bool first = true;
     for (auto const& v : virial_stress) {
@@ -189,7 +189,7 @@ void FDABase<Atom>::write_atom_virial_sum()
 }
 
 template <>
-void FDABase<Residue>::write_atom_virial_sum()
+void FDABase<Residue>::write_virial_sum()
 {}
 
 real tensor_to_vonmises(Tensor t)
@@ -202,7 +202,7 @@ real tensor_to_vonmises(Tensor t)
 }
 
 template <>
-void FDABase<Atom>::write_atom_virial_sum_von_mises()
+void FDABase<Atom>::write_virial_sum_von_mises()
 {
     bool first = true;
     for (auto const& v : virial_stress) {
@@ -214,7 +214,7 @@ void FDABase<Atom>::write_atom_virial_sum_von_mises()
 }
 
 template <>
-void FDABase<Residue>::write_atom_virial_sum_von_mises()
+void FDABase<Residue>::write_virial_sum_von_mises()
 {}
 
 /// template instantiation
