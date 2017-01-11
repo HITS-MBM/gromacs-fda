@@ -54,7 +54,7 @@ bool Force<real>::equal(Force<real> const& other, Comparer const& comparer) cons
 
 template <>
 template <class Comparer>
-bool Force<fda::Vector>::equal(Force<fda::Vector> const& other, Comparer const& comparer) const {
+bool Force<Vector>::equal(Force<Vector> const& other, Comparer const& comparer) const {
     return type == other.type and force.equal(other.force, comparer);
 }
 
