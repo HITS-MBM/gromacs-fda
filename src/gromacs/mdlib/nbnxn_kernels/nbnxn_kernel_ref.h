@@ -55,7 +55,9 @@ nbnxn_kernel_ref(const nbnxn_pairlist_set_t *nbl_list,
                  int                         clearF,
                  real                       *fshift,
                  real                       *Vc,
-                 real                       *Vvdw);
+                 real                       *Vvdw,
+                 FDA                *fda,
+                 int                        *cellInv);
 
 #ifdef __cplusplus
 }

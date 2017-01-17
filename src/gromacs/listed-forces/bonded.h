@@ -49,6 +49,7 @@
 
 #include <stdio.h>
 
+#include "../fda/FDA.h"
 #include "gromacs/gmxlib/nrnb.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/mdtypes/fcdata.h"
@@ -99,7 +100,7 @@ real
               const struct t_pbc *pbc, const struct t_graph *g,
               real gmx_unused lambda, real gmx_unused *dvdlambda,
               const t_mdatoms gmx_unused *md, t_fcdata gmx_unused *fcd,
-              int  gmx_unused *global_atom_index);
+              int  gmx_unused *global_atom_index, FDA *fda);
 
 //! \cond
 /*************************************************************************

@@ -13,5 +13,7 @@ lib*.pc
 .project
 .cproject
 CMakeLists.txt.user
+build*
 /VersionInfo*.cmake
 Testing
+.settings

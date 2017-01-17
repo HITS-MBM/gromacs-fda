@@ -57,6 +57,7 @@ enum GromacsFileType {
     efEDI,
     efCUB,
     efXPM,
+    efPFI, efPFA, efPFR, efPSA, efPSR, efVSA, efVMA, efSTR, efPFX, efGRX, efDIM, efPSX, efVST, efPML,
     efRND,
     efNR
 };

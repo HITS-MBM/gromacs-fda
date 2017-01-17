@@ -33,6 +33,12 @@
  * the research papers on the package. Check out http://www.gromacs.org.
  */
 
+#ifndef GMX_DOUBLE
+#define PF_TINY_REAL_NUMBER 1.0e-7f
+#else
+#define PF_TINY_REAL_NUMBER 1.0e-14
+#endif
+
 /* When calculating RF or Ewald interactions we calculate the electrostatic
  * forces and energies on excluded atom pairs here in the non-bonded loops.
  */
@@ -59,6 +65,9 @@
         int j;
 
         ai = ci*UNROLLI + i;
+
+        //printf("ai = %i, x,y,z = %15.8f, %15.8f, %15.8f\n",
+        //	ai, xi[i*XI_STRIDE+XX], xi[i*XI_STRIDE+YY], xi[i*XI_STRIDE+ZZ]); fflush(stdout);
 
         type_i_off = type[ai]*ntype2;
 
@@ -88,6 +97,9 @@
 #endif
 #endif
             real fscal;
+#ifdef CALC_COULOMB
+			real fvdw;
+#endif
             real fx, fy, fz;
 
             /* A multiply mask used to zero an interaction
@@ -117,6 +129,9 @@
             VLJ = 0;
 
             aj = cj*UNROLLJ + j;
+
+            //printf("aj = %i, x,y,z = %15.8f, %15.8f, %15.8f\n",
+            //	aj, x[aj*X_STRIDE+XX], x[aj*X_STRIDE+YY], x[aj*X_STRIDE+ZZ]); fflush(stdout);
 
             dx  = xi[i*XI_STRIDE+XX] - x[aj*X_STRIDE+XX];
             dy  = xi[i*XI_STRIDE+YY] - x[aj*X_STRIDE+YY];
@@ -347,17 +362,49 @@
             if (i < UNROLLI/2)
 #endif
             {
-                fscal = frLJ*rinvsq + fcoul;
+            	fvdw = frLJ*rinvsq;
+                fscal = fvdw + fcoul;
                 /* 2 flops for scalar LJ+Coulomb force */
+
+#ifdef CALC_ENERGIES
+                /* pairwise forces */
+				if (fabs(fcoul) > PF_TINY_REAL_NUMBER && fabs(fvdw) > PF_TINY_REAL_NUMBER) {
+					fda->add_nonbonded(cellInv[ai], cellInv[aj], fcoul, fvdw, dx, dy, dz);
+					//printf("Add vdw and coulomb %i %i %15.8f %15.8f\n",
+					//	ai, aj, fcoul, fvdw); fflush(stdout);
+				} else if (fabs(fcoul) > PF_TINY_REAL_NUMBER) {fda->add_nonbonded_single(cellInv[ai], cellInv[aj], fda::InteractionType_COULOMB, fcoul, dx, dy, dz);
+
+					//printf("Add coulomb %i %i %15.8f\n", ai, aj, fcoul); fflush(stdout);
+				} else if (fabs(fvdw) > PF_TINY_REAL_NUMBER) {
+					fda->add_nonbonded_single(cellInv[ai], cellInv[aj], fda::InteractionType_LJ, fscal, dx, dy, dz);
+					//printf("Add vdw %i %i %15.8f\n", ai, aj, fscal); fflush(stdout);
+				}
+#endif
             }
 #ifdef HALF_LJ
             else
             {
                 fscal = fcoul;
+
+#ifdef CALC_ENERGIES
+				/* pairwise forces */
+				if (fabs(fcoul) > PF_TINY_REAL_NUMBER) {
+					fda->add_nonbonded_single(cellInv[ai], cellInv[aj], fda::InteractionType_COULOMB, fcoul, dx, dy, dz);
+					//printf("Add coulomb %i %i %15.8f\n", ai, aj, fcoul); fflush(stdout);
+				}
+#endif
             }
 #endif
 #else
             fscal = frLJ*rinvsq;
+
+#ifdef CALC_ENERGIES
+            /* pairwise forces */
+            if (fabs(fscal) > PF_TINY_REAL_NUMBER) {
+            	fda->add_nonbonded_single(cellInv[ai], cellInv[aj], fda::InteractionType_LJ, fscal, dx, dy, dz);
+                //printf("Add vdw %i %i %15.8f\n", ai, aj, fscal); fflush(stdout);
+            }
+#endif
 #endif
             fx = fscal*dx;
             fy = fscal*dy;

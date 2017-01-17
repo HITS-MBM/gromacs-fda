@@ -44,6 +44,7 @@
 
 #include <algorithm>
 
+#include "../../fda/FDA.h"
 #include "gromacs/math/functions.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/mdlib/force.h"
@@ -73,7 +74,9 @@ typedef void (*p_nbk_func_ener)(const nbnxn_pairlist_t     *nbl,
                                 real                       *f,
                                 real                       *fshift,
                                 real                       *Vvdw,
-                                real                       *Vc);
+                                real                       *Vc,
+                                FDA                *fda,
+                                int                        *cellInv);
 
 /* Analytical reaction-field kernels */
 #define CALC_COUL_RF
@@ -183,7 +186,9 @@ nbnxn_kernel_ref(const nbnxn_pairlist_set_t *nbl_list,
                  int                         clearF,
                  real                       *fshift,
                  real                       *Vc,
-                 real                       *Vvdw)
+                 real                       *Vvdw,
+                 FDA                *fda,
+                 int                        *cellInv)
 {
     int                nnbl;
     nbnxn_pairlist_t **nbl;
@@ -300,7 +305,9 @@ nbnxn_kernel_ref(const nbnxn_pairlist_set_t *nbl_list,
                                       out->f,
                                       fshift_p,
                                       out->Vvdw,
-                                      out->Vc);
+                                      out->Vc,
+                                      fda,
+                                      cellInv);
         }
         else
         {
@@ -322,7 +329,9 @@ nbnxn_kernel_ref(const nbnxn_pairlist_set_t *nbl_list,
                                          out->f,
                                          fshift_p,
                                          out->Vvdw,
-                                         out->Vc);
+                                         out->Vc,
+                                         fda,
+                                         cellInv);
         }
     }
 

@@ -162,6 +162,8 @@ static void check_viol(FILE *log,
                        int clust_id, int isize, int index[], real vvindex[],
                        t_fcdata *fcd)
 {
+    gmx_fatal(FARGS, "FDA: interaction_function F_DISRES called without fr->fda.\n");
+
     t_iatom         *forceatoms;
     int              i, j, nat, n, type, nviol, ndr, label;
     real             rt, mviol, tviol, viol, lam, dvdl, drt;
@@ -223,7 +225,7 @@ static void check_viol(FILE *log,
         snew(fshift, SHIFTS);
         interaction_function[F_DISRES].ifunc(n, &forceatoms[i], forceparams,
                                              (const rvec*)x, f, fshift,
-                                             pbc, g, lam, &dvdl, nullptr, fcd, nullptr);
+                                             pbc, g, lam, &dvdl, nullptr, fcd, nullptr, nullptr);
         sfree(fshift);
         viol = fcd->disres.sumviol;
 

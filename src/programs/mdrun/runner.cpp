@@ -775,10 +775,21 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
     std::unique_ptr<t_state> stateInstance = std::unique_ptr<t_state>(new t_state {});
     t_state *                state         = stateInstance.get();
 
+#ifdef BUILD_WITH_FDA
+    std::shared_ptr<fda::FDASettings> ptr_fda_settings;
+    std::shared_ptr<FDA> ptr_fda;
+#endif
+
     if (SIMMASTER(cr))
     {
         /* Read (nearly) all data required for the simulation */
         read_tpx_state(ftp2fn(efTPR, nfile, fnm), inputrec, state, mtop);
+
+#ifdef BUILD_WITH_FDA
+        ptr_fda_settings = std::make_shared<fda::FDASettings>(nfile, fnm, mtop, PAR(cr));
+        ptr_fda = std::make_shared<FDA>(*ptr_fda_settings);
+        ptr_fda->modify_energy_group_exclusions(mtop, inputrec);
+#endif
 
         if (inputrec->cutoff_scheme == ecutsVERLET)
         {
@@ -1206,6 +1217,10 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
                       nbpu_opt,
                       FALSE,
                       pforce);
+
+#ifdef BUILD_WITH_FDA
+        fr->fda = ptr_fda.get();
+#endif
 
         /* Initialize QM-MM */
         if (fr->bQMMM)
