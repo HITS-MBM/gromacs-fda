@@ -8,7 +8,6 @@
 #ifndef SRC_GROMACS_FDA_PAIRWISEFORCES_H_
 #define SRC_GROMACS_FDA_PAIRWISEFORCES_H_
 
-#include <map>
 #include <string>
 #include <vector>
 #include "gromacs/fda/Force.h"
