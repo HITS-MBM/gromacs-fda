@@ -31,7 +31,7 @@ FDABase<Base>::FDABase(ResultType result_type, int syslen, std::string const& re
 }
 
 template <class Base>
-void FDABase<Base>::write_frame(rvec *x, int nsteps)
+void FDABase<Base>::write_frame(PaddedRVecVector const& x, int nsteps)
 {
     switch (fda_settings.one_pair) {
         case OnePair::DETAILED:

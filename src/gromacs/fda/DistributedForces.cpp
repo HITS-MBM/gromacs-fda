@@ -392,7 +392,7 @@ void DistributedForces::scalar_real_divide(real divisor)
         for (auto& scalar_j : scalar_i) scalar_j.force *= inv;
 }
 
-void DistributedForces::summed_merge_to_scalar(const rvec *x)
+void DistributedForces::summed_merge_to_scalar(PaddedRVecVector const& x)
 {
     for (size_t i = 0; i != summed.size(); ++i) {
         auto & scalar_i = scalar[i];

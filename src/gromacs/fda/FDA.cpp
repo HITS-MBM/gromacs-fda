@@ -400,18 +400,17 @@ void FDA::add_virial_dihedral(int i, int j, int k, int l,
     add_virial(l, v, QUARTER);
 }
 
-void FDA::save_and_write_scalar_time_averages(rvec *x, gmx_mtop_t *mtop)
+void FDA::save_and_write_scalar_time_averages(PaddedRVecVector const& x, gmx_mtop_t *mtop)
 {
     if (fda_settings.time_averaging_period != 1) {
         if (atom_based.PF_or_PS_mode())
             atom_based.distributed_forces.summed_merge_to_scalar(x);
         if (residue_based.PF_or_PS_mode()) {
-                rvec *com = get_residues_com(x, mtop);
+        	PaddedRVecVector com = get_residues_com(x, mtop);
             residue_based.distributed_forces.summed_merge_to_scalar(com);
             for (int i = 0; i != fda_settings.syslen_residues; ++i) {
                 rvec_inc(time_averaging_com[i], com[i]);
             }
-            sfree(com);
         }
         ++time_averaging_steps;
         if (fda_settings.time_averaging_period != 0 and time_averaging_steps >= fda_settings.time_averaging_period)
@@ -453,12 +452,10 @@ void FDA::write_scalar_time_averages()
     time_averaging_steps = 0;
 }
 
-void FDA::write_frame(rvec *x, gmx_mtop_t *mtop)
+void FDA::write_frame(PaddedRVecVector const& x, gmx_mtop_t *mtop)
 {
-    rvec *com = get_residues_com(x, mtop);
     atom_based.write_frame(x, nsteps);
-    residue_based.write_frame(com, nsteps);
-    sfree(com);
+    residue_based.write_frame(get_residues_com(x, mtop), nsteps);
     ++nsteps;
 }
 
@@ -682,7 +679,7 @@ void FDA::modify_energy_group_exclusions(gmx_mtop_t *mtop, t_inputrec *inputrec)
 
 }
 
-rvec* FDA::get_residues_com(rvec *x, gmx_mtop_t *mtop) const
+PaddedRVecVector FDA::get_residues_com(PaddedRVecVector const& x, gmx_mtop_t *mtop) const
 {
     int moltype_index, mol_index, d;
     int i, atom_index, atom_global_index, residue_global_index;
@@ -690,11 +687,9 @@ rvec* FDA::get_residues_com(rvec *x, gmx_mtop_t *mtop) const
     t_atom *atom_info;
     gmx_molblock_t *mb;
     rvec r;
-    real *mass;
-    rvec *com;
 
-    snew(com, fda_settings.syslen_residues);
-    snew(mass, fda_settings.syslen_residues);
+    std::vector<real> mass(fda_settings.syslen_residues);
+    PaddedRVecVector com(fda_settings.syslen_residues);
 
     for (i = 0; i < fda_settings.syslen_residues; i++) {
         mass[i] = 0.0;
@@ -722,13 +717,12 @@ rvec* FDA::get_residues_com(rvec *x, gmx_mtop_t *mtop) const
 
     // There might be residues with no interesting atoms, so their mass would be set to the initial 0.0;
     // float/double comparison can be tricky in general, but here it's used only to prevent division by 0
-    for (i = 0; i < fda_settings.syslen_residues; i++) {
+    for (i = 0; i < fda_settings.syslen_residues; ++i) {
         if (mass[i] != 0.0)
             for (d = 0; d < DIM; d++)
                 com[i][d] /= mass[i];
     }
 
-    sfree(mass);
     return com;
 }
 

@@ -16,6 +16,7 @@
 #include <vector>
 #include "FDABase.h"
 #include "FDASettings.h"
+#include "gromacs/math/paddedvector.h"
 #include "gromacs/mdtypes/inputrec.h"
 #include "InteractionType.h"
 #include "PureInteractionType.h"
@@ -101,7 +102,7 @@ public:
      * writing because for this fda->atoms would need to be initialized (to get the atom
      * number or to get the sys2ps mapping) which only happens when AtomBased is non-zero
      */
-    void save_and_write_scalar_time_averages(rvec *x, gmx_mtop_t *mtop);
+    void save_and_write_scalar_time_averages(PaddedRVecVector const& x, gmx_mtop_t *mtop);
 
     /**
      * Write scalar time averages; this is similar to pf_write_frame, except that time averages are used
@@ -116,7 +117,7 @@ public:
      */
     void write_scalar_time_averages();
 
-    void write_frame(rvec *x, gmx_mtop_t *mtop);
+    void write_frame(PaddedRVecVector const& x, gmx_mtop_t *mtop);
 
     /// Main routine for FDA exclusions
     void modify_energy_group_exclusions(gmx_mtop_t *mtop, t_inputrec *inputrec) const;
@@ -131,7 +132,7 @@ private:
      * not express the COM of the whole residue but the COM of the atoms of the residue which
      * are interesting for PF
      */
-    rvec *get_residues_com(rvec *x, gmx_mtop_t *mtop) const;
+    PaddedRVecVector get_residues_com(PaddedRVecVector const& x, gmx_mtop_t *mtop) const;
 
     /// Append group to energy groups, returns the position index
     int add_name_to_energygrp(char const* name, gmx_groups_t* groups) const;

@@ -78,7 +78,7 @@ public:
                result_type == ResultType::VIRIAL_STRESS_VON_MISES;
     }
 
-    void write_frame(rvec *x, int nsteps);
+    void write_frame(PaddedRVecVector const& x, int nsteps);
 
     void write_frame_detailed(rvec *x, bool print_vector, int nsteps);
 

@@ -9,6 +9,7 @@
 #define SRC_GROMACS_FDA_DISTRIBUTEDFORCES_H_
 
 #include <vector>
+#include "gromacs/math/paddedvector.h"
 #include "gromacs/math/vectypes.h"
 #include "gromacs/utility/real.h"
 #include "DetailedForce.h"
@@ -75,7 +76,7 @@ public:
     /// Divide all scalar forces by the divisor
     void scalar_real_divide(real divisor);
 
-    void summed_merge_to_scalar(const rvec *x);
+    void summed_merge_to_scalar(PaddedRVecVector const& x);
 
 private:
 
