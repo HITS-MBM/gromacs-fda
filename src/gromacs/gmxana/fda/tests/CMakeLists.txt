@@ -11,7 +11,8 @@ gmx_add_gtest_executable(
     PDBTest.cpp
 )
 
-gmx_register_integration_test(
+gmx_register_gtest_test(
     ${testname}
     ${exename}
+    INTEGRATION_TEST
 )

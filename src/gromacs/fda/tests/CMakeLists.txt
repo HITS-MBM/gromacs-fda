@@ -6,7 +6,7 @@ gmx_add_gtest_executable(
     PairwiseForcesTest.cpp
 )
 
-gmx_register_unit_test(
+gmx_register_gtest_test(
     ${testname}
     ${exename}
 )
