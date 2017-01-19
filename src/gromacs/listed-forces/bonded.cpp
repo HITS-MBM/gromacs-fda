@@ -54,7 +54,7 @@
 
 #include <algorithm>
 
-#include "../fda/FDA.h"
+#include "gromacs/fda/FDA.h"
 #include "gromacs/fda/InteractionType.h"
 #include "gromacs/listed-forces/pairs.h"
 #include "gromacs/math/functions.h"
@@ -199,8 +199,10 @@ real morse_bonds(int nbonds,
             pf_forcevector[m]   = fij;
         }
 
-        fda->add_bonded(ai, aj, fda::InteractionType_BOND, pf_forcevector);
-        fda->add_virial_bond(ai, aj, fbond, dx[XX], dx[YY], dx[ZZ]);
+        if (fda) {
+            fda->add_bonded(ai, aj, fda::InteractionType_BOND, pf_forcevector);
+            fda->add_virial_bond(ai, aj, fbond, dx[XX], dx[YY], dx[ZZ]);
+        }
     }                                         /*  83 TOTAL    */
     return vtot;
 }
@@ -266,8 +268,10 @@ real cubic_bonds(int nbonds,
             pf_forcevector[m]   = fij;
         }
 
-        fda->add_bonded(ai, aj, fda::InteractionType_BOND, pf_forcevector);
-        fda->add_virial_bond(ai, aj, fbond, dx[XX], dx[YY], dx[ZZ]);
+        if (fda) {
+            fda->add_bonded(ai, aj, fda::InteractionType_BOND, pf_forcevector);
+            fda->add_virial_bond(ai, aj, fbond, dx[XX], dx[YY], dx[ZZ]);
+        }
 
     }                                         /*  54 TOTAL    */
     return vtot;
@@ -340,8 +344,10 @@ real FENE_bonds(int nbonds,
             pf_forcevector[m]   = fij;
         }
 
-        fda->add_bonded(ai, aj, fda::InteractionType_BOND, pf_forcevector);
-        fda->add_virial_bond(ai, aj, fbond, dx[XX], dx[YY], dx[ZZ]);
+        if (fda) {
+        	fda->add_bonded(ai, aj, fda::InteractionType_BOND, pf_forcevector);
+            fda->add_virial_bond(ai, aj, fbond, dx[XX], dx[YY], dx[ZZ]);
+        }
 
     }                                         /*  58 TOTAL    */
     return vtot;
@@ -434,8 +440,10 @@ real bonds(int nbonds,
             pf_forcevector[m]   = fij;
         }
 
-        fda->add_bonded(ai, aj, fda::InteractionType_BOND, pf_forcevector);
-        fda->add_virial_bond(ai, aj, fbond, dx[XX], dx[YY], dx[ZZ]);
+        if (fda) {
+        	fda->add_bonded(ai, aj, fda::InteractionType_BOND, pf_forcevector);
+            fda->add_virial_bond(ai, aj, fbond, dx[XX], dx[YY], dx[ZZ]);
+        }
 
     }               /* 59 TOTAL	*/
     return vtot;
@@ -540,9 +548,10 @@ real restraint_bonds(int nbonds,
             pf_forcevector[m]   = fij;
         }
 
-        fda->add_bonded(ai, aj, fda::InteractionType_BOND, pf_forcevector);
-        fda->add_virial_bond(ai, aj, fbond, dx[XX], dx[YY], dx[ZZ]);
-
+        if (fda) {
+        	fda->add_bonded(ai, aj, fda::InteractionType_BOND, pf_forcevector);
+            fda->add_virial_bond(ai, aj, fbond, dx[XX], dx[YY], dx[ZZ]);
+        }
     }                   /* 59 TOTAL	*/
 
     return vtot;
@@ -602,8 +611,10 @@ real polarize(int nbonds,
             pf_forcevector[m]   = fij;
         }
 
-        fda->add_bonded(ai, aj, fda::InteractionType_POLAR, pf_forcevector);
-        fda->add_virial_bond(ai, aj, fbond, dx[XX], dx[YY], dx[ZZ]);
+        if (fda) {
+        	fda->add_bonded(ai, aj, fda::InteractionType_POLAR, pf_forcevector);
+            fda->add_virial_bond(ai, aj, fbond, dx[XX], dx[YY], dx[ZZ]);
+        }
 
     }               /* 59 TOTAL	*/
     return vtot;
@@ -673,8 +684,10 @@ real anharm_polarize(int nbonds,
             pf_forcevector[m]   = fij;
         }
 
-        fda->add_bonded(ai, aj, fda::InteractionType_POLAR, pf_forcevector);
-        fda->add_virial_bond(ai, aj, fbond, dx[XX], dx[YY], dx[ZZ]);
+        if (fda) {
+        	fda->add_bonded(ai, aj, fda::InteractionType_POLAR, pf_forcevector);
+            fda->add_virial_bond(ai, aj, fbond, dx[XX], dx[YY], dx[ZZ]);
+        }
 
     }               /* 72 TOTAL	*/
     return vtot;
@@ -818,9 +831,12 @@ real water_pol(int nbonds,
             	pf_forcevector[m]   = fij;
             }
 
-            fda->add_bonded(aS, aD, fda::InteractionType_POLAR, pf_forcevector);
-            for (m = 0; (m < DIM); m++)
-                fda->add_virial_bond(aS, aD, nW[m] * dHH[m] * dOD[m], kdx[XX], kdx[YY], kdx[ZZ]);
+            if (fda) {
+                fda->add_bonded(aS, aD, fda::InteractionType_POLAR, pf_forcevector);
+                for (m = 0; (m < DIM); m++) {
+                    fda->add_virial_bond(aS, aD, nW[m] * dHH[m] * dOD[m], kdx[XX], kdx[YY], kdx[ZZ]);
+                }
+            }
 
 #ifdef DEBUG
             if (debug)
@@ -867,8 +883,10 @@ static real do_1_thole(const rvec xi, const rvec xj, rvec fi, rvec fj,
         pf_forcevector[m]   = fff;
     }             /* 15 */
 
-    fda->add_bonded(ai, aj, fda::InteractionType_POLAR, pf_forcevector);
-    fda->add_virial_bond(ai, aj, fscal, r12[XX], r12[YY], r12[ZZ]);
+    if (fda) {
+    	fda->add_bonded(ai, aj, fda::InteractionType_POLAR, pf_forcevector);
+        fda->add_virial_bond(ai, aj, fscal, r12[XX], r12[YY], r12[ZZ]);
+    }
 
     return v0*v1; /* 1 */
     /* 54 */
@@ -997,8 +1015,10 @@ real angles(int nbonds,
                 f[ak][m] += f_k[m];
             }
 
-            fda->add_angle(ai, aj, ak, f_i, f_j, f_k);
-            fda->add_virial_angle(ai, aj, ak, r_ij, r_kj, f_i, f_k);
+            if (fda) {
+            	fda->add_angle(ai, aj, ak, f_i, f_j, f_k);
+                fda->add_virial_angle(ai, aj, ak, r_ij, r_kj, f_i, f_k);
+            }
 
             if (g != nullptr)
             {
@@ -1022,7 +1042,6 @@ real angles(int nbonds,
 
 /* As angles, but using SIMD to calculate many angles at once.
  * This routines does not calculate energies and shift forces.
- * FDA: No force storage implemented, because SIMD is not supported.
  */
 void
 angles_noener_simd(int nbonds,
@@ -1214,8 +1233,10 @@ real linear_angles(int nbonds,
             f[ak][m] += f_k[m];
         }
 
-        fda->add_angle(ai, aj, ak, f_i, f_j, f_k);
-        fda->add_virial_angle(ai, aj, ak, r_ij, r_kj, f_i, f_k);
+        if (fda) {
+        	fda->add_angle(ai, aj, ak, f_i, f_j, f_k);
+            fda->add_virial_angle(ai, aj, ak, r_ij, r_kj, f_i, f_k);
+        }
 
         va          = 0.5*klin*dr2;
         *dvdlambda += 0.5*(kB-kA)*dr2 + klin*(aB-aA)*iprod(dx, r_ik);
@@ -1315,8 +1336,10 @@ real urey_bradley(int nbonds,
                 f[ak][m] += f_k[m];
             }
 
-            fda->add_angle(ai, aj, ak, f_i, f_j, f_k);
-            fda->add_virial_angle(ai, aj, ak, r_ij, r_kj, f_i, f_k);
+            if (fda) {
+            	fda->add_angle(ai, aj, ak, f_i, f_j, f_k);
+                fda->add_virial_angle(ai, aj, ak, r_ij, r_kj, f_i, f_k);
+            }
 
             if (g)
             {
@@ -1355,8 +1378,10 @@ real urey_bradley(int nbonds,
             pf_forcevector[m]   = fik;
         }
 
-        fda->add_bonded(ai, ak, fda::InteractionType_BOND, pf_forcevector);
-        fda->add_virial_bond(ai, ak, fbond, r_ik[XX], r_ik[YY], r_ik[ZZ]);
+        if (fda) {
+        	fda->add_bonded(ai, ak, fda::InteractionType_BOND, pf_forcevector);
+            fda->add_virial_bond(ai, ak, fbond, r_ik[XX], r_ik[YY], r_ik[ZZ]);
+        }
 
     }
     return vtot;
@@ -1437,8 +1462,10 @@ real quartic_angles(int nbonds,
                 f[ak][m] += f_k[m];
             }
 
-            fda->add_angle(ai, aj, ak, f_i, f_j, f_k);
-            fda->add_virial_angle(ai, aj, ak, r_ij, r_kj, f_i, f_k);
+            if (fda) {
+            	fda->add_angle(ai, aj, ak, f_i, f_j, f_k);
+                fda->add_virial_angle(ai, aj, ak, r_ij, r_kj, f_i, f_k);
+            }
 
             if (g)
             {
@@ -1483,7 +1510,6 @@ real dih_angle(const rvec xi, const rvec xj, const rvec xk, const rvec xl,
 /* As dih_angle above, but calculates 4 dihedral angles at once using SIMD,
  * also calculates the pre-factor required for the dihedral force update.
  * Note that bv and buf should be register aligned.
- * FDA: No force storage implemented, because SIMD is not supported.
  */
 static gmx_inline void
 dih_angle_simd(const rvec *x,
@@ -1596,11 +1622,7 @@ dih_angle_simd(const rvec *x,
     *q_S       = *q_S * nrkj_2_S;
 }
 
-#endif /* GMX_SIMD_HAVE_REAL */
-
-void print_vec(char *s, rvec x) {
-  fprintf(stderr, "%s %f %f %f\n", s, x[0], x[1], x[2]);
-}
+#endif // GMX_SIMD_HAVE_REAL
 
 void do_dih_fup(int i, int j, int k, int l, real ddphi,
                 rvec r_ij, rvec r_kj, rvec r_kl,
@@ -1627,7 +1649,7 @@ void do_dih_fup(int i, int j, int k, int l, real ddphi,
         a      = -ddphi*nrkj/iprm;    /* 11	*/
         svmul(a, m, f_i);             /*  3	*/
         b     = ddphi*nrkj/iprn;      /* 11	*/
-        svmul(b, n, f_l);             /*  3     */
+        svmul(b, n, f_l);             /*  3  */
         p     = iprod(r_ij, r_kj);    /*  5	*/
         p    *= nrkj_2;               /*  1	*/
         q     = iprod(r_kl, r_kj);    /*  5	*/
@@ -1642,7 +1664,6 @@ void do_dih_fup(int i, int j, int k, int l, real ddphi,
         rvec_dec(f[k], f_k);          /*  3	*/
         rvec_inc(f[l], f_l);          /*  3	*/
 
-        /* check the pointer first, do_dih_fup is called from several places, sometimes with fda=NULL */
         if (fda) {
         	fda->add_dihedral(i, j, k, l, f_i, f_j, f_k, f_l);
         	fda->add_virial_dihedral(i, j, k, l, f_i, f_k, f_l, r_ij, r_kj, r_kl);
@@ -2252,10 +2273,12 @@ static real low_angres(int nbonds,
     int  t1, t2;
     real phi, cos_phi, cos_phi2, vid, vtot, dVdphi;
     rvec r_ij, r_kl, f_i, f_k = {0, 0, 0};
-    rvec n_f_i, n_f_k = {0, 0, 0};
     real st, sth, nrij2, nrkl2, c, cij, ckl;
-
     ivec dt;
+
+    if (fda)
+        gmx_fatal(FARGS, "FDA is not supporting low_angres.");
+
     t2 = 0; /* avoid warning with gcc-3.3. It is never used uninitialized */
 
     vtot = 0.0;
@@ -2265,12 +2288,12 @@ static real low_angres(int nbonds,
         type = forceatoms[i++];
         ai   = forceatoms[i++];
         aj   = forceatoms[i++];
-        t1   = pbc_rvec_sub(pbc, x[aj], x[ai], r_ij);       /*  3               */
+        t1   = pbc_rvec_sub(pbc, x[aj], x[ai], r_ij);       /*  3		*/
         if (!bZAxis)
         {
             ak   = forceatoms[i++];
             al   = forceatoms[i++];
-            t2   = pbc_rvec_sub(pbc, x[al], x[ak], r_kl);  /*  3                */
+            t2   = pbc_rvec_sub(pbc, x[al], x[ak], r_kl);  /*  3		*/
         }
         else
         {
@@ -2306,28 +2329,15 @@ static real low_angres(int nbonds,
             for (m = 0; m < DIM; m++)                   /*  18+18       */
             {
                 f_i[m]    = (c*r_kl[m]-cij*r_ij[m]);
-                n_f_i[m]  = -1.0 * f_i[m];
                 f[ai][m] += f_i[m];
                 f[aj][m] -= f_i[m];
                 if (!bZAxis)
                 {
                     f_k[m]    = (c*r_ij[m]-ckl*r_kl[m]);
-                    n_f_k[m]  = -1.0 * f_k[m];
                     f[ak][m] += f_k[m];
                     f[al][m] -= f_k[m];
                 }
             }
-
-            {
-            	fda->add_bonded(ai, aj, fda::InteractionType_ANGLE, f_i);
-            	fda->add_bonded(aj, ai, fda::InteractionType_ANGLE, n_f_i);
-				if (!bZAxis)
-				{
-					fda->add_bonded(ak, al, fda::InteractionType_ANGLE, f_k);
-					fda->add_bonded(al, ak, fda::InteractionType_ANGLE, n_f_k);
-				}
-            }
-            gmx_fatal(FARGS, "Not implemented yet.");
 
             if (g)
             {
@@ -2500,6 +2510,9 @@ real restrangles(int nbonds,
     real prefactor, ratio_ante, ratio_post;
     rvec delta_ante, delta_post, vec_temp;
 
+    if (fda)
+        gmx_fatal(FARGS, "FDA is not supporting restrangles.");
+
     vtot = 0.0;
     for (i = 0; (i < nbonds); )
     {
@@ -2557,9 +2570,6 @@ real restrangles(int nbonds,
             f_k[d] = prefactor * (delta_ante[d] - ratio_post * delta_post[d]);
         }
 
-        fda->add_angle(ai, aj, ak, f_i, f_j, f_k);
-        gmx_fatal(FARGS, "Not implemented yet.");
-
         /*   Computation of potential energy   */
 
         vtot += v;
@@ -2612,6 +2622,9 @@ real restrdihs(int nbonds,
     real prefactor_phi;
 
 
+    if (fda)
+        gmx_fatal(FARGS, "FDA is not supporting restrdihs.");
+
     vtot = 0.0;
     for (i = 0; (i < nbonds); )
     {
@@ -2654,12 +2667,6 @@ real restrdihs(int nbonds,
             f_l[d] = prefactor_phi * (factor_phi_al_ante * delta_ante[d] + factor_phi_al_crnt * delta_crnt[d] + factor_phi_al_post * delta_post[d]);
         }
         /*      Computation of the energy */
-
-        /* check the pointer first, do_dih_fup is called from several places, sometimes with fda=NULL */
-        if (fda) {
-        	fda->add_dihedral(ai, aj, ak, al, f_i, f_j, f_k, f_l);
-        	gmx_fatal(FARGS, "Not implemented yet.");
-        }
 
         vtot += v;
 
@@ -2725,7 +2732,8 @@ real cbtdihs(int nbonds,
     rvec f_theta_post_aj, f_theta_post_ak, f_theta_post_al;
 
 
-
+    if (fda)
+        gmx_fatal(FARGS, "FDA is not supporting cbtdihs.");
 
     vtot = 0.0;
     for (i = 0; (i < nbonds); )
@@ -2769,12 +2777,6 @@ real cbtdihs(int nbonds,
             f_j[d] = f_phi_aj[d] + f_theta_ante_aj[d] + f_theta_post_aj[d];
             f_k[d] = f_phi_ak[d] + f_theta_ante_ak[d] + f_theta_post_ak[d];
             f_l[d] = f_phi_al[d] + f_theta_post_al[d];
-        }
-
-        /* check the pointer first, do_dih_fup is called from several places, sometimes with fda=NULL */
-        if (fda != NULL) {
-        	fda->add_dihedral(ai, aj, ak, al, f_i, f_j, f_k, f_l);
-        	gmx_fatal(FARGS, "Not implemented yet.");
         }
 
         /*      Compute the potential energy */
@@ -3013,6 +3015,9 @@ cmap_dihs(int nbonds,
         {2, 6, 10, 14},
         {3, 7, 11, 15}
     };
+
+	if (fda)
+    	gmx_fatal(FARGS, "FDA is not supporting cmap_dihs.");
 
     /* Total CMAP energy */
     vtot = 0;
@@ -3290,11 +3295,6 @@ cmap_dihs(int nbonds,
             f[a1l][i] = f[a1l][i] + f1_l[i]; /* h1[i] */
         }
 
-		if (fda) {
-			fda->add_dihedral(a1i, a1j, a1k, a1l, f1_i, f1_j, f1_k, f1_l);
-        	gmx_fatal(FARGS, "Not implemented yet.");
-		}
-
         /* Do forces - second torsion */
         fg2       = iprod(r2_ij, r2_kj);
         hg2       = iprod(r2_kl, r2_kj);
@@ -3322,11 +3322,6 @@ cmap_dihs(int nbonds,
             f[a2j][i] = f[a2j][i] + f2_j[i]; /* - f2[i] - g2[i] */
             f[a2k][i] = f[a2k][i] + f2_k[i]; /* h2[i] + g2[i] */
             f[a2l][i] = f[a2l][i] + f2_l[i]; /* - h2[i] */
-        }
-
-		if (fda) {
-			fda->add_dihedral(a2i, a2j, a2k, a2l, f2_i, f2_j, f2_k, f2_l);
-    	    gmx_fatal(FARGS, "Not implemented yet.");
         }
 
         /* Shift forces */
@@ -3458,8 +3453,10 @@ real g96bonds(int nbonds,
             pf_forcevector[m]   = fij;
         }
 
-        fda->add_bonded(ai, aj, fda::InteractionType_BOND, pf_forcevector);
-        fda->add_virial_bond(ai, aj, fbond, dx[XX], dx[YY], dx[ZZ]);
+        if (fda) {
+        	fda->add_bonded(ai, aj, fda::InteractionType_BOND, pf_forcevector);
+            fda->add_virial_bond(ai, aj, fbond, dx[XX], dx[YY], dx[ZZ]);
+        }
 
     }               /* 44 TOTAL	*/
     return vtot;
@@ -3535,8 +3532,10 @@ real g96angles(int nbonds,
             f[ak][m] += f_k[m];
         }
 
-        fda->add_angle(ai, aj, ak, f_i, f_j, f_k);
-        fda->add_virial_angle(ai, aj, ak, r_ij, r_kj, f_i, f_k);
+        if (fda) {
+        	fda->add_angle(ai, aj, ak, f_i, f_j, f_k);
+            fda->add_virial_angle(ai, aj, ak, r_ij, r_kj, f_i, f_k);
+        }
 
         if (g)
         {
@@ -3611,8 +3610,10 @@ real cross_bond_bond(int nbonds,
             f[ak][m] += f_k[m];
         }
 
-        fda->add_angle(ai, aj, ak, f_i, f_j, f_k);
-        fda->add_virial_angle(ai, aj, ak, r_ij, r_kj, f_i, f_k);
+        if (fda) {
+        	fda->add_angle(ai, aj, ak, f_i, f_j, f_k);
+            fda->add_virial_angle(ai, aj, ak, r_ij, r_kj, f_i, f_k);
+        }
 
         /* Virial stuff */
         if (g)
@@ -3698,8 +3699,10 @@ real cross_bond_angle(int nbonds,
             f[ak][m] += f_k[m];
         }
 
-        fda->add_angle(ai, aj, ak, f_i, f_j, f_k);
-        fda->add_virial_angle(ai, aj, ak, r_ij, r_kj, f_i, f_k);
+        if (fda) {
+        	fda->add_angle(ai, aj, ak, f_i, f_j, f_k);
+            fda->add_virial_angle(ai, aj, ak, r_ij, r_kj, f_i, f_k);
+        }
 
         /* Virial stuff */
         if (g)
@@ -3821,8 +3824,10 @@ real tab_bonds(int nbonds,
             pf_forcevector[m]   = fij;
         }
 
-        fda->add_bonded(ai, aj, fda::InteractionType_BOND, pf_forcevector);
-        fda->add_virial_bond(ai, aj, fbond, dx[XX], dx[YY], dx[ZZ]);
+        if (fda) {
+        	fda->add_bonded(ai, aj, fda::InteractionType_BOND, pf_forcevector);
+            fda->add_virial_bond(ai, aj, fbond, dx[XX], dx[YY], dx[ZZ]);
+        }
 
     }               /* 62 TOTAL	*/
     return vtot;
@@ -3896,8 +3901,10 @@ real tab_angles(int nbonds,
                 f[ak][m] += f_k[m];
             }
 
-            fda->add_angle(ai, aj, ak, f_i, f_j, f_k);
-            fda->add_virial_angle(ai, aj, ak, r_ij, r_kj, f_i, f_k);
+            if (fda) {
+            	fda->add_angle(ai, aj, ak, f_i, f_j, f_k);
+                fda->add_virial_angle(ai, aj, ak, r_ij, r_kj, f_i, f_k);
+            }
 
             if (g)
             {

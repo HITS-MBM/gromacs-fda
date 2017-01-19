@@ -37,7 +37,7 @@
 #ifndef GMX_TOPOLOGY_IFUNC_H
 #define GMX_TOPOLOGY_IFUNC_H
 
-#include "../fda/FDA.h"
+#include "gromacs/fda/FDA.h"
 #include "gromacs/topology/idef.h"
 
 #ifdef __cplusplus
