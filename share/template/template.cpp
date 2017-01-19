@@ -35,7 +35,7 @@
 #include <string>
 #include <vector>
 
-#include "gromacs/trajectoryanalysis.h"
+#include <gromacs/trajectoryanalysis.h>
 
 using namespace gmx;
 

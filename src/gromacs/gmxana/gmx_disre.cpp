@@ -162,8 +162,6 @@ static void check_viol(FILE *log,
                        int clust_id, int isize, int index[], real vvindex[],
                        t_fcdata *fcd)
 {
-    gmx_fatal(FARGS, "FDA: interaction_function F_DISRES called without fr->fda.\n");
-
     t_iatom         *forceatoms;
     int              i, j, nat, n, type, nviol, ndr, label;
     real             rt, mviol, tviol, viol, lam, dvdl, drt;
