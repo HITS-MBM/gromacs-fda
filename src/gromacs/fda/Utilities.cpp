@@ -37,7 +37,7 @@ real vector2signedscalar(const rvec v, const rvec xi, const rvec xj, Vector2Scal
     return GMX_FLOAT_MAX;
 }
 
-real vector2unsignedscalar(const rvec v, int i, int j, rvec *x)
+real vector2unsignedscalar(const rvec v, int i, int j, PaddedRVecVector const& x)
 {
     rvec r;
     rvec_sub(x[j], x[i], r);

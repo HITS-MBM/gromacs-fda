@@ -90,7 +90,7 @@ void DistributedForces::write_detailed_vector(std::ostream& os) const
     }
 }
 
-void DistributedForces::write_detailed_scalar(std::ostream& os, rvec *x) const
+void DistributedForces::write_detailed_scalar(std::ostream& os, PaddedRVecVector const& x) const
 {
     for (size_t i = 0; i != detailed.size(); ++i) {
         auto const& detailed_i = detailed[i];
@@ -125,7 +125,7 @@ void DistributedForces::write_summed_vector(std::ostream& os) const
     }
 }
 
-void DistributedForces::write_summed_scalar(std::ostream& os, rvec *x) const
+void DistributedForces::write_summed_scalar(std::ostream& os, PaddedRVecVector const& x) const
 {
     for (size_t i = 0; i != summed.size(); ++i) {
         auto const& summed_i = summed[i];
@@ -155,7 +155,7 @@ void DistributedForces::write_scalar(std::ostream& os) const
     }
 }
 
-void DistributedForces::write_total_forces(std::ostream& os, rvec *x) const
+void DistributedForces::write_total_forces(std::ostream& os, PaddedRVecVector const& x) const
 {
     std::vector<real> total_forces(syslen, 0.0);
     for (size_t i = 0; i != summed.size(); ++i) {
@@ -247,7 +247,7 @@ void DistributedForces::write_scalar_compat_ascii(std::ostream& os) const
     os << std::endl;
 }
 
-void DistributedForces::write_summed_compat_ascii(std::ostream& os, rvec *x) const
+void DistributedForces::write_summed_compat_ascii(std::ostream& os, PaddedRVecVector const& x) const
 {
     // Print total number of interactions
     int nb_interactions = 0;
@@ -338,7 +338,7 @@ void DistributedForces::write_scalar_compat_bin(std::ostream& os) const
     }
 }
 
-void DistributedForces::write_summed_compat_bin(std::ostream& os, rvec *x) const
+void DistributedForces::write_summed_compat_bin(std::ostream& os, PaddedRVecVector const& x) const
 {
     // Print total number of interactions
     int nb_interactions = 0;

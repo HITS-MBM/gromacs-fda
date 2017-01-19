@@ -94,7 +94,7 @@ void FDABase<Base>::write_frame(PaddedRVecVector const& x, int nsteps)
 }
 
 template <class Base>
-void FDABase<Base>::write_frame_detailed(rvec *x, bool print_vector, int nsteps)
+void FDABase<Base>::write_frame_detailed(PaddedRVecVector const& x, bool print_vector, int nsteps)
 {
     result_file << "frame " << nsteps << std::endl;
     if (print_vector)
@@ -104,7 +104,7 @@ void FDABase<Base>::write_frame_detailed(rvec *x, bool print_vector, int nsteps)
 }
 
 template <class Base>
-void FDABase<Base>::write_frame_summed(rvec *x, bool print_vector, int nsteps)
+void FDABase<Base>::write_frame_summed(PaddedRVecVector const& x, bool print_vector, int nsteps)
 {
     result_file << "frame " << nsteps << std::endl;
     if (print_vector)
@@ -121,7 +121,7 @@ void FDABase<Base>::write_frame_scalar(int nsteps)
 }
 
 template <class Base>
-void FDABase<Base>::write_total_forces(rvec *x)
+void FDABase<Base>::write_total_forces(PaddedRVecVector const& x)
 {
     distributed_forces.write_total_forces(result_file, x);
 }
@@ -162,7 +162,7 @@ void FDABase<Base>::write_frame_scalar_compat(int nsteps)
 }
 
 template <class Base>
-void FDABase<Base>::write_frame_summed_compat(rvec *x, int nsteps)
+void FDABase<Base>::write_frame_summed_compat(PaddedRVecVector const& x, int nsteps)
 {
     if (result_type == ResultType::COMPAT_ASCII) {
         result_file << "<begin_block>" << std::endl;

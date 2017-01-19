@@ -80,15 +80,15 @@ public:
 
     void write_frame(PaddedRVecVector const& x, int nsteps);
 
-    void write_frame_detailed(rvec *x, bool print_vector, int nsteps);
+    void write_frame_detailed(PaddedRVecVector const& x, bool print_vector, int nsteps);
 
-    void write_frame_summed(rvec *x, bool print_vector, int nsteps);
+    void write_frame_summed(PaddedRVecVector const& x, bool print_vector, int nsteps);
 
     void write_frame_scalar(int nsteps);
 
-    void sum_total_forces(rvec *x);
+    void sum_total_forces(PaddedRVecVector const& x);
 
-    void write_total_forces(rvec *x);
+    void write_total_forces(PaddedRVecVector const& x);
 
     /**
      * Writes a header as in original PF implementation;
@@ -102,7 +102,7 @@ public:
 
     void write_frame_scalar_compat(int nsteps);
 
-    void write_frame_summed_compat(rvec *x, int nsteps);
+    void write_frame_summed_compat(PaddedRVecVector const& x, int nsteps);
 
     /// The stress is the negative atom_vir value.
     void write_virial_sum();
