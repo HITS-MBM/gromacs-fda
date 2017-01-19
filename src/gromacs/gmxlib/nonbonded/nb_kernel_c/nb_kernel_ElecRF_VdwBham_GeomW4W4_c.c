@@ -40,7 +40,7 @@
 #include <math.h>
 
 #include "../nb_kernel.h"
-#include "gromacs/fda/fda.h"
+#include "gromacs/fda/FDA.h"
 #include "gromacs/gmxlib/nrnb.h"
 
 /*
