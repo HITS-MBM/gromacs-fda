@@ -7,5 +7,3 @@ RUN apt-get update \
     libboost-graph-dev \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
-
-ENTRYPOINT ["bash"]
