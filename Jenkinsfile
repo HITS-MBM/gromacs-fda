@@ -3,7 +3,7 @@
 node('master') {
   stage('Checkout') {
     checkout scm
-    docker.image('nercury/cmake-cpp:gcc-4.9').inside {
+    docker.build("db", "-f Dockerfile .").inside {
 
       stage('Build') {
         sh 'cmake -DCMAKE_BUILD_TYPE=release -DCMAKE_C_COMPILER=/usr/bin/gcc -DCMAKE_CXX_COMPILER=/usr/bin/g++ -DGMX_BUILD_MDRUN_ONLY=OFF -DGMX_BUILD_FDA=ON -DGMX_DEFAULT_SUFFIX=OFF -DGMX_BINARY_SUFFIX=_fda -DGMX_SIMD=NONE -DGMX_BUILD_UNITTESTS=ON -DGMX_BUILD_OWN_FFTW=ON -DGMX_GPU=OFF .'
