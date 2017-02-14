@@ -89,6 +89,7 @@
 #include "gromacs/mdtypes/commrec.h"
 #include "gromacs/mdtypes/inputrec.h"
 #include "gromacs/mdtypes/md_enums.h"
+#include "gromacs/mdtypes/state.h"
 #include "gromacs/pbcutil/ishift.h"
 #include "gromacs/pbcutil/mshift.h"
 #include "gromacs/pbcutil/pbc.h"
@@ -99,12 +100,14 @@
 #include "gromacs/timing/wallcycle.h"
 #include "gromacs/timing/wallcyclereporting.h"
 #include "gromacs/timing/walltime_accounting.h"
+#include "gromacs/utility/arrayref.h"
 #include "gromacs/utility/basedefinitions.h"
 #include "gromacs/utility/cstringutil.h"
 #include "gromacs/utility/exceptions.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/gmxassert.h"
 #include "gromacs/utility/gmxmpi.h"
+#include "gromacs/utility/logger.h"
 #include "gromacs/utility/pleasecite.h"
 #include "gromacs/utility/smalloc.h"
 #include "gromacs/utility/sysinfo.h"
@@ -1845,7 +1848,7 @@ void do_force(FILE *fplog, t_commrec *cr,
               tensor vir_force,
               t_mdatoms *mdatoms,
               gmx_enerdata_t *enerd, t_fcdata *fcd,
-              std::vector<real> *lambda, t_graph *graph,
+              gmx::ArrayRef<real> lambda, t_graph *graph,
               t_forcerec *fr,
               gmx_vsite_t *vsite, rvec mu_tot,
               double t, gmx_edsam_t ed,
@@ -1858,8 +1861,10 @@ void do_force(FILE *fplog, t_commrec *cr,
         flags &= ~GMX_FORCE_NONBONDED;
     }
 
-    GMX_ASSERT(coordinates->size() >= static_cast<unsigned int>(fr->natoms_force + 1), "We might need 1 element extra for SIMD");
-    GMX_ASSERT(force->size() >= static_cast<unsigned int>(fr->natoms_force + 1), "We might need 1 element extra for SIMD");
+    GMX_ASSERT(coordinates->size() >= static_cast<unsigned int>(fr->natoms_force + 1) ||
+               fr->natoms_force == 0, "We might need 1 element extra for SIMD");
+    GMX_ASSERT(force->size() >= static_cast<unsigned int>(fr->natoms_force + 1) ||
+               fr->natoms_force == 0, "We might need 1 element extra for SIMD");
 
     rvec *x = as_rvec_array(coordinates->data());
 
@@ -1874,7 +1879,7 @@ void do_force(FILE *fplog, t_commrec *cr,
                                 force, vir_force,
                                 mdatoms,
                                 enerd, fcd,
-                                lambda->data(), graph,
+                                lambda.data(), graph,
                                 fr, fr->ic,
                                 vsite, mu_tot,
                                 t, ed,
@@ -1890,7 +1895,7 @@ void do_force(FILE *fplog, t_commrec *cr,
                                force, vir_force,
                                mdatoms,
                                enerd, fcd,
-                               lambda->data(), graph,
+                               lambda.data(), graph,
                                fr, vsite, mu_tot,
                                t, ed,
                                bBornRadii,
@@ -2482,6 +2487,12 @@ void finish_run(FILE *fplog, const gmx::MDLogger &mdlog, t_commrec *cr,
             elapsed_time_over_all_threads,
             elapsed_time_over_all_threads_over_all_ranks;
 
+    if (!walltime_accounting_get_valid_finish(walltime_accounting))
+    {
+        GMX_LOG(mdlog.warning).asParagraph().appendText("Simulation ended prematurely, no performance report will be written.");
+        return;
+    }
+
     if (cr->nnodes > 1)
     {
         snew(nrnb_tot, 1);
@@ -2570,7 +2581,7 @@ void finish_run(FILE *fplog, const gmx::MDLogger &mdlog, t_commrec *cr,
     }
 }
 
-extern void initialize_lambdas(FILE *fplog, t_inputrec *ir, int *fep_state, std::vector<real> *lambda, double *lam0)
+extern void initialize_lambdas(FILE *fplog, t_inputrec *ir, int *fep_state, gmx::ArrayRef<real> lambda, double *lam0)
 {
     /* this function works, but could probably use a logic rewrite to keep all the different
        types of efep straight. */
@@ -2585,25 +2596,23 @@ extern void initialize_lambdas(FILE *fplog, t_inputrec *ir, int *fep_state, std:
                                             if checkpoint is set -- a kludge is in for now
                                             to prevent this.*/
 
-    lambda->resize(efptNR);
-
     for (int i = 0; i < efptNR; i++)
     {
         /* overwrite lambda state with init_lambda for now for backwards compatibility */
         if (fep->init_lambda >= 0) /* if it's -1, it was never initializd */
         {
-            (*lambda)[i] = fep->init_lambda;
+            lambda[i] = fep->init_lambda;
             if (lam0)
             {
-                lam0[i] = (*lambda)[i];
+                lam0[i] = lambda[i];
             }
         }
         else
         {
-            (*lambda)[i] = fep->all_lambda[i][*fep_state];
+            lambda[i] = fep->all_lambda[i][*fep_state];
             if (lam0)
             {
-                lam0[i] = (*lambda)[i];
+                lam0[i] = lambda[i];
             }
         }
     }
@@ -2623,9 +2632,9 @@ extern void initialize_lambdas(FILE *fplog, t_inputrec *ir, int *fep_state, std:
     if (fplog != nullptr)
     {
         fprintf(fplog, "Initial vector of lambda components:[ ");
-        for (int i = 0; i < efptNR; i++)
+        for (const auto &l : lambda)
         {
-            fprintf(fplog, "%10.4f ", (*lambda)[i]);
+            fprintf(fplog, "%10.4f ", l);
         }
         fprintf(fplog, "]\n");
     }
@@ -2636,7 +2645,7 @@ extern void initialize_lambdas(FILE *fplog, t_inputrec *ir, int *fep_state, std:
 void init_md(FILE *fplog,
              t_commrec *cr, t_inputrec *ir, const gmx_output_env_t *oenv,
              double *t, double *t0,
-             std::vector<real> *lambda, int *fep_state, double *lam0,
+             gmx::ArrayRef<real> lambda, int *fep_state, double *lam0,
              t_nrnb *nrnb, gmx_mtop_t *mtop,
              gmx_update_t **upd,
              int nfile, const t_filenm fnm[],

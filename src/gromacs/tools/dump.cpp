@@ -74,11 +74,12 @@ static void list_tpx(const char *fn,
                      gmx_bool    bShowNumbers,
                      gmx_bool    bShowParameters,
                      const char *mdpfn,
-                     gmx_bool    bSysTop)
+                     gmx_bool    bSysTop,
+                     gmx_bool    bOriginalInputrec)
 {
     FILE         *gp;
     int           indent, i, j, **gcount, atot;
-    t_state       state {};
+    t_state       state;
     t_inputrec   *ir = nullptr;
     t_tpxheader   tpx;
     gmx_mtop_t    mtop;
@@ -95,6 +96,10 @@ static void list_tpx(const char *fn,
                    ir,
                    &state,
                    tpx.bTop ? &mtop : nullptr);
+    if (tpx.bIr && !bOriginalInputrec)
+    {
+        mdModules.adjustInputrecBasedOnModules();
+    }
 
     if (mdpfn && tpx.bIr)
     {
@@ -625,13 +630,15 @@ int gmx_dump(int argc, char *argv[])
 
     gmx_output_env_t *oenv;
     /* Command line options */
-    static gmx_bool   bShowNumbers = TRUE;
-    static gmx_bool   bShowParams  = FALSE;
-    static gmx_bool   bSysTop      = FALSE;
-    t_pargs           pa[]         = {
+    gmx_bool          bShowNumbers      = TRUE;
+    gmx_bool          bShowParams       = FALSE;
+    gmx_bool          bSysTop           = FALSE;
+    gmx_bool          bOriginalInputrec = FALSE;
+    t_pargs           pa[]              = {
         { "-nr", FALSE, etBOOL, {&bShowNumbers}, "Show index numbers in output (leaving them out makes comparison easier, but creates a useless topology)" },
         { "-param", FALSE, etBOOL, {&bShowParams}, "Show parameters for each bonded interaction (for comparing dumps, it is useful to combine this with -nonr)" },
-        { "-sys", FALSE, etBOOL, {&bSysTop}, "List the atoms and bonded interactions for the whole system instead of for each molecule type" }
+        { "-sys", FALSE, etBOOL, {&bSysTop}, "List the atoms and bonded interactions for the whole system instead of for each molecule type" },
+        { "-orgir", FALSE, etBOOL, {&bOriginalInputrec}, "Show input parameters from tpr as they were written by the version that produced the file, instead of how the current version reads them" }
     };
 
     if (!parse_common_args(&argc, argv, 0, NFILE, fnm, asize(pa), pa,
@@ -644,7 +651,7 @@ int gmx_dump(int argc, char *argv[])
     if (ftp2bSet(efTPR, NFILE, fnm))
     {
         list_tpx(ftp2fn(efTPR, NFILE, fnm), bShowNumbers, bShowParams,
-                 ftp2fn_null(efMDP, NFILE, fnm), bSysTop);
+                 ftp2fn_null(efMDP, NFILE, fnm), bSysTop, bOriginalInputrec);
     }
     else if (ftp2bSet(efTRX, NFILE, fnm))
     {

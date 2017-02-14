@@ -127,8 +127,8 @@ class BondedTest : public ::testing::Test
                        const t_iparams             iparams[],
                        int                         epbc)
         {
-            real  lambda = 0;
-            real  dvdlambda;
+            real  lambda    = 0;
+            real  dvdlambda = 0;
             rvec4 f[NATOMS];
             for (int i = 0; i < NATOMS; i++)
             {
@@ -183,7 +183,7 @@ TEST_F (BondedTest, DihedralAnglePbcXy)
     testDihedralAngle(epbcXY);
 }
 
-TEST_F (BondedTest, DihedarlAnglePbcXyz)
+TEST_F (BondedTest, DihedralAnglePbcXyz)
 {
     testDihedralAngle(epbcXYZ);
 }

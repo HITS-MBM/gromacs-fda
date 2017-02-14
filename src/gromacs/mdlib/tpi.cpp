@@ -78,6 +78,7 @@
 #include "gromacs/mdtypes/group.h"
 #include "gromacs/mdtypes/inputrec.h"
 #include "gromacs/mdtypes/md_enums.h"
+#include "gromacs/mdtypes/state.h"
 #include "gromacs/pbcutil/pbc.h"
 #include "gromacs/random/threefry.h"
 #include "gromacs/random/uniformrealdistribution.h"
@@ -290,6 +291,9 @@ double do_tpi(FILE *fplog, t_commrec *cr, const gmx::MDLogger gmx_unused &mdlog,
 
     snew(enerd, 1);
     init_enerdata(groups->grps[egcENER].nr, inputrec->fepvals->n_lambda, enerd);
+    /* We need to allocate one element extra, since we might use
+     * (unaligned) 4-wide SIMD loads to access rvec entries.
+     */
     f.resize(top_global->natoms + 1);
 
     /* Print to log file  */
@@ -662,7 +666,7 @@ double do_tpi(FILE *fplog, t_commrec *cr, const gmx::MDLogger gmx_unused &mdlog,
                      step, nrnb, wcycle, top, &top_global->groups,
                      state_global->box, &state_global->x, &state_global->hist,
                      &f, force_vir, mdatoms, enerd, fcd,
-                     &state_global->lambda,
+                     state_global->lambda,
                      nullptr, fr, nullptr, mu_tot, t, nullptr, FALSE,
                      GMX_FORCE_NONBONDED | GMX_FORCE_ENERGY |
                      (bNS ? GMX_FORCE_DYNAMICBOX | GMX_FORCE_NS : 0) |

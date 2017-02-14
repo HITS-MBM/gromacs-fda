@@ -73,6 +73,10 @@ class DefaultThreadAffinityAccess : public gmx::IThreadAffinityAccess
         {
             return tMPI_Thread_setaffinity_support() == TMPI_SETAFFINITY_SUPPORT_YES;
         }
+        virtual int physicalNodeId() const
+        {
+            return gmx_physicalnode_id_hash();
+        }
         virtual bool setCurrentThreadAffinityToCore(int core)
         {
             const int ret = tMPI_Thread_setaffinity_single(tMPI_Thread_self(), core);
@@ -107,7 +111,7 @@ static bool invalidWithinSimulation(const t_commrec *cr, bool invalidLocally)
 }
 
 static bool
-get_thread_affinity_layout(FILE *fplog, const gmx::MDLogger &mdlog,
+get_thread_affinity_layout(const gmx::MDLogger &mdlog,
                            const t_commrec *cr,
                            const gmx::HardwareTopology &hwTop,
                            int   threads,
@@ -246,9 +250,10 @@ get_thread_affinity_layout(FILE *fplog, const gmx::MDLogger &mdlog,
     }
     validLayout = validLayout && !invalidValue;
 
-    if (validLayout && fplog != nullptr)
+    if (validLayout)
     {
-        fprintf(fplog, "Pinning threads with a%s logical core stride of %d\n",
+        GMX_LOG(mdlog.info).appendTextFormatted(
+                "Pinning threads with a%s logical core stride of %d",
                 bPickPinStride ? "n auto-selected" : " user-specified",
                 *pin_stride);
     }
@@ -339,6 +344,7 @@ static bool set_affinity(const t_commrec *cr, int nthread_local, int thread0_id_
                     nthread_local > 1 ? "s" : "");
         }
 
+        // TODO: This output should also go through mdlog.
         fprintf(stderr, "NOTE: %sAffinity setting %sfailed.\n", sbuf1, sbuf2);
     }
     return allAffinitiesSet;
@@ -354,8 +360,7 @@ static bool set_affinity(const t_commrec *cr, int nthread_local, int thread0_id_
    if only PME is using threads.
  */
 void
-gmx_set_thread_affinity(FILE                        *fplog,
-                        const gmx::MDLogger         &mdlog,
+gmx_set_thread_affinity(const gmx::MDLogger         &mdlog,
                         const t_commrec             *cr,
                         const gmx_hw_opt_t          *hw_opt,
                         const gmx::HardwareTopology &hwTop,
@@ -403,7 +408,7 @@ gmx_set_thread_affinity(FILE                        *fplog,
         MPI_Comm comm_intra;
 
         MPI_Comm_split(MPI_COMM_WORLD,
-                       gmx_physicalnode_id_hash(), cr->rank_intranode,
+                       affinityAccess->physicalNodeId(), cr->rank_intranode,
                        &comm_intra);
         MPI_Scan(&nthread_local, &thread0_id_node, 1, MPI_INT, MPI_SUM, comm_intra);
         /* MPI_Scan is inclusive, but here we need exclusive */
@@ -423,7 +428,7 @@ gmx_set_thread_affinity(FILE                        *fplog,
 
     bool automatic = (hw_opt->thread_affinity == threadaffAUTO);
     bool validLayout
-        = get_thread_affinity_layout(fplog, mdlog, cr, hwTop, nthread_node, automatic,
+        = get_thread_affinity_layout(mdlog, cr, hwTop, nthread_node, automatic,
                                      offset, &core_pinning_stride, &localityOrder);
     const gmx::sfree_guard  localityOrderGuard(localityOrder);
 

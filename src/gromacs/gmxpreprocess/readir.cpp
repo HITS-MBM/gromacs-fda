@@ -55,6 +55,7 @@
 #include "gromacs/math/units.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/mdlib/calc_verletbuf.h"
+#include "gromacs/mdrunutility/mdmodules.h"
 #include "gromacs/mdtypes/inputrec.h"
 #include "gromacs/mdtypes/md_enums.h"
 #include "gromacs/mdtypes/pull-params.h"
@@ -143,15 +144,6 @@ static const char *constraints[eshNR+1]    = {
 static const char *couple_lam[ecouplamNR+1]    = {
     "vdw-q", "vdw", "q", "none", nullptr
 };
-
-void init_ir(t_inputrec *ir, t_gromppopts *opts)
-{
-    snew(opts->include, STRLEN);
-    snew(opts->define, STRLEN);
-    snew(ir->fepvals, 1);
-    snew(ir->expandedvals, 1);
-    snew(ir->simtempvals, 1);
-}
 
 static void GetSimTemps(int ntemps, t_simtemp *simtemp, double *temperature_lambdas)
 {
@@ -1185,9 +1177,14 @@ void check_ir(const char *mdparin, t_inputrec *ir, t_gromppopts *opts,
 
     if (EEL_PME(ir->coulombtype) || EVDW_PME(ir->vdwtype))
     {
-        if (ir->pme_order < 3)
+        // TODO: Move these checks into the ewald module with the options class
+        int orderMin = 3;
+        int orderMax = (ir->coulombtype == eelP3M_AD ? 8 : 12);
+
+        if (ir->pme_order < orderMin || ir->pme_order > orderMax)
         {
-            warning_error(wi, "pme-order can not be smaller than 3");
+            sprintf(warn_buf, "With coulombtype = %s, you should have %d <= pme-order <= %d", eel_names[ir->coulombtype], orderMin, orderMax);
+            warning_error(wi, warn_buf);
         }
     }
 
@@ -1767,7 +1764,7 @@ class MdpErrorHandler : public gmx::IKeyValueTreeErrorHandler
 } // namespace
 
 void get_ir(const char *mdparin, const char *mdparout,
-            t_inputrec *ir, t_gromppopts *opts,
+            gmx::MDModules *mdModules, t_gromppopts *opts,
             warninp_t wi)
 {
     char       *dumstr[2];
@@ -1776,6 +1773,7 @@ void get_ir(const char *mdparin, const char *mdparout,
     const char *tmp;
     int         i, j, m, ninp;
     char        warn_buf[STRLEN];
+    t_inputrec *ir     = mdModules->inputrec();
     t_lambda   *fep    = ir->fepvals;
     t_expanded *expand = ir->expandedvals;
 
@@ -2199,20 +2197,17 @@ void get_ir(const char *mdparin, const char *mdparout,
         gmx::KeyValueTreeTransformer transform;
         transform.rules()->addRule()
             .keyMatchType("/", gmx::StringCompareType::CaseAndDashInsensitive);
-        ir->efield->initMdpTransform(transform.rules());
+        mdModules->initMdpTransform(transform.rules());
         for (const auto &path : transform.mappedPaths())
         {
             GMX_ASSERT(path.size() == 1, "Inconsistent mapping back to mdp options");
             mark_einp_set(ninp, inp, path[0].c_str());
         }
-        gmx::Options                 options;
-        ir->efield->initMdpOptions(&options);
         MdpErrorHandler              errorHandler(wi);
         auto                         result
             = transform.transform(convertedValues, &errorHandler);
         errorHandler.setBackMapping(result.backMapping());
-        gmx::assignOptionsFromKeyValueTree(&options, result.object(),
-                                           &errorHandler);
+        mdModules->assignOptionsToModulesFromMdp(result.object(), &errorHandler);
     }
 
     /* Ion/water position swapping ("computational electrophysiology") */

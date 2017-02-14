@@ -484,7 +484,7 @@ static void increase_nstlist(FILE *fp, t_commrec *cr,
             {
                 gmx_incons("Changing nstlist with domain decomposition and unbounded dimensions is not implemented yet");
             }
-            t_state state_tmp {};
+            t_state state_tmp;
             copy_mat(box, state_tmp.box);
             bDD = change_dd_cutoff(cr, &state_tmp, ir, rlist_new);
         }
@@ -772,7 +772,7 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
         please_cite(fplog, "Berendsen95a");
     }
 
-    std::unique_ptr<t_state> stateInstance = std::unique_ptr<t_state>(new t_state {});
+    std::unique_ptr<t_state> stateInstance = std::unique_ptr<t_state>(new t_state);
     t_state *                state         = stateInstance.get();
 
 #ifdef BUILD_WITH_FDA
@@ -907,6 +907,7 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
          */
         gmx_bcast_sim(sizeof(bUseGPU), &bUseGPU, cr);
     }
+    mdModules.assignOptionsToModulesFromTpr();
 
     if (fplog != nullptr)
     {
@@ -1305,7 +1306,7 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
         }
 
         /* Set the CPU affinity */
-        gmx_set_thread_affinity(fplog, mdlog, cr, hw_opt, *hwinfo->hardwareTopology,
+        gmx_set_thread_affinity(mdlog, cr, hw_opt, *hwinfo->hardwareTopology,
                                 nthread_local, nullptr);
     }
 
@@ -1330,11 +1331,15 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
 
         if (cr->duty & DUTY_PME)
         {
-            status = gmx_pme_init(pmedata, cr, npme_major, npme_minor, inputrec,
-                                  mtop ? mtop->natoms : 0, nChargePerturbed, nTypePerturbed,
-                                  (Flags & MD_REPRODUCIBLE),
-                                  ewaldcoeff_q, ewaldcoeff_lj,
-                                  nthreads_pme);
+            try
+            {
+                status = gmx_pme_init(pmedata, cr, npme_major, npme_minor, inputrec,
+                                      mtop ? mtop->natoms : 0, nChargePerturbed, nTypePerturbed,
+                                      (Flags & MD_REPRODUCIBLE),
+                                      ewaldcoeff_q, ewaldcoeff_lj,
+                                      nthreads_pme);
+            }
+            GMX_CATCH_ALL_AND_EXIT_WITH_FATAL_ERROR;
             if (status != 0)
             {
                 gmx_fatal(FARGS, "Error %d initializing PME", status);
@@ -1433,7 +1438,7 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
     // Free PME data
     if (pmedata)
     {
-        gmx_pme_destroy(pmedata);
+        gmx_pme_destroy(*pmedata); // TODO: pmedata is always a single element list, refactor
         pmedata = nullptr;
     }
 

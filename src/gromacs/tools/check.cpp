@@ -53,6 +53,7 @@
 #include "gromacs/mdrunutility/mdmodules.h"
 #include "gromacs/mdtypes/inputrec.h"
 #include "gromacs/mdtypes/md_enums.h"
+#include "gromacs/mdtypes/state.h"
 #include "gromacs/pbcutil/pbc.h"
 #include "gromacs/topology/atomprop.h"
 #include "gromacs/topology/block.h"
@@ -102,6 +103,7 @@ static void comp_tpx(const char *fn1, const char *fn2,
     for (i = 0; i < (fn2 ? 2 : 1); i++)
     {
         read_tpx_state(ff[i], ir[i], &state[i], &(mtop[i]));
+        mdModules[i].adjustInputrecBasedOnModules();
     }
     if (fn2)
     {
