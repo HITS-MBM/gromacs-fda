@@ -5,7 +5,7 @@ pipeline {
   agent {
     dockerfile {
       filename "Dockerfile"
-      label "db"
+      label "docker-nodes"
     }
   }
   
@@ -30,11 +30,8 @@ pipeline {
     always {
       deleteDir()
     }
-    success {
-      mail to:"bernd.doser@h-its.org", subject:"SUCCESS: ${currentBuild.fullDisplayName}", body: "Yay, we passed."
-    }
-    failure {
-      mail to:"bernd.doser@h-its.org", subject:"FAILURE: ${currentBuild.fullDisplayName}", body: "Boo, we failed."
-    }
+#    failure {
+#      mail to:"bernd.doser@h-its.org", subject:"FAILURE: ${currentBuild.fullDisplayName}", body: "Boo, we failed."
+#    }
   }
 }
