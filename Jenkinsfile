@@ -2,7 +2,12 @@
 
 pipeline {
 
-  agent any
+  agent {
+    dockerfile {
+      filename "Dockerfile"
+      label "db"
+    }
+  }
   
   stages {
 
