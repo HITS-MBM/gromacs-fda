@@ -217,6 +217,13 @@ set(REQUIRED_CUDA_COMPUTE_CAPABILITY 2.0)
 # OpenCL required version: 1.1 or newer
 set(REQUIRED_OPENCL_MIN_VERSION 1.1)
 
+option(GMX_BUILD_FDA "Switch on force distribution analysis (FDA)" OFF)
+mark_as_advanced(GMX_BUILD_FDA)
+if(GMX_BUILD_FDA)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DBUILD_WITH_FDA")
+    set(GMX_GPU OFF)
+endif()
+
 if(NOT GMX_USE_OPENCL)
     # CUDA detection is done only if GMX_USE_OPENCL is OFF.
     include(gmxManageGPU)
@@ -609,12 +616,6 @@ endif()
 option(GMX_BUILD_UNITTESTS "Build unit tests with BUILD_TESTING" ON)
 mark_as_advanced(GMX_BUILD_UNITTESTS)
 gmx_add_cache_dependency(GMX_BUILD_UNITTESTS BOOL BUILD_TESTING OFF)
-
-option(GMX_BUILD_FDA "Switch on force distribution analysis (FDA)" OFF)
-mark_as_advanced(GMX_BUILD_FDA)
-if(GMX_BUILD_FDA)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DBUILD_WITH_FDA")
-endif()
 
 ########################################################################
 # Our own GROMACS tests
