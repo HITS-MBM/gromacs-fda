@@ -47,7 +47,7 @@
 
 #include <cmath>
 
-#include "../fda/FDA.h"
+#include "gromacs/fda/FDA.h"
 #include "gromacs/fda/InteractionType.h"
 #include "gromacs/math/functions.h"
 #include "gromacs/math/vec.h"

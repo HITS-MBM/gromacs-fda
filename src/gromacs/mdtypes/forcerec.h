@@ -37,7 +37,7 @@
 #ifndef GMX_MDTYPES_TYPES_FORCEREC_H
 #define GMX_MDTYPES_TYPES_FORCEREC_H
 
-#include "../fda/FDA.h"
+#include "gromacs/fda/FDA.h"
 #include "gromacs/math/vectypes.h"
 #ifdef __cplusplus
 #include "gromacs/math/paddedvector.h"
