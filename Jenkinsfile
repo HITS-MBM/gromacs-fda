@@ -26,12 +26,12 @@ pipeline {
     }
   }
 
-  post {
+//  post {
 //    always {
 //      deleteDir()
 //    }
 //    failure {
 //      mail to:"bernd.doser@h-its.org", subject:"FAILURE: ${currentBuild.fullDisplayName}", body: "Boo, we failed."
 //    }
-  }
+//  }
 }
