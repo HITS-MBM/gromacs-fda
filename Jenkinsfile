@@ -9,7 +9,7 @@ pipeline {
   stages {
 
     stage("Build") {
-      parallel {
+      parallel (
         "gcc-4.9" : {
           agent {
             docker "bernddoser/docker-devel-cpp:ubuntu-gcc-4.9"
@@ -30,7 +30,7 @@ pipeline {
             sh 'cd build-clang-3.9 && make'
           }
         }
-      }
+      )
     }
     
     stage("Test") {
