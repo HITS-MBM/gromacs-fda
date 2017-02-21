@@ -4,7 +4,7 @@ pipeline {
 
   agent {
     docker {
-      image "bernddoser/ubuntu-gcc-4.9"
+      image "bernddoser/docker-devel-cpp:ubuntu-gcc-4.9"
       label "docker-nodes"
     }
   }
