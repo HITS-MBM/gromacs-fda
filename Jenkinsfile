@@ -3,8 +3,8 @@
 pipeline {
 
   agent {
-    dockerfile {
-      filename "Dockerfile"
+    docker {
+      image "bernddoser/ubuntu-gcc-4.9"
       label "docker-nodes"
     }
   }
@@ -34,4 +34,5 @@ pipeline {
 //      mail to:"bernd.doser@h-its.org", subject:"FAILURE: ${currentBuild.fullDisplayName}", body: "Boo, we failed."
 //    }
 //  }
+
 }
