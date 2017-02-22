@@ -3,8 +3,14 @@
 pipeline {
 
   agent {
-    label "docker-nodes"
-    docker "bernddoser/docker-devel-cpp:ubuntu-16.04-cmake-3.7.2"
+    docker {
+      image "bernddoser/docker-devel-cpp:ubuntu-16.04-cmake-3.7.2"
+      label "docker-nodes"
+    }
+  }
+  
+  environment {
+    PATH = "/opt/cmake-3.7.2-Linux-x86_64:$PATH"
   }
   
   stages {
@@ -13,8 +19,11 @@ pipeline {
 //      parallel (
 //        "gcc-4.9" : {
           agent {
-            docker "bernddoser/docker-devel-cpp:ubuntu-16.04-gcc-4.9"
-            args "--volumes-from ubuntu-16.04-cmake-3.7.2 -e PATH=/opt/cmake-3.7.2-Linux-x86_64:$PATH"
+            docker { 
+              image "bernddoser/docker-devel-cpp:ubuntu-16.04-gcc-4.9"
+              args "--volumes-from ubuntu-16.04-cmake-3.7.2"
+              label "docker-nodes"
+            }
           }
           steps {
             sh 'mkdir -p build-gcc-4.9'
