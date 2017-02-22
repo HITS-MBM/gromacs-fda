@@ -9,10 +9,6 @@ pipeline {
     }
   }
   
-  environment {
-    PATH = "/opt/cmake-3.7.2-Linux-x86_64:$PATH"
-  }
-  
   stages {
 
     stage("Build") {
@@ -21,7 +17,7 @@ pipeline {
           agent {
             docker { 
               image "bernddoser/docker-devel-cpp:ubuntu-16.04-gcc-4.9"
-              args "--volumes-from ubuntu-16.04-cmake-3.7.2"
+              args "--volumes-from ubuntu-16.04-cmake-3.7.2 -e PATH=/opt/cmake-3.7.2-Linux-x86_64:$PATH"
               label "docker-nodes"
             }
           }
