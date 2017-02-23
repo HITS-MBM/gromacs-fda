@@ -5,7 +5,7 @@ pipeline {
   agent {
     label "docker-nodes"
   }
-  
+
   stages {
 
     stage("Build") {
