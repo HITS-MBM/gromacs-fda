@@ -3,10 +3,7 @@
 pipeline {
 
   agent {
-    docker {
-      image "bernddoser/docker-devel-cpp:ubuntu-16.04-cmake-3.7.2"
-      label "docker-nodes"
-    }
+    label "docker-nodes"
   }
   
   stages {
