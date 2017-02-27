@@ -2,16 +2,16 @@
 
 pipeline {
   agent {
-    label "docker-nodes"
+    label 'docker-nodes'
   }
   stages {
     stage('Build') {
       steps {
         parallel(
-          "gcc-4.9": {
+          'gcc-4.9': {
             agent {
-              docker 'bernddoser/docker-devel-cpp:ubuntu-16.04-gcc-4.9'
-              label "docker-nodes"
+              docker 'bernddoser/docker-devel-cpp:ubuntu-16.04-cmake-3.7.2-gcc-4.9-gtest-1.8.0'
+              label 'docker-nodes'
             }
             steps {
               sh 'mkdir -p build'
@@ -19,10 +19,10 @@ pipeline {
               sh 'cd build && make'
             }
           },
-          "clang-3.9": {
+          'clang-3.9': {
             agent {
-              docker 'bernddoser/docker-devel-cpp:ubuntu-16.04-clang-3.9'
-              label "docker-nodes"
+              docker 'bernddoser/docker-devel-cpp:ubuntu-16.04-cmake-3.7.2-clang-3.9-gtest-1.8.0'
+              label 'docker-nodes'
             }
             steps {
               sh 'mkdir -p build'
@@ -36,11 +36,11 @@ pipeline {
     stage('Test') {
       steps {
         parallel(
-          "gcc-4.9": {
+          'gcc-4.9': {
             sh 'cd build && make check'
             
           },
-          "clang-3.9": {
+          'clang-3.9': {
             sh 'cd build && make check'
             
           }
@@ -63,7 +63,7 @@ pipeline {
       deleteDir()
     }
     failure {
-      mail to:"bernd.doser@h-its.org", subject:"FAILURE: ${currentBuild.fullDisplayName}", body: "Boo, we failed."
+      mail to:'bernd.doser@h-its.org', subject:"FAILURE: ${currentBuild.fullDisplayName}", body: "Boo, we failed."
     }
   }
 }
