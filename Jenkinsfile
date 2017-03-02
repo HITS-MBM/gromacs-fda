@@ -2,8 +2,10 @@
 
 pipeline {
   agent {
-    docker 'bernddoser/docker-devel-cpp:ubuntu-16.04-cmake-3.7.2-gcc-4.9-gtest-1.8.0'
-    label 'docker-nodes'
+    docker {
+      image 'bernddoser/docker-devel-cpp:ubuntu-16.04-cmake-3.7.2-gcc-4.9-gtest-1.8.0'
+      label 'docker-nodes'
+    }
   }
   stages {
     stage('Build') {
