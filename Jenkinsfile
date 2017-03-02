@@ -20,11 +20,6 @@ pipeline {
         sh 'cd build && make check'
       }
     }
-    stage('Dokumentation') {
-      steps {
-        sh 'cd build && make doc'
-      }
-    }
     stage('Deploy') {
       steps {
         archiveArtifacts '*.deb'
