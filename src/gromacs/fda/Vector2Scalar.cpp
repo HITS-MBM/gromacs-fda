@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <stdexcept>
 #include "Vector2Scalar.h"
 
 namespace fda {

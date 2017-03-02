@@ -1,37 +1,42 @@
 #!groovy
 
-stage('Checkout') {
-  node('master') {
-    git url: "https://github.com/HITS-MBM/gromacs-fda.git", branch: 'release-2016-fda'
-  }
-}
-
-stage('Build') {
-  node('master') {
-    sh 'cmake -DCMAKE_BUILD_TYPE=release -DCMAKE_C_COMPILER=/usr/bin/gcc -DCMAKE_CXX_COMPILER=/usr/bin/g++ -DGMX_BUILD_MDRUN_ONLY=OFF -DGMX_BUILD_FDA=ON -DGMX_DEFAULT_SUFFIX=OFF -DGMX_BINARY_SUFFIX=_fda -DGMX_SIMD=NONE -DGMX_BUILD_UNITTESTS=ON -DGMX_BUILD_OWN_FFTW=ON -DGMX_GPU=OFF .'
-    sh 'make'
-  }
-}
-
-stage('Test') {
-  node('master') {
-    sh 'make check'
-  }
-}
-
-stage('Promotion') {
-  try {
-    timeout(time:5, unit:'MINUTES') {
-      input message:'Approve deployment?', submitter: 'admin'
+pipeline {
+  agent {
+    docker {
+      image 'bernddoser/docker-devel-cpp:ubuntu-16.04-gcc-4.9-tools-1'
+      label 'docker-nodes'
     }
-  } catch (Exception ex) {
-    annotate('currentStage.status', 'UNSTABLE');
+  }
+  stages {
+    stage('Build') {
+      steps {
+        sh 'mkdir -p build'
+        sh 'cd build && cmake -DCMAKE_BUILD_TYPE=release -DCMAKE_C_COMPILER=/usr/bin/gcc -DCMAKE_CXX_COMPILER=/usr/bin/g++ -DGMX_BUILD_MDRUN_ONLY=OFF -DGMX_BUILD_FDA=ON -DGMX_DEFAULT_SUFFIX=OFF -DGMX_BINARY_SUFFIX=_fda -DGMX_SIMD=NONE -DGMX_BUILD_UNITTESTS=ON -DGMX_BUILD_OWN_FFTW=ON -DGMX_GPU=OFF ..'
+        sh 'cd build && make -j'
+      }
+    }
+    stage('Test') {
+      steps {
+        sh 'cd build && make check'
+      }
+    }
+    stage('Dokumentation') {
+      steps {
+        sh 'cd build && make doc'
+      }
+    }
+    stage('Deploy') {
+      steps {
+        archiveArtifacts '*.deb'
+      }
+    }
+  }
+  post {
+    always {
+      deleteDir()
+    }
+    failure {
+      mail to:'bernd.doser@h-its.org', subject:"FAILURE: ${currentBuild.fullDisplayName}", body: "Boo, we failed."
+    }
   }
 }
-
-stage('Deployment') {
-  node('master') {
-    sh 'make install'
-  }
-}
-
