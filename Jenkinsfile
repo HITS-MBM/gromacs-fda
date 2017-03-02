@@ -3,7 +3,7 @@
 pipeline {
   agent {
     docker {
-      image 'bernddoser/docker-devel-cpp:ubuntu-16.04-cmake-3.7.2-gcc-4.9-gtest-1.8.0'
+      image 'bernddoser/docker-devel-cpp:ubuntu-16.04-gcc-4.9-tools-1'
       label 'docker-nodes'
     }
   }
