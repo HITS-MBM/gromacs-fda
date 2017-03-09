@@ -28,19 +28,18 @@ pipeline {
         archiveArtifacts artifacts: 'build/bin/gmx_fda', fingerprint: true
       }
     }
-    stage('Deploy') {
-      when { currentBuild.result == 'SUCCESS' }
-      steps {
-        sh 'make install'
-      }
-    }
-  }
-//  post {
-//    always {
-//      deleteDir()
+//    stage('Deploy') {
+//      steps {
+//        sh 'make install'
+//      }
 //    }
+  }
+  post {
+    always {
+      deleteDir()
+    }
 //    failure {
 //      mail to:'bernd.doser@h-its.org', subject:"FAILURE: ${currentBuild.fullDisplayName}", body: "Boo, we failed."
 //    }
-//  }
+  }
 }
