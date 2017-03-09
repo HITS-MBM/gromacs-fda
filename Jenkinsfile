@@ -18,9 +18,9 @@ pipeline {
     stage('Test') {
       steps {
         sh 'cd build && make check'
-        [$class: 'XUnitBuilder',
+        step([$class: 'XUnitBuilder',
            thresholds: [[$class: 'FailedThreshold', unstableThreshold: '1']],
-           tools: [[$class: 'GoogleTestType', pattern: 'build/Testing/Temporary/*.xml']]]
+           tools: [[$class: 'GoogleTestType', pattern: 'build/Testing/Temporary/*.xml']]])
       }
     }
     stage('Deploy') {
