@@ -19,13 +19,19 @@ pipeline {
       steps {
         sh 'cd build && make check'
         step([$class: 'XUnitBuilder',
-           thresholds: [[$class: 'FailedThreshold', unstableThreshold: '1']],
-           tools: [[$class: 'GoogleTestType', pattern: 'build/Testing/Temporary/*.xml']]])
+          thresholds: [[$class: 'FailedThreshold', unstableThreshold: '1']],
+          tools: [[$class: 'GoogleTestType', pattern: 'build/Testing/Temporary/*.xml']]])
+      }
+    }
+    stage('Publish') {
+      steps {
+        archiveArtifacts artifacts: 'build/bin/gmx_fda', fingerprint: true
       }
     }
     stage('Deploy') {
+      when { currentBuild.result == 'SUCCESS' }
       steps {
-        archiveArtifacts 'build'
+        sh 'make install'
       }
     }
   }
