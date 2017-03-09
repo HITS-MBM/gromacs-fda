@@ -22,16 +22,16 @@ pipeline {
     }
     stage('Deploy') {
       steps {
-        archiveArtifacts '*.deb'
+        archiveArtifacts 'build'
       }
     }
   }
-  post {
-    always {
-      deleteDir()
-    }
-    failure {
-      mail to:'bernd.doser@h-its.org', subject:"FAILURE: ${currentBuild.fullDisplayName}", body: "Boo, we failed."
-    }
-  }
-}
+#  post {
+#    always {
+#      deleteDir()
+#    }
+#    failure {
+#      mail to:'bernd.doser@h-its.org', subject:"FAILURE: ${currentBuild.fullDisplayName}", body: "Boo, we failed."
+#    }
+#  }
+#}
