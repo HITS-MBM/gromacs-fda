@@ -17,7 +17,9 @@ pipeline {
     }
     stage('Test') {
       steps {
-        sh 'cd build; make check'
+        catchError {
+          sh 'cd build; make check'
+        }
       }
     }
     stage('Doxygen') {
