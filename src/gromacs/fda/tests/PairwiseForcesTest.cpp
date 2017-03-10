@@ -19,7 +19,7 @@ class PairwiseForcesTest : public ::gmx::test::IntegrationTestFixture
 TEST_F(PairwiseForcesTest, DefaultConstructor)
 {
     PairwiseForces<real> pf;
-    EXPECT_TRUE(pf.all_pairwise_forces.empty());
+    EXPECT_FALSE(pf.all_pairwise_forces.empty());
 }
 
 TEST_F(PairwiseForcesTest, ReadFile1)
