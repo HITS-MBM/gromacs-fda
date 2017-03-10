@@ -35,7 +35,7 @@ pipeline {
         tools: [[$class: 'GoogleTestType', pattern: 'build/Testing/Temporary/*.xml']]])
         
       publishHTML target: [$class: 'HtmlPublisherTarget',
-        reportName: 'Doxygen', reportDir: 'docs/html/doxygen/html-full', reportFiles: 'index.html']
+        reportName: 'Doxygen', reportDir: 'build/docs/html/doxygen/html-full', reportFiles: 'index.html']
    
       deleteDir()
     }
