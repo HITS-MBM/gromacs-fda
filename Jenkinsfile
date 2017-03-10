@@ -30,12 +30,20 @@ pipeline {
   }
   post {
     always {
-      step([$class: 'XUnitBuilder',
+      step([
+        $class: 'XUnitBuilder',
         thresholds: [[$class: 'FailedThreshold', unstableThreshold: '1']],
-        tools: [[$class: 'GoogleTestType', pattern: 'build/Testing/Temporary/*.xml']]])
+        tools: [[$class: 'GoogleTestType', pattern: 'build/Testing/Temporary/*.xml']]
+      ])
         
-      publishHTML target: [$class: 'HtmlPublisherTarget',
-        reportName: 'Doxygen', reportDir: 'build/docs/html/doxygen/html-full', reportFiles: 'index.html']
+      publishHTML( target: [
+        allowMissing: false,
+        alwaysLinkToLastBuild: false,
+        keepAll: true,
+        reportName: 'Doxygen',
+        reportDir: 'build/docs/html/doxygen/html-full',
+        reportFiles: 'index.html'
+      ])
    
       deleteDir()
     }
