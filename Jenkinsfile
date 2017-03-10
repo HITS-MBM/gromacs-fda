@@ -42,7 +42,7 @@ pipeline {
         keepAll: true,
         reportName: 'Doxygen',
         reportDir: 'build/docs/html/doxygen/html-full',
-        reportFiles: 'index.html'
+        reportFiles: 'index.xhtml'
       ])
    
       deleteDir()
