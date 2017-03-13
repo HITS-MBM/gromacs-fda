@@ -45,7 +45,7 @@ pipeline {
         reportFiles: 'index.xhtml'
       ])
    
-      deleteDir()
+//      deleteDir()
     }
     success {
       archiveArtifacts artifacts: 'build/bin/gmx_fda', fingerprint: true
