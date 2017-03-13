@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <stdexcept>
 #include "OnePair.h"
 
 namespace fda {
