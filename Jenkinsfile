@@ -29,21 +29,23 @@ pipeline {
       }
     }
     stage('Test') {
-      try {
-        steps {
-          sh 'cd build; make check'
+      steps {
+        script {
+          try {
+            sh 'cd build; make check'
+          } catch (err) {
+            echo "Failed: ${err}"
+          } finally {
+            publishHTML( target: [
+              allowMissing: false,
+              alwaysLinkToLastBuild: false,
+              keepAll: true,
+              reportName: 'Doxygen',
+              reportDir: 'build/docs/html/doxygen/html-full',
+              reportFiles: 'index.xhtml'
+            ])
+          }
         }
-      } catch (err) {
-        echo "Failed: ${err}"
-      } finally {
-        publishHTML( target: [
-          allowMissing: false,
-          alwaysLinkToLastBuild: false,
-          keepAll: true,
-          reportName: 'Doxygen',
-          reportDir: 'build/docs/html/doxygen/html-full',
-          reportFiles: 'index.xhtml'
-        ])
       }
     }
     stage('Doxygen') {
