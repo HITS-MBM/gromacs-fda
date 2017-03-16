@@ -34,13 +34,10 @@ pipeline {
           } catch (err) {
             echo "Failed: ${err}"
           } finally {
-            publishHTML( target: [
-              allowMissing: false,
-              alwaysLinkToLastBuild: false,
-              keepAll: true,
-              reportName: 'Doxygen',
-              reportDir: 'build/docs/html/doxygen/html-full',
-              reportFiles: 'index.xhtml'
+            step([
+              $class: 'XUnitBuilder',
+              thresholds: [[$class: 'FailedThreshold', unstableThreshold: '1']],
+              tools: [[$class: 'GoogleTestType', pattern: 'build/Testing/Temporary/*.xml']]
             ])
           }
         }
@@ -54,11 +51,14 @@ pipeline {
   }
   post {
     always {
-      step([
-        $class: 'XUnitBuilder',
-        thresholds: [[$class: 'FailedThreshold', unstableThreshold: '1']],
-        tools: [[$class: 'GoogleTestType', pattern: 'build/Testing/Temporary/*.xml']]
-      ])   
+      publishHTML( target: [
+        allowMissing: false,
+        alwaysLinkToLastBuild: false,
+        keepAll: true,
+        reportName: 'Doxygen',
+        reportDir: 'build/docs/html/doxygen/html-full',
+        reportFiles: 'index.xhtml'
+      ])
       //deleteDir()
     }
     success {
