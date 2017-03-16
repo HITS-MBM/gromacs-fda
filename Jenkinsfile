@@ -11,20 +11,18 @@ pipeline {
     stage('Build') {
       steps {
         sh 'mkdir -p build'
-        sh '''
-           cd build;
-           cmake -DCMAKE_BUILD_TYPE=release
-                 -DCMAKE_C_COMPILER=/usr/bin/gcc
-                 -DCMAKE_CXX_COMPILER=/usr/bin/g++
-                 -DGMX_BUILD_MDRUN_ONLY=OFF
-                 -DGMX_BUILD_FDA=ON
-                 -DGMX_DEFAULT_SUFFIX=OFF
-                 -DGMX_BINARY_SUFFIX=_fda
-                 -DGMX_SIMD=NONE
-                 -DGMX_BUILD_UNITTESTS=ON
-                 -DGMX_BUILD_OWN_FFTW=ON
-                 ..
-        '''
+        sh 'cd build; \
+           cmake -DCMAKE_BUILD_TYPE=release \
+                 -DCMAKE_C_COMPILER=/usr/bin/gcc \
+                 -DCMAKE_CXX_COMPILER=/usr/bin/g++ \
+                 -DGMX_BUILD_MDRUN_ONLY=OFF \
+                 -DGMX_BUILD_FDA=ON \
+                 -DGMX_DEFAULT_SUFFIX=OFF \
+                 -DGMX_BINARY_SUFFIX=_fda \
+                 -DGMX_SIMD=NONE \
+                 -DGMX_BUILD_UNITTESTS=ON \
+                 -DGMX_BUILD_OWN_FFTW=ON \
+                 ..'
         sh 'cd build; make'
       }
     }
