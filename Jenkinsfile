@@ -29,10 +29,21 @@ pipeline {
       }
     }
     stage('Test') {
-      try {
-        sh 'cd build; make check'
-      } catch (err) {
-        echo "Failed: ${err}"
+      steps {
+        try {
+          sh 'cd build; make check'
+        } catch (err) {
+          echo "Failed: ${err}"
+        } finally {
+          publishHTML( target: [
+            allowMissing: false,
+            alwaysLinkToLastBuild: false,
+            keepAll: true,
+            reportName: 'Doxygen',
+            reportDir: 'build/docs/html/doxygen/html-full',
+            reportFiles: 'index.xhtml'
+          ])
+        }
       }
     }
     stage('Doxygen') {
@@ -47,18 +58,8 @@ pipeline {
         $class: 'XUnitBuilder',
         thresholds: [[$class: 'FailedThreshold', unstableThreshold: '1']],
         tools: [[$class: 'GoogleTestType', pattern: 'build/Testing/Temporary/*.xml']]
-      ])
-        
-      publishHTML( target: [
-        allowMissing: false,
-        alwaysLinkToLastBuild: false,
-        keepAll: true,
-        reportName: 'Doxygen',
-        reportDir: 'build/docs/html/doxygen/html-full',
-        reportFiles: 'index.xhtml'
-      ])
-   
-//      deleteDir()
+      ])   
+      //deleteDir()
     }
     success {
       archiveArtifacts artifacts: 'build/bin/gmx_fda', fingerprint: true
