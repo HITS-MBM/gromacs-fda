@@ -29,12 +29,10 @@ pipeline {
       }
     }
     stage('Test') {
-      steps {
-        try {
-          sh 'cd build; make check'
-        } catch (err) {
-          echo "Failed: ${err}"
-        }
+      try {
+        sh 'cd build; make check'
+      } catch (err) {
+        echo "Failed: ${err}"
       }
     }
     stage('Doxygen') {
