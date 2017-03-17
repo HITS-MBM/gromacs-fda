@@ -2,8 +2,8 @@
 
 pipeline {
   agent {
-    docker {
-      image 'bernddoser/docker-devel-cpp:ubuntu-16.04-gcc-4.9-tools-1'
+    dockerfile {
+      filename 'Dockerfile'
       label 'docker-nodes'
     }
   }
