@@ -1,14 +1,15 @@
 #!groovy
 
 pipeline {
-  agent {
-    docker {
-      image 'bernddoser/docker-devel-cpp:ubuntu-16.04-gcc-4.9-tools-1'
-      label 'docker-nodes'
-    }
-  }
+  agent none
   stages {
     stage('Build') {
+      agent {
+        docker {
+          image 'bernddoser/docker-devel-cpp:ubuntu-16.04-gcc-4.9-tools-1'
+          label 'docker-nodes'
+        }
+      }
       steps {
         sh '''
           mkdir -p build
@@ -29,6 +30,12 @@ pipeline {
       }
     }
     stage('Test') {
+      agent {
+        docker {
+          image 'bernddoser/docker-devel-cpp:ubuntu-16.04-gcc-4.9-tools-1'
+          label 'docker-nodes'
+        }
+      }
       steps {
         script {
           try {
