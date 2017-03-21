@@ -1,4 +1,4 @@
-FROM bernddoser/docker-devel-cpp:ubuntu-16.04-gcc-4.9-gtest-1.8.0
+FROM bernddoser/docker-devel-cpp:ubuntu-16.04-gcc-7-gtest-1.8.0
 
 MAINTAINER Bernd Doser <bernd.doser@h-its.org>
 
