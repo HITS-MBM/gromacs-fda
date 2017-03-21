@@ -5,8 +5,8 @@ pipeline {
   stages {
     stage('Build') {
       agent {
-        docker {
-          image 'bernddoser/docker-devel-cpp:ubuntu-16.04-gcc-4.9-tools-1'
+        dockerfile {
+          filename 'Dockerfile-gcc-4.9'
           label 'docker-nodes'
         }
       }
@@ -31,8 +31,8 @@ pipeline {
     }
     stage('Test') {
       agent {
-        docker {
-          image 'bernddoser/docker-devel-cpp:ubuntu-16.04-gcc-4.9-tools-1'
+        dockerfile {
+          filename 'Dockerfile-gcc-4.9'
           label 'docker-nodes'
         }
       }
@@ -55,7 +55,7 @@ pipeline {
     stage('Doxygen') {
       agent {
         docker {
-          image 'bernddoser/docker-devel-cpp:ubuntu-16.04-cmake-3.7.2-doxygen-1.8.13'
+          image 'bernddoser/docker-devel-cpp:ubuntu-16.04-doxygen-1.8.13'
           label 'docker-nodes'
         }
       }
