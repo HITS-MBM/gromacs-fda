@@ -55,7 +55,7 @@ pipeline {
     stage('Doxygen') {
       agent {
         docker {
-          image 'bernddoser/docker-devel-cpp:ubuntu-16.04-doxygen-1.8.13'
+          image 'bernddoser/docker-devel-cpp:ubuntu-16.04-cmake-3.7.2-doxygen-1.8.13'
           label 'docker-nodes'
         }
       }
