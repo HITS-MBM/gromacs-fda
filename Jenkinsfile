@@ -65,8 +65,8 @@ pipeline {
     }
   }
   post {
-    agent any
     always {
+      agent any
       publishHTML( target: [
         allowMissing: false,
         alwaysLinkToLastBuild: false,
@@ -78,6 +78,7 @@ pipeline {
       //deleteDir()
     }
     success {
+      agent any
       archiveArtifacts artifacts: 'build/bin/gmx_fda', fingerprint: true
     }
 //    failure {
