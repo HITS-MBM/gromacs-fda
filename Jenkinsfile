@@ -60,7 +60,11 @@ pipeline {
         }
       }
       steps {
-        sh 'cd build; make doxygen-all'
+        sh '''
+          mscgen
+          cd build
+          make doxygen-all
+        '''
         publishHTML( target: [
           allowMissing: false,
           alwaysLinkToLastBuild: false,
