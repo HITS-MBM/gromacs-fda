@@ -1,15 +1,14 @@
 #!groovy
 
 pipeline {
-  agent none
+  agent {
+    docker {
+      image 'bernddoser/docker-devel-cpp:ubuntu-16.04-gcc-4.9-gtest-1.8.0-doxygen-1.8.13'
+      label 'docker-nodes'
+    }
+  }
   stages {
     stage('Build') {
-      agent {
-        dockerfile {
-          filename 'Dockerfile-gcc-4.9'
-          label 'docker-nodes'
-        }
-      }
       steps {
         sh '''
           mkdir -p build
@@ -30,12 +29,6 @@ pipeline {
       }
     }
     stage('Test') {
-      agent {
-        dockerfile {
-          filename 'Dockerfile-gcc-4.9'
-          label 'docker-nodes'
-        }
-      }
       steps {
         script {
           try {
@@ -53,15 +46,8 @@ pipeline {
       }
     }
     stage('Doxygen') {
-      agent {
-        docker {
-          image 'bernddoser/docker-devel-cpp:ubuntu-16.04-doxygen-1.8.13'
-          label 'docker-nodes'
-        }
-      }
       steps {
         sh '''
-          mscgen
           cd build
           make doxygen-all
         '''
