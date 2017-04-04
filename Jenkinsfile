@@ -3,7 +3,7 @@
 pipeline {
   agent {
     dockerfile {
-      image 'Dockerfile-gcc-4.9'
+      filename 'Dockerfile-gcc-4.9'
       label 'docker-nodes'
     }
   }
