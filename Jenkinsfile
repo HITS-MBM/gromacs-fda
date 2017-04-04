@@ -60,11 +60,7 @@ pipeline {
         }
       }
       steps {
-        sh '''
-          cd build
-          cmake ..
-          make doxygen-all
-        '''
+        sh 'cd build; make doxygen-all'
       }
     }
   }
