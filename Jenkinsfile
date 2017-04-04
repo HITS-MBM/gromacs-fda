@@ -61,24 +61,19 @@ pipeline {
       }
       steps {
         sh 'cd build; make doxygen-all'
+        publishHTML( target: [
+          allowMissing: false,
+          alwaysLinkToLastBuild: false,
+          keepAll: true,
+          reportName: 'Doxygen',
+          reportDir: 'build/docs/html/doxygen/html-full',
+          reportFiles: 'index.xhtml'
+        ])
       }
     }
   }
   post {
-    always {
-      agent any
-      publishHTML( target: [
-        allowMissing: false,
-        alwaysLinkToLastBuild: false,
-        keepAll: true,
-        reportName: 'Doxygen',
-        reportDir: 'build/docs/html/doxygen/html-full',
-        reportFiles: 'index.xhtml'
-      ])
-      //deleteDir()
-    }
     success {
-      agent any
       archiveArtifacts artifacts: 'build/bin/gmx_fda', fingerprint: true
     }
 //    failure {
