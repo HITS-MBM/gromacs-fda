@@ -65,6 +65,7 @@ pipeline {
     }
   }
   post {
+    agent any
     always {
       publishHTML( target: [
         allowMissing: false,
