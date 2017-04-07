@@ -32,7 +32,10 @@ pipeline {
       steps {
         script {
           try {
-            sh 'cd build; make check'
+            sh '''
+              cd build
+              make check
+            '''
           } catch (err) {
             echo "Failed: ${err}"
           } finally {
