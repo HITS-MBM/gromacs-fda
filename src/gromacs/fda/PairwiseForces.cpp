@@ -24,7 +24,7 @@ PairwiseForces<ForceType>::PairwiseForces(std::string const& filename)
     while (is >> token)
     {
         if (token == "frame") {
-            int frame;
+            size_t frame;
             is >> frame;
             if (frame) {
                 // Sort by i, j, and type
