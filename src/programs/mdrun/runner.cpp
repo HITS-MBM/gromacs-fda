@@ -57,7 +57,6 @@
 #include "gromacs/commandline/filenm.h"
 #include "gromacs/domdec/domdec.h"
 #include "gromacs/domdec/domdec_struct.h"
-#include "gromacs/essentialdynamics/edsam.h"
 #include "gromacs/ewald/pme.h"
 #include "gromacs/fileio/checkpoint.h"
 #include "gromacs/fileio/oenv.h"
@@ -92,10 +91,13 @@
 #include "gromacs/mdrunutility/mdmodules.h"
 #include "gromacs/mdrunutility/threadaffinity.h"
 #include "gromacs/mdtypes/commrec.h"
+#include "gromacs/mdtypes/edsamhistory.h"
 #include "gromacs/mdtypes/energyhistory.h"
 #include "gromacs/mdtypes/inputrec.h"
 #include "gromacs/mdtypes/md_enums.h"
+#include "gromacs/mdtypes/observableshistory.h"
 #include "gromacs/mdtypes/state.h"
+#include "gromacs/mdtypes/swaphistory.h"
 #include "gromacs/pbcutil/pbc.h"
 #include "gromacs/pulling/pull.h"
 #include "gromacs/pulling/pull_rotation.h"
@@ -139,38 +141,36 @@ tMPI_Thread_mutex_t deform_init_box_mutex = TMPI_THREAD_MUTEX_INITIALIZER;
 
 struct mdrunner_arglist
 {
-    gmx_hw_opt_t            hw_opt;
-    FILE                   *fplog;
-    t_commrec              *cr;
-    int                     nfile;
-    const t_filenm         *fnm;
-    const gmx_output_env_t *oenv;
-    gmx_bool                bVerbose;
-    int                     nstglobalcomm;
-    ivec                    ddxyz;
-    int                     dd_rank_order;
-    int                     npme;
-    real                    rdd;
-    real                    rconstr;
-    const char             *dddlb_opt;
-    real                    dlb_scale;
-    const char             *ddcsx;
-    const char             *ddcsy;
-    const char             *ddcsz;
-    const char             *nbpu_opt;
-    int                     nstlist_cmdline;
-    gmx_int64_t             nsteps_cmdline;
-    int                     nstepout;
-    int                     resetstep;
-    int                     nmultisim;
-    int                     repl_ex_nst;
-    int                     repl_ex_nex;
-    int                     repl_ex_seed;
-    real                    pforce;
-    real                    cpt_period;
-    real                    max_hours;
-    int                     imdport;
-    unsigned long           Flags;
+    gmx_hw_opt_t                     hw_opt;
+    FILE                            *fplog;
+    t_commrec                       *cr;
+    int                              nfile;
+    const t_filenm                  *fnm;
+    const gmx_output_env_t          *oenv;
+    gmx_bool                         bVerbose;
+    int                              nstglobalcomm;
+    ivec                             ddxyz;
+    int                              dd_rank_order;
+    int                              npme;
+    real                             rdd;
+    real                             rconstr;
+    const char                      *dddlb_opt;
+    real                             dlb_scale;
+    const char                      *ddcsx;
+    const char                      *ddcsy;
+    const char                      *ddcsz;
+    const char                      *nbpu_opt;
+    int                              nstlist_cmdline;
+    gmx_int64_t                      nsteps_cmdline;
+    int                              nstepout;
+    int                              resetstep;
+    int                              nmultisim;
+    const ReplicaExchangeParameters *replExParams;
+    real                             pforce;
+    real                             cpt_period;
+    real                             max_hours;
+    int                              imdport;
+    unsigned long                    Flags;
 };
 
 
@@ -206,7 +206,7 @@ static void mdrunner_start_fn(void *arg)
                       mc.ddcsx, mc.ddcsy, mc.ddcsz,
                       mc.nbpu_opt, mc.nstlist_cmdline,
                       mc.nsteps_cmdline, mc.nstepout, mc.resetstep,
-                      mc.nmultisim, mc.repl_ex_nst, mc.repl_ex_nex, mc.repl_ex_seed, mc.pforce,
+                      mc.nmultisim, *mc.replExParams, mc.pforce,
                       mc.cpt_period, mc.max_hours, mc.imdport, mc.Flags);
     }
     GMX_CATCH_ALL_AND_EXIT_WITH_FATAL_ERROR;
@@ -228,7 +228,8 @@ static t_commrec *mdrunner_start_threads(gmx_hw_opt_t *hw_opt,
                                          const char *nbpu_opt, int nstlist_cmdline,
                                          gmx_int64_t nsteps_cmdline,
                                          int nstepout, int resetstep,
-                                         int nmultisim, int repl_ex_nst, int repl_ex_nex, int repl_ex_seed,
+                                         int nmultisim,
+                                         const ReplicaExchangeParameters &replExParams,
                                          real pforce, real cpt_period, real max_hours,
                                          unsigned long Flags)
 {
@@ -275,9 +276,7 @@ static t_commrec *mdrunner_start_threads(gmx_hw_opt_t *hw_opt,
     mda->nstepout        = nstepout;
     mda->resetstep       = resetstep;
     mda->nmultisim       = nmultisim;
-    mda->repl_ex_nst     = repl_ex_nst;
-    mda->repl_ex_nex     = repl_ex_nex;
-    mda->repl_ex_seed    = repl_ex_seed;
+    mda->replExParams    = &replExParams;
     mda->pforce          = pforce;
     mda->cpt_period      = cpt_period;
     mda->max_hours       = max_hours;
@@ -702,12 +701,12 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
              const char *ddcsx, const char *ddcsy, const char *ddcsz,
              const char *nbpu_opt, int nstlist_cmdline,
              gmx_int64_t nsteps_cmdline, int nstepout, int resetstep,
-             int gmx_unused nmultisim, int repl_ex_nst, int repl_ex_nex,
-             int repl_ex_seed, real pforce, real cpt_period, real max_hours,
+             int gmx_unused nmultisim,
+             const ReplicaExchangeParameters &replExParams,
+             real pforce, real cpt_period, real max_hours,
              int imdport, unsigned long Flags)
 {
     gmx_bool                  bForceUseGPU, bTryUseGPU, bRerunMD;
-    t_inputrec               *inputrec;
     matrix                    box;
     gmx_ddbox_t               ddbox = {0};
     int                       npme_major, npme_minor;
@@ -726,7 +725,6 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
     gmx_walltime_accounting_t walltime_accounting = nullptr;
     int                       rc;
     gmx_int64_t               reset_counters;
-    gmx_edsam_t               ed           = nullptr;
     int                       nthreads_pme = 1;
     gmx_membed_t *            membed       = nullptr;
     gmx_hw_info_t            *hwinfo       = nullptr;
@@ -736,7 +734,8 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
     /* CAUTION: threads may be started later on in this function, so
        cr doesn't reflect the final parallel state right now */
     gmx::MDModules mdModules;
-    inputrec = mdModules.inputrec();
+    t_inputrec     inputrecInstance;
+    t_inputrec    *inputrec = &inputrecInstance;
     snew(mtop, 1);
 
     if (Flags & MD_APPENDFILES)
@@ -883,7 +882,7 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
                                         dddlb_opt, dlb_scale, ddcsx, ddcsy, ddcsz,
                                         nbpu_opt, nstlist_cmdline,
                                         nsteps_cmdline, nstepout, resetstep, nmultisim,
-                                        repl_ex_nst, repl_ex_nex, repl_ex_seed, pforce,
+                                        replExParams, pforce,
                                         cpt_period, max_hours,
                                         Flags);
             /* the main thread continues here with a new cr. We don't deallocate
@@ -907,7 +906,8 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
          */
         gmx_bcast_sim(sizeof(bUseGPU), &bUseGPU, cr);
     }
-    mdModules.assignOptionsToModulesFromTpr();
+    // TODO: Error handling
+    mdModules.assignOptionsToModules(*inputrec->params, nullptr);
 
     if (fplog != nullptr)
     {
@@ -986,7 +986,7 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
     snew(fcd, 1);
 
     /* This needs to be called before read_checkpoint to extend the state */
-    init_disres(fplog, mtop, inputrec, cr, fcd, state, repl_ex_nst > 0);
+    init_disres(fplog, mtop, inputrec, cr, fcd, state, replExParams.exchangeInterval > 0);
 
     init_orires(fplog, mtop, as_rvec_array(state->x.data()), inputrec, cr, &(fcd->orires),
                 state);
@@ -1014,7 +1014,7 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
         tMPI_Thread_mutex_unlock(&deform_init_box_mutex);
     }
 
-    energyhistory_t energyHistory;
+    ObservablesHistory observablesHistory = {};
 
     if (Flags & MD_STARTFROMCPT)
     {
@@ -1025,7 +1025,7 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
 
         load_checkpoint(opt2fn_master("-cpi", nfile, fnm, cr), &fplog,
                         cr, ddxyz, &npme,
-                        inputrec, state, &bReadEkin, &energyHistory,
+                        inputrec, state, &bReadEkin, &observablesHistory,
                         (Flags & MD_APPENDFILES),
                         (Flags & MD_APPENDFILESSET),
                         (Flags & MD_REPRODUCIBLE));
@@ -1055,16 +1055,6 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
     if (PAR(cr))
     {
         gmx_bcast(sizeof(box), box, cr);
-    }
-
-    // TODO This should move to do_md(), because it only makes sense
-    // with dynamical integrators, but there is no test coverage and
-    // it interacts with constraints, somehow.
-    /* Essential dynamics */
-    if (opt2bSet("-ei", nfile, fnm))
-    {
-        /* Open input and output files, allocate space for ED data structure */
-        ed = ed_open(mtop->natoms, &state->edsamstate, nfile, fnm, Flags, oenv, cr);
     }
 
     if (PAR(cr) && !(EI_TPI(inputrec->eI) ||
@@ -1211,7 +1201,8 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
         fr          = mk_forcerec();
         fr->hwinfo  = hwinfo;
         fr->gpu_opt = &hw_opt->gpu_opt;
-        init_forcerec(fplog, mdlog, fr, fcd, inputrec, mtop, cr, box,
+        init_forcerec(fplog, mdlog, fr, fcd, mdModules.forceProvider(),
+                      inputrec, mtop, cr, box,
                       opt2fn("-table", nfile, fnm),
                       opt2fn("-tablep", nfile, fnm),
                       getFilenm("-tableb", nfile, fnm),
@@ -1379,7 +1370,12 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
                      bVerbose, Flags);
         }
 
-        constr = init_constraints(fplog, mtop, inputrec, ed, state, cr);
+        /* Let init_constraints know whether we have essential dynamics constraints.
+         * TODO: inputrec should tell us whether we use an algorithm, not a file option or the checkpoint
+         */
+        bool doEdsam = (opt2fn_null("-ei", nfile, fnm) != nullptr || observablesHistory.edsamHistory);
+
+        constr = init_constraints(fplog, mtop, inputrec, doEdsam, cr);
 
         if (DOMAINDECOMP(cr))
         {
@@ -1396,10 +1392,11 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
                                      oenv, bVerbose,
                                      nstglobalcomm,
                                      vsite, constr,
-                                     nstepout, inputrec, mtop,
-                                     fcd, state, &energyHistory,
-                                     mdatoms, nrnb, wcycle, ed, fr,
-                                     repl_ex_nst, repl_ex_nex, repl_ex_seed,
+                                     nstepout, mdModules.outputProvider(),
+                                     inputrec, mtop,
+                                     fcd, state, &observablesHistory,
+                                     mdatoms, nrnb, wcycle, fr,
+                                     replExParams,
                                      membed,
                                      cpt_period, max_hours,
                                      imdport,
@@ -1463,8 +1460,6 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
     }
 
     rc = (int)gmx_get_stop_condition();
-
-    done_ed(&ed);
 
 #if GMX_THREAD_MPI
     /* we need to join all threads. The sub-threads join when they

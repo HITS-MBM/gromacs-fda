@@ -39,6 +39,7 @@
 #include "inputrec.h"
 
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 
 #include <algorithm>
@@ -54,7 +55,7 @@
 #include "gromacs/utility/keyvaluetree.h"
 #include "gromacs/utility/smalloc.h"
 #include "gromacs/utility/snprintf.h"
-#include "gromacs/utility/stringutil.h"
+#include "gromacs/utility/strconvert.h"
 #include "gromacs/utility/textwriter.h"
 #include "gromacs/utility/txtdump.h"
 
@@ -67,6 +68,19 @@
 const int nstmin_berendsen_tcouple =  5;
 const int nstmin_berendsen_pcouple = 10;
 const int nstmin_harmonic          = 20;
+
+t_inputrec::t_inputrec()
+{
+    std::memset(this, 0, sizeof(*this));
+    snew(fepvals, 1);
+    snew(expandedvals, 1);
+    snew(simtempvals, 1);
+}
+
+t_inputrec::~t_inputrec()
+{
+    done_inputrec(this);
+}
 
 static int nst_wanted(const t_inputrec *ir)
 {
@@ -277,6 +291,18 @@ static void done_pull_params(pull_params_t *pull)
     sfree(pull->coord);
 }
 
+static void done_lambdas(t_lambda *fep)
+{
+    if (fep->n_lambda > 0)
+    {
+        for (int i = 0; i < efptNR; i++)
+        {
+            sfree(fep->all_lambda[i]);
+        }
+        sfree(fep->all_lambda);
+    }
+}
+
 void done_inputrec(t_inputrec *ir)
 {
     sfree(ir->opts.nrdf);
@@ -300,6 +326,8 @@ void done_inputrec(t_inputrec *ir)
     sfree(ir->opts.SAsteps);
     sfree(ir->opts.bOPT);
     sfree(ir->opts.bTS);
+    sfree(ir->opts.egp_flags);
+    done_lambdas(ir->fepvals);
     sfree(ir->fepvals);
     sfree(ir->expandedvals);
     sfree(ir->simtempvals);
@@ -973,7 +1001,7 @@ void pr_inputrec(FILE *fp, int indent, const char *title, const t_inputrec *ir,
         {
             gmx::TextWriter writer(fp);
             writer.wrapperSettings().setIndent(indent);
-            ir->params->writeUsing(&writer);
+            gmx::dumpKeyValueTree(&writer, *ir->params);
         }
 
         pr_grp_opts(fp, indent, "grpopts", &(ir->opts), bMDPformat);
@@ -1321,4 +1349,62 @@ gmx_bool inputrecNphTrotter(const t_inputrec *ir)
 {
     return ( ( (ir->eI == eiVV) || (ir->eI == eiVVAK) ) &&
              (ir->epc == epcMTTK) && (ir->etc != etcNOSEHOOVER) );
+}
+
+bool integratorHasConservedEnergyQuantity(const t_inputrec *ir)
+{
+    if (!EI_MD(ir->eI))
+    {
+        // Energy minimization or stochastic integrator: no conservation
+        return false;
+    }
+    else if (ir->etc == etcNO && ir->epc == epcNO)
+    {
+        // The total energy is conserved, no additional conserved quanitity
+        return false;
+    }
+    else
+    {
+        // Shear stress with Parrinello-Rahman is not supported (tedious)
+        bool shearWithPR =
+            ((ir->epc == epcPARRINELLORAHMAN || ir->epc == epcMTTK) &&
+             (ir->ref_p[YY][XX] != 0 || ir->ref_p[ZZ][XX] != 0 || ir->ref_p[ZZ][YY] != 0));
+
+        return !ETC_ANDERSEN(ir->etc) && !shearWithPR;
+    }
+}
+
+int inputrec2nboundeddim(const t_inputrec *ir)
+{
+    if (ir->nwall == 2 && ir->ePBC == epbcXY)
+    {
+        return 3;
+    }
+    else
+    {
+        return ePBC2npbcdim(ir->ePBC);
+    }
+}
+
+int ndof_com(const t_inputrec *ir)
+{
+    int n = 0;
+
+    switch (ir->ePBC)
+    {
+        case epbcXYZ:
+        case epbcNONE:
+            n = 3;
+            break;
+        case epbcXY:
+            n = (ir->nwall == 0 ? 3 : 2);
+            break;
+        case epbcSCREW:
+            n = 1;
+            break;
+        default:
+            gmx_incons("Unknown pbc in calc_nrdf");
+    }
+
+    return n;
 }

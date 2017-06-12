@@ -313,7 +313,8 @@ void bcast_state(const t_commrec *cr, t_state *state)
                 case estNH_VXI:  nblock_abc(cr, nnht, &state->nosehoover_vxi); break;
                 case estNHPRES_XI:   nblock_abc(cr, nnhtp, &state->nhpres_xi); break;
                 case estNHPRES_VXI:  nblock_abc(cr, nnhtp, &state->nhpres_vxi); break;
-                case estTC_INT:  nblock_abc(cr, state->ngtc, &state->therm_integral); break;
+                case estTHERM_INT: nblock_abc(cr, state->ngtc, &state->therm_integral); break;
+                case estBAROS_INT: block_bc(cr, state->baros_integral); break;
                 case estVETA:    block_bc(cr, state->veta); break;
                 case estVOL0:    block_bc(cr, state->vol0); break;
                 case estX:       bcastPaddedRVecVector(cr, &state->x, state->natoms); break;
@@ -667,13 +668,9 @@ static void bc_swapions(const t_commrec *cr, t_swapcoords *swap)
 
 static void bc_inputrec(const t_commrec *cr, t_inputrec *inputrec)
 {
-    /* The statement below is dangerous. It overwrites all structures in inputrec.
-     * If something is added to inputrec, like efield it will need to be
-     * treated here.
-     */
-    gmx::IInputRecExtension *eptr = inputrec->efield;
+    // Note that this overwrites pointers in inputrec, so all pointer fields
+    // Must be initialized separately below.
     block_bc(cr, *inputrec);
-    inputrec->efield = eptr;
     if (SIMMASTER(cr))
     {
         gmx::InMemorySerializer serializer;

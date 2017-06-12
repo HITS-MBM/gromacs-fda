@@ -52,7 +52,10 @@
 #include "gromacs/math/vec.h"
 #include "gromacs/mdtypes/commrec.h"
 #include "gromacs/mdtypes/forcerec.h"
-#include "gromacs/mdtypes/inputrec.h"
+#include "gromacs/mdtypes/iforceprovider.h"
+#include "gromacs/mdtypes/imdmodule.h"
+#include "gromacs/mdtypes/imdoutputprovider.h"
+#include "gromacs/mdtypes/imdpoptionprovider.h"
 #include "gromacs/mdtypes/mdatom.h"
 #include "gromacs/options/basicoptions.h"
 #include "gromacs/options/ioptionscontainerwithsections.h"
@@ -152,25 +155,34 @@ class ElectricFieldData
  * The electric field can be pulsed and oscillating, simply
  * oscillating, or static, in each of X,Y,Z directions.
  */
-class ElectricField : public IInputRecExtension, public IForceProvider
+class ElectricField final : public IMDModule,
+                            public IMdpOptionProvider, public IMDOutputProvider,
+                            public IForceProvider
 {
     public:
         ElectricField() : fpField_(nullptr) {}
 
-        // From IInputRecExtension
-        virtual void initMdpTransform(IKeyValueTreeTransformRules *transform);
-        virtual void initMdpOptions(IOptionsContainerWithSections *options);
+        // From IMDModule
+        IMdpOptionProvider *mdpOptionProvider() override { return this; }
+        IMDOutputProvider *outputProvider() override { return this; }
+        IForceProvider *forceProvider() override { return this; }
 
-        virtual void initOutput(FILE *fplog, int nfile, const t_filenm fnm[],
-                                bool bAppendFiles, const gmx_output_env_t *oenv);
-        virtual void finishOutput();
-        virtual void initForcerec(t_forcerec *fr);
+        // From IMdpOptionProvider
+        void initMdpTransform(IKeyValueTreeTransformRules *transform) override;
+        void initMdpOptions(IOptionsContainerWithSections *options) override;
 
-        //! \copydoc gmx::IForceProvider::calculateForces
-        virtual void calculateForces(const t_commrec  *cr,
-                                     const t_mdatoms  *atoms,
-                                     PaddedRVecVector *force,
-                                     double            t);
+        // From IMDOutputProvider
+        void initOutput(FILE *fplog, int nfile, const t_filenm fnm[],
+                        bool bAppendFiles, const gmx_output_env_t *oenv) override;
+        void finishOutput() override;
+
+        // From IForceProvider
+        void initForcerec(t_forcerec *fr) override;
+        //! \copydoc IForceProvider::calculateForces()
+        void calculateForces(const t_commrec  *cr,
+                             const t_mdatoms  *mdatoms,
+                             PaddedRVecVector *force,
+                             double            t) override;
 
     private:
         //! Return whether or not to apply a field
@@ -404,9 +416,9 @@ void ElectricField::calculateForces(const t_commrec  *cr,
 
 }   // namespace
 
-std::unique_ptr<IInputRecExtension> createElectricFieldModule()
+std::unique_ptr<IMDModule> createElectricFieldModule()
 {
-    return std::unique_ptr<IInputRecExtension>(new ElectricField());
+    return std::unique_ptr<IMDModule>(new ElectricField());
 }
 
 } // namespace gmx

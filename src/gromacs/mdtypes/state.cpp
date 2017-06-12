@@ -48,6 +48,9 @@
 #include "gromacs/mdtypes/df_history.h"
 #include "gromacs/mdtypes/inputrec.h"
 #include "gromacs/mdtypes/md_enums.h"
+#include "gromacs/mdtypes/swaphistory.h"
+#include "gromacs/pbcutil/boxutilities.h"
+#include "gromacs/pbcutil/pbc.h"
 #include "gromacs/utility/compare.h"
 #include "gromacs/utility/gmxassert.h"
 #include "gromacs/utility/smalloc.h"
@@ -79,7 +82,7 @@ ekinstate_t::ekinstate_t() : bUpToDate(FALSE),
     clear_mat(ekin_total);
 };
 
-static void init_swapstate(swapstate_t *swapstate)
+static void init_swapstate(swaphistory_t *swapstate)
 {
     /* Ion/water position swapping */
     swapstate->eSwapCoords            = 0;
@@ -105,6 +108,7 @@ void init_gtc_state(t_state *state, int ngtc, int nnhpres, int nhchainlength)
     state->nosehoover_xi.resize(state->nhchainlength*state->ngtc, 0);
     state->nosehoover_vxi.resize(state->nhchainlength*state->ngtc, 0);
     state->therm_integral.resize(state->ngtc, 0);
+    state->baros_integral = 0.0;
     state->nhpres_xi.resize(state->nhchainlength*nnhpres, 0);
     state->nhpres_vxi.resize(state->nhchainlength*nnhpres, 0);
 }
@@ -256,6 +260,7 @@ t_state::t_state() : natoms(0),
                      nhpres_xi(),
                      nhpres_vxi(),
                      therm_integral(),
+                     baros_integral(0),
                      veta(0),
                      vol0(0),
                      x(),
@@ -263,9 +268,7 @@ t_state::t_state() : natoms(0),
                      cg_p(),
                      ekinstate(),
                      hist(),
-                     swapstate(nullptr),
                      dfhist(nullptr),
-                     edsamstate(nullptr),
                      ddp_count(0),
                      ddp_count_cg_gl(0),
                      cg_gl()
@@ -282,4 +285,27 @@ t_state::t_state() : natoms(0),
     clear_mat(pres_prev);
     clear_mat(svir_prev);
     clear_mat(fvir_prev);
+}
+
+void set_box_rel(const t_inputrec *ir, t_state *state)
+{
+    /* Make sure the box obeys the restrictions before we fix the ratios */
+    correct_box(nullptr, 0, state->box, nullptr);
+
+    clear_mat(state->box_rel);
+
+    if (inputrecPreserveShape(ir))
+    {
+        const int ndim = ir->epct == epctSEMIISOTROPIC ? 2 : 3;
+        do_box_rel(ndim, ir->deform, state->box_rel, state->box, true);
+    }
+}
+
+void preserve_box_shape(const t_inputrec *ir, matrix box_rel, matrix box)
+{
+    if (inputrecPreserveShape(ir))
+    {
+        const int ndim = ir->epct == epctSEMIISOTROPIC ? 2 : 3;
+        do_box_rel(ndim, ir->deform, box_rel, box, false);
+    }
 }

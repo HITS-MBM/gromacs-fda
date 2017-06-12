@@ -40,6 +40,7 @@
 
 #include <algorithm>
 
+#include "gromacs/commandline/filenm.h"
 #include "gromacs/commandline/pargs.h"
 #include "gromacs/fileio/matio.h"
 #include "gromacs/fileio/tpxio.h"
@@ -76,8 +77,6 @@ static void clust_size(const char *ndx, const char *trx, const char *xpm,
     t_trxstatus          *status;
     rvec                 *x = nullptr, *v = nullptr, dx;
     t_pbc                 pbc;
-    char                 *gname;
-    char                  timebuf[32];
     gmx_bool              bSame, bTPRwarn = TRUE;
     /* Topology stuff */
     t_trxframe            fr;
@@ -95,12 +94,12 @@ static void clust_size(const char *ndx, const char *trx, const char *xpm,
     t_rgb                 rlo = { 1.0, 1.0, 1.0 };
 
     clear_trxframe(&fr, TRUE);
-    sprintf(timebuf, "Time (%s)", output_env_get_time_unit(oenv));
+    auto timeLabel = output_env_get_time_label(oenv);
     tf     = output_env_get_time_factor(oenv);
-    fp     = xvgropen(ncl, "Number of clusters", timebuf, "N", oenv);
-    gp     = xvgropen(acl, "Average cluster size", timebuf, "#molecules", oenv);
-    hp     = xvgropen(mcl, "Max cluster size", timebuf, "#molecules", oenv);
-    tp     = xvgropen(tempf, "Temperature of largest cluster", timebuf, "T (K)",
+    fp     = xvgropen(ncl, "Number of clusters", timeLabel, "N", oenv);
+    gp     = xvgropen(acl, "Average cluster size", timeLabel, "#molecules", oenv);
+    hp     = xvgropen(mcl, "Max cluster size", timeLabel, "#molecules", oenv);
+    tp     = xvgropen(tempf, "Temperature of largest cluster", timeLabel, "T (K)",
                       oenv);
 
     if (!read_first_frame(oenv, &status, trx, &fr, TRX_NEED_X | TRX_READ_V))
@@ -148,11 +147,12 @@ static void clust_size(const char *ndx, const char *trx, const char *xpm,
         {
             index[i] = i;
         }
-        gname = gmx_strdup("mols");
     }
     else
     {
+        char *gname;
         rd_index(ndx, 1, &nindex, &index, &gname);
+        sfree(gname);
     }
 
     snew(clust_index, nindex);
@@ -334,6 +334,7 @@ static void clust_size(const char *ndx, const char *trx, const char *xpm,
     }
     while (read_next_frame(oenv, status, &fr));
     close_trx(status);
+    done_frame(&fr);
     xvgrclose(fp);
     xvgrclose(gp);
     xvgrclose(hp);
@@ -402,7 +403,7 @@ static void clust_size(const char *ndx, const char *trx, const char *xpm,
     fprintf(stderr, "cmid: %g, cmax: %g, max_size: %d\n", cmid, cmax, max_size);
     cmid = 1;
     fp   = gmx_ffopen(xpm, "w");
-    write_xpm3(fp, 0, "Cluster size distribution", "# clusters", timebuf, "Size",
+    write_xpm3(fp, 0, "Cluster size distribution", "# clusters", timeLabel, "Size",
                n_x, max_size, t_x, t_y, cs_dist, 0, cmid, cmax,
                rlo, rmid, rhi, &nlevels);
     gmx_ffclose(fp);
@@ -422,11 +423,22 @@ static void clust_size(const char *ndx, const char *trx, const char *xpm,
     }
     fprintf(stderr, "cmid: %g, cmax: %g, max_size: %d\n", cmid, cmax, max_size);
     fp = gmx_ffopen(xpmw, "w");
-    write_xpm3(fp, 0, "Weighted cluster size distribution", "Fraction", timebuf,
+    write_xpm3(fp, 0, "Weighted cluster size distribution", "Fraction", timeLabel,
                "Size", n_x, max_size, t_x, t_y, cs_dist, 0, cmid, cmax,
                rlo, rmid, rhi, &nlevels);
     gmx_ffclose(fp);
-
+    if (mtop)
+    {
+        done_mtop(mtop);
+        sfree(mtop);
+    }
+    sfree(t_x);
+    sfree(t_y);
+    for (i = 0; (i < n_x); i++)
+    {
+        sfree(cs_dist[i]);
+    }
+    sfree(cs_dist);
     sfree(clust_index);
     sfree(clust_size);
     sfree(index);
@@ -525,6 +537,9 @@ int gmx_clustsize(int argc, char *argv[])
                opt2fn("-temp", NFILE, fnm), opt2fn("-mcn", NFILE, fnm),
                bMol, bPBC, fnTPR,
                cutoff, nskip, nlevels, rgblo, rgbhi, ndf, oenv);
+
+    done_filenms(NFILE, fnm);
+    output_env_done(oenv);
 
     return 0;
 }

@@ -18,11 +18,54 @@ more code to be converted to modules to have clearer requirements on what the
 mechanism needs to support and what is the best way to express that in a
 generally usable form.
 
+Structure of a module
+---------------------
+
+Each module implements a factory that returns an instance of gmx::IMDModule.
+This interface has methods that in turn return instances of other interfaces:
+gmx::IMdpOptionProvider, gmx::IMDOutputProvider, and IForceProvider.
+The module also implements these interfaces (or a subset of them), and code
+outside the module only calls methods in these interfaces.
+
+See documentation of the individual interfaces for details of what they
+support.
+
+Implementation of a module
+--------------------------
+
+Modules are constructed by composition of interfaces (i.e. abstract classes,
+general with pure virtual methods lacking implementations), so that e.g.
+trajectory-writing code can loop over containers of pointers to
+gmx::IMDOutputProvider without needing to know about all the concrete types
+that might implement that interface.
+
+The module classes should not be extended by using them as a base
+class, which is expressed with the final keyword in the class
+definition. Generally, modules will implement different flavours of
+functionality, perhaps based on user choices, or available computing
+resources. This should generally be implemented by providing variable
+behaviour for the methods that are called through the above
+interfaces. Either code should branch at run time upon some data
+contained by the module (e.g. read from the mdp options), or that the
+module class should contain a pointer to an internal interface class
+whose concrete type might be chosen during setup from the set of
+implementations of that internal interface. Such an approach keeps
+separate the set of interfaces characteristic of "MD modules" from
+those that are particular to flavours of any specific module.
+
+The virtual methods that the module classes inherit from their
+interfaces should be declared as `override`, to express the intent
+that they implement a virtual function from the interface. This
+permits the compiler to check that this is true, e.g. if the interface
+class changes. The `virtual` keyword should not be specified,
+because this is redundant when `override` is used. This follows
+the Cpp Core Guidelines (guideline C.128).
+
 Handling mdp input
 ------------------
 
-To accept parameters from an mdp file, a module needs to implement two methods
-in gmx::IInputRecExtension.
+To accept parameters from an mdp file, a module needs to implement
+gmx::IMdpOptionProvider.
 
 initMdpOptions() should declare the required input parameters using the options
 module.  In most cases, the parameters should be declared as nested sections

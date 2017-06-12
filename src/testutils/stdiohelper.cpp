@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2013,2014, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2017, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -32,73 +32,46 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-/*! \libinternal \file
+/*! \internal \file
  * \brief
- * Declares test fixture for integration tests
+ * Implements classes in stdiohelper.h.
  *
  * \author Mark Abraham <mark.j.abraham@gmail.com>
- * \inlibraryapi
  * \ingroup module_testutils
  */
-#ifndef GMX_INTEGRATION_TESTS_MODULETEST_H
-#define GMX_INTEGRATION_TESTS_MODULETEST_H
+#include "gmxpre.h"
 
-#include <gtest/gtest.h>
+#include "stdiohelper.h"
+
+#include <cerrno>
+#include <cstdio>
+
+#include "gromacs/utility/exceptions.h"
+#include "gromacs/utility/textwriter.h"
 
 #include "testutils/testfilemanager.h"
 
 namespace gmx
 {
-
 namespace test
 {
 
-/*! \libinternal \brief
- * Test fixture for integration tests.
- *
- * Any method in this class may throw std::bad_alloc if out of memory.
- *
- * \inlibraryapi
- * \ingroup module_testutils
+/********************************************************************
+ * StdioTestHelper
  */
-class IntegrationTestFixture : public ::testing::Test
+
+void
+StdioTestHelper::redirectStringToStdin(const char *theString)
 {
-    protected:
-        IntegrationTestFixture();
-        virtual ~IntegrationTestFixture();
-
-        /*! \brief Accepts a string as input, writes it to a temporary
-         * file and then reopens stdin to read the contents of that
-         * string.
-         *
-         * \throws FileIOError  when the freopen() fails
-         */
-        void redirectStringToStdin(const char* theString);
-
-        /*! \brief Discards stdout while running a test
-         *
-         * \todo Implement this when the output routines are
-         * sufficiently modular to permit it to work. */
-        void redirectStdoutToDevNull();
-        /*! \brief Discards stderr while running a test
-         *
-         * \todo Implement this when the output routines are
-         * sufficiently modular to permit it to work. */
-        void redirectStderrToDevNull();
-
-        /* TEST_F() constructs derived classes, and those classes and
-         * their member objects might need to access implementation
-         * details, so we cannot use the private access specifer
-         * here. */
-    public:
-
-        /*! \brief Object that manages finding input files, writing
-         * temporary output files and cleaning up files.
-         */
-        ::gmx::test::TestFileManager fileManager_;
-};
+    const std::string fakeStdin = fileManager_.getTemporaryFilePath(".stdin");
+    gmx::TextWriter::writeFileFromString(fakeStdin, theString);
+    if (nullptr == std::freopen(fakeStdin.c_str(), "r", stdin))
+    {
+        GMX_THROW_WITH_ERRNO(FileIOError("Failed to redirect a string to stdin"),
+                             "freopen",
+                             errno);
+    }
+}
 
 } // namespace test
 } // namespace gmx
-
-#endif

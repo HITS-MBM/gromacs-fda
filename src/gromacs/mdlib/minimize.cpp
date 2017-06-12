@@ -321,18 +321,19 @@ static void get_state_f_norm_max(t_commrec *cr,
 }
 
 //! Initialize the energy minimization
-void init_em(FILE *fplog, const char *title,
-             t_commrec *cr, t_inputrec *ir,
-             t_state *state_global, gmx_mtop_t *top_global,
-             em_state_t *ems, gmx_localtop_t **top,
-             t_nrnb *nrnb, rvec mu_tot,
-             t_forcerec *fr, gmx_enerdata_t **enerd,
-             t_graph **graph, t_mdatoms *mdatoms, gmx_global_stat_t *gstat,
-             gmx_vsite_t *vsite, gmx_constr_t constr, gmx_shellfc_t **shellfc,
-             int nfile, const t_filenm fnm[],
-             gmx_mdoutf_t *outf, t_mdebin **mdebin,
-             int imdport, unsigned long gmx_unused Flags,
-             gmx_wallcycle_t wcycle)
+static void init_em(FILE *fplog, const char *title,
+                    t_commrec *cr, gmx::IMDOutputProvider *outputProvider,
+                    t_inputrec *ir,
+                    t_state *state_global, gmx_mtop_t *top_global,
+                    em_state_t *ems, gmx_localtop_t **top,
+                    t_nrnb *nrnb, rvec mu_tot,
+                    t_forcerec *fr, gmx_enerdata_t **enerd,
+                    t_graph **graph, t_mdatoms *mdatoms, gmx_global_stat_t *gstat,
+                    gmx_vsite_t *vsite, gmx_constr_t constr, gmx_shellfc_t **shellfc,
+                    int nfile, const t_filenm fnm[],
+                    gmx_mdoutf_t *outf, t_mdebin **mdebin,
+                    int imdport, unsigned long gmx_unused Flags,
+                    gmx_wallcycle_t wcycle)
 {
     real dvdl_constr;
 
@@ -453,7 +454,7 @@ void init_em(FILE *fplog, const char *title,
         *gstat = nullptr;
     }
 
-    *outf = init_mdoutf(fplog, nfile, fnm, 0, cr, ir, top_global, nullptr, wcycle);
+    *outf = init_mdoutf(fplog, nfile, fnm, 0, cr, outputProvider, ir, top_global, nullptr, wcycle);
 
     snew(*enerd, 1);
     init_enerdata(top_global->groups.grps[egcENER].nr, ir->fepvals->n_lambda,
@@ -470,7 +471,7 @@ void init_em(FILE *fplog, const char *title,
 }
 
 //! Finalize the minimization
-static void finish_em(t_commrec *cr, gmx_mdoutf_t outf, const t_inputrec *ir,
+static void finish_em(t_commrec *cr, gmx_mdoutf_t outf,
                       gmx_walltime_accounting_t walltime_accounting,
                       gmx_wallcycle_t wcycle)
 {
@@ -480,7 +481,7 @@ static void finish_em(t_commrec *cr, gmx_mdoutf_t outf, const t_inputrec *ir,
         gmx_pme_send_finish(cr);
     }
 
-    done_mdoutf(outf, ir);
+    done_mdoutf(outf);
 
     em_time_end(walltime_accounting, wcycle);
 }
@@ -503,7 +504,7 @@ static void write_em_traj(FILE *fplog, t_commrec *cr,
                           t_inputrec *ir, gmx_int64_t step,
                           em_state_t *state,
                           t_state *state_global,
-                          energyhistory_t *energyHistory)
+                          ObservablesHistory *observablesHistory)
 {
     int mdof_flags = 0;
 
@@ -524,21 +525,30 @@ static void write_em_traj(FILE *fplog, t_commrec *cr,
 
     mdoutf_write_to_trajectory_files(fplog, cr, outf, mdof_flags,
                                      top_global, step, (double)step,
-                                     &state->s, state_global, energyHistory,
+                                     &state->s, state_global, observablesHistory,
                                      &state->f);
 
     if (confout != nullptr && MASTER(cr))
     {
+        GMX_RELEASE_ASSERT(bX, "The code below assumes that (with domain decomposition), x is collected to state_global in the call above.");
+        /* With domain decomposition the call above collected the state->s.x
+         * into state_global->x. Without DD we copy the local state pointer.
+         */
+        if (!DOMAINDECOMP(cr))
+        {
+            state_global = &state->s;
+        }
+
         if (ir->ePBC != epbcNONE && !ir->bPeriodicMols && DOMAINDECOMP(cr))
         {
             /* Make molecules whole only for confout writing */
-            do_pbc_mtop(fplog, ir->ePBC, state_global->box, top_global,
+            do_pbc_mtop(fplog, ir->ePBC, state->s.box, top_global,
                         as_rvec_array(state_global->x.data()));
         }
 
         write_sto_conf_mtop(confout,
                             *top_global->name, top_global,
-                            as_rvec_array(state_global->x.data()), nullptr, ir->ePBC, state_global->box);
+                            as_rvec_array(state_global->x.data()), nullptr, ir->ePBC, state->s.box);
     }
 }
 
@@ -960,6 +970,7 @@ namespace gmx
                            int nstglobalcomm,
                            gmx_vsite_t *vsite, gmx_constr_t constr,
                            int stepout,
+                           gmx::IMDOutputProvider *outputProvider,
                            t_inputrec *inputrec,
                            gmx_mtop_t *top_global, t_fcdata *fcd,
                            t_state *state_global,
@@ -967,7 +978,7 @@ namespace gmx
                            t_nrnb *nrnb, gmx_wallcycle_t wcycle,
                            gmx_edsam_t ed,
                            t_forcerec *fr,
-                           int repl_ex_nst, int repl_ex_nex, int repl_ex_seed,
+                           const ReplicaExchangeParameters &replExParams,
                            gmx_membed_t gmx_unused *membed,
                            real cpt_period, real max_hours,
                            int imdport,
@@ -980,15 +991,15 @@ double do_cg(FILE *fplog, t_commrec *cr, const gmx::MDLogger gmx_unused &mdlog,
              int gmx_unused nstglobalcomm,
              gmx_vsite_t *vsite, gmx_constr_t constr,
              int gmx_unused stepout,
+             gmx::IMDOutputProvider *outputProvider,
              t_inputrec *inputrec,
              gmx_mtop_t *top_global, t_fcdata *fcd,
              t_state *state_global,
-             energyhistory_t *energyHistory,
+             ObservablesHistory *observablesHistory,
              t_mdatoms *mdatoms,
              t_nrnb *nrnb, gmx_wallcycle_t wcycle,
-             gmx_edsam_t gmx_unused ed,
              t_forcerec *fr,
-             int gmx_unused repl_ex_nst, int gmx_unused repl_ex_nex, int gmx_unused repl_ex_seed,
+             const ReplicaExchangeParameters gmx_unused &replExParams,
              gmx_membed_t gmx_unused *membed,
              real gmx_unused cpt_period, real gmx_unused max_hours,
              int imdport,
@@ -1028,7 +1039,7 @@ double do_cg(FILE *fplog, t_commrec *cr, const gmx::MDLogger gmx_unused &mdlog,
     em_state_t *s_c   = &s3;
 
     /* Init em and store the local state in s_min */
-    init_em(fplog, CG, cr, inputrec,
+    init_em(fplog, CG, cr, outputProvider, inputrec,
             state_global, top_global, s_min, &top,
             nrnb, mu_tot, fr, &enerd, &graph, mdatoms, &gstat,
             vsite, constr, nullptr,
@@ -1195,7 +1206,7 @@ double do_cg(FILE *fplog, t_commrec *cr, const gmx::MDLogger gmx_unused &mdlog,
 
         write_em_traj(fplog, cr, outf, do_x, do_f, nullptr,
                       top_global, inputrec, step,
-                      s_min, state_global, energyHistory);
+                      s_min, state_global, observablesHistory);
 
         /* Take a step downhill.
          * In theory, we should minimize the function along this direction.
@@ -1581,7 +1592,7 @@ double do_cg(FILE *fplog, t_commrec *cr, const gmx::MDLogger gmx_unused &mdlog,
 
     write_em_traj(fplog, cr, outf, do_x, do_f, ftp2fn(efSTO, nfile, fnm),
                   top_global, inputrec, step,
-                  s_min, state_global, energyHistory);
+                  s_min, state_global, observablesHistory);
 
 
     if (MASTER(cr))
@@ -1595,7 +1606,7 @@ double do_cg(FILE *fplog, t_commrec *cr, const gmx::MDLogger gmx_unused &mdlog,
         fprintf(fplog, "\nPerformed %d energy evaluations in total.\n", neval);
     }
 
-    finish_em(cr, outf, inputrec, walltime_accounting, wcycle);
+    finish_em(cr, outf, walltime_accounting, wcycle);
 
     /* To print the actual number of steps we needed somewhere */
     walltime_accounting_set_nsteps_done(walltime_accounting, step);
@@ -1611,6 +1622,7 @@ double do_cg(FILE *fplog, t_commrec *cr, const gmx::MDLogger gmx_unused &mdlog,
                           int nstglobalcomm,
                           gmx_vsite_t *vsite, gmx_constr_t constr,
                           int stepout,
+                          gmx::IMDOutputProvider *outputProvider,
                           t_inputrec *inputrec,
                           gmx_mtop_t *top_global, t_fcdata *fcd,
                           t_state *state_global,
@@ -1618,7 +1630,8 @@ double do_cg(FILE *fplog, t_commrec *cr, const gmx::MDLogger gmx_unused &mdlog,
                           t_nrnb *nrnb, gmx_wallcycle_t wcycle,
                           gmx_edsam_t ed,
                           t_forcerec *fr,
-                          int repl_ex_nst, int repl_ex_nex, int repl_ex_seed,
+                          const ReplicaExchangeParameters &replExParams,
+                          gmx_membed_t gmx_unused *membed,
                           real cpt_period, real max_hours,
                           int imdport,
                           unsigned long Flags,
@@ -1630,15 +1643,15 @@ double do_lbfgs(FILE *fplog, t_commrec *cr, const gmx::MDLogger gmx_unused &mdlo
                 int gmx_unused nstglobalcomm,
                 gmx_vsite_t *vsite, gmx_constr_t constr,
                 int gmx_unused stepout,
+                gmx::IMDOutputProvider *outputProvider,
                 t_inputrec *inputrec,
                 gmx_mtop_t *top_global, t_fcdata *fcd,
                 t_state *state_global,
-                energyhistory_t *energyHistory,
+                ObservablesHistory *observablesHistory,
                 t_mdatoms *mdatoms,
                 t_nrnb *nrnb, gmx_wallcycle_t wcycle,
-                gmx_edsam_t gmx_unused ed,
                 t_forcerec *fr,
-                int gmx_unused repl_ex_nst, int gmx_unused repl_ex_nex, int gmx_unused repl_ex_seed,
+                const ReplicaExchangeParameters gmx_unused &replExParams,
                 gmx_membed_t gmx_unused *membed,
                 real gmx_unused cpt_period, real gmx_unused max_hours,
                 int imdport,
@@ -1702,7 +1715,7 @@ double do_lbfgs(FILE *fplog, t_commrec *cr, const gmx::MDLogger gmx_unused &mdlo
     neval = 0;
 
     /* Init em */
-    init_em(fplog, LBFGS, cr, inputrec,
+    init_em(fplog, LBFGS, cr, outputProvider, inputrec,
             state_global, top_global, &ems, &top,
             nrnb, mu_tot, fr, &enerd, &graph, mdatoms, &gstat,
             vsite, constr, nullptr,
@@ -1860,7 +1873,7 @@ double do_lbfgs(FILE *fplog, t_commrec *cr, const gmx::MDLogger gmx_unused &mdlo
         }
 
         mdoutf_write_to_trajectory_files(fplog, cr, outf, mdof_flags,
-                                         top_global, step, (real)step, &ems.s, state_global, energyHistory, &ems.f);
+                                         top_global, step, (real)step, &ems.s, state_global, observablesHistory, &ems.f);
 
         /* Do the linesearching in the direction dx[point][0..(n-1)] */
 
@@ -2354,7 +2367,7 @@ double do_lbfgs(FILE *fplog, t_commrec *cr, const gmx::MDLogger gmx_unused &mdlo
     do_f = !do_per_step(step, inputrec->nstfout);
     write_em_traj(fplog, cr, outf, do_x, do_f, ftp2fn(efSTO, nfile, fnm),
                   top_global, inputrec, step,
-                  &ems, state_global, energyHistory);
+                  &ems, state_global, observablesHistory);
 
     if (MASTER(cr))
     {
@@ -2367,7 +2380,7 @@ double do_lbfgs(FILE *fplog, t_commrec *cr, const gmx::MDLogger gmx_unused &mdlo
         fprintf(fplog, "\nPerformed %d energy evaluations in total.\n", neval);
     }
 
-    finish_em(cr, outf, inputrec, walltime_accounting, wcycle);
+    finish_em(cr, outf, walltime_accounting, wcycle);
 
     /* To print the actual number of steps we needed somewhere */
     walltime_accounting_set_nsteps_done(walltime_accounting, step);
@@ -2382,6 +2395,7 @@ double do_lbfgs(FILE *fplog, t_commrec *cr, const gmx::MDLogger gmx_unused &mdlo
                           int nstglobalcomm,
                           gmx_vsite_t *vsite, gmx_constr_t constr,
                           int stepout,
+                          gmx::IMDOutputProvider *outputProvider,
                           t_inputrec *inputrec,
                           gmx_mtop_t *top_global, t_fcdata *fcd,
                           t_state *state_global,
@@ -2389,7 +2403,7 @@ double do_lbfgs(FILE *fplog, t_commrec *cr, const gmx::MDLogger gmx_unused &mdlo
                           t_nrnb *nrnb, gmx_wallcycle_t wcycle,
                           gmx_edsam_t ed,
                           t_forcerec *fr,
-                          int repl_ex_nst, int repl_ex_nex, int repl_ex_seed,
+                          const ReplicaExchangeParameters &replExParams,
                           real cpt_period, real max_hours,
                           int imdport,
                           unsigned long Flags,
@@ -2401,15 +2415,15 @@ double do_steep(FILE *fplog, t_commrec *cr, const gmx::MDLogger gmx_unused &mdlo
                 int gmx_unused nstglobalcomm,
                 gmx_vsite_t *vsite, gmx_constr_t constr,
                 int gmx_unused stepout,
+                gmx::IMDOutputProvider *outputProvider,
                 t_inputrec *inputrec,
                 gmx_mtop_t *top_global, t_fcdata *fcd,
                 t_state *state_global,
-                energyhistory_t *energyHistory,
+                ObservablesHistory *observablesHistory,
                 t_mdatoms *mdatoms,
                 t_nrnb *nrnb, gmx_wallcycle_t wcycle,
-                gmx_edsam_t gmx_unused  ed,
                 t_forcerec *fr,
-                int gmx_unused repl_ex_nst, int gmx_unused repl_ex_nex, int gmx_unused repl_ex_seed,
+                const ReplicaExchangeParameters gmx_unused &replExParams,
                 gmx_membed_t gmx_unused *membed,
                 real gmx_unused cpt_period, real gmx_unused max_hours,
                 int imdport,
@@ -2438,7 +2452,7 @@ double do_steep(FILE *fplog, t_commrec *cr, const gmx::MDLogger gmx_unused &mdlo
     em_state_t *s_try = &s1;
 
     /* Init em and store the local state in s_try */
-    init_em(fplog, SD, cr, inputrec,
+    init_em(fplog, SD, cr, outputProvider, inputrec,
             state_global, top_global, s_try, &top,
             nrnb, mu_tot, fr, &enerd, &graph, mdatoms, &gstat,
             vsite, constr, nullptr,
@@ -2569,7 +2583,7 @@ double do_steep(FILE *fplog, t_commrec *cr, const gmx::MDLogger gmx_unused &mdlo
             do_f = do_per_step(steps_accepted, inputrec->nstfout);
             write_em_traj(fplog, cr, outf, do_x, do_f, nullptr,
                           top_global, inputrec, count,
-                          s_min, state_global, energyHistory);
+                          s_min, state_global, observablesHistory);
         }
         else
         {
@@ -2622,7 +2636,7 @@ double do_steep(FILE *fplog, t_commrec *cr, const gmx::MDLogger gmx_unused &mdlo
     }
     write_em_traj(fplog, cr, outf, TRUE, inputrec->nstfout, ftp2fn(efSTO, nfile, fnm),
                   top_global, inputrec, count,
-                  s_min, state_global, energyHistory);
+                  s_min, state_global, observablesHistory);
 
     if (MASTER(cr))
     {
@@ -2634,7 +2648,7 @@ double do_steep(FILE *fplog, t_commrec *cr, const gmx::MDLogger gmx_unused &mdlo
                         s_min, sqrtNumAtoms);
     }
 
-    finish_em(cr, outf, inputrec, walltime_accounting, wcycle);
+    finish_em(cr, outf, walltime_accounting, wcycle);
 
     /* To print the actual number of steps we needed somewhere */
     inputrec->nsteps = count;
@@ -2651,6 +2665,7 @@ double do_steep(FILE *fplog, t_commrec *cr, const gmx::MDLogger gmx_unused &mdlo
                           int nstglobalcomm,
                           gmx_vsite_t *vsite, gmx_constr_t constr,
                           int stepout,
+                          gmx::IMDOutputProvider *outputProvider,
                           t_inputrec *inputrec,
                           gmx_mtop_t *top_global, t_fcdata *fcd,
                           t_state *state_global,
@@ -2658,7 +2673,7 @@ double do_steep(FILE *fplog, t_commrec *cr, const gmx::MDLogger gmx_unused &mdlo
                           t_nrnb *nrnb, gmx_wallcycle_t wcycle,
                           gmx_edsam_t ed,
                           t_forcerec *fr,
-                          int repl_ex_nst, int repl_ex_nex, int repl_ex_seed,
+                          const ReplicaExchangeParameters &replExParams,
                           real cpt_period, real max_hours,
                           int imdport,
                           unsigned long Flags,
@@ -2670,15 +2685,15 @@ double do_nm(FILE *fplog, t_commrec *cr, const gmx::MDLogger &mdlog,
              int gmx_unused nstglobalcomm,
              gmx_vsite_t *vsite, gmx_constr_t constr,
              int gmx_unused stepout,
+             gmx::IMDOutputProvider *outputProvider,
              t_inputrec *inputrec,
              gmx_mtop_t *top_global, t_fcdata *fcd,
              t_state *state_global,
-             energyhistory_t gmx_unused *energyHistory,
+             ObservablesHistory gmx_unused *observablesHistory,
              t_mdatoms *mdatoms,
              t_nrnb *nrnb, gmx_wallcycle_t wcycle,
-             gmx_edsam_t  gmx_unused ed,
              t_forcerec *fr,
-             int gmx_unused repl_ex_nst, int gmx_unused repl_ex_nex, int gmx_unused repl_ex_seed,
+             const ReplicaExchangeParameters gmx_unused &replExParams,
              gmx_membed_t gmx_unused *membed,
              real gmx_unused cpt_period, real gmx_unused max_hours,
              int imdport,
@@ -2716,7 +2731,7 @@ double do_nm(FILE *fplog, t_commrec *cr, const gmx::MDLogger &mdlog,
     em_state_t     state_work {};
 
     /* Init em and store the local state in state_minimum */
-    init_em(fplog, NM, cr, inputrec,
+    init_em(fplog, NM, cr, outputProvider, inputrec,
             state_global, top_global, &state_work, &top,
             nrnb, mu_tot, fr, &enerd, &graph, mdatoms, &gstat,
             vsite, constr, &shellfc,
@@ -2965,7 +2980,7 @@ double do_nm(FILE *fplog, t_commrec *cr, const gmx::MDLogger &mdlog,
         gmx_mtxio_write(ftp2fn(efMTX, nfile, fnm), sz, sz, full_matrix, sparse_matrix);
     }
 
-    finish_em(cr, outf, inputrec, walltime_accounting, wcycle);
+    finish_em(cr, outf, walltime_accounting, wcycle);
 
     walltime_accounting_set_nsteps_done(walltime_accounting, atom_index.size()*2);
 

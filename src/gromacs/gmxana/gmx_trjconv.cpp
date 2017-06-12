@@ -665,10 +665,6 @@ int gmx_trjconv(int argc, char *argv[])
         "   results if you in fact have a cluster. Luckily that can be checked",
         "   afterwards using a trajectory viewer. Note also that if your molecules",
         "   are broken this will not work either.",
-        "",
-        "   The separate option [TT]-clustercenter[tt] can be used to specify an",
-        "   approximate center for the cluster. This is useful e.g. if you have",
-        "   two big vesicles, and you want to maintain their relative positions.",
         " * [TT]whole[tt] only makes broken molecules whole.",
         "",
 
@@ -875,8 +871,8 @@ int gmx_trjconv(int argc, char *argv[])
     int               ePBC  = -1;
     t_atoms          *atoms = nullptr, useatoms;
     matrix            top_box;
-    int              *index, *cindex;
-    char             *grpnm;
+    int              *index = nullptr, *cindex = nullptr;
+    char             *grpnm = nullptr;
     int              *frindex, nrfri;
     char             *frname;
     int               ifit, my_clust = -1;
@@ -927,7 +923,6 @@ int gmx_trjconv(int argc, char *argv[])
     }
 
     top_file = ftp2fn(efTPS, NFILE, fnm);
-    init_top(&top);
 
     /* Check command line */
     in_file = opt2fn("-f", NFILE, fnm);
@@ -1185,7 +1180,7 @@ int gmx_trjconv(int argc, char *argv[])
                 gmx_fatal(FARGS, "Could not read a frame from %s", in_file);
             }
             natoms = fr.natoms;
-            close_trj(trxin);
+            close_trx(trxin);
             sfree(fr.x);
             snew(index, natoms);
             for (i = 0; i < natoms; i++)
@@ -1595,7 +1590,7 @@ int gmx_trjconv(int argc, char *argv[])
                     if (bTDump)
                     {
                         fprintf(stderr, "\nDumping frame at t= %g %s\n",
-                                output_env_conv_time(oenv, frout_time), output_env_get_time_unit(oenv));
+                                output_env_conv_time(oenv, frout_time), output_env_get_time_unit(oenv).c_str());
                     }
 
                     /* check for writing at each delta_t */
@@ -1835,10 +1830,10 @@ int gmx_trjconv(int argc, char *argv[])
                                                       frout.ePBC, frout.box, ' ', model_nr, gc, TRUE);
                                         break;
                                     case efG96:
-                                        frout.title = title;
+                                        const char *outputTitle = "";
                                         if (bSeparate || bTDump)
                                         {
-                                            frout.bTitle = TRUE;
+                                            outputTitle = title;
                                             if (bTPS)
                                             {
                                                 frout.bAtoms = TRUE;
@@ -1849,12 +1844,15 @@ int gmx_trjconv(int argc, char *argv[])
                                         }
                                         else
                                         {
-                                            frout.bTitle = (outframe == 0);
+                                            if (outframe == 0)
+                                            {
+                                                outputTitle = title;
+                                            }
                                             frout.bAtoms = FALSE;
                                             frout.bStep  = TRUE;
                                             frout.bTime  = TRUE;
                                         }
-                                        write_g96_conf(out, &frout, -1, nullptr);
+                                        write_g96_conf(out, outputTitle, &frout, -1, nullptr);
                                 }
                                 if (bSeparate || bSplitHere)
                                 {
@@ -1897,7 +1895,7 @@ int gmx_trjconv(int argc, char *argv[])
         }
         fprintf(stderr, "\n");
 
-        close_trj(trxin);
+        close_trx(trxin);
         sfree(outf_base);
 
         if (bRmPBC)
@@ -1926,8 +1924,19 @@ int gmx_trjconv(int argc, char *argv[])
     }
 
     sfree(mtop);
+    done_top(&top);
+    sfree(xp);
+    sfree(xmem);
+    sfree(vmem);
+    sfree(fmem);
+    sfree(grpnm);
+    sfree(index);
+    sfree(cindex);
+    done_filenms(NFILE, fnm);
+    done_frame(&fr);
 
     do_view(oenv, out_file, nullptr);
 
+    output_env_done(oenv);
     return 0;
 }

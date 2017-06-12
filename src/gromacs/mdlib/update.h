@@ -106,6 +106,8 @@ void update_pcouple_after_coordinates(FILE             *fplog,
                                       const t_inputrec *inputrec,
                                       const t_mdatoms  *md,
                                       const matrix      pressure,
+                                      const matrix      forceVirial,
+                                      const matrix      constraintVirial,
                                       const matrix      parrinellorahmanMu,
                                       t_state          *state,
                                       t_nrnb           *nrnb,
@@ -181,7 +183,8 @@ void
 restore_ekinstate_from_state(t_commrec *cr,
                              gmx_ekindata_t *ekind, const ekinstate_t *ekinstate);
 
-void berendsen_tcoupl(t_inputrec *ir, gmx_ekindata_t *ekind, real dt);
+void berendsen_tcoupl(const t_inputrec *ir, const gmx_ekindata_t *ekind, real dt,
+                      std::vector<double> &therm_integral);
 
 void andersen_tcoupl(t_inputrec *ir, gmx_int64_t step,
                      const t_commrec *cr, const t_mdatoms *md, t_state *state, real rate, const gmx_bool *randomize, const real *boltzfac);
@@ -231,8 +234,8 @@ void parrinellorahman_pcoupl(FILE *fplog, gmx_int64_t step,
 void berendsen_pcoupl(FILE *fplog, gmx_int64_t step,
                       const t_inputrec *ir, real dt,
                       const tensor pres, const matrix box,
-                      matrix mu);
-
+                      const matrix force_vir, const matrix constraint_vir,
+                      matrix mu, double *baros_integral);
 
 void berendsen_pscale(const t_inputrec *ir, const matrix mu,
                       matrix box, matrix box_rel,

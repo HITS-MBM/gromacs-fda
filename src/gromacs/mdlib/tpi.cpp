@@ -133,6 +133,7 @@ namespace gmx
                            int nstglobalcomm,
                            gmx_vsite_t *vsite, gmx_constr_t constr,
                            int stepout,
+                           gmx::IMDOutputProvider *outputProvider,
                            t_inputrec *inputrec,
                            gmx_mtop_t *top_global, t_fcdata *fcd,
                            t_state *state_global,
@@ -140,7 +141,7 @@ namespace gmx
                            t_nrnb *nrnb, gmx_wallcycle_t wcycle,
                            gmx_edsam_t ed,
                            t_forcerec *fr,
-                           int repl_ex_nst, int repl_ex_nex, int repl_ex_seed,
+                           const ReplicaExchangeParameters &replExParams,
                            real cpt_period, real max_hours,
                            int imdport,
                            unsigned long Flags,
@@ -152,15 +153,15 @@ double do_tpi(FILE *fplog, t_commrec *cr, const gmx::MDLogger gmx_unused &mdlog,
               int gmx_unused nstglobalcomm,
               gmx_vsite_t gmx_unused *vsite, gmx_constr_t gmx_unused constr,
               int gmx_unused stepout,
+              gmx::IMDOutputProvider *outputProvider,
               t_inputrec *inputrec,
               gmx_mtop_t *top_global, t_fcdata *fcd,
               t_state *state_global,
-              energyhistory_t gmx_unused *energyHistory,
+              ObservablesHistory gmx_unused *observablesHistory,
               t_mdatoms *mdatoms,
               t_nrnb *nrnb, gmx_wallcycle_t wcycle,
-              gmx_edsam_t gmx_unused ed,
               t_forcerec *fr,
-              int gmx_unused repl_ex_nst, int gmx_unused repl_ex_nex, int gmx_unused repl_ex_seed,
+              const ReplicaExchangeParameters gmx_unused &replExParams,
               gmx_membed_t gmx_unused *membed,
               real gmx_unused cpt_period, real gmx_unused max_hours,
               int gmx_unused imdport,
@@ -196,6 +197,8 @@ double do_tpi(FILE *fplog, t_commrec *cr, const gmx::MDLogger gmx_unused &mdlog,
     real             prescorr, enercorr, dvdlcorr;
     gmx_bool         bEnergyOutOfBounds;
     const char      *tpid_leg[2] = {"direct", "reweighted"};
+
+    GMX_UNUSED_VALUE(outputProvider);
 
     /* Since there is no upper limit to the insertion energies,
      * we need to set an upper limit for the distribution output.
@@ -835,7 +838,7 @@ double do_tpi(FILE *fplog, t_commrec *cr, const gmx::MDLogger gmx_unused &mdlog,
     }   /* End of the loop  */
     walltime_accounting_end(walltime_accounting);
 
-    close_trj(status);
+    close_trx(status);
 
     if (fp_tpi != nullptr)
     {

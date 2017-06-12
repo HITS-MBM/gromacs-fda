@@ -1,7 +1,7 @@
 #
 # This file is part of the GROMACS molecular simulation package.
 #
-# Copyright (c) 2012,2013,2014,2015,2016, by the GROMACS development team, led by
+# Copyright (c) 2012,2013,2014,2015,2016,2017, by the GROMACS development team, led by
 # Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
 # and including many others, as listed in the AUTHORS file in the
 # top-level source directory and at http://www.gromacs.org.
@@ -73,7 +73,15 @@ elseif(${GMX_SIMD} MATCHES "^(AVX)")
     # Support for --enable-avx2 was only added in 3.3.5, but
     # configuring with it is at worst a warning, even on an earlier
     # version.
+    # MSVC, GCC < 4.9, Clang < 3.9, and ICC < 15.0.1 do not support AVX-512, so
+    # we should not enable it.
+if(MSVC OR (CMAKE_COMPILER_IS_GNUCC AND CMAKE_C_COMPILER_VERSION VERSION_LESS 4.9.0) OR
+   (CMAKE_C_COMPILER_ID MATCHES "Clang" AND CMAKE_C_COMPILER_VERSION VERSION_LESS 3.9.0) OR
+   (CMAKE_C_COMPILER_ID MATCHES "Intel" AND CMAKE_C_COMPILER_VERSION VERSION_LESS 15.0.1))
+    set(_fftw_simd_support_level --enable-sse2;--enable-avx;--enable-avx2)
+else()
     set(_fftw_simd_support_level --enable-sse2;--enable-avx;--enable-avx2;--enable-avx512)
+endif()
 elseif(${GMX_SIMD} MATCHES "^(VSX)")
     set(_fftw_simd_support_level --enable-vsx)
 endif()

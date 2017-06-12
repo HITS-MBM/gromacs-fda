@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2013,2014,2015,2016, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016,2017, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -58,8 +58,8 @@
 #include "programs/mdrun/mdrun_main.h"
 
 #include "testutils/cmdlinetest.h"
-#include "testutils/integrationtests.h"
 #include "testutils/mpitest.h"
+#include "testutils/testfilemanager.h"
 #include "testutils/testoptions.h"
 
 namespace gmx
@@ -91,18 +91,18 @@ GMX_TEST_OPTIONS(MdrunTestOptions, options)
 
 }
 
-SimulationRunner::SimulationRunner(IntegrationTestFixture *fixture) :
-    fixture_(fixture),
+SimulationRunner::SimulationRunner(TestFileManager *fileManager) :
     topFileName_(),
     groFileName_(),
     fullPrecisionTrajectoryFileName_(),
     ndxFileName_(),
-    mdpInputFileName_(fixture_->fileManager_.getTemporaryFilePath("input.mdp")),
-    mdpOutputFileName_(fixture_->fileManager_.getTemporaryFilePath("output.mdp")),
-    tprFileName_(fixture_->fileManager_.getTemporaryFilePath(".tpr")),
-    logFileName_(fixture_->fileManager_.getTemporaryFilePath(".log")),
-    edrFileName_(fixture_->fileManager_.getTemporaryFilePath(".edr")),
-    nsteps_(-2)
+    mdpInputFileName_(fileManager->getTemporaryFilePath("input.mdp")),
+    mdpOutputFileName_(fileManager->getTemporaryFilePath("output.mdp")),
+    tprFileName_(fileManager->getTemporaryFilePath(".tpr")),
+    logFileName_(fileManager->getTemporaryFilePath(".log")),
+    edrFileName_(fileManager->getTemporaryFilePath(".edr")),
+    nsteps_(-2),
+    fileManager_(*fileManager)
 {
 #if GMX_LIB_MPI
     GMX_RELEASE_ASSERT(gmx_mpi_initialized(), "MPI system not initialized for mdrun tests");
@@ -113,6 +113,9 @@ SimulationRunner::SimulationRunner(IntegrationTestFixture *fixture) :
 // and verlet-buffer-tolerance = -1 gives a grompp error. If we keep
 // things that way, this function should be renamed. For now,
 // force the use of the group scheme.
+// TODO There is possible outstanding unexplained behaviour of mdp
+// input parsing e.g. Redmine 2074, so this particular set of mdp
+// contents is also tested with GetIrTest in gmxpreprocess-test.
 void
 SimulationRunner::useEmptyMdpFile()
 {
@@ -141,15 +144,15 @@ SimulationRunner::useStringAsNdxFile(const char *ndxString)
 void
 SimulationRunner::useTopGroAndNdxFromDatabase(const char *name)
 {
-    topFileName_ = fixture_->fileManager_.getInputFilePath((std::string(name) + ".top").c_str());
-    groFileName_ = fixture_->fileManager_.getInputFilePath((std::string(name) + ".gro").c_str());
-    ndxFileName_ = fixture_->fileManager_.getInputFilePath((std::string(name) + ".ndx").c_str());
+    topFileName_ = fileManager_.getInputFilePath((std::string(name) + ".top").c_str());
+    groFileName_ = fileManager_.getInputFilePath((std::string(name) + ".gro").c_str());
+    ndxFileName_ = fileManager_.getInputFilePath((std::string(name) + ".ndx").c_str());
 }
 
 void
 SimulationRunner::useGroFromDatabase(const char *name)
 {
-    groFileName_ = fixture_->fileManager_.getInputFilePath((std::string(name) + ".gro").c_str());
+    groFileName_ = fileManager_.getInputFilePath((std::string(name) + ".gro").c_str());
 }
 
 int
@@ -162,6 +165,7 @@ SimulationRunner::callGromppOnThisRank(const CommandLine &callerRef)
     caller.addOption("-n", ndxFileName_);
     caller.addOption("-p", topFileName_);
     caller.addOption("-c", groFileName_);
+    caller.addOption("-r", groFileName_);
 
     caller.addOption("-po", mdpOutputFileName_);
     caller.addOption("-o", tprFileName_);
@@ -221,7 +225,7 @@ SimulationRunner::callMdrun(const CommandLine &callerRef)
     caller.addOption("-o", fullPrecisionTrajectoryFileName_);
     caller.addOption("-x", reducedPrecisionTrajectoryFileName_);
 
-    caller.addOption("-deffnm", fixture_->fileManager_.getTemporaryFilePath("state"));
+    caller.addOption("-deffnm", fileManager_.getTemporaryFilePath("state"));
 
     if (nsteps_ > -2)
     {
@@ -285,7 +289,7 @@ MdrunTestFixtureBase::~MdrunTestFixtureBase()
 
 // ====
 
-MdrunTestFixture::MdrunTestFixture() : runner_(this)
+MdrunTestFixture::MdrunTestFixture() : runner_(&fileManager_)
 {
 }
 

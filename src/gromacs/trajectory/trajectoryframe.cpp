@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2016, by the GROMACS development team, led by
+ * Copyright (c) 2016,2017, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -43,6 +43,7 @@
 #include "gromacs/math/veccompare.h"
 #include "gromacs/topology/atoms.h"
 #include "gromacs/utility/compare.h"
+#include "gromacs/utility/smalloc.h"
 
 void comp_frame(FILE *fp, t_trxframe *fr1, t_trxframe *fr2,
                 gmx_bool bRMSD, real ftol, real abstol)
@@ -50,10 +51,6 @@ void comp_frame(FILE *fp, t_trxframe *fr1, t_trxframe *fr2,
     fprintf(fp, "\n");
     cmp_int(fp, "not_ok", -1, fr1->not_ok, fr2->not_ok);
     cmp_int(fp, "natoms", -1, fr1->natoms, fr2->natoms);
-    if (cmp_bool(fp, "bTitle", -1, fr1->bTitle, fr2->bTitle))
-    {
-        cmp_str(fp, "title", -1, fr1->title, fr2->title);
-    }
     if (cmp_bool(fp, "bStep", -1, fr1->bStep, fr2->bStep))
     {
         cmp_int(fp, "step", -1, fr1->step, fr2->step);
@@ -91,4 +88,16 @@ void comp_frame(FILE *fp, t_trxframe *fr1, t_trxframe *fr2,
     {
         cmp_rvecs(fp, "box", 3, fr1->box, fr2->box, FALSE, ftol, abstol);
     }
+}
+
+void done_frame(t_trxframe *frame)
+{
+    if (frame->atoms)
+    {
+        done_atom(frame->atoms);
+        sfree(frame->atoms);
+    }
+    sfree(frame->x);
+    sfree(frame->v);
+    sfree(frame->f);
 }

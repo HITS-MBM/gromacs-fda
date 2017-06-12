@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2013,2014,2015,2016, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016,2017, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -80,22 +80,22 @@ TEST_P(MdrunRerun, WithDifferentInputFormats)
  * database. These all have two identical frames of two SPC water
  * molecules, which were generated via trjconv from the .gro
  * version. */
-const char *trajectoryFileNames[] = {
-    "../../../gromacs/gmxana/legacytests/spc2-traj.trr",
+const char *const trajectoryFileNames[] = {
+    "../../../gromacs/gmxana/tests/spc2-traj.trr",
 #if GMX_USE_TNG
-    "../../../gromacs/gmxana/legacytests/spc2-traj.tng",
+    "../../../gromacs/gmxana/tests/spc2-traj.tng",
 #endif
-    "../../../gromacs/gmxana/legacytests/spc2-traj.xtc",
-    "../../../gromacs/gmxana/legacytests/spc2-traj.gro",
-    "../../../gromacs/gmxana/legacytests/spc2-traj.pdb",
-    "../../../gromacs/gmxana/legacytests/spc2-traj.g96"
+    "../../../gromacs/gmxana/tests/spc2-traj.xtc",
+    "../../../gromacs/gmxana/tests/spc2-traj.gro",
+    "../../../gromacs/gmxana/tests/spc2-traj.pdb",
+    "../../../gromacs/gmxana/tests/spc2-traj.g96"
 };
 // TODO later. Find a better way to manage this file database and
 // these string arrays that index it
 
 INSTANTIATE_TEST_CASE_P(NoFatalErrorFrom,
                         MdrunRerun,
-                            ::testing::ValuesIn(gmx::ArrayRef<const char*>(trajectoryFileNames)));
+                            ::testing::ValuesIn(trajectoryFileNames));
 
 /*! \todo Add other tests for mdrun -rerun, e.g.
  *

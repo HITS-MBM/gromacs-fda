@@ -2,7 +2,7 @@
  * This file is part of the GROMACS molecular simulation package.
  *
  * Copyright (c) 2013, The GROMACS development team.
- * Copyright (c) 2013,2014,2015,2016, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016,2017, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -52,14 +52,21 @@
 #ifndef GMX_SWAP_SWAPCOORDS_H
 #define GMX_SWAP_SWAPCOORDS_H
 
-#include "gromacs/mdtypes/commrec.h"
-#include "gromacs/timing/wallcycle.h"
+#include <cstdio>
 
+#include "gromacs/math/vectypes.h"
+#include "gromacs/utility/basedefinitions.h"
+
+struct gmx_domdec_t;
 struct gmx_mtop_t;
 struct gmx_output_env_t;
-struct swapstate_t;
+struct gmx_wallcycle;
+struct swaphistory_t;
+struct t_commrec;
 struct t_inputrec;
 struct t_swapcoords;
+struct ObservablesHistory;
+
 
 /*! \brief Initialize ion / water position swapping ("Computational Electrophysiology").
  *
@@ -74,7 +81,7 @@ struct t_swapcoords;
  * \param[in] mtop          Molecular topology.
  * \param[in] x             The initial positions of all particles.
  * \param[in] box           The simulation box.
- * \param[in] swapstatePtr  Swap-related data that is read from or written to checkpoint.
+ * \param[in] oh            Contains struct with swap data that is read from or written to checkpoint.
  * \param[in] cr            Pointer to MPI communication data.
  * \param[in] oenv          Needed to open the swap output XVGR file.
  * \param[in] Flags         Flags passed over from main, used to determine
@@ -88,7 +95,7 @@ void init_swapcoords(
         gmx_mtop_t             *mtop,
         rvec                    x[],
         matrix                  box,
-        swapstate_t           **swapstatePtr,
+        ObservablesHistory     *oh,
         t_commrec              *cr,
         const gmx_output_env_t *oenv,
         unsigned long           Flags);
@@ -131,7 +138,7 @@ gmx_bool do_swapcoords(
         gmx_int64_t       step,
         double            t,
         t_inputrec       *ir,
-        gmx_wallcycle_t   wcycle,
+        gmx_wallcycle    *wcycle,
         rvec              x[],
         matrix            box,
         gmx_bool          bVerbose,

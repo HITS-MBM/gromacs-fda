@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2013,2014,2015,2017, by the GROMACS development team, led by
+ * Copyright (c) 2017, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -32,51 +32,83 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-/*! \internal \file
+/*! \libinternal \file
  * \brief
- * Implements classes in integrationtests.h.
+ * Declares function to add the content of a conf file to a checker.
  *
- * \author Mark Abraham <mark.j.abraham@gmail.com>
+ * \author David van der Spoel <david.vanderspoel@icm.uu.se>
+ * \inlibraryapi
  * \ingroup module_testutils
  */
-#include "gmxpre.h"
+#ifndef GMX_TESTUTILS_CONFTEST_H
+#define GMX_TESTUTILS_CONFTEST_H
 
-#include "integrationtests.h"
+#include <string>
 
-#include <stdio.h>
-
-#include "gromacs/utility/exceptions.h"
-#include "gromacs/utility/textwriter.h"
+#include "testutils/testasserts.h"
+#include "testutils/textblockmatchers.h"
 
 namespace gmx
 {
+
+class TextInputStream;
+
 namespace test
 {
 
-/********************************************************************
- * IntegrationTestFixture
- */
+class TestReferenceChecker;
 
-IntegrationTestFixture::IntegrationTestFixture()
+struct ConfMatchSettings
 {
-}
-
-IntegrationTestFixture::~IntegrationTestFixture()
-{
-}
-
-void
-IntegrationTestFixture::redirectStringToStdin(const char* theString)
-{
-    std::string fakeStdin("fake-stdin");
-    gmx::TextWriter::writeFileFromString(fakeStdin, theString);
-    if (nullptr == std::freopen(fakeStdin.c_str(), "r", stdin))
+    ConfMatchSettings() : tolerance(defaultRealTolerance())
     {
-        GMX_THROW_WITH_ERRNO(FileIOError("Failed to redirect a string to stdin"),
-                             "freopen",
-                             errno);
     }
-}
+
+    FloatingPointTolerance  tolerance;
+};
+
+/*! \brief
+ * Adds content of a gro file to TestReferenceChecker object.
+ *
+ * \param[in] input       Stream that provides the gro content.
+ * \param[in,out] checker Checker to use.
+ * \param[in] settings    Settings to use for matching.
+ *
+ * Parses a gro file from the input stream, and checks the contents against
+ * reference data (only first two lines for now).
+ *
+ * \see ConfMatch
+ */
+void checkConfFile(TextInputStream         *input,
+                   TestReferenceChecker    *checker,
+                   const ConfMatchSettings &settings);
+
+/*! \libinternal \brief
+ * Match the contents as an gro file.
+ *
+ * \see checkGroFile()
+ *
+ * \inlibraryapi
+ * \ingroup module_testutils
+ */
+class ConfMatch : public ITextBlockMatcherSettings
+{
+    public:
+        //! Sets the tolerance for matching floating point values.
+        ConfMatch &tolerance(const FloatingPointTolerance &tolerance)
+        {
+            settings_.tolerance = tolerance;
+            return *this;
+        }
+
+        virtual TextBlockMatcherPointer createMatcher() const;
+
+    private:
+        ConfMatchSettings  settings_;
+};
 
 } // namespace test
+
 } // namespace gmx
+
+#endif

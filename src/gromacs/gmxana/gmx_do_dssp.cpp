@@ -147,7 +147,7 @@ static int strip_dssp(char *dsspfile, int nres,
 
         sprintf(mat->title, "Secondary structure");
         mat->legend[0] = 0;
-        sprintf(mat->label_x, "%s", output_env_get_time_label(oenv));
+        sprintf(mat->label_x, "%s", output_env_get_time_label(oenv).c_str());
         sprintf(mat->label_y, "Residue");
         mat->bDiscrete = TRUE;
         mat->ny        = nr;
@@ -423,8 +423,8 @@ void analyse_ss(const char *outfile, t_matrix *mat, const char *ss_string,
     }
     fprintf(fp, "\n");
 
-    /* now print percentages */
-    fprintf(fp, "%-8s %5.2f", "# SS %", total_count / static_cast<real>(mat->nx * mat->ny));
+    /* now print probabilities */
+    fprintf(fp, "%-8s %5.2f", "# SS pr.", total_count / static_cast<real>(mat->nx * mat->ny));
     for (s = 0; s < static_cast<size_t>(mat->nmap); s++)
     {
         fprintf(fp, " %5.2f", total[s] / static_cast<real>(mat->nx * mat->ny));
@@ -685,7 +685,7 @@ int gmx_do_dssp(int argc, char *argv[])
     }
     while (read_next_x(oenv, status, &t, x, box));
     fprintf(stderr, "\n");
-    close_trj(status);
+    close_trx(status);
     if (fTArea)
     {
         xvgrclose(fTArea);

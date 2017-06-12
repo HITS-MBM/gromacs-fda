@@ -999,21 +999,14 @@ void rd_index(const char *statfile, int ngrps, int isize[],
     }
     grps = init_index(statfile, &gnames);
     rd_groups(grps, gnames, grpnames, ngrps, isize, index, grpnr);
-}
-
-void rd_index_nrs(char *statfile, int ngrps, int isize[],
-                  int *index[], char *grpnames[], int grpnr[])
-{
-    char    **gnames;
-    t_blocka *grps;
-
-    if (!statfile)
+    for (int i = 0; i < grps->nr; i++)
     {
-        gmx_fatal(FARGS, "No index file specified");
+        sfree(gnames[i]);
     }
-    grps = init_index(statfile, &gnames);
-
-    rd_groups(grps, gnames, grpnames, ngrps, isize, index, grpnr);
+    sfree(gnames);
+    sfree(grpnr);
+    done_blocka(grps);
+    sfree(grps);
 }
 
 void get_index(const t_atoms *atoms, const char *fnm, int ngrps,
@@ -1041,6 +1034,15 @@ void get_index(const t_atoms *atoms, const char *fnm, int ngrps,
     }
 
     rd_groups(grps, *gnames, grpnames, ngrps, isize, index, grpnr);
+    for (int i = 0; i < grps->nr; ++i)
+    {
+        sfree((*gnames)[i]);
+    }
+    sfree(*gnames);
+    sfree(gnames);
+    sfree(grpnr);
+    done_blocka(grps);
+    sfree(grps);
 }
 
 t_cluster_ndx *cluster_index(FILE *fplog, const char *ndx)

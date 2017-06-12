@@ -43,6 +43,7 @@
 #include <cstring>
 
 #include <algorithm>
+#include <string>
 
 #include "gromacs/commandline/pargs.h"
 #include "gromacs/commandline/viewit.h"
@@ -54,10 +55,13 @@
 #include "gromacs/gmxana/gmx_ana.h"
 #include "gromacs/utility/arraysize.h"
 #include "gromacs/utility/cstringutil.h"
+#include "gromacs/utility/exceptions.h"
 #include "gromacs/utility/fatalerror.h"
+#include "gromacs/utility/filestream.h"
 #include "gromacs/utility/futil.h"
 #include "gromacs/utility/gmxassert.h"
 #include "gromacs/utility/smalloc.h"
+#include "gromacs/utility/stringutil.h"
 
 #define FUDGE 1.2
 #define DDD   2
@@ -124,7 +128,8 @@ void get_params(const char *mpin, const char *mpout, t_psrec *psr)
 
     if (mpin != nullptr)
     {
-        inp = read_inpfile(mpin, &ninp, wi);
+        gmx::TextInputFile stream(mpin);
+        inp = read_inpfile(&stream, mpin, &ninp, wi);
     }
     else
     {
@@ -176,7 +181,9 @@ void get_params(const char *mpin, const char *mpout, t_psrec *psr)
 
     if (mpout != nullptr)
     {
-        write_inpfile(mpout, ninp, inp, TRUE, wi);
+        gmx::TextOutputFile stream(mpout);
+        write_inpfile(&stream, mpout, ninp, inp, TRUE, WriteMdpHeader::yes, wi);
+        stream.close();
     }
 
     done_warning(wi, FARGS);
@@ -786,7 +793,7 @@ void ps_mat(const char *outf, int nmat, t_matrix mat[], t_matrix mat2[],
             int mapoffset)
 {
     const char   *libm2p;
-    char          buf[256], *legend;
+    char         *legend;
     t_psdata      out;
     t_psrec       psrec, *psr;
     int           W, H;
@@ -799,7 +806,11 @@ void ps_mat(const char *outf, int nmat, t_matrix mat[], t_matrix mat2[],
 
     /* memory leak: */
     libm2p = m2p ? gmxlibfn(m2p) : m2p;
-    get_params(libm2p, m2pout, &psrec);
+    try
+    {
+        get_params(libm2p, m2pout, &psrec);
+    }
+    GMX_CATCH_ALL_AND_EXIT_WITH_FATAL_ERROR;
 
     psr = &psrec;
 
@@ -923,19 +934,19 @@ void ps_mat(const char *outf, int nmat, t_matrix mat[], t_matrix mat2[],
             /* Print title, if any */
             ps_rgb(out, BLACK);
             ps_strfont(out, psr->titfont, psr->titfontsize);
+            std::string buf;
             if (!mat2 || (std::strcmp(mat[i].title, mat2[i].title) == 0))
             {
-                std::strcpy(buf, mat[i].title);
+                buf = mat[i].title;
             }
             else
             {
-                sprintf(buf, "%s / %s", mat[i].title, mat2[i].title);
+                buf = gmx::formatString("%s / %s", mat[i].title, mat2[i].title);
             }
             ps_ctext(out, x0+w/2, y0+box_height(&(mat[i]), psr)+psr->titfontsize,
-                     buf, eXCenter);
+                     buf.c_str(), eXCenter);
         }
-        sprintf(buf, "Here starts the filling of box #%d", i);
-        ps_comment(out, buf);
+        ps_comment(out, gmx::formatString("Here starts the filling of box #%d", i).c_str());
         for (x = 0; (x < mat[i].nx); x++)
         {
             int nexty;

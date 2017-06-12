@@ -50,19 +50,16 @@ struct gmx_localtop_t;
 struct gmx_output_env_t;
 struct gmx_update_t;
 struct nonbonded_verlet_t;
-struct t_graph;
 struct t_mdatoms;
 struct t_nrnb;
 
 namespace gmx
 {
+class IMDOutputProvider;
 class MDLogger;
 }
 
 typedef struct gmx_global_stat *gmx_global_stat_t;
-
-void do_pbc_first(FILE *log, matrix box, t_forcerec *fr,
-                  t_graph *graph, rvec x[]);
 
 void do_pbc_first_mtop(FILE *fplog, int ePBC, matrix box,
                        const gmx_mtop_t *mtop, rvec x[]);
@@ -144,7 +141,8 @@ void do_constrain_first(FILE *log, gmx_constr *constr,
                         t_forcerec *fr, gmx_localtop_t *top);
 
 void init_md(FILE *fplog,
-             t_commrec *cr, t_inputrec *ir, const gmx_output_env_t *oenv,
+             t_commrec *cr, gmx::IMDOutputProvider *outputProvider,
+             t_inputrec *ir, const gmx_output_env_t *oenv,
              double *t, double *t0,
              gmx::ArrayRef<real> lambda, int *fep_state, double *lam0,
              t_nrnb *nrnb, gmx_mtop_t *mtop,
