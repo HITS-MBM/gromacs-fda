@@ -23,6 +23,7 @@ pipeline {
                 -DGMX_SIMD=NONE \
                 -DGMX_BUILD_UNITTESTS=ON \
                 -DGMX_BUILD_OWN_FFTW=ON \
+                -DGMX_GPU=OFF \
                 ..
           make
         '''
