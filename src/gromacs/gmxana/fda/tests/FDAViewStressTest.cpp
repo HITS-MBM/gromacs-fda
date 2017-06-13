@@ -17,13 +17,19 @@
 #include "gromacs/gmxpreprocess/grompp.h"
 #include "programs/mdrun/mdrun_main.h"
 #include "testutils/cmdlinetest.h"
-#include "testutils/integrationtests.h"
+#include "testutils/stdiohelper.h"
+#include "testutils/testfilemanager.h"
 #include "testutils/TextSplitter.h"
 #include "testutils/LogicallyErrorComparer.h"
 
 using namespace fda_analysis;
 
-namespace {
+namespace gmx
+{
+namespace test
+{
+namespace
+{
 
 struct TestDataStructure
 {
@@ -48,19 +54,17 @@ struct TestDataStructure
     std::string reference;
 };
 
-} // namespace anonymous
-
 //! Test fixture for FDA
 class FDAViewStress : public ::testing::WithParamInterface<TestDataStructure>,
-                      public ::gmx::test::IntegrationTestFixture
+                      public CommandLineTestBase
 {};
 
 //! Test body for FDA
 TEST_P(FDAViewStress, Basic)
 {
     std::string cwd = gmx::Path::getWorkingDirectory();
-    std::string dataPath = std::string(fileManager_.getInputDataDirectory()) + "/data";
-    std::string testPath = fileManager_.getTemporaryFilePath("/" + GetParam().testDirectory);
+    std::string dataPath = std::string(fileManager().getInputDataDirectory()) + "/data";
+    std::string testPath = fileManager().getTemporaryFilePath("/" + GetParam().testDirectory);
 
     std::string cmd = "mkdir -p " + testPath;
     ASSERT_FALSE(system(cmd.c_str()));
@@ -85,7 +89,10 @@ TEST_P(FDAViewStress, Basic)
 
     std::cout << caller.toString() << std::endl;
 
-    if (!GetParam().groupname.empty()) redirectStringToStdin((GetParam().groupname + "\n").c_str());
+    if (!GetParam().groupname.empty()) {
+        StdioTestHelper stdioHelper(&fileManager());
+        stdioHelper.redirectStringToStdin((GetParam().groupname + "\n").c_str());
+    }
 
     ASSERT_FALSE(gmx_fda_view_stress(caller.argc(), caller.argv()));
 
@@ -159,3 +166,7 @@ INSTANTIATE_TEST_CASE_P(AllFDAViewStress, FDAViewStress, ::testing::Values(
         "FDAViewStress.ref7.pdb"
     )
 ));
+
+} // namespace
+} // namespace test
+} // namespace gmx

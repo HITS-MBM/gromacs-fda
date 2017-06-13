@@ -17,13 +17,18 @@
 #include "gromacs/gmxpreprocess/grompp.h"
 #include "programs/mdrun/mdrun_main.h"
 #include "testutils/cmdlinetest.h"
-#include "testutils/integrationtests.h"
+#include "testutils/testfilemanager.h"
 #include "testutils/TextSplitter.h"
 #include "testutils/LogicallyErrorComparer.h"
 
 using namespace fda_analysis;
 
-namespace {
+namespace gmx
+{
+namespace test
+{
+namespace
+{
 
 struct TestDataStructure
 {
@@ -45,19 +50,17 @@ struct TestDataStructure
     std::string reference;
 };
 
-} // namespace anonymous
-
 //! Test fixture for FDA
 class FDAGetStress : public ::testing::WithParamInterface<TestDataStructure>,
-                     public ::gmx::test::IntegrationTestFixture
+                     public CommandLineTestBase
 {};
 
 //! Test body for FDA
 TEST_P(FDAGetStress, Basic)
 {
     std::string cwd = gmx::Path::getWorkingDirectory();
-    std::string dataPath = std::string(fileManager_.getInputDataDirectory()) + "/data";
-    std::string testPath = fileManager_.getTemporaryFilePath("/" + GetParam().testDirectory);
+    std::string dataPath = std::string(fileManager().getInputDataDirectory()) + "/data";
+    std::string testPath = fileManager().getTemporaryFilePath("/" + GetParam().testDirectory);
 
     std::string cmd = "mkdir -p " + testPath;
     ASSERT_FALSE(system(cmd.c_str()));
@@ -104,3 +107,7 @@ INSTANTIATE_TEST_CASE_P(AllFDAGetStress, FDAGetStress, ::testing::Values(
         "punctual_stress.psr"
     )
 ));
+
+} // namespace
+} // namespace test
+} // namespace gmx

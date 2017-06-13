@@ -14,6 +14,7 @@
 #include "gromacs/topology/mtop_util.h"
 #include "gromacs/utility/cstringutil.h"
 #include "gromacs/utility/fatalerror.h"
+#include "gromacs/utility/filestream.h"
 
 using namespace fda;
 
@@ -59,7 +60,8 @@ FDASettings::FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *mtop, bool
     const char *pf_file_in = opt2fn("-pfi", nfile, fnm);
     warninp_t wi = init_warning(FALSE, 0);
     int ninp;
-    t_inpfile *inp = read_inpfile(pf_file_in, &ninp, wi);
+    gmx::TextInputFile stream(pf_file_in);
+    t_inpfile *inp = read_inpfile(&stream, pf_file_in, &ninp, wi);
 
     // Check for deprecated keywords
     std::vector<std::pair<std::string, std::string>> deprecated_keywords{

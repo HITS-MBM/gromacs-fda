@@ -230,7 +230,7 @@ int gmx_fda_shortest_path(int argc, char *argv[])
                 }
             }
         }
-        close_trj(status);
+        close_trx(status);
     }
 
     if (opt2bSet("-pymol", NFILE, fnm)) gmx_ffclose(molecularTrajectoryFile);

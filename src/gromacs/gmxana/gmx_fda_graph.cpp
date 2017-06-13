@@ -235,7 +235,7 @@ int gmx_fda_graph(int argc, char *argv[])
                 }
             }
 		}
-		close_trj(status);
+		close_trx(status);
 	}
 
     if (opt2bSet("-pymol", NFILE, fnm)) gmx_ffclose(molecularTrajectoryFile);

@@ -7,18 +7,19 @@
 
 #include "gromacs/gmxana/fda/PDB.h"
 #include "gromacs/utility/smalloc.h"
-#include "testutils/integrationtests.h"
+#include "testutils/cmdlinetest.h"
+#include "testutils/testfilemanager.h"
 
 using namespace fda_analysis;
 
 //! Test fixture for FDA
-class PDBTest : public ::gmx::test::IntegrationTestFixture
+class PDBTest : public gmx::test::CommandLineTestBase
 {};
 
 TEST_F(PDBTest, Basic)
 {
 	std::vector<int> atomGroup{2, 12, 22};
-    PDB pdb(std::string(fileManager_.getInputDataDirectory()) + "/data/glycine_trimer/glycine_trimer.pdb", atomGroup);
+    PDB pdb(std::string(fileManager().getInputDataDirectory()) + "/data/glycine_trimer/glycine_trimer.pdb", atomGroup);
 
     rvec *newCoords;
     snew(newCoords, 30);

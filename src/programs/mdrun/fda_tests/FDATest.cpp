@@ -17,11 +17,16 @@
 #include "gromacs/gmxpreprocess/grompp.h"
 #include "programs/mdrun/mdrun_main.h"
 #include "testutils/cmdlinetest.h"
-#include "testutils/integrationtests.h"
+#include "testutils/testfilemanager.h"
 #include "testutils/TextSplitter.h"
 #include "testutils/LogicallyErrorComparer.h"
 
-namespace {
+namespace gmx
+{
+namespace test
+{
+namespace
+{
 
 struct TestDataStructure
 {
@@ -49,11 +54,9 @@ struct TestDataStructure
     bool must_die;
 };
 
-} // namespace anonymous
-
 //! Test fixture for FDA
 class FDATest : public ::testing::WithParamInterface<TestDataStructure>,
-                public ::gmx::test::IntegrationTestFixture
+                public CommandLineTestBase
 {};
 
 //! Test body for FDA
@@ -62,8 +65,8 @@ TEST_P(FDATest, Basic)
     std::cout << GetParam().testDirectory << std::endl;
 
     std::string cwd = gmx::Path::getWorkingDirectory();
-    std::string dataPath = std::string(fileManager_.getInputDataDirectory()) + "/data";
-    std::string testPath = fileManager_.getTemporaryFilePath("/" + GetParam().testDirectory);
+    std::string dataPath = std::string(fileManager().getInputDataDirectory()) + "/data";
+    std::string testPath = fileManager().getTemporaryFilePath("/" + GetParam().testDirectory);
 
     std::string cmd = "mkdir -p " + testPath;
     ASSERT_FALSE(system(cmd.c_str()));
@@ -161,3 +164,7 @@ INSTANTIATE_TEST_CASE_P(AllFDATests, FDATest, ::testing::Values(
     TestDataStructure("vwf_a2_domain_nframes10_pairwise_forces_scalar", "pfa", "pfr", "traj.xtc"),
     TestDataStructure("vwf_a2_domain_nframes10_punctual_stress", "psa", "psr", "traj.xtc")
 ));
+
+} // namespace
+} // namespace test
+} // namespace gmx

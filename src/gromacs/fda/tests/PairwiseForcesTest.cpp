@@ -8,12 +8,14 @@
 #include <iostream>
 #include <gtest/gtest.h>
 #include "gromacs/fda/PairwiseForces.h"
-#include "testutils/integrationtests.h"
+#include "testutils/cmdlinetest.h"
+#include "testutils/testfilemanager.h"
 
-namespace fda {
+namespace fda
+{
 
 //! Test fixture for PairwiseForces
-class PairwiseForcesTest : public ::gmx::test::IntegrationTestFixture
+class PairwiseForcesTest : public gmx::test::CommandLineTestBase
 {};
 
 TEST_F(PairwiseForcesTest, DefaultConstructor)
@@ -24,7 +26,7 @@ TEST_F(PairwiseForcesTest, DefaultConstructor)
 
 TEST_F(PairwiseForcesTest, ReadFile1)
 {
-    std::string data_path = std::string(fileManager_.getInputDataDirectory()) + "/data";
+    std::string data_path = std::string(fileManager().getInputDataDirectory()) + "/data";
 
     PairwiseForces<Force<real>> pf(data_path + "/test1.pfa");
 
@@ -44,7 +46,7 @@ TEST_F(PairwiseForcesTest, ReadFile1)
 
 TEST_F(PairwiseForcesTest, ReadFile2)
 {
-    std::string data_path = std::string(fileManager_.getInputDataDirectory()) + "/data";
+    std::string data_path = std::string(fileManager().getInputDataDirectory()) + "/data";
 
     PairwiseForces<Force<real>> pf(data_path + "/test2.pfa");
 
@@ -56,7 +58,7 @@ TEST_F(PairwiseForcesTest, ReadFile2)
 
 TEST_F(PairwiseForcesTest, ReadFile3)
 {
-    std::string data_path = std::string(fileManager_.getInputDataDirectory()) + "/data";
+    std::string data_path = std::string(fileManager().getInputDataDirectory()) + "/data";
 
     PairwiseForces<Force<Vector>> pf(data_path + "/test3.pfa");
 

@@ -200,7 +200,7 @@ int gmx_fda_view_stress(int argc, char *argv[])
 	            write_pdbfile(fp, title.c_str(), &top.atoms, coord_traj, ePBC, box, ' ', 0, NULL, TRUE);
 	            gmx_ffclose(fp);
 	        }
-	        close_trj(status);
+	        close_trx(status);
 		}
 	} else if (fn2ftp(opt2fn("-o", NFILE, fnm)) == efXPM) {
 
