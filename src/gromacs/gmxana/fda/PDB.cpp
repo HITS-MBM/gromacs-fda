@@ -9,6 +9,7 @@
 #include "gromacs/utility/fatalerror.h"
 #include "Index.h"
 #include <algorithm>
+#include <cmath>
 #include <iomanip>
 #include <iostream>
 #include <fstream>
@@ -76,7 +77,7 @@ void PDB::writePaths(std::string const& filename, std::vector< std::vector<int> 
     int numAtom = 1;
     int numNetwork = 0;
     std::vector<int>::const_iterator i1, i2;
-	int dim = sqrt(forceMatrix.size());
+	int dim = std::sqrt(forceMatrix.size());
 
     real currentForce;
     bool valueToLargeForPDB = false;
