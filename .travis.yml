@@ -5,12 +5,31 @@ matrix:
   include:
     - os: linux
       compiler: gcc
-      addons: *gcc49
+      addons: &gcc49
+        apt:
+          sources: ['ubuntu-toolchain-r-test']
+          packages: ['g++-4.9']
+      addons: &linux
+        apt:
+          packages:
+            - libfftw3-dev
+            - libopenmpi-dev
+            - libx11-dev
+            - zlib1g-dev
+            - libgsl0-dev
+            - libxml2-dev
+            - libblas-dev
+            - liblapack-dev
+            - libboost-dev
       env: BUILD_TYPE='Release' C_COMPILER='gcc-4.9' CXX_COMPILER='g++-4.9'
 
     - os: linux
       compiler: clang
-      addons: *clang38
+      addons: &clang38
+        apt:
+          sources: ['llvm-toolchain-precise-3.5', 'ubuntu-toolchain-r-test']
+          packages: ['clang-3.5']
+      addons: *linux
       env: BUILD_TYPE='Release' C_COMPILER='clang-3.8' CXX_COMPILER='clang++-3.8'
 
     - os: osx
@@ -18,18 +37,24 @@ matrix:
       compiler: clang
       env: BUILD_TYPE='Release' C_COMPILER='clang' CXX_COMPILER='clang++'
 
-before_install:
-  - echo "yes" | sudo add-apt-repository ppa:kalakris/cmake #https://github.com/travis-ci/travis-ci/issues/2212
-  - sudo apt-get update
-  - sudo apt-get install libfftw3-dev libopenmpi-dev libx11-dev zlib1g-dev libgsl0-dev libxml2-dev libblas-dev liblapack-dev libboost-dev cmake
-  # Install gtest
-  - wget https://github.com/google/googletest/archive/release-1.7.0.zip
-  - unzip release-1.7.0.zip
-  - cmake googletest-release-1.7.0
-  - cmake --build googletest-release-1.7.0
+install:
+  - DEPS_DIR="${TRAVIS_BUILD_DIR}/deps"
+  - mkdir -p ${DEPS_DIR} && cd ${DEPS_DIR}
+  - |
+    if [[ "${TRAVIS_OS_NAME}" == "linux" ]]; then
+      CMAKE_URL="http://www.cmake.org/files/v3.3/cmake-3.3.2-Linux-x86_64.tar.gz"
+      mkdir cmake && travis_retry wget --no-check-certificate --quiet -O - ${CMAKE_URL} | tar --strip-components=1 -xz -C cmake
+      export PATH=${DEPS_DIR}/cmake/bin:${PATH}
+      GTEST_URL="https://github.com/google/googletest/archive/release-1.7.0.tar.gz"
+      mkdir gtest && travis_retry wget --no-check-certificate --quiet -O - ${GTEST_URL} | tar --strip-components=1 -xz -C gtest
+      cmake gtest
+      make --build gtest
+      export GTEST_ROOT=${DEPS_DIR}/gtest
+    elif [[ "${TRAVIS_OS_NAME}" == "osx" ]]; then
+      which cmake || brew install cmake
+    fi
 
 script:
-  - export GTEST_ROOT=${TRAVIS_BUILD_DIR}/googletest-release-1.7.0
   - mkdir build \
     && pushd build \
     && cmake .. \
