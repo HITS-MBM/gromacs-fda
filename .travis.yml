@@ -48,25 +48,15 @@ install:
       GTEST_URL="https://github.com/google/googletest/archive/release-1.7.0.tar.gz"
       mkdir -p gtest && travis_retry wget --no-check-certificate --quiet -O - ${GTEST_URL} | tar --strip-components=1 -xz -C gtest
       cmake gtest
-      make --build gtest
+      cmake --build gtest
       export GTEST_ROOT=${DEPS_DIR}/gtest
     elif [[ "${TRAVIS_OS_NAME}" == "osx" ]]; then
       which cmake || brew install cmake
     fi
 
 script:
-  - mkdir -p build && pushd build
-  - cmake -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
-          -DCMAKE_C_COMPILER=${C_COMPILER} \
-          -DCMAKE_CXX_COMPILER=${CXX_COMPILER} \
-          -DGMX_BUILD_MDRUN_ONLY=OFF \
-          -DGMX_BUILD_FDA=ON \
-          -DGMX_DEFAULT_SUFFIX=OFF \
-          -DGMX_BINARY_SUFFIX=_fda \
-          -DGMX_SIMD=NONE \
-          -DGMX_BUILD_UNITTESTS=ON \
-          -DGMX_BUILD_OWN_FFTW=ON \
-          ..
+  - mkdir -p build && cd build
+  - cmake -DCMAKE_BUILD_TYPE=${BUILD_TYPE} -DCMAKE_C_COMPILER=${C_COMPILER} -DCMAKE_CXX_COMPILER=${CXX_COMPILER} -DGMX_BUILD_MDRUN_ONLY=OFF -DGMX_BUILD_FDA=ON -DGMX_DEFAULT_SUFFIX=OFF -DGMX_BINARY_SUFFIX=_fda -DGMX_SIMD=NONE -DGMX_BUILD_UNITTESTS=ON -DGMX_BUILD_OWN_FFTW=ON ..
   - make -j4
   - make check
 
