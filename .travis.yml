@@ -18,7 +18,7 @@ matrix:
             - libxml2-dev
             - libblas-dev
             - liblapack-dev
-            - libboost-dev
+            - libboost-graph-dev
       env: BUILD_TYPE='Release' C_COMPILER='gcc-4.9' CXX_COMPILER='g++-4.9'
 
     - os: linux
@@ -41,7 +41,7 @@ matrix:
             - libxml2-dev
             - libblas-dev
             - liblapack-dev
-            - libboost-dev
+            - libboost-graph-dev
       env: BUILD_TYPE='Release' C_COMPILER='clang-3.8' CXX_COMPILER='clang++-3.8'
 
     - os: linux
@@ -53,6 +53,11 @@ matrix:
       osx_image: xcode8
       compiler: clang
       env: BUILD_TYPE='Release' C_COMPILER='clang' CXX_COMPILER='clang++'
+
+    - os: osx
+      osx_image: xcode8
+      compiler: clang
+      env: BUILD_TYPE='Debug' C_COMPILER='clang' CXX_COMPILER='clang++'
 
 install:
   - DEPS_DIR="${TRAVIS_BUILD_DIR}/deps"
