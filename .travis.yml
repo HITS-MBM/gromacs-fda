@@ -32,7 +32,7 @@ matrix:
         apt:
           sources: ['llvm-toolchain-precise-3.5', 'ubuntu-toolchain-r-test']
           packages:
-            - clang-3.5
+            - clang-3.8
             - libfftw3-dev
             - libopenmpi-dev
             - libx11-dev
@@ -43,6 +43,11 @@ matrix:
             - liblapack-dev
             - libboost-dev
       env: BUILD_TYPE='Release' C_COMPILER='clang-3.8' CXX_COMPILER='clang++-3.8'
+
+    - os: linux
+      compiler: gcc
+      addons: *clang38
+      env: BUILD_TYPE='Debug' C_COMPILER='clang-3.8' CXX_COMPILER='clang++-3.8'
 
     - os: osx
       osx_image: xcode8
@@ -67,10 +72,7 @@ install:
     fi
 
 script:
-  - mkdir -p build && cd build
-  - cmake -DCMAKE_BUILD_TYPE=${BUILD_TYPE} -DCMAKE_C_COMPILER=${C_COMPILER} -DCMAKE_CXX_COMPILER=${CXX_COMPILER} -DGMX_BUILD_MDRUN_ONLY=OFF -DGMX_BUILD_FDA=ON -DGMX_DEFAULT_SUFFIX=OFF -DGMX_BINARY_SUFFIX=_fda -DGMX_SIMD=NONE -DGMX_BUILD_UNITTESTS=ON -DGMX_BUILD_OWN_FFTW=ON ..
-  - make -j4
-  - make check
+  - mkdir -p build && cd build && cmake -DCMAKE_BUILD_TYPE=${BUILD_TYPE} -DCMAKE_C_COMPILER=${C_COMPILER} -DCMAKE_CXX_COMPILER=${CXX_COMPILER} -DGMX_BUILD_MDRUN_ONLY=OFF -DGMX_BUILD_FDA=ON -DGMX_DEFAULT_SUFFIX=OFF -DGMX_BINARY_SUFFIX=_fda -DGMX_SIMD=NONE -DGMX_BUILD_UNITTESTS=ON -DGMX_BUILD_OWN_FFTW=ON .. && make -j4 && make check
 
 notifications:
   recipients:
