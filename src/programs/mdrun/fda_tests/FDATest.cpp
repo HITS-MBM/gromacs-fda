@@ -97,16 +97,16 @@ TEST_P(FDATest, Basic)
     std::cout << "command: " << callRerun.toString() << std::endl;
 
     if (GetParam().must_die) {
-      EXPECT_EXIT(gmx_mdrun(callRerun.argc(), callRerun.argv()), ::testing::ExitedWithCode(1), "");
+        EXPECT_EXIT(gmx_mdrun(callRerun.argc(), callRerun.argv()), ::testing::ExitedWithCode(1), "");
     } else {
         ASSERT_FALSE(gmx_mdrun(callRerun.argc(), callRerun.argv()));
-        
-        const double error_factor = 1e2;
+
+        const double error_factor = 1e4;
         const bool weight_by_magnitude = true;
         const bool ignore_sign = true;
-        
+
         LogicallyEqualComparer<weight_by_magnitude, ignore_sign> comparer(error_factor);
-        
+
         // Check results
         if (!GetParam().atomFileExtension.empty()) {
             if (GetParam().atomFileExtension == "pfa")
@@ -114,8 +114,8 @@ TEST_P(FDATest, Basic)
                     EXPECT_TRUE((fda::PairwiseForces<fda::Force<fda::Vector>>(atomFilename).equal(
                         fda::PairwiseForces<fda::Force<fda::Vector>>(atomReference), comparer)));
                 else
-                        EXPECT_TRUE((fda::PairwiseForces<fda::Force<real>>(atomFilename).equal(
-                            fda::PairwiseForces<fda::Force<real>>(atomReference), comparer)));
+                    EXPECT_TRUE((fda::PairwiseForces<fda::Force<real>>(atomFilename).equal(
+                        fda::PairwiseForces<fda::Force<real>>(atomReference), comparer)));
             else
                 EXPECT_TRUE((equal(TextSplitter(atomFilename), TextSplitter(atomReference), comparer)));
         }
@@ -125,12 +125,11 @@ TEST_P(FDATest, Basic)
                     EXPECT_TRUE((fda::PairwiseForces<fda::Force<fda::Vector>>(residueFilename).equal(
                         fda::PairwiseForces<fda::Force<fda::Vector>>(residueReference), comparer)));
                 else
-                        EXPECT_TRUE((fda::PairwiseForces<fda::Force<real>>(residueFilename).equal(
+                    EXPECT_TRUE((fda::PairwiseForces<fda::Force<real>>(residueFilename).equal(
                         fda::PairwiseForces<fda::Force<real>>(residueReference), comparer)));
             else
                 EXPECT_TRUE((equal(TextSplitter(residueFilename), TextSplitter(residueReference), comparer)));
         }
-        
         gmx_chdir(cwd.c_str());
     }
 }

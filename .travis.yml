@@ -45,7 +45,7 @@ matrix:
       env: BUILD_TYPE='Release' C_COMPILER='clang-3.8' CXX_COMPILER='clang++-3.8'
 
     - os: linux
-      compiler: gcc
+      compiler: clang
       addons: *clang38
       env: BUILD_TYPE='Debug' C_COMPILER='clang-3.8' CXX_COMPILER='clang++-3.8'
 
