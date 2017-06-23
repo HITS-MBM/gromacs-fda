@@ -8,10 +8,8 @@ matrix:
       addons: &gcc49
         apt:
           sources: ['ubuntu-toolchain-r-test']
-          packages: ['g++-4.9']
-      addons: &linux
-        apt:
           packages:
+            - g++-4.9
             - libfftw3-dev
             - libopenmpi-dev
             - libx11-dev
@@ -24,12 +22,26 @@ matrix:
       env: BUILD_TYPE='Release' C_COMPILER='gcc-4.9' CXX_COMPILER='g++-4.9'
 
     - os: linux
+      compiler: gcc
+      addons: *gcc49
+      env: BUILD_TYPE='Debug' C_COMPILER='gcc-4.9' CXX_COMPILER='g++-4.9'
+
+    - os: linux
       compiler: clang
       addons: &clang38
         apt:
           sources: ['llvm-toolchain-precise-3.5', 'ubuntu-toolchain-r-test']
-          packages: ['clang-3.5']
-      addons: *linux
+          packages:
+            - clang-3.5
+            - libfftw3-dev
+            - libopenmpi-dev
+            - libx11-dev
+            - zlib1g-dev
+            - libgsl0-dev
+            - libxml2-dev
+            - libblas-dev
+            - liblapack-dev
+            - libboost-dev
       env: BUILD_TYPE='Release' C_COMPILER='clang-3.8' CXX_COMPILER='clang++-3.8'
 
     - os: osx
