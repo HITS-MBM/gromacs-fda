@@ -46,4 +46,11 @@ TEST(LogicallyErrorComparerTest, SpecialTest2)
     EXPECT_TRUE(comparer(-4.506144e+00, -4.505985e+00));
 }
 
+TEST(LogicallyErrorComparerTest, SpecialTest3)
+{
+    LogicallyEqualComparer<true, true> comparer(1e4);
+
+    EXPECT_TRUE(comparer(5.264869e-01, 5.262685e-01));
+}
+
 } // namespace fda
