@@ -196,11 +196,11 @@ FrameType getFrameTypeAndSkipValue(std::string const& frameString, int& value)
 	} else {
 	    frameType = EnumParser<FrameType>()(firstToken);
 		value = std::atoi(iterCur->c_str());
-	}
 
-	// Abort if more than two tokens are found
-    ++iterCur;
-	if (iterCur != iterEnd) gmx_fatal(FARGS, "Error in frame option.");
+		// Abort if more than two tokens are found
+	    ++iterCur;
+		if (iterCur != iterEnd) gmx_fatal(FARGS, "Error in frame option.");
+	}
 
 	if (frameType == ALL and value != 1) gmx_fatal(FARGS, "Frame type \"all\" does not expect a number.");
 
