@@ -1,7 +1,7 @@
 Force Distribution Analysis (FDA)
 =================================
 
-[![Build Status](https://travis-ci.org/HITS-MBM/gromacs-fda.png)](https://travis-ci.org/HITS-MBM/gromacs-fda)
+[![Build Status](https://api.travis-ci.org/HITS-MBM/gromacs-fda.svg?branch=master-fda)](https://travis-ci.org/HITS-MBM/gromacs-fda)
 
 Background
 ----------
