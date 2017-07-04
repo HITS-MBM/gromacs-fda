@@ -60,7 +60,7 @@ pipeline {
           alwaysLinkToLastBuild: false,
           keepAll: true,
           reportName: 'Doxygen',
-          reportDir: 'build/docs/html/doxygen/html-full',
+          reportDir: 'build/doxygen/html-full',
           reportFiles: 'index.xhtml'
         ])
       }
