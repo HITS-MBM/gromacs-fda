@@ -53,7 +53,7 @@ pipeline {
       steps {
         sh '''
           cd build
-          make doc-all
+          make doxygen-all
         '''
         publishHTML( target: [
           allowMissing: false,
