@@ -1,7 +1,8 @@
 Force Distribution Analysis (FDA)
 =================================
+Jenkins: [![Build Status](https://jenkins.h-its.org/buildStatus/icon?job=doserbd/HITS-MBM/gromacs-fda/master-fda)](https://jenkins.h-its.org/job/doserbd/job/HITS-MBM/job/gromacs-fda/job/master-fda/)
 
-[![Build Status](https://api.travis-ci.org/HITS-MBM/gromacs-fda.svg?branch=master-fda)](https://travis-ci.org/HITS-MBM/gromacs-fda)
+Travis: [![Build Status](https://api.travis-ci.org/HITS-MBM/gromacs-fda.svg?branch=master-fda)](https://travis-ci.org/HITS-MBM/gromacs-fda)
 
 Background
 ----------
