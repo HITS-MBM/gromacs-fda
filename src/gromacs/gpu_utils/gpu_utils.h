@@ -50,8 +50,8 @@
 #include "gromacs/gpu_utils/gpu_macros.h"
 #include "gromacs/utility/basedefinitions.h"
 
+struct gmx_device_info_t;
 struct gmx_gpu_info_t;
-struct gmx_gpu_opt_t;
 
 namespace gmx
 {
@@ -76,22 +76,22 @@ int detect_gpus(struct gmx_gpu_info_t *GPU_FUNC_ARGUMENT(gpu_info), char *GPU_FU
 
 /*! \brief Return whether the GPU with given \c index is compatible, ie suitable for use.
  *
- * \param[in]   gpu_info    pointer to structure holding GPU information
+ * \param[in]   gpu_info    Information about detected GPUs
  * \param[in]   index       index of GPU to ask about
  * \returns                 Whether the GPU is compatible.
  */
 GPU_FUNC_QUALIFIER
-bool isGpuCompatible(const gmx_gpu_info_t *GPU_FUNC_ARGUMENT(gpu_info),
+bool isGpuCompatible(const gmx_gpu_info_t &GPU_FUNC_ARGUMENT(gpu_info),
                      int GPU_FUNC_ARGUMENT(index)) GPU_FUNC_TERM_WITH_RETURN(false)
 
 /*! \brief Return a string describing how compatible the GPU with given \c index is.
  *
- * \param[in]   gpu_info    pointer to structure holding GPU information
+ * \param[in]   gpu_info    Information about detected GPUs
  * \param[in]   index       index of GPU to ask about
  * \returns                 A null-terminated C string describing the compatibility status, useful for error messages.
  */
 GPU_FUNC_QUALIFIER
-const char *getGpuCompatibilityDescription(const gmx_gpu_info_t *GPU_FUNC_ARGUMENT(gpu_info),
+const char *getGpuCompatibilityDescription(const gmx_gpu_info_t &GPU_FUNC_ARGUMENT(gpu_info),
                                            int GPU_FUNC_ARGUMENT(index)) GPU_FUNC_TERM_WITH_RETURN("")
 
 /*! \brief Frees the gpu_dev and dev_use array fields of \p gpu_info.
@@ -101,43 +101,48 @@ const char *getGpuCompatibilityDescription(const gmx_gpu_info_t *GPU_FUNC_ARGUME
 GPU_FUNC_QUALIFIER
 void free_gpu_info(const struct gmx_gpu_info_t *GPU_FUNC_ARGUMENT(gpu_info)) GPU_FUNC_TERM
 
-/*! \brief Initializes the GPU with the given index.
+/*! \brief Initializes the GPU described by \c deviceInfo.
  *
- * The varible \p mygpu is the index of the GPU to initialize in the
- * gpu_info.gpu_dev array.
+ * TODO Doxygen complains about these - probably a Doxygen bug, since
+ * the patterns here are the same as elsewhere in this header.
  *
- * \param      mdlog        log file to write to
- * \param[in]  mygpu        index of the GPU to initialize
- * \param[out] result_str   the message related to the error that occurred
- *                          during the initialization (if there was any).
- * \param[in] gpu_info      GPU info of all detected devices in the system.
- * \param[in] gpu_opt       options for using the GPUs in gpu_info
- * \returns                 true if no error occurs during initialization.
+ *  param[in]    mdlog        log file to write to
+ *  param[in]    rank         MPI rank of this process (for error output)
+ * \param[inout] deviceInfo   device info of the GPU to initialize
+ *
+ * Issues a fatal error for any critical errors that occur during
+ * initialization.
  */
 GPU_FUNC_QUALIFIER
-gmx_bool init_gpu(const gmx::MDLogger &GPU_FUNC_ARGUMENT(mdlog),
-                  int GPU_FUNC_ARGUMENT(mygpu),
-                  char *GPU_FUNC_ARGUMENT(result_str),
-                  const struct gmx_gpu_info_t *GPU_FUNC_ARGUMENT(gpu_info),
-                  const gmx_gpu_opt_t *GPU_FUNC_ARGUMENT(gpu_opt)) GPU_FUNC_TERM_WITH_RETURN(-1)
+void init_gpu(const gmx::MDLogger &GPU_FUNC_ARGUMENT(mdlog),
+              int GPU_FUNC_ARGUMENT(rank),
+              gmx_device_info_t *GPU_FUNC_ARGUMENT(deviceInfo)) GPU_FUNC_TERM
 
 /*! \brief Frees up the CUDA GPU used by the active context at the time of calling.
  *
  * The context is explicitly destroyed and therefore all data uploaded to the GPU
  * is lost. This should only be called when none of this data is required anymore.
  *
- * \param[in]  mygpu        index of the GPU clean up for
+ * \param[in]  deviceInfo   device info of the GPU to clean up for
  * \param[out] result_str   the message related to the error that occurred
  *                          during the initialization (if there was any).
- * \param[in] gpu_info      GPU info of all detected devices in the system.
- * \param[in] gpu_opt       options for using the GPUs in gpu_info
+ *
  * \returns                 true if no error occurs during the freeing.
  */
 CUDA_FUNC_QUALIFIER
-gmx_bool free_cuda_gpu(int CUDA_FUNC_ARGUMENT(mygpu),
-                       char *CUDA_FUNC_ARGUMENT(result_str),
-                       const gmx_gpu_info_t *CUDA_FUNC_ARGUMENT(gpu_info),
-                       const gmx_gpu_opt_t *CUDA_FUNC_ARGUMENT(gpu_opt)) CUDA_FUNC_TERM_WITH_RETURN(TRUE)
+gmx_bool free_cuda_gpu(const gmx_device_info_t *CUDA_FUNC_ARGUMENT(deviceInfo),
+                       char *CUDA_FUNC_ARGUMENT(result_str)) CUDA_FUNC_TERM_WITH_RETURN(TRUE)
+
+/*! \brief Return a pointer to the device info for \c deviceId
+ *
+ * \param[in] gpu_info      GPU info of all detected devices in the system.
+ * \param[in] deviceId      ID for the GPU device requested.
+ *
+ * \returns                 Pointer to the device info for \c deviceId.
+ */
+GPU_FUNC_QUALIFIER
+gmx_device_info_t *getDeviceInfo(const gmx_gpu_info_t &GPU_FUNC_ARGUMENT(gpu_info),
+                                 int GPU_FUNC_ARGUMENT(deviceId)) GPU_FUNC_TERM_WITH_RETURN(NULL)
 
 /*! \brief Returns the device ID of the CUDA GPU currently in use.
  *
@@ -148,38 +153,6 @@ gmx_bool free_cuda_gpu(int CUDA_FUNC_ARGUMENT(mygpu),
 CUDA_FUNC_QUALIFIER
 int get_current_cuda_gpu_device_id(void) CUDA_FUNC_TERM_WITH_RETURN(-1)
 
-/*! \brief Returns an identifier for the GPU with a given index into the array of used GPUs.
- *
- * Getter function which, given an index into the array of GPUs in use
- * (dev_use) -- typically an MPI rank --, returns an identifier of the
- * respective GPU.
- *
- * \param[in]    gpu_info   Pointer to structure holding GPU information
- * \param[in]    gpu_opt    Pointer to structure holding GPU options
- * \param[in]    idx        Index into the array of used GPUs
- * \returns                 device ID of the requested GPU
- */
-GPU_FUNC_QUALIFIER
-int get_gpu_device_id(const struct gmx_gpu_info_t *GPU_FUNC_ARGUMENT(gpu_info),
-                      const gmx_gpu_opt_t *GPU_FUNC_ARGUMENT(gpu_opt),
-                      int GPU_FUNC_ARGUMENT(idx)) GPU_FUNC_TERM_WITH_RETURN(-1)
-
-/*! \brief Returns the name for the OpenCL GPU with a given index into the array of used GPUs.
- *
- * Getter function which, given an index into the array of GPUs in use
- * (dev_use) -- typically a tMPI/MPI rank --, returns the device name for the
- * respective OpenCL GPU.
- *
- * \param[in]    gpu_info   Pointer to structure holding GPU information
- * \param[in]    gpu_opt    Pointer to structure holding GPU options
- * \param[in]    idx        Index into the array of used GPUs
- * \returns                 A string with the name of the requested OpenCL GPU
- */
-OPENCL_FUNC_QUALIFIER
-char* get_ocl_gpu_device_name(const struct gmx_gpu_info_t *OPENCL_FUNC_ARGUMENT(gpu_info),
-                              const gmx_gpu_opt_t  *OPENCL_FUNC_ARGUMENT(gpu_opt),
-                              int                  OPENCL_FUNC_ARGUMENT(idx)) OPENCL_FUNC_TERM_WITH_RETURN(NULL)
-
 /*! \brief Formats and returns a device information string for a given GPU.
  *
  * Given an index *directly* into the array of available GPUs (gpu_dev)
@@ -187,12 +160,12 @@ char* get_ocl_gpu_device_name(const struct gmx_gpu_info_t *OPENCL_FUNC_ARGUMENT(
  * ID, name, compute capability, and detection status.
  *
  * \param[out]  s           pointer to output string (has to be allocated externally)
- * \param[in]   gpu_info    pointer to structure holding GPU information
+ * \param[in]   gpu_info    Information about detected GPUs
  * \param[in]   index       an index *directly* into the array of available GPUs
  */
 GPU_FUNC_QUALIFIER
 void get_gpu_device_info_string(char *GPU_FUNC_ARGUMENT(s),
-                                const struct gmx_gpu_info_t *GPU_FUNC_ARGUMENT(gpu_info),
+                                const struct gmx_gpu_info_t &GPU_FUNC_ARGUMENT(gpu_info),
                                 int GPU_FUNC_ARGUMENT(index)) GPU_FUNC_TERM
 
 /*! \brief Returns the size of the gpu_dev_info struct.

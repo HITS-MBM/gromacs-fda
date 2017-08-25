@@ -48,7 +48,7 @@
 #include "gromacs/utility/basedefinitions.h"
 #include "gromacs/utility/real.h"
 
-struct IForceProvider;
+struct ForceProviders;
 
 /* Abstract type for PME that is defined only in the routine that use them. */
 struct gmx_genborn_t;
@@ -60,8 +60,6 @@ struct t_forcetable;
 struct t_nblist;
 struct t_nblists;
 struct t_QMMMrec;
-struct gmx_hw_info_t;
-struct gmx_gpu_opt_t;
 
 #ifdef __cplusplus
 extern "C" {
@@ -175,8 +173,6 @@ struct t_forcerec {
     rvec                        posres_com;
     rvec                        posres_comB;
 
-    const struct gmx_hw_info_t *hwinfo;
-    const struct gmx_gpu_opt_t *gpu_opt;
     gmx_bool                    use_simd_kernels;
 
     /* Interaction for calculated in kernels. In many cases this is similar to
@@ -442,7 +438,7 @@ struct t_forcerec {
     int                         nthread_ewc;
     struct ewald_corr_thread_t *ewc_t;
 
-    struct IForceProvider      *efield;
+    struct ForceProviders      *forceProviders;
 };
 
 /* Important: Starting with Gromacs-4.6, the values of c6 and c12 in the nbfp array have

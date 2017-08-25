@@ -44,7 +44,7 @@
 #include "gromacs/mdtypes/forcerec.h"
 #include "gromacs/timing/wallcycle.h"
 
-struct IForceProvider;
+struct gmx_device_info_t;
 struct t_commrec;
 struct t_fcdata;
 struct t_filenm;
@@ -100,7 +100,6 @@ void init_interaction_const_tables(FILE                   *fp,
  * \param[in]  mdlog       File for printing
  * \param[out] fr          The forcerec
  * \param[in]  fcd         Force constant data
- * \param[in]  forceProviders  Handle to modules providing forces
  * \param[in]  ir          Inputrec structure
  * \param[in]  mtop        Molecular topology
  * \param[in]  cr          Communication structures
@@ -109,6 +108,7 @@ void init_interaction_const_tables(FILE                   *fp,
  * \param[in]  tabpfn      Table potential file for pair interactions
  * \param[in]  tabbfnm     Table potential files for bonded interactions
  * \param[in]  nbpu_opt    Nonbonded Processing Unit (GPU/CPU etc.)
+ * \param[in]  deviceInfo  Info about GPU device to use for short-ranged work
  * \param[in]  bNoSolvOpt  Do not use solvent optimization
  * \param[in]  print_force Print forces for atoms with force >= print_force
  */
@@ -116,7 +116,6 @@ void init_forcerec(FILE                   *fplog,
                    const gmx::MDLogger    &mdlog,
                    t_forcerec             *fr,
                    t_fcdata               *fcd,
-                   IForceProvider         *forceProviders,
                    const t_inputrec       *ir,
                    const gmx_mtop_t       *mtop,
                    const t_commrec        *cr,
@@ -125,6 +124,7 @@ void init_forcerec(FILE                   *fplog,
                    const char             *tabpfn,
                    const t_filenm         *tabbfnm,
                    const char             *nbpu_opt,
+                   gmx_device_info_t      *deviceInfo,
                    gmx_bool                bNoSolvOpt,
                    real                    print_force);
 

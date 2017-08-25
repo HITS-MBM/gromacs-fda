@@ -557,6 +557,21 @@ floating operations at once. These non-bonded kernels
 are much faster than the kernels used in the group scheme for most
 types of systems, particularly on newer hardware.
 
+Additionally, when the list buffer is determined automatically as
+described below, we also apply dynamic pair list pruning. The pair list
+can be constructed infrequently, but that can lead to a lot of pairs
+in the list that are outside the cut-off range for all or most of
+the life time of this pair list. Such pairs can be pruned out by
+applying a cluster-pair kernel that only determines which clusters
+are in range. Because of the way the non-bonded data is regularized
+in {\gromacs}, this kernel is an order of magnitude faster than
+the search and the interaction kernel. On the GPU this pruning is
+overlapped with the integration on the CPU, so it is free in most
+cases. Therefore we can prune every 4-10 integration steps with
+little overhead and significantly reduce the number of cluster pairs
+in the interaction kernel. This procedure is applied automatically,
+unless the user set the pair-list buffer size manually.
+
 \ifthenelse{\equal{\gmxlite}{1}}{}{
 \subsubsection{Energy drift and pair-list buffering}
 For a canonical (NVT) ensemble, the average energy error caused by
@@ -574,7 +589,7 @@ a Gaussian $G(x)$
 of zero mean and variance $\sigma^2 = t^2 k_B T/m$. For the distance
 between two particles, the variance changes to $\sigma^2 = \sigma_{12}^2 =
 t^2 k_B T(1/m_1+1/m_2)$. Note that in practice particles usually
-interact with other particles over time $t$ and therefore the real
+interact with (bump into) other particles over time $t$ and therefore the real
 displacement distribution is much narrower.  Given a non-bonded
 interaction cut-off distance of $r_c$ and a pair-list cut-off
 $r_\ell=r_c+r_b$ for $r_b$ the Verlet buffer size, we can then
@@ -2410,12 +2425,12 @@ Then, {\tt mdrun} computes the Hessian.  {\bf Note} that for generating
 the run input file, one should use the minimized conformation from
 the full precision trajectory file, as the structure file is not
 accurate enough.
-{\tt \normindex{g_nmeig}} does the diagonalization and
+{\tt \normindex{gmx nmeig}} does the diagonalization and
 the sorting of the normal modes according to their frequencies.
-Both {\tt mdrun} and {\tt g_nmeig} should be run in double precision.
-The normal modes can be analyzed with the program {\tt g_anaeig}.
+Both {\tt mdrun} and {\tt gmx nmeig} should be run in double precision.
+The normal modes can be analyzed with the program {\tt gmx anaeig}.
 Ensembles of structures at any temperature and for any subset of
-normal modes can be generated with {\tt \normindex{g_nmens}}.
+normal modes can be generated with {\tt \normindex{gmx nmens}}.
 An overview of normal-mode analysis and the related principal component
 analysis (see \secref{covanal}) can be found in~\cite{Hayward95b}.
 % } % Brace matches ifthenelse test for gmxlite
@@ -2560,7 +2575,7 @@ by an appropriate numerical integration procedure.
 
 {\gromacs} now also supports the use of Bennett's Acceptance Ratio~\cite{Bennett1976}
 for calculating values of $\Delta$G for transformations from state A to state B using
-the program {\tt \normindex{g_bar}}. The same data can also be used to calculate free
+the program {\tt \normindex{gmx bar}}. The same data can also be used to calculate free
 energies using MBAR~\cite{Shirts2008}, though the analysis currently requires external tools from
 the external {\tt pymbar} package, at https://SimTK.org/home/pymbar.
 
@@ -2701,8 +2716,8 @@ of a region of phase space \cite{Lange2006a}.
 
 The procedure for essential dynamics sampling or flooding is as follows.
 First, the eigenvectors and eigenvalues need to be determined
-using covariance analysis ({\tt g_covar})
-or normal-mode analysis ({\tt g_nmeig}).
+using covariance analysis ({\tt gmx covar})
+or normal-mode analysis ({\tt gmx nmeig}).
 Then, this information is fed into {\tt make_edi},
 which has many options for selecting vectors and setting parameters,
 see {\tt gmx make_edi -h}.

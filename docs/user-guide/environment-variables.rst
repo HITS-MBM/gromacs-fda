@@ -195,8 +195,6 @@ Performance and Run Control
 ``GMX_EMULATE_GPU``
         emulate GPU runs by using algorithmically equivalent CPU reference code instead of
         GPU-accelerated functions. As the CPU code is slow, it is intended to be used only for debugging purposes.
-        The behavior is automatically triggered if non-bonded calculations are turned off using ``GMX_NO_NONBONDED``
-        case in which the non-bonded calculations will not be called, but the CPU-GPU transfer will also be skipped.
 
 ``GMX_ENX_NO_FATAL``
         disable exiting upon encountering a corrupted frame in an :ref:`edr`
@@ -284,6 +282,7 @@ Performance and Run Control
         skip non-bonded calculations; can be used to estimate the possible
         performance gain from adding a GPU accelerator to the current hardware setup -- assuming that this is
         fast enough to complete the non-bonded calculations while the CPU does bonded force and PME computation.
+        Freezing the particles will be required to stop the system blowing up.
 
 ``GMX_NO_PULLVIR``
         when set, do not add virial contribution to COM pull forces.
@@ -352,9 +351,14 @@ Performance and Run Control
 ``MDRUN``
         the :ref:`gmx mdrun` command used by :ref:`gmx tune_pme`.
 
-``GMX_NSTLIST``
-        sets the default value for :mdp:`nstlist`, preventing it from being tuned during
-        :ref:`gmx mdrun` startup when using the Verlet cutoff scheme.
+``GMX_DISABLE DYNAMICPRUNING``
+        disables dynamic pair-list pruning. Note that :ref:`gmx mdrun` will
+        still tune nstlist to the optimal value with dynamic pruning. Thus
+        for good performance the -nstlist option should be used.
+
+``GMX_NSTLIST_DYNAMICPRUNING``
+        overrides the dynamic pair-list pruning interval chosen heuristically
+        by mdrun. Values should be between 1 and :mdp:`nstlist - 1`.
 
 ``GMX_USE_TREEREDUCE``
         use tree reduction for nbnxn force reduction. Potentially faster for large number of

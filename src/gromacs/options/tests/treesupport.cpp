@@ -43,6 +43,7 @@
 
 #include "gromacs/options/treesupport.h"
 
+#include <string>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -57,6 +58,7 @@
 #include "gromacs/utility/keyvaluetreebuilder.h"
 #include "gromacs/utility/keyvaluetreeserializer.h"
 #include "gromacs/utility/stringstream.h"
+#include "gromacs/utility/stringutil.h"
 #include "gromacs/utility/textwriter.h"
 
 #include "testutils/refdata.h"
@@ -146,6 +148,76 @@ TEST(TreeValueSupportAssignErrorTest, HandlesInvalidValue)
     gmx::KeyValueTreeObject  tree = builder.build();
 
     EXPECT_THROW_GMX(gmx::assignOptionsFromKeyValueTree(&options, tree, nullptr),
+                     gmx::InvalidInputError);
+}
+
+/********************************************************************
+ * Tests for checkForUnknownOptionsInKeyValueTree()
+ */
+
+class TreeValueSupportCheckTest : public ::testing::Test
+{
+    public:
+        TreeValueSupportCheckTest()
+        {
+            auto sec1 = options_.addSection(gmx::OptionSection("s"));
+            auto sec2 = options_.addSection(gmx::OptionSection("r"));
+            options_.addOption(gmx::IntegerOption("a"));
+            sec1.addOption(gmx::IntegerOption("a"));
+            sec1.addOption(gmx::IntegerOption("b"));
+            sec2.addOption(gmx::IntegerOption("b"));
+        }
+
+        gmx::Options              options_;
+        gmx::KeyValueTreeBuilder  builder_;
+};
+
+TEST_F(TreeValueSupportCheckTest, HandlesEmpty)
+{
+    EXPECT_NO_THROW_GMX(gmx::checkForUnknownOptionsInKeyValueTree(builder_.build(), options_));
+}
+
+TEST_F(TreeValueSupportCheckTest, HandlesMatchingTree)
+{
+    auto                     root = builder_.rootObject();
+    root.addValue<int>("a", 1);
+    auto                     obj1 = root.addObject("s");
+    obj1.addValue<int>("a", 1);
+    obj1.addValue<int>("b", 2);
+    auto                     obj2 = root.addObject("r");
+    obj2.addValue<int>("b", 3);
+
+    EXPECT_NO_THROW_GMX(gmx::checkForUnknownOptionsInKeyValueTree(builder_.build(), options_));
+}
+
+TEST_F(TreeValueSupportCheckTest, HandlesSmallerTree1)
+{
+    auto                     root = builder_.rootObject();
+    root.addValue<int>("a", 1);
+    auto                     obj1 = root.addObject("s");
+    obj1.addValue<int>("b", 2);
+
+    EXPECT_NO_THROW_GMX(gmx::checkForUnknownOptionsInKeyValueTree(builder_.build(), options_));
+}
+
+TEST_F(TreeValueSupportCheckTest, HandlesSmallerTree2)
+{
+    auto                     root = builder_.rootObject();
+    auto                     obj1 = root.addObject("s");
+    obj1.addValue<int>("a", 1);
+    obj1.addValue<int>("b", 2);
+
+    EXPECT_NO_THROW_GMX(gmx::checkForUnknownOptionsInKeyValueTree(builder_.build(), options_));
+}
+
+TEST_F(TreeValueSupportCheckTest, DetectsExtraValue)
+{
+    auto                     root = builder_.rootObject();
+    auto                     obj2 = root.addObject("r");
+    obj2.addValue<int>("a", 1);
+    obj2.addValue<int>("b", 3);
+
+    EXPECT_THROW_GMX(gmx::checkForUnknownOptionsInKeyValueTree(builder_.build(), options_),
                      gmx::InvalidInputError);
 }
 
@@ -240,16 +312,55 @@ class TreeValueSupportTest : public ::testing::Test
             checker.checkKeyValueTreeObject(tree, "Adjusted");
             // Check that assignment works.
             ASSERT_NO_THROW_GMX(gmx::assignOptionsFromKeyValueTree(&options_, tree, nullptr));
+            // Check that serialization works.
+            {
+                std::vector<char>             buffer = serializeTree(tree);
+                gmx::InMemoryDeserializer     deserializer(buffer);
+                gmx::KeyValueTreeObject       output
+                    = gmx::deserializeKeyValueTree(&deserializer);
+                SCOPED_TRACE("After serialization/deserialization\n  Buffer: "
+                             + formatBuffer(buffer));
+                checker.checkKeyValueTreeObject(output, "Adjusted");
+            }
+            // Check that dumping works.
             {
                 gmx::StringOutputStream stream;
                 gmx::TextWriter         writer(&stream);
                 ASSERT_NO_THROW_GMX(gmx::dumpKeyValueTree(&writer, tree));
                 checker.checkTextBlock(stream.toString(), "Dumped");
             }
+            // Check that comparison works.
+            {
+                gmx::StringOutputStream stream;
+                gmx::TextWriter         writer(&stream);
+                ASSERT_NO_THROW_GMX(gmx::compareKeyValueTrees(&writer, tree, tree, 0.0, 0.0));
+                checker.checkTextBlock(stream.toString(), "Compared");
+            }
+            // Check that comparison works against an empty tree.
+            {
+                gmx::StringOutputStream stream;
+                gmx::TextWriter         writer(&stream);
+                gmx::KeyValueTreeObject empty;
+                ASSERT_NO_THROW_GMX(gmx::compareKeyValueTrees(&writer, tree, empty, 0.0, 0.0));
+                checker.checkTextBlock(stream.toString(), "ComparedAgainstEmpty");
+            }
         }
 
         gmx::Options              options_;
         gmx::KeyValueTreeBuilder  builder_;
+
+    private:
+        std::vector<char> serializeTree(const gmx::KeyValueTreeObject &tree)
+        {
+            gmx::InMemorySerializer serializer;
+            gmx::serializeKeyValueTree(tree, &serializer);
+            return serializer.finishAndGetBuffer();
+        }
+
+        std::string formatBuffer(const std::vector<char> &buffer)
+        {
+            return gmx::formatAndJoin(buffer, " ", [](char c) { return gmx::formatString("%02x", (unsigned char)c); });
+        }
 };
 
 TEST_F(TreeValueSupportTest, SupportsBooleanOption)

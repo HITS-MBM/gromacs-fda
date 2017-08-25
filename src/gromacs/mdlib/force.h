@@ -37,6 +37,7 @@
 #ifndef GMX_MDLIB_FORCE_H
 #define GMX_MDLIB_FORCE_H
 
+#include "gromacs/domdec/dlbtiming.h"
 #include "gromacs/mdlib/force_flags.h"
 #include "gromacs/mdlib/vsite.h"
 #include "gromacs/mdtypes/fcdata.h"
@@ -44,6 +45,7 @@
 #include "gromacs/timing/wallcycle.h"
 #include "gromacs/utility/arrayref.h"
 
+struct gmx_device_info_t;
 struct gmx_edsam;
 struct gmx_gpu_info_t;
 struct gmx_groups_t;
@@ -111,16 +113,6 @@ gmx_bool can_use_allvsall(const t_inputrec *ir,
  * and fp (if !=NULL) on the master node.
  */
 
-
-gmx_bool nbnxn_gpu_acceleration_supported(const gmx::MDLogger &mdlog,
-                                          const t_inputrec    *ir,
-                                          gmx_bool             bRerunMD);
-/* Return if GPU acceleration is supported with the given settings.
- *
- * If the return value is FALSE and fplog/cr != NULL, prints a fallback
- * message to fplog/stderr.
- */
-
 gmx_bool nbnxn_simd_supported(const gmx::MDLogger &mdlog,
                               const t_inputrec    *ir);
 /* Return if CPU SIMD support exists for the given inputrec
@@ -172,7 +164,9 @@ void do_force(FILE *log, t_commrec *cr,
               gmx_vsite_t *vsite, rvec mu_tot,
               double t, struct gmx_edsam *ed,
               gmx_bool bBornRadii,
-              int flags);
+              int flags,
+              DdOpenBalanceRegionBeforeForceComputation ddOpenBalanceRegion,
+              DdCloseBalanceRegionAfterForceComputation ddCloseBalanceRegion);
 
 /* Communicate coordinates (if parallel).
  * Do neighbor searching (if necessary).
@@ -221,7 +215,6 @@ void do_force_lowlevel(t_forcerec   *fr,
 
 void free_gpu_resources(const t_forcerec            *fr,
                         const t_commrec             *cr,
-                        const gmx_gpu_info_t        *gpu_info,
-                        const gmx_gpu_opt_t         *gpu_opt);
+                        const gmx_device_info_t     *deviceInfo);
 
 #endif

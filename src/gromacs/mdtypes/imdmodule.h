@@ -44,7 +44,7 @@
 #ifndef GMX_MDTYPES_IMDMODULE_H
 #define GMX_MDTYPES_IMDMODULE_H
 
-struct IForceProvider;
+struct ForceProviders;
 
 namespace gmx
 {
@@ -71,8 +71,8 @@ class IMDModule
         virtual IMdpOptionProvider *mdpOptionProvider() = 0;
         //! Returns an interface for handling output files during simulation.
         virtual IMDOutputProvider *outputProvider()     = 0;
-        //! Returns an interface for computing forces during simulation.
-        virtual IForceProvider *forceProvider()         = 0;
+        //! Initializes force providers from this module.
+        virtual void initForceProviders(ForceProviders *forceProviders) = 0;
 };
 
 } // namespace gmx

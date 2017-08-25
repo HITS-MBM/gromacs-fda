@@ -57,6 +57,7 @@
 #include "gromacs/utility/cstringutil.h"
 #include "gromacs/utility/logger.h"
 #include "gromacs/utility/smalloc.h"
+#include "gromacs/utility/snprintf.h"
 
 #if HAVE_NVML
 #include <nvml.h>
@@ -269,9 +270,9 @@ static bool getApplicationClocks(const gmx_device_info_t *cuda_dev,
     {
         return false;
     }
-    HANDLE_NVML_RET_ERR(nvml_stat, "nvmlDeviceGetApplicationsClock failed");
+    HANDLE_NVML_RET_ERR(nvml_stat, "nvmlDeviceGetApplicationsClock failed for NVIDIA_CLOCK_SM");
     nvml_stat = nvmlDeviceGetApplicationsClock(cuda_dev->nvml_device_id, NVML_CLOCK_MEM, app_mem_clock);
-    HANDLE_NVML_RET_ERR(nvml_stat, "nvmlDeviceGetApplicationsClock failed");
+    HANDLE_NVML_RET_ERR(nvml_stat, "nvmlDeviceGetApplicationsClock failed for NVIDIA_CLOCK_MEM");
 
     return true;
 }
@@ -279,29 +280,26 @@ static bool getApplicationClocks(const gmx_device_info_t *cuda_dev,
 
 /*! \brief Tries to set application clocks for the GPU with the given index.
  *
- * The variable \gpuid is the index of the GPU in the gpu_info.cuda_dev array
- * to handle the application clocks for. Application clocks are set to the
- * max supported value to increase performance if application clock permissions
- * allow this. For future GPU architectures a more sophisticated scheme might be
- * required.
+ * Application clocks are set to the max supported value to increase
+ * performance if application clock permissions allow this. For future
+ * GPU architectures a more sophisticated scheme might be required.
  *
  * \todo Refactor this into a detection phase and a work phase. Also
  * refactor to remove compile-time dependence on logging header.
  *
  * \param     mdlog         log file to write to
- * \param[in] gpuid         index of the GPU to set application clocks for
- * \param[in] gpu_info      GPU info of all detected devices in the system.
+ * \param[in] cuda_dev      GPU device info for the GPU in use
  * \returns                 true if no error occurs during application clocks handling.
  */
 static gmx_bool init_gpu_application_clocks(
-        const gmx::MDLogger &mdlog, int gmx_unused gpuid,
-        const gmx_gpu_info_t gmx_unused *gpu_info)
+        const gmx::MDLogger &mdlog,
+        gmx_device_info_t   *cuda_dev)
 {
-    const cudaDeviceProp *prop                        = &gpu_info->gpu_dev[gpuid].prop;
-    int                   cuda_version_number         = prop->major * 10 + prop->minor;
+    const cudaDeviceProp *prop                        = &cuda_dev->prop;
+    int                   cuda_compute_capability     = prop->major * 10 + prop->minor;
     gmx_bool              bGpuCanUseApplicationClocks =
-        ((0 == gmx_wcmatch("*Tesla*", prop->name) && cuda_version_number >= 35 ) ||
-         (0 == gmx_wcmatch("*Quadro*", prop->name) && cuda_version_number >= 52 ));
+        ((0 == gmx_wcmatch("*Tesla*", prop->name) && cuda_compute_capability >= 35 ) ||
+         (0 == gmx_wcmatch("*Quadro*", prop->name) && cuda_compute_capability >= 52 ));
     if (!bGpuCanUseApplicationClocks)
     {
         return true;
@@ -343,8 +341,6 @@ static gmx_bool init_gpu_application_clocks(
         return false;
     }
 
-    gmx_device_info_t *cuda_dev = &(gpu_info->gpu_dev[gpuid]);
-
     if (!addNVMLDeviceId(cuda_dev))
     {
         return false;
@@ -367,13 +363,30 @@ static gmx_bool init_gpu_application_clocks(
     cuda_dev->nvml_is_restricted      = NVML_FEATURE_ENABLED;
     cuda_dev->nvml_app_clocks_changed = false;
 
+    if (cuda_dev->nvml_orig_app_sm_clock >= max_sm_clock)
+    {
+        //TODO: This should probably be integrated into the GPU Properties table.
+        GMX_LOG(mdlog.info).appendTextFormatted(
+                "Application clocks (GPU clocks) for %s are (%d,%d)",
+                cuda_dev->prop.name, cuda_dev->nvml_orig_app_mem_clock, cuda_dev->nvml_orig_app_sm_clock);
+        return true;
+    }
+
+    if (cuda_compute_capability >= 60)
+    {
+        GMX_LOG(mdlog.warning).asParagraph().appendTextFormatted(
+                "Cannot change application clocks for %s to optimal values due to insufficient permissions. Current values are (%d,%d), max values are (%d,%d).\nPlease contact your admin to change application clocks.\n",
+                cuda_dev->prop.name, cuda_dev->nvml_orig_app_mem_clock, cuda_dev->nvml_orig_app_sm_clock, max_mem_clock, max_sm_clock);
+        return true;
+    }
+
     nvml_stat = nvmlDeviceGetAPIRestriction(cuda_dev->nvml_device_id, NVML_RESTRICTED_API_SET_APPLICATION_CLOCKS, &(cuda_dev->nvml_is_restricted));
     HANDLE_NVML_RET_ERR( nvml_stat, "nvmlDeviceGetAPIRestriction failed" );
 
     if (nvml_stat != NVML_SUCCESS)
     {
         GMX_LOG(mdlog.warning).asParagraph().appendTextFormatted(
-                "Can not change GPU application clocks to optimal values due to NVML error (%d): %s.",
+                "Cannot change GPU application clocks to optimal values due to NVML error (%d): %s.",
                 nvml_stat, nvmlErrorString(nvml_stat));
         return false;
     }
@@ -383,15 +396,6 @@ static gmx_bool init_gpu_application_clocks(
         GMX_LOG(mdlog.warning).asParagraph().appendTextFormatted(
                 "Cannot change application clocks for %s to optimal values due to insufficient permissions. Current values are (%d,%d), max values are (%d,%d).\nUse sudo nvidia-smi -acp UNRESTRICTED or contact your admin to change application clocks.",
                 cuda_dev->prop.name, cuda_dev->nvml_orig_app_mem_clock, cuda_dev->nvml_orig_app_sm_clock, max_mem_clock, max_sm_clock);
-        return true;
-    }
-
-    if (cuda_dev->nvml_orig_app_sm_clock >= max_sm_clock)
-    {
-        //TODO: This should probably be integrated into the GPU Properties table.
-        GMX_LOG(mdlog.warning).appendTextFormatted(
-                "Application clocks (GPU clocks) for %s are (%d,%d)",
-                cuda_dev->prop.name, cuda_dev->nvml_orig_app_mem_clock, cuda_dev->nvml_orig_app_sm_clock);
         return true;
     }
 
@@ -435,7 +439,7 @@ static gmx_bool reset_gpu_application_clocks(const gmx_device_info_t gmx_unused 
             app_mem_clock == cuda_dev->nvml_set_app_mem_clock)
         {
             nvml_stat = nvmlDeviceSetApplicationsClocks(cuda_dev->nvml_device_id, cuda_dev->nvml_orig_app_mem_clock, cuda_dev->nvml_orig_app_sm_clock);
-            HANDLE_NVML_RET_ERR( nvml_stat, "nvmlDeviceGetApplicationsClock failed" );
+            HANDLE_NVML_RET_ERR( nvml_stat, "nvmlDeviceSetApplicationsClock failed" );
         }
     }
     nvml_stat = nvmlShutdown();
@@ -444,52 +448,36 @@ static gmx_bool reset_gpu_application_clocks(const gmx_device_info_t gmx_unused 
 #endif /* HAVE_NVML_APPLICATION_CLOCKS */
 }
 
-gmx_bool init_gpu(const gmx::MDLogger &mdlog, int mygpu, char *result_str,
-                  const struct gmx_gpu_info_t *gpu_info,
-                  const struct gmx_gpu_opt_t *gpu_opt)
+void init_gpu(const gmx::MDLogger &mdlog, int rank,
+              gmx_device_info_t *deviceInfo)
 {
     cudaError_t stat;
     char        sbuf[STRLEN];
-    int         gpuid;
 
-    assert(gpu_info);
-    assert(result_str);
+    assert(deviceInfo);
 
-    if (mygpu < 0 || mygpu >= gpu_opt->n_dev_use)
+    stat = cudaSetDevice(deviceInfo->id);
+    if (stat != cudaSuccess)
     {
-        sprintf(sbuf, "Trying to initialize an non-existent GPU: "
-                "there are %d %s-selected GPU(s), but #%d was requested.",
-                gpu_opt->n_dev_use, gpu_opt->bUserSet ? "user" : "auto", mygpu);
-        gmx_incons(sbuf);
+        snprintf(sbuf, STRLEN, "On rank %d failed to initialize GPU #%d",
+                 rank, deviceInfo->id);
+        CU_RET_ERR(stat, sbuf);
     }
-
-    gpuid = gpu_info->gpu_dev[gpu_opt->dev_use[mygpu]].id;
-
-    stat = cudaSetDevice(gpuid);
-    strncpy(result_str, cudaGetErrorString(stat), STRLEN);
 
     if (debug)
     {
-        fprintf(stderr, "Initialized GPU ID #%d: %s\n", gpuid, gpu_info->gpu_dev[gpuid].prop.name);
+        fprintf(stderr, "Initialized GPU ID #%d: %s\n", deviceInfo->id, deviceInfo->prop.name);
     }
 
     //Ignoring return value as NVML errors should be treated not critical.
-    if (stat == cudaSuccess)
-    {
-        init_gpu_application_clocks(mdlog, gpuid, gpu_info);
-    }
-    return (stat == cudaSuccess);
+    init_gpu_application_clocks(mdlog, deviceInfo);
 }
 
-gmx_bool free_cuda_gpu(
-        int gmx_unused mygpu, char *result_str,
-        const gmx_gpu_info_t gmx_unused *gpu_info,
-        const gmx_gpu_opt_t gmx_unused *gpu_opt
-        )
+gmx_bool free_cuda_gpu(const gmx_device_info_t *deviceInfo,
+                       char                    *result_str)
 {
     cudaError_t  stat;
     gmx_bool     reset_gpu_application_clocks_status = true;
-    int          gpuid;
 
     assert(result_str);
 
@@ -501,15 +489,24 @@ gmx_bool free_cuda_gpu(
         fprintf(stderr, "Cleaning up context on GPU ID #%d\n", gpuid);
     }
 
-    gpuid = gpu_opt ? gpu_opt->dev_use[mygpu] : -1;
-    if (gpuid != -1)
+    if (deviceInfo != nullptr)
     {
-        reset_gpu_application_clocks_status = reset_gpu_application_clocks( &(gpu_info->gpu_dev[gpuid]) );
+        reset_gpu_application_clocks_status = reset_gpu_application_clocks(deviceInfo);
     }
 
     stat = cudaDeviceReset();
     strncpy(result_str, cudaGetErrorString(stat), STRLEN);
     return (stat == cudaSuccess) && reset_gpu_application_clocks_status;
+}
+
+gmx_device_info_t *getDeviceInfo(const gmx_gpu_info_t &gpu_info,
+                                 int                   deviceId)
+{
+    if (deviceId < 0 || deviceId >= gpu_info.n_dev)
+    {
+        gmx_incons("Invalid GPU deviceId requested");
+    }
+    return &gpu_info.gpu_dev[deviceId];
 }
 
 /*! \brief Returns true if the gpu characterized by the device properties is
@@ -626,24 +623,22 @@ int detect_gpus(gmx_gpu_info_t *gpu_info, char *err_str)
     return retval;
 }
 
-bool isGpuCompatible(const gmx_gpu_info_t *gpu_info,
+bool isGpuCompatible(const gmx_gpu_info_t &gpu_info,
                      int                   index)
 {
-    assert(gpu_info);
+    assert(gpu_info.n_dev == 0 || gpu_info.gpu_dev);
 
-    return (index >= gpu_info->n_dev ?
+    return (index >= gpu_info.n_dev ?
             false :
-            gpu_info->gpu_dev[index].stat == egpuCompatible);
+            gpu_info.gpu_dev[index].stat == egpuCompatible);
 }
 
-const char *getGpuCompatibilityDescription(const gmx_gpu_info_t *gpu_info,
+const char *getGpuCompatibilityDescription(const gmx_gpu_info_t &gpu_info,
                                            int                   index)
 {
-    assert(gpu_info);
-
-    return (index >= gpu_info->n_dev ?
+    return (index >= gpu_info.n_dev ?
             gpu_detect_res_str[egpuNonexistent] :
-            gpu_detect_res_str[gpu_info->gpu_dev[index].stat]);
+            gpu_detect_res_str[gpu_info.gpu_dev[index].stat]);
 }
 
 void free_gpu_info(const gmx_gpu_info_t *gpu_info)
@@ -656,17 +651,16 @@ void free_gpu_info(const gmx_gpu_info_t *gpu_info)
     sfree(gpu_info->gpu_dev);
 }
 
-void get_gpu_device_info_string(char *s, const gmx_gpu_info_t *gpu_info, int index)
+void get_gpu_device_info_string(char *s, const gmx_gpu_info_t &gpu_info, int index)
 {
     assert(s);
-    assert(gpu_info);
 
-    if (index < 0 && index >= gpu_info->n_dev)
+    if (index < 0 && index >= gpu_info.n_dev)
     {
         return;
     }
 
-    gmx_device_info_t *dinfo = &gpu_info->gpu_dev[index];
+    gmx_device_info_t *dinfo = &gpu_info.gpu_dev[index];
 
     bool               bGpuExists =
         dinfo->stat == egpuCompatible ||
@@ -686,17 +680,6 @@ void get_gpu_device_info_string(char *s, const gmx_gpu_info_t *gpu_info, int ind
                 dinfo->prop.ECCEnabled ? "yes" : " no",
                 gpu_detect_res_str[dinfo->stat]);
     }
-}
-
-int get_gpu_device_id(const gmx_gpu_info_t *gpu_info,
-                      const gmx_gpu_opt_t  *gpu_opt,
-                      int                   idx)
-{
-    assert(gpu_info);
-    assert(gpu_opt);
-    assert(idx >= 0 && idx < gpu_opt->n_dev_use);
-
-    return gpu_info->gpu_dev[gpu_opt->dev_use[idx]].id;
 }
 
 int get_current_cuda_gpu_device_id(void)

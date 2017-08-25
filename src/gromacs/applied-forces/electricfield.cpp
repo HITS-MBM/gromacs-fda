@@ -45,6 +45,8 @@
 
 #include <cmath>
 
+#include <string>
+
 #include "gromacs/commandline/filenm.h"
 #include "gromacs/fileio/gmxfio.h"
 #include "gromacs/fileio/xvgr.h"
@@ -93,6 +95,14 @@ class ElectricFieldData
             section.addOption(RealOption("omega").store(&omega_));
             section.addOption(RealOption("t0").store(&t0_));
             section.addOption(RealOption("sigma").store(&sigma_));
+        }
+        /*! \brief
+         * Creates mdp parameters for this field component.
+         */
+        void buildMdpOutput(KeyValueTreeObjectBuilder *builder, const std::string &name) const
+        {
+            builder->addUniformArray<real>("E-" + name, {1, a_, -1});
+            builder->addUniformArray<real>("E-" + name + "t", {omega_, t0_, sigma_});
         }
 
         /*! \brief Evaluates this field component at given time.
@@ -165,11 +175,18 @@ class ElectricField final : public IMDModule,
         // From IMDModule
         IMdpOptionProvider *mdpOptionProvider() override { return this; }
         IMDOutputProvider *outputProvider() override { return this; }
-        IForceProvider *forceProvider() override { return this; }
+        void initForceProviders(ForceProviders *forceProviders) override
+        {
+            if (isActive())
+            {
+                forceProviders->addForceProviderWithoutVirialContribution(this);
+            }
+        }
 
         // From IMdpOptionProvider
         void initMdpTransform(IKeyValueTreeTransformRules *transform) override;
         void initMdpOptions(IOptionsContainerWithSections *options) override;
+        void buildMdpOutput(KeyValueTreeObjectBuilder *builder) const override;
 
         // From IMDOutputProvider
         void initOutput(FILE *fplog, int nfile, const t_filenm fnm[],
@@ -177,12 +194,13 @@ class ElectricField final : public IMDModule,
         void finishOutput() override;
 
         // From IForceProvider
-        void initForcerec(t_forcerec *fr) override;
         //! \copydoc IForceProvider::calculateForces()
         void calculateForces(const t_commrec  *cr,
                              const t_mdatoms  *mdatoms,
-                             PaddedRVecVector *force,
-                             double            t) override;
+                             const matrix      box,
+                             double            t,
+                             const rvec       *x,
+                             ArrayRef<RVec>    force) override;
 
     private:
         //! Return whether or not to apply a field
@@ -295,31 +313,43 @@ void convertDynamicParameters(gmx::KeyValueTreeObjectBuilder *builder,
 
 void ElectricField::initMdpTransform(IKeyValueTreeTransformRules *rules)
 {
-    // TODO This responsibility should be handled by the caller,
-    // e.g. embedded in the rules, somehow.
-    std::string prefix = "/applied-forces/";
-
-    rules->addRule().from<std::string>("/E-x").to<real>(prefix + "electric-field/x/E0")
+    rules->addRule().from<std::string>("/E-x").to<real>("/electric-field/x/E0")
         .transformWith(&convertStaticParameters);
-    rules->addRule().from<std::string>("/E-xt").toObject(prefix + "electric-field/x")
+    rules->addRule().from<std::string>("/E-xt").toObject("/electric-field/x")
         .transformWith(&convertDynamicParameters);
-    rules->addRule().from<std::string>("/E-y").to<real>(prefix + "electric-field/y/E0")
+    rules->addRule().from<std::string>("/E-y").to<real>("/electric-field/y/E0")
         .transformWith(&convertStaticParameters);
-    rules->addRule().from<std::string>("/E-yt").toObject(prefix + "electric-field/y")
+    rules->addRule().from<std::string>("/E-yt").toObject("/electric-field/y")
         .transformWith(&convertDynamicParameters);
-    rules->addRule().from<std::string>("/E-z").to<real>(prefix + "electric-field/z/E0")
+    rules->addRule().from<std::string>("/E-z").to<real>("/electric-field/z/E0")
         .transformWith(&convertStaticParameters);
-    rules->addRule().from<std::string>("/E-zt").toObject(prefix + "electric-field/z")
+    rules->addRule().from<std::string>("/E-zt").toObject("/electric-field/z")
         .transformWith(&convertDynamicParameters);
 }
 
 void ElectricField::initMdpOptions(IOptionsContainerWithSections *options)
 {
-    //CTYPE ("Format is E0 (V/nm), omega (1/ps), t0 (ps), sigma (ps) ");
     auto section = options->addSection(OptionSection("electric-field"));
     efield_[XX].initMdpOptions(&section, "x");
     efield_[YY].initMdpOptions(&section, "y");
     efield_[ZZ].initMdpOptions(&section, "z");
+}
+
+void ElectricField::buildMdpOutput(KeyValueTreeObjectBuilder *builder) const
+{
+    const char *const comment[] = {
+        "; Electric fields",
+        "; Format for E-x, etc. is: number of cosines (int; only 1 is supported),",
+        "; amplitude (real; V/nm), and phase (real; value is meaningless",
+        "; for a cosine of frequency 0.",
+        "; Format for E-xt, etc. is: omega (1/ps), time for the pulse peak (ps),",
+        "; and sigma (ps) width of the pulse. Sigma = 0 removes the pulse,",
+        "; leaving the field to be a cosine function."
+    };
+    builder->addValue<std::string>("comment-electric-field", joinStrings(comment, "\n"));
+    efield_[XX].buildMdpOutput(builder, "x");
+    efield_[YY].buildMdpOutput(builder, "y");
+    efield_[ZZ].buildMdpOutput(builder, "z");
 }
 
 void ElectricField::initOutput(FILE *fplog, int nfile, const t_filenm fnm[],
@@ -357,15 +387,6 @@ void ElectricField::finishOutput()
     }
 }
 
-void ElectricField::initForcerec(t_forcerec *fr)
-{
-    if (isActive())
-    {
-        fr->bF_NoVirSum = TRUE;
-        fr->efield      = this;
-    }
-}
-
 real ElectricField::field(int dim, real t) const
 {
     return efield_[dim].evaluate(t);
@@ -386,12 +407,14 @@ void ElectricField::printComponents(double t) const
 
 void ElectricField::calculateForces(const t_commrec  *cr,
                                     const t_mdatoms  *mdatoms,
-                                    PaddedRVecVector *force,
-                                    double            t)
+                                    const matrix      /* box */,
+                                    double            t,
+                                    const rvec        * /* x */,
+                                    ArrayRef<RVec>    force)
 {
     if (isActive())
     {
-        rvec *f = as_rvec_array(force->data());
+        rvec *f = as_rvec_array(force.data());
 
         for (int m = 0; (m < DIM); m++)
         {

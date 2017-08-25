@@ -1,19 +1,29 @@
 # Comment line(s) preceding each configuration document the main
 # intent behind that configuration, so that we can correctly judge
 # whether to preserve that during maintenance decisions.
+#
+# Other configurations might coincidentally test such configurations
+# (e.g. because they are the current default), but it is appropriate
+# to intend to teach each feature (or a feature combination) exactly
+# once, and for the intent to be reflected precisely in the
+# configuration syntax, so that the configurations are stable even
+# if the defaults change in future.
 
 # Test on ARM v7
 # Test ARM_NEON SIMD
-# NOTE: We use release-with-debug-info because in debug mode the SIMD module does not compile
-gcc-4.8 simd=ARM_NEON release-with-debug-info
+gcc-4.8 simd=ARM_NEON release
+
+# Test on ARM v8
+# Test ARM_NEON_ASIMD SIMD
+gcc-5 simd=ARM_NEON_ASIMD release
 
 # Test the mdrun-only build
 # TODO In combination with gmx from another build, arrange to run regressiontests
 clang-3.7 double mpi no-openmp fftpack mdrun-only
 
 # Test MPMD PME with thread-MPI
-# TODO Add double to this configuration if/when Carsten stablizes essentialdynamics tests
-gcc-5 npme=1 nranks=2 no-openmp fftpack simd=avx_128_fma release
+# TODO Add double to this configuration if/when we stablize the essentialdynamics tests
+gcc-7 npme=1 nranks=2 no-openmp fftpack release
 
 # Test non-default GMX_PREFER_STATIC_LIBS behavior
 # TODO enable this
@@ -25,10 +35,13 @@ gcc-5 npme=1 nranks=2 no-openmp fftpack simd=avx_128_fma release
 
 # Test SSE4.1 SIMD
 # Test single-rank GPU
-gcc-4.8 nranks=1 gpu cuda-7.5 simd=sse4.1
+# TODO Test clang + OpenMP + CUDA
+# TODO change to clang-4 and cuda-8.0
+gcc-4.8 openmp nranks=1 gpu cuda-7.5 simd=sse4.1
 
 # Test MPMD PME with library MPI
-clang-4 npme=1 nranks=2 mpi
+# Test clang + OpenMP
+clang-4 openmp simd=avx_128_fma npme=1 nranks=2 mpi
 
 # Test non-default use of mdrun -gpu_id
 # Test SSE2 SIMD
@@ -44,4 +57,3 @@ gcc-4.8 gpu npme=1 nranks=2 gpu_id=2 cuda-7.5 simd=sse2 release
 # Test own-fftw build (from local copy of the file)
 # Test mdrun -tunepme (e.g. with relaxed tolerances, for now)
 # Consider testing of other CMake option paths
-# Consider adding our ARMv8 dev board as slaves to test ARM_NEON_ASIMD too.

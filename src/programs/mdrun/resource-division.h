@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2015,2016, by the GROMACS development team, led by
+ * Copyright (c) 2015,2016,2017, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -38,6 +38,8 @@
 
 #include <cstdio>
 
+#include <vector>
+
 #include "gromacs/utility/basedefinitions.h"
 
 struct gmx_hw_info_t;
@@ -59,13 +61,13 @@ class MDLogger;
  * with the hardware, except that ntmpi could be larger than #GPU.
  * If necessary, this function will modify hw_opt->nthreads_omp.
  */
-int get_nthreads_mpi(const gmx_hw_info_t *hwinfo,
-                     gmx_hw_opt_t        *hw_opt,
-                     const t_inputrec    *inputrec,
-                     const gmx_mtop_t    *mtop,
-                     const gmx::MDLogger &mdlog,
-                     gmx_bool             bUseGpu,
-                     bool                 doMembed);
+int get_nthreads_mpi(const gmx_hw_info_t    *hwinfo,
+                     gmx_hw_opt_t           *hw_opt,
+                     int                     numPmeRanks,
+                     const t_inputrec       *inputrec,
+                     const gmx_mtop_t       *mtop,
+                     const gmx::MDLogger    &mdlog,
+                     bool                    doMembed);
 
 /* Check if the number of OpenMP threads is within reasonable range
  * considering the hardware used. This is a crude check, but mainly
@@ -76,7 +78,8 @@ int get_nthreads_mpi(const gmx_hw_info_t *hwinfo,
  * This function should be called after thread-MPI and OpenMP are set up.
  */
 void check_resource_division_efficiency(const gmx_hw_info_t *hwinfo,
-                                        const gmx_hw_opt_t  *hw_opt,
+                                        int                  numTotalThreads,
+                                        bool                 willUsePhysicalGpu,
                                         gmx_bool             bNtOmpOptionSet,
                                         t_commrec           *cr,
                                         const gmx::MDLogger &mdlog);

@@ -48,12 +48,14 @@
 #include "gromacs/options/optionsection.h"
 #include "gromacs/options/treesupport.h"
 #include "gromacs/utility/keyvaluetree.h"
+#include "gromacs/utility/keyvaluetreebuilder.h"
+#include "gromacs/utility/keyvaluetreetransform.h"
 #include "gromacs/utility/smalloc.h"
 
 namespace gmx
 {
 
-class MDModules::Impl : public IMDOutputProvider, public IForceProvider
+class MDModules::Impl : public IMDOutputProvider
 {
     public:
 
@@ -81,20 +83,8 @@ class MDModules::Impl : public IMDOutputProvider, public IForceProvider
             field_->outputProvider()->finishOutput();
         }
 
-        // From IForceProvider
-        virtual void initForcerec(t_forcerec *fr)
-        {
-            field_->forceProvider()->initForcerec(fr);
-        }
-        virtual void calculateForces(const t_commrec  * /*cr*/,
-                                     const t_mdatoms  * /*mdatoms*/,
-                                     PaddedRVecVector * /*force*/,
-                                     double             /*t*/)
-        {
-            // not called currently
-        }
-
-        std::unique_ptr<IMDModule> field_;
+        std::unique_ptr<IMDModule>      field_;
+        std::unique_ptr<ForceProviders> forceProviders_;
 };
 
 MDModules::MDModules() : impl_(new Impl)
@@ -107,10 +97,13 @@ MDModules::~MDModules()
 
 void MDModules::initMdpTransform(IKeyValueTreeTransformRules *rules)
 {
-    // TODO The transform rules for applied-forces modules should
-    // embed the necessary prefix (and similarly for other groupings
-    // of modules). For now, electric-field embeds this itself.
-    impl_->field_->mdpOptionProvider()->initMdpTransform(rules);
+    auto appliedForcesScope = rules->scopedTransform("/applied-forces");
+    impl_->field_->mdpOptionProvider()->initMdpTransform(appliedForcesScope.rules());
+}
+
+void MDModules::buildMdpOutput(KeyValueTreeObjectBuilder *builder)
+{
+    impl_->field_->mdpOptionProvider()->buildMdpOutput(builder);
 }
 
 void MDModules::assignOptionsToModules(const KeyValueTreeObject  &params,
@@ -128,9 +121,11 @@ void MDModules::adjustInputrecBasedOnModules(t_inputrec *ir)
     Options moduleOptions;
     impl_->makeModuleOptions(&moduleOptions);
 
+    checkForUnknownOptionsInKeyValueTree(*ir->params, moduleOptions);
+
     std::unique_ptr<KeyValueTreeObject> params(
             new KeyValueTreeObject(
-                    gmx::adjustKeyValueTreeFromOptions(*ir->params, moduleOptions)));
+                    adjustKeyValueTreeFromOptions(*ir->params, moduleOptions)));
     delete ir->params;
     ir->params = params.release();
 }
@@ -140,9 +135,13 @@ IMDOutputProvider *MDModules::outputProvider()
     return impl_.get();
 }
 
-IForceProvider *MDModules::forceProvider()
+ForceProviders *MDModules::initForceProviders()
 {
-    return impl_.get();
+    GMX_RELEASE_ASSERT(impl_->forceProviders_ == nullptr,
+                       "Force providers initialized multiple times");
+    impl_->forceProviders_.reset(new ForceProviders);
+    impl_->field_->initForceProviders(impl_->forceProviders_.get());
+    return impl_->forceProviders_.get();
 }
 
 } // namespace gmx

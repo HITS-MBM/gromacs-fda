@@ -61,9 +61,7 @@
 #include <stdio.h>
 
 #include "gromacs/gmxlib/nrnb.h"
-#include "gromacs/hardware/hw_info.h"
 #include "gromacs/math/vectypes.h"
-#include "gromacs/mdlib/constr.h"
 #include "gromacs/mdlib/vsite.h"
 #include "gromacs/mdtypes/forcerec.h"
 #include "gromacs/mdtypes/mdatom.h"
@@ -194,16 +192,15 @@ void dd_dlb_lock(struct gmx_domdec_t *dd);
 /*! \brief Clear a lock such that with DLB=auto DLB may get turned on later */
 void dd_dlb_unlock(struct gmx_domdec_t *dd);
 
-/*! \brief Set up communication for averaging GPU wait times over ranks
+/*! \brief Set up communication for averaging GPU wait times over domains
  *
  * When domains (PP MPI ranks) share a GPU, the individual GPU wait times
  * are meaningless, as it depends on the order in which tasks on the same
  * GPU finish. Therefore there wait times need to be averaged over the ranks
  * sharing the same GPU. This function sets up the communication for that.
  */
-void dd_setup_dlb_resource_sharing(struct t_commrec           *cr,
-                                   const gmx_hw_info_t        *hwinfo,
-                                   const gmx_hw_opt_t         *hw_opt);
+void dd_setup_dlb_resource_sharing(t_commrec           *cr,
+                                   int                  gpu_id);
 
 /*! \brief Collects local rvec arrays \p lv to \p v on the master rank */
 void dd_collect_vec(struct gmx_domdec_t *dd,
@@ -223,7 +220,7 @@ enum {
 };
 
 /*! \brief Add the wallcycle count to the DD counter */
-void dd_cycles_add(struct gmx_domdec_t *dd, float cycles, int ddCycl);
+void dd_cycles_add(const gmx_domdec_t *dd, float cycles, int ddCycl);
 
 /*! \brief Start the force flop count */
 void dd_force_flop_start(struct gmx_domdec_t *dd, t_nrnb *nrnb);
@@ -274,7 +271,7 @@ void dd_partition_system(FILE                *fplog,
                          gmx_localtop_t      *top_local,
                          t_forcerec          *fr,
                          gmx_vsite_t         *vsite,
-                         gmx_constr_t         constr,
+                         struct gmx_constr   *constr,
                          t_nrnb              *nrnb,
                          gmx_wallcycle_t      wcycle,
                          gmx_bool             bVerbose);
@@ -283,7 +280,7 @@ void dd_partition_system(FILE                *fplog,
 void reset_dd_statistics_counters(struct gmx_domdec_t *dd);
 
 /*! \brief Print statistics for domain decomposition communication */
-void print_dd_statistics(struct t_commrec *cr, t_inputrec *ir, FILE *fplog);
+void print_dd_statistics(struct t_commrec *cr, const t_inputrec *ir, FILE *fplog);
 
 /* In domdec_con.c */
 

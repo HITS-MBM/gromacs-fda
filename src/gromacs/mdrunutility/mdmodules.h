@@ -45,12 +45,15 @@
 
 #include "gromacs/utility/classhelpers.h"
 
-struct IForceProvider;
+struct ForceProviders;
+
 struct t_inputrec;
 
 namespace gmx
 {
 
+class KeyValueTreeObjectBuilder;
+class KeyValueTreeObject;
 class IKeyValueTreeErrorHandler;
 class IKeyValueTreeTransformRules;
 class IMDOutputProvider;
@@ -72,15 +75,11 @@ class KeyValueTreeObject;
  *
  * Currently, where the set of modules needs to be accessed, either a pointer
  * to MDModules is passed around, or an instance of IMDOutputProvider or
- * IForceProvider returned from MDModules.  The implementation of these
- * interfaces in MDModules calls the corresponding methods in the relevant
- * modules.  In the future, some additional logic may need to be introduced at
- * the call sites that can also influence the signature of the methods.  In
- * this case, a separate object may need to be introduced (e.g.,
- * ForceProvidersManager or similar) that can be passed around without
- * knowledge of the full MDModules.  t_forcerec also currently directly calls
- * individual modules through pointers to their interfaces, which should be
- * generalized in the future.
+ * ForceProviders returned from MDModules.  These objects returned from
+ * MDModules call the corresponding methods in the relevant modules.
+ * In the future, some additional logic may need to be introduced at
+ * the call sites that can also influence the signature of the methods,
+ * similar to what ForceProviders already does for force computation.
  *
  * The assignOptionsToModules() and adjustInputrecBasedOnModules() methods of
  * this class also take responsibility for wiring up the options (and their
@@ -104,6 +103,18 @@ class MDModules
          */
         void initMdpTransform(IKeyValueTreeTransformRules *rules);
 
+        /*! \brief Initializes a builder of flat mdp-style key-value pairs
+         * suitable for output.
+         *
+         * If used as input to initMdpTransform(), the key-value pairs
+         * resulting from this function would leave the module
+         * settings unchanged.
+         *
+         * Once the transition from mdp to key-value input is
+         * complete, this method will probably not exist.
+         */
+        void buildMdpOutput(KeyValueTreeObjectBuilder *builder);
+
         /*! \brief
          * Sets input parameters from `params` for each module.
          *
@@ -119,7 +130,8 @@ class MDModules
          * Normalizes inputrec parameters to match current code version.
          *
          * This orders the parameters in `ir->param` to match the current code
-         * and adds any missing defaults.
+         * and adds any missing defaults.  It also throws an error if the
+         * inputrec contains parameters that are not recognized by any module.
          */
         void adjustInputrecBasedOnModules(t_inputrec *ir);
 
@@ -128,9 +140,9 @@ class MDModules
          */
         IMDOutputProvider *outputProvider();
         /*! \brief
-         * Returns an interface for initializing modules providing forces.
+         * Returns an object for computing forces from the modules.
          */
-        IForceProvider *forceProvider();
+        ForceProviders *initForceProviders();
 
     private:
         class Impl;

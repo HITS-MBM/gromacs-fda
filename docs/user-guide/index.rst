@@ -20,12 +20,15 @@ For background on algorithms and implementations, see the
    :maxdepth: 2
 
    getting-started
+   floating-point
    system-preparation
    cutoff-schemes
    mdrun-features
    mdrun-performance
    managing-simulations
    mdp-options
+   run-time-errors
    file-formats
    cmdline
    environment-variables
+   terminology
