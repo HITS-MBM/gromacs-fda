@@ -47,10 +47,10 @@
 
 #include "config.h"
 
-#include <assert.h>
-#include <signal.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cassert>
+#include <csignal>
+#include <cstdlib>
+#include <cstring>
 
 #include <algorithm>
 
@@ -231,7 +231,7 @@ static void prepare_verlet_scheme(FILE                           *fplog,
                                   t_inputrec                     *ir,
                                   int                             nstlist_cmdline,
                                   const gmx_mtop_t               *mtop,
-                                  matrix                          box,
+                                  const matrix                    box,
                                   bool                            makeGpuPairList,
                                   const gmx::CpuInfo             &cpuinfo)
 {
@@ -462,13 +462,13 @@ int Mdrunner::mdrunner()
     t_inputrec    *inputrec = &inputrecInstance;
     snew(mtop, 1);
 
-    if (Flags & MD_APPENDFILES)
+    if (mdrunOptions.continuationOptions.appendFiles)
     {
         fplog = nullptr;
     }
 
     bool doMembed = opt2bSet("-membed", nfile, fnm);
-    bool doRerun  = (Flags & MD_RERUN);
+    bool doRerun  = mdrunOptions.rerun;
 
     /* Handle GPU-related user options. Later, we check consistency
      * with things like whether support is compiled, or tMPI thread
@@ -480,17 +480,16 @@ int Mdrunner::mdrunner()
         gmx_fatal(FARGS, "GPU IDs were specified, and short-ranged interactions were assigned to the CPU. Make no more than one of these choices.");
     }
     bool forceUsePhysicalGpu = (strncmp(nbpu_opt, "gpu", 3) == 0) || !hw_opt.gpuIdTaskAssignment.empty();
-    bool tryUsePhysicalGpu   = (strncmp(nbpu_opt, "auto", 4) == 0) && !emulateGpu && (GMX_GPU != GMX_GPU_NONE);
+    bool tryUsePhysicalGpu   = (strncmp(nbpu_opt, "auto", 4) == 0) && hw_opt.gpuIdTaskAssignment.empty() && !emulateGpu;
+    GMX_RELEASE_ASSERT(!(forceUsePhysicalGpu && tryUsePhysicalGpu), "Must either force use of "
+                       "GPUs for short-ranged interactions, or try to use them, not both.");
 
     // Here we assume that SIMMASTER(cr) does not change even after the
     // threads are started.
     gmx::LoggerOwner logOwner(buildLogger(fplog, cr));
     gmx::MDLogger    mdlog(logOwner.logger());
 
-    /* Detect hardware, gather information. This is an operation that is
-     * global for this process (MPI rank). */
-    bool detectGpus = forceUsePhysicalGpu || tryUsePhysicalGpu;
-    hwinfo = gmx_detect_hardware(mdlog, cr, detectGpus);
+    hwinfo = gmx_detect_hardware(mdlog, cr);
 
     gmx_print_detected_hardware(fplog, cr, mdlog, hwinfo);
 
@@ -506,6 +505,7 @@ int Mdrunner::mdrunner()
         please_cite(fplog, "Berendsen95a");
     }
 
+    // TODO state should be nullptr on non-master ranks, and perhaps call it globalState
     std::unique_ptr<t_state> stateInstance = std::unique_ptr<t_state>(new t_state);
     t_state *                state         = stateInstance.get();
 
@@ -546,18 +546,6 @@ int Mdrunner::mdrunner()
                 }
                 tryUsePhysicalGpu = false;
             }
-            /* TODO This logic could run later, e.g. after inputrec,
-               mtop, and state have been communicated, but before DD
-               is initialized. In particular, -ntmpi 0 only needs to
-               know whether the Verlet scheme is active in order to
-               choose the number of ranks (because GPUs might be
-               usable).*/
-            bool makeGpuPairList = (forceUsePhysicalGpu ||
-                                    tryUsePhysicalGpu ||
-                                    emulateGpu);
-            prepare_verlet_scheme(fplog, cr,
-                                  inputrec, nstlist_cmdline, mtop, state->box,
-                                  makeGpuPairList, *hwinfo->cpuInfo);
         }
         else
         {
@@ -571,20 +559,14 @@ int Mdrunner::mdrunner()
                 GMX_LOG(mdlog.warning).asParagraph().appendText(
                         "NOTE: GPU(s) found, but the current simulation can not use GPUs\n"
                         "      To use a GPU, set the mdp option: cutoff-scheme = Verlet");
-                tryUsePhysicalGpu = false;
             }
-
-#if GMX_TARGET_BGQ
-            md_print_warn(cr, fplog,
-                          "NOTE: There is no SIMD implementation of the group scheme kernels on\n"
-                          "      BlueGene/Q. You will observe better performance from using the\n"
-                          "      Verlet cut-off scheme.\n");
-#endif
+            tryUsePhysicalGpu = false;
         }
     }
+    bool nonbondedOnGpu = (tryUsePhysicalGpu || forceUsePhysicalGpu) && compatibleGpusFound(hwinfo->gpu_info);
 
     /* Check and update the hardware options for internal consistency */
-    check_and_update_hw_opt_1(&hw_opt, cr, npme);
+    check_and_update_hw_opt_1(&hw_opt, cr, domdecOptions.numPmeRanks);
 
     /* Early check for externally set process affinity. */
     gmx_check_thread_affinity_set(mdlog, cr,
@@ -593,7 +575,7 @@ int Mdrunner::mdrunner()
 #if GMX_THREAD_MPI
     if (SIMMASTER(cr))
     {
-        if (npme > 0 && hw_opt.nthreads_tmpi <= 0)
+        if (domdecOptions.numPmeRanks > 0 && hw_opt.nthreads_tmpi <= 0)
         {
             gmx_fatal(FARGS, "You need to explicitly specify the number of MPI threads (-ntmpi) when using separate PME ranks");
         }
@@ -611,7 +593,8 @@ int Mdrunner::mdrunner()
          * correctly. */
         hw_opt.nthreads_tmpi = get_nthreads_mpi(hwinfo,
                                                 &hw_opt,
-                                                npme,
+                                                domdecOptions.numPmeRanks,
+                                                nonbondedOnGpu,
                                                 inputrec, mtop,
                                                 mdlog,
                                                 doMembed);
@@ -632,7 +615,7 @@ int Mdrunner::mdrunner()
         /* now broadcast everything to the non-master nodes/threads: */
         init_parallel(cr, inputrec, mtop);
 
-        gmx_bcast_sim(sizeof(tryUsePhysicalGpu), &tryUsePhysicalGpu, cr);
+        gmx_bcast_sim(sizeof(nonbondedOnGpu), &nonbondedOnGpu, cr);
     }
     // TODO: Error handling
     mdModules.assignOptionsToModules(*inputrec->params, nullptr);
@@ -648,8 +631,10 @@ int Mdrunner::mdrunner()
 
     /* A parallel command line option consistency check that we can
        only do after any threads have started. */
-    if (!PAR(cr) &&
-        (ddxyz[XX] > 1 || ddxyz[YY] > 1 || ddxyz[ZZ] > 1 || npme > 0))
+    if (!PAR(cr) && (domdecOptions.numCells[XX] > 1 ||
+                     domdecOptions.numCells[YY] > 1 ||
+                     domdecOptions.numCells[ZZ] > 1 ||
+                     domdecOptions.numPmeRanks > 0))
     {
         gmx_fatal(FARGS,
                   "The -dd or -npme option request a parallel simulation, "
@@ -679,22 +664,22 @@ int Mdrunner::mdrunner()
 
     if (!(EEL_PME(inputrec->coulombtype) || EVDW_PME(inputrec->vdwtype)))
     {
-        if (npme > 0)
+        if (domdecOptions.numPmeRanks > 0)
         {
             gmx_fatal_collective(FARGS, cr->mpi_comm_mysim, MASTER(cr),
                                  "PME-only ranks are requested, but the system does not use PME for electrostatics or LJ");
         }
 
-        npme = 0;
+        domdecOptions.numPmeRanks = 0;
     }
 
-    if ((tryUsePhysicalGpu || forceUsePhysicalGpu) && npme < 0)
+    if (nonbondedOnGpu && domdecOptions.numPmeRanks < 0)
     {
         /* With GPUs we don't automatically use PME-only ranks. PME ranks can
          * improve performance with many threads per GPU, since our OpenMP
          * scaling is bad, but it's difficult to automate the setup.
          */
-        npme = 0;
+        domdecOptions.numPmeRanks = 0;
     }
 
 #ifdef GMX_FAHCORE
@@ -742,9 +727,11 @@ int Mdrunner::mdrunner()
         tMPI_Thread_mutex_unlock(&deform_init_box_mutex);
     }
 
-    ObservablesHistory observablesHistory = {};
+    ObservablesHistory   observablesHistory = {};
 
-    if (Flags & MD_STARTFROMCPT)
+    ContinuationOptions &continuationOptions = mdrunOptions.continuationOptions;
+
+    if (continuationOptions.startedFromCheckpoint)
     {
         /* Check if checkpoint file exists before doing continuation.
          * This way we can use identical input options for the first and subsequent runs...
@@ -752,28 +739,28 @@ int Mdrunner::mdrunner()
         gmx_bool bReadEkin;
 
         load_checkpoint(opt2fn_master("-cpi", nfile, fnm, cr), &fplog,
-                        cr, ddxyz, &npme,
+                        cr, domdecOptions.numCells,
                         inputrec, state, &bReadEkin, &observablesHistory,
-                        (Flags & MD_APPENDFILES),
-                        (Flags & MD_APPENDFILESSET),
-                        (Flags & MD_REPRODUCIBLE));
+                        continuationOptions.appendFiles,
+                        continuationOptions.appendFilesOptionSet,
+                        mdrunOptions.reproducible);
 
         if (bReadEkin)
         {
-            Flags |= MD_READ_EKIN;
+            continuationOptions.haveReadEkin = true;
         }
     }
 
-    if (SIMMASTER(cr) && (Flags & MD_APPENDFILES))
+    if (SIMMASTER(cr) && continuationOptions.appendFiles)
     {
         gmx_log_open(ftp2fn(efLOG, nfile, fnm), cr,
-                     Flags, &fplog);
+                     continuationOptions.appendFiles, &fplog);
         logOwner = buildLogger(fplog, nullptr);
         mdlog    = logOwner.logger();
     }
 
-    /* override nsteps with value from cmdline */
-    override_nsteps_cmdline(mdlog, nsteps_cmdline, inputrec);
+    /* override nsteps with value set on the commamdline */
+    override_nsteps_cmdline(mdlog, mdrunOptions.numStepsCommandline, inputrec);
 
     if (SIMMASTER(cr))
     {
@@ -785,17 +772,21 @@ int Mdrunner::mdrunner()
         gmx_bcast(sizeof(box), box, cr);
     }
 
+    /* Update rlist and nstlist. */
+    if (inputrec->cutoff_scheme == ecutsVERLET)
+    {
+        prepare_verlet_scheme(fplog, cr, inputrec, nstlist_cmdline, mtop,
+                              box, nonbondedOnGpu || emulateGpu, *hwinfo->cpuInfo);
+    }
+
     if (PAR(cr) && !(EI_TPI(inputrec->eI) ||
                      inputrec->eI == eiNM))
     {
-        cr->dd = init_domain_decomposition(fplog, cr, Flags, ddxyz, npme,
-                                           dd_rank_order,
-                                           rdd, rconstr,
-                                           dddlb_opt, dlb_scale,
-                                           ddcsx, ddcsy, ddcsz,
+        cr->dd = init_domain_decomposition(fplog, cr, domdecOptions, mdrunOptions,
                                            mtop, inputrec,
                                            box, as_rvec_array(state->x.data()),
                                            &ddbox, &npme_major, &npme_minor);
+        // Note that local state still does not exist yet.
     }
     else
     {
@@ -868,7 +859,7 @@ int Mdrunner::mdrunner()
     // indexed by that rank. Empty if no GPUs are selected for use on
     // this node.
     std::vector<int> gpuTaskAssignment;
-    if (tryUsePhysicalGpu || forceUsePhysicalGpu)
+    if (nonbondedOnGpu)
     {
         /* Currently the DD code assigns duty to ranks that can
          * include PP work that currently can be executed on a single
@@ -905,7 +896,7 @@ int Mdrunner::mdrunner()
 #endif
 
     /* Now that we know the setup is consistent, check for efficiency */
-    check_resource_division_efficiency(hwinfo, hw_opt.nthreads_tot, !gpuTaskAssignment.empty(), Flags & MD_NTOMPSET,
+    check_resource_division_efficiency(hwinfo, hw_opt.nthreads_tot, !gpuTaskAssignment.empty(), mdrunOptions.ntompOptionIsSet,
                                        cr, mdlog);
 
     gmx_device_info_t *shortRangedDeviceInfo = nullptr;
@@ -931,7 +922,7 @@ int Mdrunner::mdrunner()
      */
     nthreads_pme = gmx_omp_nthreads_get(emntPME);
 
-    wcycle = wallcycle_init(fplog, resetstep, cr);
+    wcycle = wallcycle_init(fplog, mdrunOptions.timingOptions.resetStep, cr);
 
     if (PAR(cr))
     {
@@ -952,7 +943,7 @@ int Mdrunner::mdrunner()
         /* Note that membed cannot work in parallel because mtop is
          * changed here. Fix this if we ever want to make it run with
          * multiple ranks. */
-        membed = init_membed(fplog, nfile, fnm, mtop, inputrec, state, cr, &cpt_period);
+        membed = init_membed(fplog, nfile, fnm, mtop, inputrec, state, cr, &mdrunOptions.checkpointOptions.period);
     }
 
     snew(nrnb, 1);
@@ -1089,7 +1080,7 @@ int Mdrunner::mdrunner()
             {
                 status = gmx_pme_init(pmedata, cr, npme_major, npme_minor, inputrec,
                                       mtop ? mtop->natoms : 0, nChargePerturbed, nTypePerturbed,
-                                      (Flags & MD_REPRODUCIBLE),
+                                      mdrunOptions.reproducible,
                                       ewaldcoeff_q, ewaldcoeff_lj,
                                       nthreads_pme);
             }
@@ -1123,14 +1114,15 @@ int Mdrunner::mdrunner()
             inputrec->pull_work =
                 init_pull(fplog, inputrec->pull, inputrec, nfile, fnm,
                           mtop, cr, oenv, inputrec->fepvals->init_lambda,
-                          EI_DYNAMICS(inputrec->eI) && MASTER(cr), Flags);
+                          EI_DYNAMICS(inputrec->eI) && MASTER(cr),
+                          continuationOptions);
         }
 
         if (inputrec->bRot)
         {
             /* Initialize enforced rotation code */
             init_rot(fplog, inputrec, nfile, fnm, cr, as_rvec_array(state->x.data()), state->box, mtop, oenv,
-                     bVerbose, Flags);
+                     mdrunOptions);
         }
 
         /* Let init_constraints know whether we have essential dynamics constraints.
@@ -1147,23 +1139,21 @@ int Mdrunner::mdrunner()
              * because fr->cginfo_mb is set later.
              */
             dd_init_bondeds(fplog, cr->dd, mtop, vsite, inputrec,
-                            Flags & MD_DDBONDCHECK, fr->cginfo_mb);
+                            domdecOptions.checkBondedInteractions,
+                            fr->cginfo_mb);
         }
 
         /* Now do whatever the user wants us to do (how flexible...) */
         my_integrator(inputrec->eI) (fplog, cr, mdlog, nfile, fnm,
-                                     oenv, bVerbose,
-                                     nstglobalcomm,
+                                     oenv,
+                                     mdrunOptions,
                                      vsite, constr,
-                                     nstepout, mdModules.outputProvider(),
+                                     mdModules.outputProvider(),
                                      inputrec, mtop,
                                      fcd, state, &observablesHistory,
                                      mdatoms, nrnb, wcycle, fr,
                                      replExParams,
                                      membed,
-                                     cpt_period, max_hours,
-                                     imdport,
-                                     Flags,
                                      walltime_accounting);
 
         if (inputrec->bRot)
@@ -1217,7 +1207,7 @@ int Mdrunner::mdrunner()
     walltime_accounting_destroy(walltime_accounting);
 
     /* Close logfile already here if we were appending to it */
-    if (MASTER(cr) && (Flags & MD_APPENDFILES))
+    if (MASTER(cr) && continuationOptions.appendFiles)
     {
         gmx_log_close(fplog);
     }

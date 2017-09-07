@@ -96,7 +96,7 @@ warning_rlimit(const rvec *x, int ai, int aj, int * global_atom_index, real r, r
 }
 
 /*! \brief Compute the energy and force for a single pair interaction */
-real
+static real
 evaluate_single(real r2, real tabscale, real *vftab, real tableStride,
                 real qq, real c6, real c12, real *velec, real *vvdw)
 {
@@ -145,7 +145,7 @@ evaluate_single(real r2, real tabscale, real *vftab, real tableStride,
 }
 
 /*! \brief Compute the energy and force for a single pair interaction under FEP */
-real
+static real
 free_energy_evaluate_single(real r2, real sc_r_power, real alpha_coul,
                             real alpha_vdw, real tabscale, real *vftab, real tableStride,
                             real qqA, real c6A, real c12A, real qqB,
@@ -344,7 +344,7 @@ do_pairs_general(int ftype, int nbonds,
                  const t_iatom iatoms[], const t_iparams iparams[],
                  const rvec x[], rvec4 f[], rvec fshift[],
                  const struct t_pbc *pbc, const struct t_graph *g,
-                 real *lambda, real *dvdl,
+                 const real *lambda, real *dvdl,
                  const t_mdatoms *md,
                  const t_forcerec *fr, gmx_grppairener_t *grppener,
                  int *global_atom_index)
@@ -643,7 +643,7 @@ do_pairs(int ftype, int nbonds,
          const t_iatom iatoms[], const t_iparams iparams[],
          const rvec x[], rvec4 f[], rvec fshift[],
          const struct t_pbc *pbc, const struct t_graph *g,
-         real *lambda, real *dvdl,
+         const real *lambda, real *dvdl,
          const t_mdatoms *md,
          const t_forcerec *fr,
          gmx_bool bCalcEnergyAndVirial, gmx_grppairener_t *grppener,

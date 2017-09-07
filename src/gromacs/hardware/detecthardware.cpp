@@ -52,7 +52,6 @@
 
 #include "gromacs/gpu_utils/gpu_utils.h"
 #include "gromacs/hardware/cpuinfo.h"
-#include "gromacs/hardware/gpu_hw_info.h"
 #include "gromacs/hardware/hardwaretopology.h"
 #include "gromacs/hardware/hw_info.h"
 #include "gromacs/mdtypes/commrec.h"
@@ -70,9 +69,14 @@
 #include "gromacs/utility/stringutil.h"
 #include "gromacs/utility/sysinfo.h"
 
+#include "architecture.h"
+
 #ifdef HAVE_UNISTD_H
 #    include <unistd.h>       // sysconf()
 #endif
+
+namespace gmx
+{
 
 //! Convenience macro to help us avoid ifdefs each time we use sysconf
 #if !defined(_SC_NPROCESSORS_ONLN) && defined(_SC_NPROC_ONLN)
@@ -84,42 +88,17 @@
 #    define _SC_NPROCESSORS_CONF _SC_NPROC_CONF
 #endif
 
-#if defined (__i386__) || defined (__x86_64__) || defined (_M_IX86) || defined (_M_X64)
-//! Constant used to help minimize preprocessed code
-static const bool isX86 = true;
-#else
-//! Constant used to help minimize preprocessed code
-static const bool isX86 = false;
-#endif
-
-#if defined __powerpc__ || defined __ppc__ || defined __PPC__
-static const bool isPowerPC = true;
-#else
-static const bool isPowerPC = false;
-#endif
-
 //! Constant used to help minimize preprocessed code
 static const bool bGPUBinary     = GMX_GPU != GMX_GPU_NONE;
 
-/* Note that some of the following arrays must match the "GPU support
- * enumeration" in src/config.h.cmakein, so that GMX_GPU looks up an
- * array entry. */
-
-// TODO If/when we unify CUDA and OpenCL support code, this should
-// move to a single place in gpu_utils.
-/* Names of the GPU detection/check results (see e_gpu_detect_res_t in hw_info.h). */
-const char * const gpu_detect_res_str[egpuNR] =
-{
-    "compatible", "inexistent", "incompatible", "insane"
-};
-
-/* The globally shared hwinfo structure. */
+//! The globally shared hwinfo structure
 static gmx_hw_info_t      *hwinfo_g;
-/* A reference counter for the hwinfo structure */
+//! A reference counter for the hwinfo structure
 static int                 n_hwinfo = 0;
-/* A lock to protect the hwinfo structure */
+//! A lock to protect the hwinfo structure
 static tMPI_Thread_mutex_t hw_info_lock = TMPI_THREAD_MUTEX_INITIALIZER;
 
+//! Detect GPUs, if that makes sense to attempt.
 static void gmx_detect_gpus(const gmx::MDLogger &mdlog, const t_commrec *cr)
 {
 #if GMX_LIB_MPI
@@ -127,6 +106,13 @@ static void gmx_detect_gpus(const gmx::MDLogger &mdlog, const t_commrec *cr)
     MPI_Comm         physicalnode_comm;
 #endif
     int              rank_local;
+
+    hwinfo_g->gpu_info.bDetectGPUs =
+        (bGPUBinary && getenv("GMX_DISABLE_GPU_DETECTION") == nullptr);
+    if (!hwinfo_g->gpu_info.bDetectGPUs)
+    {
+        return;
+    }
 
     /* Under certain circumstances MPI ranks on the same physical node
      * can not simultaneously access the same GPU(s). Therefore we run
@@ -209,6 +195,7 @@ static void gmx_detect_gpus(const gmx::MDLogger &mdlog, const t_commrec *cr)
 #endif
 }
 
+//! Reduce the locally collected \p hwinfo_g over MPI ranks
 static void gmx_collect_hardware_mpi(const gmx::CpuInfo &cpuInfo)
 {
     const int ncore = hwinfo_g->hardwareTopology->numberOfCores();
@@ -399,7 +386,8 @@ hardwareTopologyPrepareDetection()
     (defined(THREAD_PTHREADS) || defined(THREAD_WINDOWS))
 
     // Modify this conditional when/if x86 or PowerPC starts to sleep some cores
-    if (!isX86 && !isPowerPC)
+    if (c_architecture != Architecture::X86 &&
+        c_architecture != Architecture::PowerPC)
     {
         int                      countConfigured  = sysconf(_SC_NPROCESSORS_CONF);
         std::vector<std::thread> workThreads(countConfigured);
@@ -445,14 +433,16 @@ hardwareTopologyDoubleCheckDetection(const gmx::MDLogger gmx_unused         &mdl
         GMX_LOG(mdlog.info).
             appendTextFormatted("Note: %d CPUs configured, but only %d were detected to be online.\n", countConfigured, countFromDetection);
 
-        if (isX86 && countConfigured == 2*countFromDetection)
+        if (c_architecture == Architecture::X86 &&
+            countConfigured == 2*countFromDetection)
         {
             GMX_LOG(mdlog.info).
                 appendText("      X86 Hyperthreading is likely disabled; enable it for better performance.");
         }
         // For PowerPC (likely Power8) it is possible to set SMT to either 2,4, or 8-way hardware threads.
         // We only warn if it is completely disabled since default performance drops with SMT8.
-        if (isPowerPC && countConfigured == 8*countFromDetection)
+        if (c_architecture == Architecture::PowerPC &&
+            countConfigured == 8*countFromDetection)
         {
             GMX_LOG(mdlog.info).
                 appendText("      PowerPC SMT is likely disabled; enable SMT2/SMT4 for better performance.");
@@ -462,8 +452,7 @@ hardwareTopologyDoubleCheckDetection(const gmx::MDLogger gmx_unused         &mdl
 }
 
 
-gmx_hw_info_t *gmx_detect_hardware(const gmx::MDLogger &mdlog, const t_commrec *cr,
-                                   gmx_bool bDetectGPUs)
+gmx_hw_info_t *gmx_detect_hardware(const gmx::MDLogger &mdlog, const t_commrec *cr)
 {
     int ret;
 
@@ -498,17 +487,7 @@ gmx_hw_info_t *gmx_detect_hardware(const gmx::MDLogger &mdlog, const t_commrec *
         hwinfo_g->gpu_info.n_dev_compatible = 0;
         hwinfo_g->gpu_info.gpu_dev          = nullptr;
 
-        /* Run the detection if the binary was compiled with GPU support
-         * and we requested detection.
-         */
-        hwinfo_g->gpu_info.bDetectGPUs =
-            (bGPUBinary && bDetectGPUs &&
-             getenv("GMX_DISABLE_GPU_DETECTION") == nullptr);
-        if (hwinfo_g->gpu_info.bDetectGPUs)
-        {
-            gmx_detect_gpus(mdlog, cr);
-        }
-
+        gmx_detect_gpus(mdlog, cr);
         gmx_collect_hardware_mpi(*hwinfo_g->cpuInfo);
     }
     /* increase the reference counter */
@@ -566,3 +545,5 @@ void gmx_hardware_info_free(gmx_hw_info_t *hwinfo)
         gmx_fatal(FARGS, "Error unlocking hwinfo mutex: %s", strerror(errno));
     }
 }
+
+}  // namespace gmx

@@ -50,7 +50,6 @@ struct t_commrec;
 namespace gmx
 {
 class MDLogger;
-}
 
 /*! \brief Run detection, consistency checks, and make available on all ranks.
  *
@@ -61,21 +60,14 @@ class MDLogger;
  * Caller is responsible for freeing this pointer.
  */
 gmx_hw_info_t *gmx_detect_hardware(const gmx::MDLogger &mdlog,
-                                   const t_commrec *cr, gmx_bool bDetectGPUs);
+                                   const t_commrec     *cr);
 
+/*! \brief Free the hwinfo structure */
 void gmx_hardware_info_free(gmx_hw_info_t *hwinfo);
 
 //! Return whether compatible GPUs were found.
 bool compatibleGpusFound(const gmx_gpu_info_t &gpu_info);
 
-/*! \brief Check the consistency of hw_opt with hwinfo.
- *
- * This function should be called once on each MPI rank. */
-void gmx_check_hw_runconf_consistency(const gmx::MDLogger    &mdlog,
-                                      const gmx_hw_info_t    *hwinfo,
-                                      const t_commrec        *cr,
-                                      const gmx_hw_opt_t     &hw_opt,
-                                      bool                    userSetGpuIds,
-                                      const std::vector<int> &gpuSelection);
-
 #endif
+
+} // namespace gmx

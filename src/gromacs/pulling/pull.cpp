@@ -73,6 +73,7 @@
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/futil.h"
 #include "gromacs/utility/gmxassert.h"
+#include "gromacs/utility/mutex.h"
 #include "gromacs/utility/pleasecite.h"
 #include "gromacs/utility/real.h"
 #include "gromacs/utility/smalloc.h"
@@ -286,13 +287,14 @@ static void set_legend_for_coord_components(const pull_coord_work_t *pcrd, int c
 
 static FILE *open_pull_out(const char *fn, struct pull_t *pull,
                            const gmx_output_env_t *oenv,
-                           gmx_bool bCoord, unsigned long Flags)
+                           gmx_bool bCoord,
+                           const ContinuationOptions &continuationOptions)
 {
     FILE  *fp;
     int    nsets, c, m;
     char **setname, buf[50];
 
-    if (Flags & MD_APPENDFILES)
+    if (continuationOptions.appendFiles)
     {
         fp = gmx_fio_fopen(fn, "a+");
     }
@@ -1561,6 +1563,15 @@ static void calc_pull_coord_vector_force(pull_coord_work_t *pcrd)
 }
 
 
+/* We use a global mutex for locking access to the pull data structure
+ * during registration of external pull potential providers.
+ * We could use a different, local mutex for each pull object, but the overhead
+ * is extremely small here and registration is only done during initialization.
+ */
+static gmx::Mutex registrationMutex;
+
+using Lock = gmx::lock_guard<gmx::Mutex>;
+
 void register_external_pull_potential(struct pull_t *pull,
                                       int            coord_index,
                                       const char    *provider)
@@ -1590,16 +1601,22 @@ void register_external_pull_potential(struct pull_t *pull,
                   provider, coord_index + 1, pcrd->params.externalPotentialProvider);
     }
 
+    /* Lock to avoid (extremely unlikely) simultaneous reading and writing of
+     * pcrd->bExternalPotentialProviderHasBeenRegistered and
+     * pull->numUnregisteredExternalPotentials.
+     */
+    Lock registrationLock(registrationMutex);
+
     if (pcrd->bExternalPotentialProviderHasBeenRegistered)
     {
-        gmx_fatal(FARGS, "Module '%s' attempted to register an external potential for pull coordinate %d multiple times",
+        gmx_fatal(FARGS, "Module '%s' attempted to register an external potential for pull coordinate %d more than once",
                   provider, coord_index + 1);
     }
 
     pcrd->bExternalPotentialProviderHasBeenRegistered = true;
     pull->numUnregisteredExternalPotentials--;
 
-    GMX_RELEASE_ASSERT(pull->numUnregisteredExternalPotentials >= 0, "Negative unregisterd potentials, the pull code in inconsistent");
+    GMX_RELEASE_ASSERT(pull->numUnregisteredExternalPotentials >= 0, "Negative unregistered potentials, the pull code is inconsistent");
 }
 
 
@@ -2089,7 +2106,8 @@ init_pull(FILE *fplog, const pull_params_t *pull_params, const t_inputrec *ir,
           int nfile, const t_filenm fnm[],
           const gmx_mtop_t *mtop, t_commrec *cr,
           const gmx_output_env_t *oenv, real lambda,
-          gmx_bool bOutFile, unsigned long Flags)
+          gmx_bool bOutFile,
+          const ContinuationOptions &continuationOptions)
 {
     struct pull_t *pull;
     pull_comm_t   *comm;
@@ -2506,9 +2524,9 @@ init_pull(FILE *fplog, const pull_params_t *pull_params, const t_inputrec *ir,
                 }
                 GMX_CATCH_ALL_AND_EXIT_WITH_FATAL_ERROR;
                 pull->out_x   = open_pull_out(px_appended.c_str(), pull, oenv,
-                                              TRUE, Flags);
+                                              TRUE, continuationOptions);
                 pull->out_f = open_pull_out(pf_appended.c_str(), pull, oenv,
-                                            FALSE, Flags);
+                                            FALSE, continuationOptions);
                 return pull;
             }
             else
@@ -2521,12 +2539,12 @@ init_pull(FILE *fplog, const pull_params_t *pull_params, const t_inputrec *ir,
         if (pull->params.nstxout != 0)
         {
             pull->out_x = open_pull_out(opt2fn("-px", nfile, fnm), pull, oenv,
-                                        TRUE, Flags);
+                                        TRUE, continuationOptions);
         }
         if (pull->params.nstfout != 0)
         {
             pull->out_f = open_pull_out(opt2fn("-pf", nfile, fnm), pull, oenv,
-                                        FALSE, Flags);
+                                        FALSE, continuationOptions);
         }
     }
 

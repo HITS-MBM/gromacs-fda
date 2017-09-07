@@ -753,17 +753,18 @@ calc_dr_x_xp_simd(int                       b0,
 #endif // GMX_SIMD_HAVE_REAL
 
 /* Determine the distances and right-hand side for the next iteration */
-static void calc_dist_iter(int                       b0,
-                           int                       b1,
-                           const int *               bla,
-                           const rvec * gmx_restrict xp,
-                           const real * gmx_restrict bllen,
-                           const real * gmx_restrict blc,
-                           const t_pbc *             pbc,
-                           real                      wfac,
-                           real * gmx_restrict       rhs,
-                           real * gmx_restrict       sol,
-                           gmx_bool *                bWarn)
+gmx_unused static void calc_dist_iter(
+        int                       b0,
+        int                       b1,
+        const int *               bla,
+        const rvec * gmx_restrict xp,
+        const real * gmx_restrict bllen,
+        const real * gmx_restrict blc,
+        const t_pbc *             pbc,
+        real                      wfac,
+        real * gmx_restrict       rhs,
+        real * gmx_restrict       sol,
+        gmx_bool *                bWarn)
 {
     int b;
 
@@ -1253,7 +1254,7 @@ static void set_lincs_matrix_task(struct gmx_lincsdata *li,
 }
 
 /* Sets the elements in the LINCS matrix */
-void set_lincs_matrix(struct gmx_lincsdata *li, real *invmass, real lambda)
+static void set_lincs_matrix(struct gmx_lincsdata *li, real *invmass, real lambda)
 {
     int        i;
     const real invsqrt2 = 0.7071067811865475244;
