@@ -3,6 +3,7 @@ set(exename "fda-tests")
 
 gmx_add_gtest_executable(
     ${exename}
+    FDATest.cpp
     PairwiseForcesTest.cpp
 )
 

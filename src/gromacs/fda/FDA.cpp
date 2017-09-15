@@ -235,6 +235,12 @@ void FDA::add_angle(int ai, int aj, int ak, rvec f_i, rvec f_j, rvec f_k)
 {
     rvec uf_i, uf_j, uf_k, f_j_i, f_j_k, f_i_k;
     real nf_j_i, nf_j_k;
+
+    // below computation can sometimes return before finishing to avoid division with very small numbers;
+    // this situation can occur f.e. when all f_i, f_j, f_k and f_l are (almost) zero;
+    // in this case there is no call to fda_add_bonded, no pairwise forces are recorded (which is different from recording zero forces!)
+    if (norm(f_i) + norm(f_j) + norm(f_k) == 0.0) return;
+
     unitv(f_i, uf_i);
     unitv(f_j, uf_j);
     unitv(f_k, uf_k);
