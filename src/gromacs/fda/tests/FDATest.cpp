@@ -5,18 +5,12 @@
  *      Author: Bernd Doser, HITS gGmbH <bernd.doser@h-its.org>
  */
 
-#include <iostream>
 #include <gtest/gtest.h>
 #include "gromacs/fda/FDA.h"
-#include "testutils/integrationtests.h"
 
 namespace fda {
 
-//! Test fixture for PairwiseForces
-class FDATest : public ::gmx::test::IntegrationTestFixture
-{};
-
-TEST_F(FDATest, add_angle)
+TEST(FDATest, add_angle)
 {
     FDASettings fda_settings;
     fda_settings.atom_based_result_type = ResultType::NO;
@@ -41,9 +35,6 @@ TEST_F(FDATest, add_angle)
     rvec f_j{0.0, 0.0, 0.0};
     rvec f_k{0.0, 0.0, 0.0};
     fda.add_angle(0, 1, 2, f_i, f_j, f_k);
-
 }
-
-
 
 } // namespace fda
