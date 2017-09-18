@@ -313,7 +313,7 @@ elseif(GMX_SIMD STREQUAL "AVX_512")
          int main(){__m512 y,x=_mm512_set1_ps(0.5);y=_mm512_fmadd_ps(x,x,x);return (int)_mm512_cmp_ps_mask(x,y,_CMP_LT_OS);}"
         TOOLCHAIN_C_FLAGS TOOLCHAIN_CXX_FLAGS
         SIMD_${GMX_SIMD}_C_FLAGS SIMD_${GMX_SIMD}_CXX_FLAGS
-        "-xMIC-AVX512" "-mavx512f -mfma" "-mavx512f" "/arch:AVX" "-hgnu") # no AVX_512F flags known for MSVC yet
+        "-xCORE-AVX512" "-mavx512f -mfma" "-mavx512f" "/arch:AVX" "-hgnu") # no AVX_512F flags known for MSVC yet
 
     if(NOT SIMD_${GMX_SIMD}_C_FLAGS OR NOT SIMD_${GMX_SIMD}_CXX_FLAGS)
         gmx_give_fatal_error_when_simd_support_not_found("AVX 512F" "choose a lower level of SIMD (slower)" "${SUGGEST_BINUTILS_UPDATE}")
@@ -345,6 +345,10 @@ elseif(GMX_SIMD STREQUAL "AVX_512_KNL")
     set(SIMD_STATUS_MESSAGE "Enabling 512-bit AVX-512-KNL SIMD instructions")
 
 elseif(GMX_SIMD STREQUAL "ARM_NEON")
+
+    if (GMX_DOUBLE)
+        message(FATAL_ERROR "ARM_NEON SIMD support is not available for a double precision build because the architecture lacks double-precision support")
+    endif()
 
     gmx_find_flags(
         "#include<arm_neon.h>

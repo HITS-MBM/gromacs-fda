@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014,2015,2016, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016,2017, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -86,9 +86,16 @@ void init_orires(FILE *fplog, const gmx_mtop_t *mtop,
         return;
     }
 
-    if (DOMAINDECOMP(cr))
+    const int numFitParams = 5;
+    if (od->nr <= numFitParams)
     {
-        gmx_fatal(FARGS, "Orientation restraints do not work with more than one domain (ie. MPI rank).");
+        gmx_fatal(FARGS, "The system has %d orientation restraints, but at least %d are required, since there are %d fitting parameters.",
+                  od->nr, numFitParams + 1, numFitParams);
+    }
+
+    if (PAR(cr))
+    {
+        gmx_fatal(FARGS, "Orientation restraints do not work with MPI parallelization. Choose 1 MPI rank, if possible.");
     }
     /* Orientation restraints */
     if (!MASTER(cr))
@@ -428,7 +435,7 @@ real calc_orires_dev(const gmx_multisim_t *ms,
             mref[j] = md->massT[i];
             for (d = 0; d < DIM; d++)
             {
-                com[d] += mref[j]*xref[j][d];
+                com[d] += mref[j]*xtmp[j][d];
             }
             mtot += mref[j];
             j++;

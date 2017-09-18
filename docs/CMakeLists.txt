@@ -120,14 +120,18 @@ if (SPHINX_FOUND)
         user-guide/index.rst
         user-guide/getting-started.rst
         user-guide/flow.rst
+        user-guide/floating-point.rst
         user-guide/system-preparation.rst
         user-guide/cutoff-schemes.rst
+        user-guide/managing-simulations.rst
         user-guide/mdrun-features.rst
         user-guide/mdrun-performance.rst
         user-guide/mdp-options.rst
+        user-guide/run-time-errors.rst
         user-guide/file-formats.rst
         user-guide/cmdline.rst
         user-guide/environment-variables.rst
+        user-guide/terminology.rst
         user-guide/plotje.gif
         user-guide/xvgr.gif
         conf.py

@@ -1,7 +1,7 @@
 #
 # This file is part of the GROMACS molecular simulation package.
 #
-# Copyright (c) 2012,2013,2014,2015,2016, by the GROMACS development team, led by
+# Copyright (c) 2012,2013,2014,2015,2016,2017, by the GROMACS development team, led by
 # Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
 # and including many others, as listed in the AUTHORS file in the
 # top-level source directory and at http://www.gromacs.org.
@@ -146,14 +146,17 @@ else()
     #     => compile sm_20, sm_30, sm_35, sm_37, sm_50, & sm_52 SASS, and compute_52 PTX
     # - with CUDA >=8.0         CC 6.0-6.2 is supported (but we know nothing about CC 6.2, so we won't generate code or it)
     #     => compile sm_20, sm_30, sm_35, sm_37, sm_50, sm_52, sm_60, sm_61 SASS, and compute_60 and compute_61 PTX
-    #
+    # - with CUDA >=9.0         CC 7.0 is supported and CC 2.0 is no longer supported
+    #     => compile sm_30, sm_35, sm_37, sm_50, sm_52, sm_60, sm_61, sm_70 SASS, and compute_70 PTX
     #
     #   Note that CUDA 6.5.19 second patch release supports cc 5.2 too, but
     #   CUDA_VERSION does not contain patch version and having PTX 5.0 JIT-ed is
     #   equally fast as compiling with sm_5.2 anyway.
 
     # First add flags that trigger SASS (binary) code generation for physical arch
-    list (APPEND GMX_CUDA_NVCC_GENCODE_FLAGS "-gencode;arch=compute_20,code=sm_20")
+    if(CUDA_VERSION VERSION_LESS "9.00") # < 9.0
+        list (APPEND GMX_CUDA_NVCC_GENCODE_FLAGS "-gencode;arch=compute_20,code=sm_20")
+    endif()
     list (APPEND GMX_CUDA_NVCC_GENCODE_FLAGS "-gencode;arch=compute_30,code=sm_30")
     list (APPEND GMX_CUDA_NVCC_GENCODE_FLAGS "-gencode;arch=compute_35,code=sm_35")
 
@@ -168,6 +171,9 @@ else()
         list (APPEND GMX_CUDA_NVCC_GENCODE_FLAGS "-gencode;arch=compute_60,code=sm_60")
         list (APPEND GMX_CUDA_NVCC_GENCODE_FLAGS "-gencode;arch=compute_61,code=sm_61")
     endif()
+    if(NOT CUDA_VERSION VERSION_LESS "9.0") # >= 9.0
+        list (APPEND GMX_CUDA_NVCC_GENCODE_FLAGS "-gencode;arch=compute_70,code=sm_70")
+    endif()
 
     # Next add flags that trigger PTX code generation for the newest supported virtual arch
     # that's useful to JIT to future architectures
@@ -177,9 +183,11 @@ else()
         list (APPEND GMX_CUDA_NVCC_GENCODE_FLAGS "-gencode;arch=compute_50,code=compute_50")
     elseif(CUDA_VERSION VERSION_LESS "8.0")
         list (APPEND GMX_CUDA_NVCC_GENCODE_FLAGS "-gencode;arch=compute_52,code=compute_52")
-    else() # version >= 8.0
+    elseif(CUDA_VERSION VERSION_LESS "9.0")
         list (APPEND GMX_CUDA_NVCC_GENCODE_FLAGS "-gencode;arch=compute_60,code=compute_60")
         list (APPEND GMX_CUDA_NVCC_GENCODE_FLAGS "-gencode;arch=compute_61,code=compute_61")
+    else() # version >= 9.0
+        list (APPEND GMX_CUDA_NVCC_GENCODE_FLAGS "-gencode;arch=compute_70,code=compute_70")
     endif()
 endif()
 
@@ -189,6 +197,10 @@ gmx_dependent_cache_variable(GMX_CUDA_TARGET_COMPUTE "List of CUDA virtual archi
 # assemble the CUDA flags
 list(APPEND GMX_CUDA_NVCC_FLAGS "${GMX_CUDA_NVCC_GENCODE_FLAGS}")
 list(APPEND GMX_CUDA_NVCC_FLAGS "-use_fast_math")
+if (CUDA_VERSION VERSION_EQUAL "8.0")
+    # requesting sm_20 triggers deprecation messages with nvcc 8.0 which we better avoid
+    list(APPEND GMX_CUDA_NVCC_FLAGS "-Wno-deprecated-gpu-targets")
+endif()
 
 # assemble the CUDA host compiler flags
 # with CMake <2.8.10 the host compiler needs to be set on the nvcc command line

@@ -506,11 +506,11 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
                                         repl_ex_nst, repl_ex_nex, repl_ex_seed);
     }
 
-    /* PME tuning is only supported with PME for Coulomb. Is is not supported
-     * with only LJ PME, or for reruns.
-     */
+    /* PME tuning is only supported in the Verlet scheme, with PME for
+     * Coulomb. It is not supported with only LJ PME, or for
+     * reruns. */
     bPMETune = ((Flags & MD_TUNEPME) && EEL_PME(fr->eeltype) && !bRerunMD &&
-                !(Flags & MD_REPRODUCIBLE));
+                !(Flags & MD_REPRODUCIBLE) && ir->cutoff_scheme != ecutsGROUP);
     if (bPMETune)
     {
         pme_loadbal_init(&pme_loadbal, cr, fplog, ir, state->box,
@@ -614,11 +614,6 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
             copy_mat(ekind->tcstat[i].ekinh, ekind->tcstat[i].ekinh_old);
         }
     }
-    if (ir->eI != eiVV)
-    {
-        enerd->term[F_TEMP] *= 2; /* result of averages being done over previous and current step,
-                                     and there is no previous step */
-    }
 
     /* need to make an initiation call to get the Trotter variables set, as well as other constants for non-trotter
        temperature control */
@@ -626,16 +621,28 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
 
     if (MASTER(cr))
     {
-        if (constr && !ir->bContinuation && ir->eConstrAlg == econtLINCS)
+        if (!ir->bContinuation)
         {
-            fprintf(fplog,
-                    "RMS relative constraint deviation after constraining: %.2e\n",
-                    constr_rmsd(constr));
+            if (constr && ir->eConstrAlg == econtLINCS)
+            {
+                fprintf(fplog,
+                        "RMS relative constraint deviation after constraining: %.2e\n",
+                        constr_rmsd(constr));
+            }
+            if (EI_STATE_VELOCITY(ir->eI))
+            {
+                real temp = enerd->term[F_TEMP];
+                if (ir->eI != eiVV)
+                {
+                    /* Result of Ekin averaged over velocities of -half
+                     * and +half step, while we only have -half step here.
+                     */
+                    temp *= 2;
+                }
+                fprintf(fplog, "Initial temperature: %g K\n", temp);
+            }
         }
-        if (EI_STATE_VELOCITY(ir->eI))
-        {
-            fprintf(fplog, "Initial temperature: %g K\n", enerd->term[F_TEMP]);
-        }
+
         if (bRerunMD)
         {
             fprintf(stderr, "starting md rerun '%s', reading coordinates from"
