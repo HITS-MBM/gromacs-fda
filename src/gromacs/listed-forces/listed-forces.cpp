@@ -369,7 +369,7 @@ calc_one_bond(int thread,
                                                       idef->iparams,
                                                       x, f, fshift,
                                                       pbc, g, lambda[efptFTYPE], &(dvdl[efptFTYPE]),
-                                                      md, fcd, global_atom_index);
+                                                      md, fcd, global_atom_index, fr->fda);
             }
         }
         else
