@@ -57,6 +57,7 @@
 #include "gromacs/commandline/filenm.h"
 #include "gromacs/domdec/domdec.h"
 #include "gromacs/domdec/domdec_struct.h"
+#include "gromacs/ewald/ewald-utils.h"
 #include "gromacs/ewald/pme.h"
 #include "gromacs/fileio/checkpoint.h"
 #include "gromacs/fileio/oenv.h"
@@ -65,11 +66,9 @@
 #include "gromacs/gpu_utils/gpu_utils.h"
 #include "gromacs/hardware/cpuinfo.h"
 #include "gromacs/hardware/detecthardware.h"
-#include "gromacs/hardware/hardwareassign.h"
 #include "gromacs/hardware/printhardware.h"
 #include "gromacs/listed-forces/disre.h"
 #include "gromacs/listed-forces/orires.h"
-#include "gromacs/math/calculate-ewald-splitting-coefficient.h"
 #include "gromacs/math/functions.h"
 #include "gromacs/math/utilities.h"
 #include "gromacs/math/vec.h"
@@ -84,6 +83,7 @@
 #include "gromacs/mdlib/mdatoms.h"
 #include "gromacs/mdlib/mdrun.h"
 #include "gromacs/mdlib/minimize.h"
+#include "gromacs/mdlib/nb_verlet.h"
 #include "gromacs/mdlib/nbnxn_search.h"
 #include "gromacs/mdlib/nbnxn_tuning.h"
 #include "gromacs/mdlib/qmmm.h"
@@ -103,6 +103,8 @@
 #include "gromacs/pbcutil/pbc.h"
 #include "gromacs/pulling/pull.h"
 #include "gromacs/pulling/pull_rotation.h"
+#include "gromacs/taskassignment/hardwareassign.h"
+#include "gromacs/taskassignment/resourcedivision.h"
 #include "gromacs/timing/wallcycle.h"
 #include "gromacs/topology/mtop_util.h"
 #include "gromacs/trajectory/trajectoryframe.h"
@@ -122,7 +124,6 @@
 #include "md.h"
 #include "membed.h"
 #include "repl_ex.h"
-#include "resource-division.h"
 
 #ifdef GMX_FAHCORE
 #include "corewrap.h"
@@ -320,10 +321,10 @@ namespace gmx
 {
 
 //! Halt the run if there are inconsistences between user choices to run with GPUs and/or hardware detection.
-static void exitIfCannotForceGpuRun(bool requirePhysicalGpu,
-                                    bool emulateGpu,
-                                    bool useVerletScheme,
-                                    bool compatibleGpusFound)
+static void exitIfCannotForceGpuRun(bool                requirePhysicalGpu,
+                                    EmulateGpuNonbonded emulateGpuNonbonded,
+                                    bool                useVerletScheme,
+                                    bool                compatibleGpusFound)
 {
     /* Was GPU acceleration either explicitly (-nb gpu) or implicitly
      * (gpu ID passed) requested? */
@@ -338,7 +339,7 @@ static void exitIfCannotForceGpuRun(bool requirePhysicalGpu,
                   gmx::getProgramContext().displayName());
     }
 
-    if (emulateGpu)
+    if (emulateGpuNonbonded == EmulateGpuNonbonded::Yes)
     {
         gmx_fatal(FARGS, "GPU emulation cannot be requested together with GPU acceleration!");
     }
@@ -473,14 +474,15 @@ int Mdrunner::mdrunner()
     /* Handle GPU-related user options. Later, we check consistency
      * with things like whether support is compiled, or tMPI thread
      * count. */
-    bool emulateGpu            = getenv("GMX_EMULATE_GPU") != nullptr;
-    bool forceUseCpu           = (strncmp(nbpu_opt, "cpu", 3) == 0);
+    EmulateGpuNonbonded emulateGpuNonbonded = (getenv("GMX_EMULATE_GPU") != nullptr ?
+                                               EmulateGpuNonbonded::Yes : EmulateGpuNonbonded::No);
+    bool                forceUseCpu           = (strncmp(nbpu_opt, "cpu", 3) == 0);
     if (!hw_opt.gpuIdTaskAssignment.empty() && forceUseCpu)
     {
         gmx_fatal(FARGS, "GPU IDs were specified, and short-ranged interactions were assigned to the CPU. Make no more than one of these choices.");
     }
     bool forceUsePhysicalGpu = (strncmp(nbpu_opt, "gpu", 3) == 0) || !hw_opt.gpuIdTaskAssignment.empty();
-    bool tryUsePhysicalGpu   = (strncmp(nbpu_opt, "auto", 4) == 0) && hw_opt.gpuIdTaskAssignment.empty() && !emulateGpu;
+    bool tryUsePhysicalGpu   = (strncmp(nbpu_opt, "auto", 4) == 0) && hw_opt.gpuIdTaskAssignment.empty() && (emulateGpuNonbonded == EmulateGpuNonbonded::No);
     GMX_RELEASE_ASSERT(!(forceUsePhysicalGpu && tryUsePhysicalGpu), "Must either force use of "
                        "GPUs for short-ranged interactions, or try to use them, not both.");
 
@@ -505,9 +507,7 @@ int Mdrunner::mdrunner()
         please_cite(fplog, "Berendsen95a");
     }
 
-    // TODO state should be nullptr on non-master ranks, and perhaps call it globalState
-    std::unique_ptr<t_state> stateInstance = std::unique_ptr<t_state>(new t_state);
-    t_state *                state         = stateInstance.get();
+    std::unique_ptr<t_state> globalState;
 
 #ifdef BUILD_WITH_FDA
     std::shared_ptr<fda::FDASettings> ptr_fda_settings;
@@ -516,8 +516,11 @@ int Mdrunner::mdrunner()
 
     if (SIMMASTER(cr))
     {
+        /* Only the master rank has the global state */
+        globalState = std::unique_ptr<t_state>(new t_state);
+
         /* Read (nearly) all data required for the simulation */
-        read_tpx_state(ftp2fn(efTPR, nfile, fnm), inputrec, state, mtop);
+        read_tpx_state(ftp2fn(efTPR, nfile, fnm), inputrec, globalState.get(), mtop);
 
 #ifdef BUILD_WITH_FDA
         ptr_fda_settings = std::make_shared<fda::FDASettings>(nfile, fnm, mtop, PAR(cr));
@@ -526,7 +529,7 @@ int Mdrunner::mdrunner()
 #endif
 
         exitIfCannotForceGpuRun(forceUsePhysicalGpu,
-                                emulateGpu,
+                                emulateGpuNonbonded,
                                 inputrec->cutoff_scheme == ecutsVERLET,
                                 compatibleGpusFound(hwinfo->gpu_info));
 
@@ -626,8 +629,23 @@ int Mdrunner::mdrunner()
         fprintf(fplog, "\n");
     }
 
-    /* now make sure the state is initialized and propagated */
-    set_state_entries(state, inputrec);
+    if (SIMMASTER(cr))
+    {
+        /* now make sure the state is initialized and propagated */
+        set_state_entries(globalState.get(), inputrec);
+    }
+
+    /* NM and TPI parallelize over force/energy calculations, not atoms,
+     * so we need to initialize and broadcast the global state.
+     */
+    if (inputrec->eI == eiNM || inputrec->eI == eiTPI)
+    {
+        if (!MASTER(cr))
+        {
+            globalState = std::unique_ptr<t_state>(new t_state);
+        }
+        broadcastStateWithoutDynamics(cr, globalState.get());
+    }
 
     /* A parallel command line option consistency check that we can
        only do after any threads have started. */
@@ -699,17 +717,16 @@ int Mdrunner::mdrunner()
     snew(fcd, 1);
 
     /* This needs to be called before read_checkpoint to extend the state */
-    init_disres(fplog, mtop, inputrec, cr, fcd, state, replExParams.exchangeInterval > 0);
+    init_disres(fplog, mtop, inputrec, cr, fcd, globalState.get(), replExParams.exchangeInterval > 0);
 
-    init_orires(fplog, mtop, as_rvec_array(state->x.data()), inputrec, cr, &(fcd->orires),
-                state);
+    init_orires(fplog, mtop, inputrec, cr, globalState.get(), &(fcd->orires));
 
     if (inputrecDeform(inputrec))
     {
         /* Store the deform reference box before reading the checkpoint */
         if (SIMMASTER(cr))
         {
-            copy_mat(state->box, box);
+            copy_mat(globalState->box, box);
         }
         if (PAR(cr))
         {
@@ -740,7 +757,8 @@ int Mdrunner::mdrunner()
 
         load_checkpoint(opt2fn_master("-cpi", nfile, fnm, cr), &fplog,
                         cr, domdecOptions.numCells,
-                        inputrec, state, &bReadEkin, &observablesHistory,
+                        inputrec, globalState.get(),
+                        &bReadEkin, &observablesHistory,
                         continuationOptions.appendFiles,
                         continuationOptions.appendFilesOptionSet,
                         mdrunOptions.reproducible);
@@ -764,7 +782,7 @@ int Mdrunner::mdrunner()
 
     if (SIMMASTER(cr))
     {
-        copy_mat(state->box, box);
+        copy_mat(globalState->box, box);
     }
 
     if (PAR(cr))
@@ -775,16 +793,18 @@ int Mdrunner::mdrunner()
     /* Update rlist and nstlist. */
     if (inputrec->cutoff_scheme == ecutsVERLET)
     {
-        prepare_verlet_scheme(fplog, cr, inputrec, nstlist_cmdline, mtop,
-                              box, nonbondedOnGpu || emulateGpu, *hwinfo->cpuInfo);
+        prepare_verlet_scheme(fplog, cr, inputrec, nstlist_cmdline, mtop, box,
+                              nonbondedOnGpu || (emulateGpuNonbonded == EmulateGpuNonbonded::Yes), *hwinfo->cpuInfo);
     }
 
     if (PAR(cr) && !(EI_TPI(inputrec->eI) ||
                      inputrec->eI == eiNM))
     {
+        const rvec *xOnMaster = (SIMMASTER(cr) ? as_rvec_array(globalState->x.data()) : nullptr);
+
         cr->dd = init_domain_decomposition(fplog, cr, domdecOptions, mdrunOptions,
                                            mtop, inputrec,
-                                           box, as_rvec_array(state->x.data()),
+                                           box, xOnMaster,
                                            &ddbox, &npme_major, &npme_minor);
         // Note that local state still does not exist yet.
     }
@@ -943,14 +963,12 @@ int Mdrunner::mdrunner()
         /* Note that membed cannot work in parallel because mtop is
          * changed here. Fix this if we ever want to make it run with
          * multiple ranks. */
-        membed = init_membed(fplog, nfile, fnm, mtop, inputrec, state, cr, &mdrunOptions.checkpointOptions.period);
+        membed = init_membed(fplog, nfile, fnm, mtop, inputrec, globalState.get(), cr, &mdrunOptions.checkpointOptions.period);
     }
 
     snew(nrnb, 1);
     if (cr->duty & DUTY_PP)
     {
-        bcast_state(cr, state);
-
         /* Initiate forcerecord */
         fr                 = mk_forcerec();
         fr->forceProviders = mdModules.initForceProviders();
@@ -959,7 +977,6 @@ int Mdrunner::mdrunner()
                       opt2fn("-table", nfile, fnm),
                       opt2fn("-tablep", nfile, fnm),
                       getFilenm("-tableb", nfile, fnm),
-                      nbpu_opt,
                       shortRangedDeviceInfo,
                       FALSE,
                       pforce);
@@ -978,7 +995,7 @@ int Mdrunner::mdrunner()
          * mdatoms is not filled with atom data,
          * as this can not be done now with domain decomposition.
          */
-        mdatoms = init_mdatoms(fplog, mtop, inputrec->efep != efepNO);
+        mdatoms = init_mdatoms(fplog, *mtop, *inputrec);
 
         /* Initialize the virtual site communication */
         vsite = init_vsite(mtop, cr, FALSE);
@@ -991,10 +1008,12 @@ int Mdrunner::mdrunner()
         if (!inputrec->bContinuation && MASTER(cr) &&
             !(inputrec->ePBC != epbcNONE && inputrec->bPeriodicMols))
         {
+            rvec *xGlobal = as_rvec_array(globalState->x.data());
+
             /* Make molecules whole at start of run */
             if (fr->ePBC != epbcNONE)
             {
-                do_pbc_first_mtop(fplog, inputrec->ePBC, box, mtop, as_rvec_array(state->x.data()));
+                do_pbc_first_mtop(fplog, inputrec->ePBC, box, mtop, xGlobal);
             }
             if (vsite)
             {
@@ -1002,14 +1021,14 @@ int Mdrunner::mdrunner()
                  * for the initial distribution in the domain decomposition
                  * and for the initial shell prediction.
                  */
-                construct_vsites_mtop(vsite, mtop, as_rvec_array(state->x.data()));
+                construct_vsites_mtop(vsite, mtop, xGlobal);
             }
         }
 
-        if (EEL_PME(fr->eeltype) || EVDW_PME(fr->vdwtype))
+        if (EEL_PME(fr->ic->eeltype) || EVDW_PME(fr->ic->vdwtype))
         {
-            ewaldcoeff_q  = fr->ewaldcoeff_q;
-            ewaldcoeff_lj = fr->ewaldcoeff_lj;
+            ewaldcoeff_q  = fr->ic->ewaldcoeff_q;
+            ewaldcoeff_lj = fr->ic->ewaldcoeff_lj;
             pmedata       = &fr->pmedata;
         }
         else
@@ -1021,9 +1040,7 @@ int Mdrunner::mdrunner()
     {
         /* This is a PME only node */
 
-        /* We don't need the state */
-        stateInstance.reset();
-        state         = nullptr;
+        GMX_ASSERT(globalState == nullptr, "We don't need the state on a PME only rank and expect it to be unitialized");
 
         ewaldcoeff_q  = calc_ewaldcoeff_q(inputrec->rcoulomb, inputrec->ewald_rtol);
         ewaldcoeff_lj = calc_ewaldcoeff_lj(inputrec->rvdw, inputrec->ewald_rtol_lj);
@@ -1078,11 +1095,14 @@ int Mdrunner::mdrunner()
         {
             try
             {
+                gmx_device_info_t *pmeGpuInfo = nullptr;
+                auto               runMode    = PmeRunMode::CPU;
                 status = gmx_pme_init(pmedata, cr, npme_major, npme_minor, inputrec,
                                       mtop ? mtop->natoms : 0, nChargePerturbed, nTypePerturbed,
                                       mdrunOptions.reproducible,
                                       ewaldcoeff_q, ewaldcoeff_lj,
-                                      nthreads_pme);
+                                      nthreads_pme,
+                                      runMode, nullptr, pmeGpuInfo, mdlog);
             }
             GMX_CATCH_ALL_AND_EXIT_WITH_FATAL_ERROR;
             if (status != 0)
@@ -1121,8 +1141,7 @@ int Mdrunner::mdrunner()
         if (inputrec->bRot)
         {
             /* Initialize enforced rotation code */
-            init_rot(fplog, inputrec, nfile, fnm, cr, as_rvec_array(state->x.data()), state->box, mtop, oenv,
-                     mdrunOptions);
+            init_rot(fplog, inputrec, nfile, fnm, cr, globalState.get(), mtop, oenv, mdrunOptions);
         }
 
         /* Let init_constraints know whether we have essential dynamics constraints.
@@ -1150,7 +1169,9 @@ int Mdrunner::mdrunner()
                                      vsite, constr,
                                      mdModules.outputProvider(),
                                      inputrec, mtop,
-                                     fcd, state, &observablesHistory,
+                                     fcd,
+                                     globalState.get(),
+                                     &observablesHistory,
                                      mdatoms, nrnb, wcycle, fr,
                                      replExParams,
                                      membed,
@@ -1183,6 +1204,7 @@ int Mdrunner::mdrunner()
     finish_run(fplog, mdlog, cr,
                inputrec, nrnb, wcycle, walltime_accounting,
                fr ? fr->nbv : nullptr,
+               fr ? fr->pmedata : nullptr,
                EI_DYNAMICS(inputrec->eI) && !MULTISIM(cr));
 
     // Free PME data

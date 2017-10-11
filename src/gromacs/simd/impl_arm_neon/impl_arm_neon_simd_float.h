@@ -43,6 +43,8 @@
 
 #include <arm_neon.h>
 
+#include "gromacs/math/utilities.h"
+
 namespace gmx
 {
 
@@ -308,6 +310,10 @@ rsqrt(SimdFloat x)
     };
 }
 
+// The SIMD implementation seems to overflow when we square lu for
+// values close to FLOAT_MAX, so we fall back on the version in
+// simd_math.h, which is probably slightly slower.
+#if GMX_SIMD_HAVE_NATIVE_RSQRT_ITER_FLOAT
 static inline SimdFloat gmx_simdcall
 rsqrtIter(SimdFloat lu, SimdFloat x)
 {
@@ -315,6 +321,7 @@ rsqrtIter(SimdFloat lu, SimdFloat x)
                vmulq_f32(lu.simdInternal_, vrsqrtsq_f32(vmulq_f32(lu.simdInternal_, lu.simdInternal_), x.simdInternal_))
     };
 }
+#endif
 
 static inline SimdFloat gmx_simdcall
 rcp(SimdFloat x)
@@ -444,13 +451,20 @@ frexp(SimdFloat value, SimdFInt32 * exponent)
     };
 }
 
+template <MathOptimization opt = MathOptimization::Safe>
 static inline SimdFloat gmx_simdcall
 ldexp(SimdFloat value, SimdFInt32 exponent)
 {
     const int32x4_t exponentBias = vdupq_n_s32(127);
-    int32x4_t       iExponent;
+    int32x4_t       iExponent    = vaddq_s32(exponent.simdInternal_, exponentBias);
 
-    iExponent = vshlq_n_s32( vaddq_s32(exponent.simdInternal_, exponentBias), 23);
+    if (opt == MathOptimization::Safe)
+    {
+        // Make sure biased argument is not negative
+        iExponent = vmaxq_s32(iExponent, vdupq_n_s32(0));
+    }
+
+    iExponent = vshlq_n_s32( iExponent, 23);
 
     return {
                vmulq_f32(value.simdInternal_, vreinterpretq_f32_s32(iExponent))

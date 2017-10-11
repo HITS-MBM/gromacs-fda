@@ -111,11 +111,15 @@
  * shuffle-based reduction, hence CC >= 3.0.
  *
  *
- * NOTEs / TODO on Volta / CUDA 9 support extensions:
- * - the current way of computing active mask using ballot_sync() should be
- *   reconsidered: we can compute all masks with bitwise ops iso ballot and
- *   secondly, all conditionals are warp-uniform, so the sync is not needed;
- * - reconsider the use of __syncwarp(): its only role is currently to prevent
+ * NOTEs on Volta / CUDA 9 extensions:
+ *
+ * - While active thread masks are required for the warp collectives
+ *   (we use any and shfl), the kernel is designed such that all conditions
+ *   (other than the inner-most distance check) including loop trip counts
+ *   are warp-synchronous. Therefore, we don't need ballot to compute the
+ *   active masks as these are all full-warp masks.
+ *
+ * - TODO: reconsider the use of __syncwarp(): its only role is currently to prevent
  *   WAR hazard due to the cj preload; we should try to replace it with direct
  *   loads (which may be faster given the improved L1 on Volta).
  */
@@ -258,19 +262,35 @@ __global__ void NB_KERNEL_FUNC_NAME(nbnxn_kernel, _F_cuda)
     /*! i-cluster interaction mask for a super-cluster with all c_numClPerSupercl=8 bits set */
     const unsigned superClInteractionMask = ((1U << c_numClPerSupercl) - 1U);
 
+    /*********************************************************************
+     * Set up shared memory pointers.
+     * sm_nextSlotPtr should always be updated to point to the "next slot",
+     * that is past the last point where data has been stored.
+     */
+    extern __shared__  char sm_dynamicShmem[];
+    char                   *sm_nextSlotPtr = sm_dynamicShmem;
+    static_assert(sizeof(char) == 1, "The shared memory offset calculation assumes that char is 1 byte");
+
     /* shmem buffer for i x+q pre-loading */
-    extern __shared__  float4 xqib[];
+    float4 *xqib    = (float4 *)sm_nextSlotPtr;
+    sm_nextSlotPtr += (c_numClPerSupercl * c_clSize * sizeof(*xqib));
 
     /* shmem buffer for cj, for each warp separately */
-    int *cjs       = ((int *)(xqib + c_numClPerSupercl * c_clSize)) + tidxz * c_nbnxnGpuClusterpairSplit * c_nbnxnGpuJgroupSize;
-    int *cjs_end   = ((int *)(xqib + c_numClPerSupercl * c_clSize)) + NTHREAD_Z * c_nbnxnGpuClusterpairSplit * c_nbnxnGpuJgroupSize;
+    int *cjs        = (int *)(sm_nextSlotPtr);
+    /* the cjs buffer's use expects a base pointer offset for pairs of warps in the j-concurrent execution */
+    cjs            += tidxz * c_nbnxnGpuClusterpairSplit * c_nbnxnGpuJgroupSize;
+    sm_nextSlotPtr += (NTHREAD_Z * c_nbnxnGpuClusterpairSplit * c_nbnxnGpuJgroupSize * sizeof(*cjs));
+
 #ifndef LJ_COMB
     /* shmem buffer for i atom-type pre-loading */
-    int *atib      = cjs_end;
+    int *atib       = (int *)sm_nextSlotPtr;
+    sm_nextSlotPtr += (c_numClPerSupercl * c_clSize * sizeof(*atib));
 #else
     /* shmem buffer for i-atom LJ combination rule parameters */
-    float2 *ljcpib = (float2 *)cjs_end;
+    float2 *ljcpib  = (float2 *)sm_nextSlotPtr;
+    sm_nextSlotPtr += (c_numClPerSupercl * c_clSize * sizeof(*ljcpib));
 #endif
+    /*********************************************************************/
 
     nb_sci      = pl_sci[bidx];         /* my i super-cluster's index = current bidx */
     sci         = nb_sci.sci;           /* super-cluster */
@@ -355,21 +375,20 @@ __global__ void NB_KERNEL_FUNC_NAME(nbnxn_kernel, _F_cuda)
 #endif                                  /* CALC_ENERGIES */
 
 #ifdef EXCLUSION_FORCES
-    const int nonSelfInteraction  = !(nb_sci.shift == CENTRAL & tidxj <= tidxi);
+    const int nonSelfInteraction = !(nb_sci.shift == CENTRAL & tidxj <= tidxi);
 #endif
 
-    int          j4LoopStart      = cij4_start + tidxz;
-    unsigned int j4LoopThreadMask = gmx_ballot_sync(c_fullWarpMask, j4LoopStart < cij4_end);
-    /* loop over the j clusters = seen by any of the atoms in the current super-cluster */
-    for (j4 = j4LoopStart; j4 < cij4_end; j4 += NTHREAD_Z)
+    /* loop over the j clusters = seen by any of the atoms in the current super-cluster;
+     * The loop stride NTHREAD_Z ensures that consecutive warps-pairs are assigned
+     * consecutive j4's entries.
+     */
+    for (j4 = cij4_start + tidxz; j4 < cij4_end; j4 += NTHREAD_Z)
     {
         wexcl_idx   = pl_cj4[j4].imei[widx].excl_ind;
         imask       = pl_cj4[j4].imei[widx].imask;
         wexcl       = excl[wexcl_idx].pair[(tidx) & (warp_size - 1)];
 
-        unsigned int imaskSkipConditionThreadMask = j4LoopThreadMask;
 #ifndef PRUNE_NBL
-        imaskSkipConditionThreadMask = gmx_ballot_sync(j4LoopThreadMask, imask);
         if (imask)
 #endif
         {
@@ -378,7 +397,7 @@ __global__ void NB_KERNEL_FUNC_NAME(nbnxn_kernel, _F_cuda)
             {
                 cjs[tidxi + tidxj * c_nbnxnGpuJgroupSize/c_splitClSize] = pl_cj4[j4].cj[tidxi];
             }
-            gmx_syncwarp(imaskSkipConditionThreadMask);
+            gmx_syncwarp(c_fullWarpMask);
 
             /* Unrolling this loop
                - with pruning leads to register spilling;
@@ -386,9 +405,7 @@ __global__ void NB_KERNEL_FUNC_NAME(nbnxn_kernel, _F_cuda)
                Tested with up to nvcc 7.5 */
             for (jm = 0; jm < c_nbnxnGpuJgroupSize; jm++)
             {
-                const unsigned int jmSkipCondition           = imask & (superClInteractionMask << (jm * c_numClPerSupercl));
-                const unsigned int jmSkipConditionThreadMask = gmx_ballot_sync(imaskSkipConditionThreadMask, jmSkipCondition);
-                if (jmSkipCondition)
+                if (imask & (superClInteractionMask << (jm * c_numClPerSupercl)))
                 {
                     mask_ji = (1U << (jm * c_numClPerSupercl));
 
@@ -412,9 +429,7 @@ __global__ void NB_KERNEL_FUNC_NAME(nbnxn_kernel, _F_cuda)
 #endif
                     for (i = 0; i < c_numClPerSupercl; i++)
                     {
-                        const unsigned int iInnerSkipCondition           = imask & mask_ji;
-                        const unsigned int iInnerSkipConditionThreadMask = gmx_ballot_sync(jmSkipConditionThreadMask, iInnerSkipCondition);
-                        if (iInnerSkipCondition)
+                        if (imask & mask_ji)
                         {
                             ci      = sci * c_numClPerSupercl + i; /* i cluster index */
 
@@ -430,7 +445,7 @@ __global__ void NB_KERNEL_FUNC_NAME(nbnxn_kernel, _F_cuda)
                             /* If _none_ of the atoms pairs are in cutoff range,
                                the bit corresponding to the current
                                cluster-pair in imask gets set to 0. */
-                            if (!gmx_any_sync(iInnerSkipConditionThreadMask, r2 < rlist_sq))
+                            if (!gmx_any_sync(c_fullWarpMask, r2 < rlist_sq))
                             {
                                 imask &= ~mask_ji;
                             }
@@ -591,7 +606,7 @@ __global__ void NB_KERNEL_FUNC_NAME(nbnxn_kernel, _F_cuda)
                     }
 
                     /* reduce j forces */
-                    reduce_force_j_warp_shfl(fcj_buf, f, tidxi, aj, jmSkipConditionThreadMask);
+                    reduce_force_j_warp_shfl(fcj_buf, f, tidxi, aj, c_fullWarpMask);
                 }
             }
 #ifdef PRUNE_NBL
@@ -601,9 +616,7 @@ __global__ void NB_KERNEL_FUNC_NAME(nbnxn_kernel, _F_cuda)
 #endif
         }
         // avoid shared memory WAR hazards between loop iterations
-        gmx_syncwarp(j4LoopThreadMask);
-        // update thread mask for next loop iteration
-        j4LoopThreadMask = gmx_ballot_sync(j4LoopThreadMask, (j4 + NTHREAD_Z) < cij4_end);
+        gmx_syncwarp(c_fullWarpMask);
     }
 
     /* skip central shifts when summing shift forces */

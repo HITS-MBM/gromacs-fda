@@ -56,6 +56,7 @@
 #include "gromacs/domdec/domdec.h"
 #include "gromacs/domdec/domdec_network.h"
 #include "gromacs/domdec/domdec_struct.h"
+#include "gromacs/ewald/ewald-utils.h"
 #include "gromacs/ewald/pme.h"
 #include "gromacs/fft/calcgrid.h"
 #include "gromacs/gmxlib/network.h"
@@ -200,11 +201,11 @@ void pme_loadbal_init(pme_load_balancing_t     **pme_lb_p,
     pme_lb->rbufInner_coulomb = listParams->rlistInner - ic->rcoulomb;
     pme_lb->rbufInner_vdw     = listParams->rlistInner - ic->rvdw;
 
-    copy_mat(box, pme_lb->box_start);
-    if (ir->ePBC == epbcXY && ir->nwall == 2)
-    {
-        svmul(ir->wall_ewald_zfac, pme_lb->box_start[ZZ], pme_lb->box_start[ZZ]);
-    }
+    /* Scale box with Ewald wall factor; note that we pmedata->boxScaler
+     * can't always usedd as it's not available with separate PME ranks.
+     */
+    EwaldBoxZScaler boxScaler(*ir);
+    boxScaler.scaleBox(box, pme_lb->box_start);
 
     pme_lb->n = 1;
     snew(pme_lb->setup, pme_lb->n);
@@ -222,7 +223,11 @@ void pme_loadbal_init(pme_load_balancing_t     **pme_lb_p,
     pme_lb->setup[0].ewaldcoeff_q    = ic->ewaldcoeff_q;
     pme_lb->setup[0].ewaldcoeff_lj   = ic->ewaldcoeff_lj;
 
-    pme_lb->setup[0].pmedata         = pmedata;
+    if (!pme_lb->bSepPMERanks)
+    {
+        GMX_RELEASE_ASSERT(pmedata, "On ranks doing both PP and PME we need a valid pmedata object");
+        pme_lb->setup[0].pmedata     = pmedata;
+    }
 
     spm = 0;
     for (d = 0; d < DIM; d++)
@@ -840,7 +845,14 @@ pme_load_balance(pme_load_balancing_t      *pme_lb,
 
     if (!pme_lb->bSepPMERanks)
     {
-        if (pme_lb->setup[pme_lb->cur].pmedata == nullptr)
+        /* FIXME:
+         * CPU PME keeps a list of allocated pmedata's, that's why pme_lb->setup[pme_lb->cur].pmedata is not always nullptr.
+         * GPU PME, however, currently needs the gmx_pme_reinit always called on load balancing
+         * (pme_gpu_reinit might be not sufficiently decoupled from gmx_pme_init).
+         * This can lead to a lot of reallocations for PME GPU.
+         * Would be nicer if the allocated grid list was hidden within a single pmedata structure.
+         */
+        if ((pme_lb->setup[pme_lb->cur].pmedata == nullptr) || pme_gpu_task_enabled(pme_lb->setup[pme_lb->cur].pmedata))
         {
             /* Generate a new PME data structure,
              * copying part of the old pointers.
@@ -909,7 +921,7 @@ void pme_loadbal_do(pme_load_balancing_t *pme_lb,
     int    n_prev;
     double cycles_prev;
 
-    assert(pme_lb != NULL);
+    assert(pme_lb != nullptr);
 
     if (!pme_lb->bActive)
     {
@@ -1017,12 +1029,8 @@ void pme_loadbal_do(pme_load_balancing_t *pme_lb,
                          fr->ic, fr->nbv, &fr->pmedata,
                          step);
 
-        /* Update constants in forcerec/inputrec to keep them in sync with fr->ic */
-        fr->ewaldcoeff_q  = fr->ic->ewaldcoeff_q;
-        fr->ewaldcoeff_lj = fr->ic->ewaldcoeff_lj;
+        /* Update deprecated rlist in forcerec to stay in sync with fr->nbv */
         fr->rlist         = fr->nbv->listParams->rlistOuter;
-        fr->rcoulomb      = fr->ic->rcoulomb;
-        fr->rvdw          = fr->ic->rvdw;
 
         if (ir->eDispCorr != edispcNO)
         {

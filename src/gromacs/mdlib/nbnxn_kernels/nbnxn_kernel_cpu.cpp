@@ -134,6 +134,7 @@ reduceGroupEnergySimdBuffers(int                       numGroups,
 
 void
 nbnxn_kernel_cpu(nonbonded_verlet_group_t  *nbvg,
+                 const nbnxn_atomdata_t    *nbat,
                  const interaction_const_t *ic,
                  rvec                      *shiftVectors,
                  int                        forceFlags,
@@ -144,7 +145,6 @@ nbnxn_kernel_cpu(nonbonded_verlet_group_t  *nbvg,
                  FDA                       *fda,
 		         int                       *cellInv)
 {
-    const nbnxn_atomdata_t  *nbat = nbvg->nbat;
 
     int                      coulkt;
     if (EEL_RF(ic->eeltype) || ic->eeltype == eelCUT)

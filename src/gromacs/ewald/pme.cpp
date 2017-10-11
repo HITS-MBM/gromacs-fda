@@ -81,6 +81,7 @@
 
 #include <algorithm>
 
+#include "gromacs/ewald/ewald-utils.h"
 #include "gromacs/fft/parallel_3dfft.h"
 #include "gromacs/fileio/pdbio.h"
 #include "gromacs/gmxlib/network.h"
@@ -103,6 +104,7 @@
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/gmxmpi.h"
 #include "gromacs/utility/gmxomp.h"
+#include "gromacs/utility/logger.h"
 #include "gromacs/utility/real.h"
 #include "gromacs/utility/smalloc.h"
 #include "gromacs/utility/stringutil.h"
@@ -110,6 +112,7 @@
 
 #include "calculate-spline-moduli.h"
 #include "pme-gather.h"
+#include "pme-gpu-internal.h"
 #include "pme-grid.h"
 #include "pme-internal.h"
 #include "pme-redistribute.h"
@@ -502,18 +505,22 @@ static int div_round_up(int enumerator, int denominator)
     return (enumerator + denominator - 1)/denominator;
 }
 
-int gmx_pme_init(struct gmx_pme_t **pmedata,
-                 t_commrec *        cr,
-                 int                nnodes_major,
-                 int                nnodes_minor,
-                 const t_inputrec * ir,
-                 int                homenr,
-                 gmx_bool           bFreeEnergy_q,
-                 gmx_bool           bFreeEnergy_lj,
-                 gmx_bool           bReproducible,
-                 real               ewaldcoeff_q,
-                 real               ewaldcoeff_lj,
-                 int                nthread)
+int gmx_pme_init(struct gmx_pme_t   **pmedata,
+                 t_commrec           *cr,
+                 int                  nnodes_major,
+                 int                  nnodes_minor,
+                 const t_inputrec    *ir,
+                 int                  homenr,
+                 gmx_bool             bFreeEnergy_q,
+                 gmx_bool             bFreeEnergy_lj,
+                 gmx_bool             bReproducible,
+                 real                 ewaldcoeff_q,
+                 real                 ewaldcoeff_lj,
+                 int                  nthread,
+                 PmeRunMode           runMode,
+                 pme_gpu_t           *pmeGPU,
+                 gmx_device_info_t   *gpuInfo,
+                 const gmx::MDLogger &mdlog)
 {
     int               use_threads, sum_use_threads, i;
     ivec              ndata;
@@ -664,6 +671,11 @@ int gmx_pme_init(struct gmx_pme_t **pmedata,
     /* Always constant LJ coefficients */
     pme->ljpme_combination_rule = ir->ljpme_combination_rule;
 
+    // The box requires scaling with nwalls = 2, we store that condition as well
+    // as the scaling factor
+    delete pme->boxScaler;
+    pme->boxScaler = new EwaldBoxZScaler(*ir);
+
     /* If we violate restrictions, generate a fatal error here */
     gmx_pme_check_restrictions(pme->pme_order,
                                pme->nkx, pme->nky, pme->nkz,
@@ -739,6 +751,9 @@ int gmx_pme_init(struct gmx_pme_t **pmedata,
     snew(pme->bsp_mod[YY], pme->nky);
     snew(pme->bsp_mod[ZZ], pme->nkz);
 
+    pme->gpu     = pmeGPU; /* Carrying over the single GPU structure */
+    pme->runMode = runMode;
+
     /* The required size of the interpolation grid, including overlap.
      * The allocated size (pmegrid_n?) might be slightly larger.
      */
@@ -749,7 +764,6 @@ int gmx_pme_init(struct gmx_pme_t **pmedata,
     pme->pmegrid_nz_base = pme->nkz;
     pme->pmegrid_nz      = pme->pmegrid_nz_base + pme->pme_order - 1;
     set_grid_alignment(&pme->pmegrid_nz, pme->pme_order);
-
     pme->pmegrid_start_ix = pme->overlap[0].s2g0[pme->nodeid_major];
     pme->pmegrid_start_iy = pme->overlap[1].s2g0[pme->nodeid_minor];
     pme->pmegrid_start_iz = 0;
@@ -840,6 +854,8 @@ int gmx_pme_init(struct gmx_pme_t **pmedata,
     pme->lb_buf2       = nullptr;
     pme->lb_buf_nalloc = 0;
 
+    pme_gpu_reinit(pme.get(), gpuInfo, mdlog, cr);
+
     pme_init_all_work(&pme->solve_work, pme->nthread, pme->nkx);
 
     // no exception was thrown during the init, so we hand over the PME structure handle
@@ -885,8 +901,14 @@ int gmx_pme_reinit(struct gmx_pme_t **pmedata,
 
     try
     {
+        const gmx::MDLogger dummyLogger;
+        // This is reinit which is currently only changing grid size/coefficients,
+        // so we don't expect the actual logging.
+        // TODO: when PME is an object, it should take reference to mdlog on construction and save it.
         ret = gmx_pme_init(pmedata, cr, pme_src->nnodes_major, pme_src->nnodes_minor,
-                           &irc, homenr, pme_src->bFEP_q, pme_src->bFEP_lj, FALSE, ewaldcoeff_q, ewaldcoeff_lj, pme_src->nthread);
+                           &irc, homenr, pme_src->bFEP_q, pme_src->bFEP_lj, FALSE, ewaldcoeff_q, ewaldcoeff_lj,
+                           pme_src->nthread, pme_src->runMode, pme_src->gpu, nullptr, dummyLogger);
+        //TODO this is mostly passing around current values
     }
     GMX_CATCH_ALL_AND_EXIT_WITH_FATAL_ERROR;
 
@@ -979,6 +1001,8 @@ int gmx_pme_do(struct gmx_pme_t *pme,
                real *dvdlambda_q, real *dvdlambda_lj,
                int flags)
 {
+    GMX_ASSERT(pme->runMode == PmeRunMode::CPU, "gmx_pme_do should not be called on the GPU PME run.");
+
     int                  d, i, j, npme, grid_index, max_grid_index;
     int                  n_d;
     pme_atomcomm_t      *atc        = nullptr;
@@ -1032,7 +1056,10 @@ int gmx_pme_do(struct gmx_pme_t *pme,
         atc->f = f;
     }
 
-    gmx::invertBoxMatrix(box, pme->recipbox);
+    matrix scaledBox;
+    pme->boxScaler->scaleBox(box, scaledBox);
+
+    gmx::invertBoxMatrix(scaledBox, pme->recipbox);
     bFirst = TRUE;
 
     /* For simplicity, we construct the splines for all particles if
@@ -1191,7 +1218,7 @@ int gmx_pme_do(struct gmx_pme_t *pme,
                     {
                         loop_count =
                             solve_pme_yzx(pme, cfftgrid,
-                                          box[XX][XX]*box[YY][YY]*box[ZZ][ZZ],
+                                          scaledBox[XX][XX]*scaledBox[YY][YY]*scaledBox[ZZ][ZZ],
                                           bCalcEnerVir,
                                           pme->nthread, thread);
                     }
@@ -1199,7 +1226,7 @@ int gmx_pme_do(struct gmx_pme_t *pme,
                     {
                         loop_count =
                             solve_pme_lj_yzx(pme, &cfftgrid, FALSE,
-                                             box[XX][XX]*box[YY][YY]*box[ZZ][ZZ],
+                                             scaledBox[XX][XX]*scaledBox[YY][YY]*scaledBox[ZZ][ZZ],
                                              bCalcEnerVir,
                                              pme->nthread, thread);
                     }
@@ -1470,7 +1497,7 @@ int gmx_pme_do(struct gmx_pme_t *pme,
 
                         loop_count =
                             solve_pme_lj_yzx(pme, &pme->cfftgrid[2], TRUE,
-                                             box[XX][XX]*box[YY][YY]*box[ZZ][ZZ],
+                                             scaledBox[XX][XX]*scaledBox[YY][YY]*scaledBox[ZZ][ZZ],
                                              bCalcEnerVir,
                                              pme->nthread, thread);
                         if (thread == 0)
@@ -1681,6 +1708,8 @@ void gmx_pme_destroy(gmx_pme_t *pme)
         return;
     }
 
+    delete pme->boxScaler;
+
     sfree(pme->nnx);
     sfree(pme->nny);
     sfree(pme->nnz);
@@ -1727,5 +1756,19 @@ void gmx_pme_destroy(gmx_pme_t *pme)
     sfree(pme->sum_qgrid_tmp);
     sfree(pme->sum_qgrid_dd_tmp);
 
+    if (pme_gpu_active(pme) && pme->gpu)
+    {
+        pme_gpu_destroy(pme->gpu);
+    }
+
     sfree(pme);
+}
+
+void gmx_pme_reinit_atoms(const gmx_pme_t *pme, const int nAtoms, const real *charges)
+{
+    if (pme_gpu_active(pme))
+    {
+        pme_gpu_reinit_atoms(pme->gpu, nAtoms, charges);
+    }
+    // TODO: handle the CPU case here; handle the whole t_mdatoms
 }

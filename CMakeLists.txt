@@ -340,6 +340,11 @@ gmx_c_flags()
 
 # This variable should be used for additional compiler flags which are not
 # generated in gmxCFlags nor are SIMD or MPI related.
+#
+# TODO These variables should be consolidated into
+# EXTRA_COMPILER_FLAGS so that we we don't perpetrate bugs where
+# things that work in C compilation (e.g. merging from old branches)
+# also work for C++ compilation.
 set(EXTRA_C_FLAGS "")
 set(EXTRA_CXX_FLAGS "")
 
@@ -588,6 +593,10 @@ include(gmxManageLmfit)
 if(GMX_GPU)
     # now that we have detected the dependencies, do the second configure pass
     gmx_gpu_setup()
+    if (GMX_CLANG_CUDA)
+        list(APPEND GMX_EXTRA_LIBRARIES ${GMX_CUDA_CLANG_LINK_LIBS})
+        link_directories("${GMX_CUDA_CLANG_LINK_DIRS}")
+    endif()
 endif()
 
 if(CYGWIN)

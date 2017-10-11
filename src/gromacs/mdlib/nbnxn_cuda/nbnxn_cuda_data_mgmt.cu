@@ -52,6 +52,7 @@
 #include "gromacs/mdlib/force_flags.h"
 #include "gromacs/mdlib/nb_verlet.h"
 #include "gromacs/mdlib/nbnxn_consts.h"
+#include "gromacs/mdlib/nbnxn_gpu_common.h"
 #include "gromacs/mdlib/nbnxn_gpu_data_mgmt.h"
 #include "gromacs/mdtypes/interaction_const.h"
 #include "gromacs/mdtypes/md_enums.h"
@@ -65,8 +66,6 @@
 
 #include "nbnxn_cuda.h"
 #include "nbnxn_cuda_types.h"
-
-static bool bUseCudaEventBlockingSync = false; /* makes the CPU thread block */
 
 /* This is a heuristically determined parameter for the Fermi, Kepler
  * and Maxwell architectures for the minimum size of ci lists by multiplying
@@ -85,19 +84,6 @@ static void nbnxn_cuda_clear_e_fshift(gmx_nbnxn_cuda_t *nb);
 static void nbnxn_cuda_free_nbparam_table(cu_nbparam_t            *nbparam,
                                           const gmx_device_info_t *dev_info);
 
-
-/*! \brief Return whether texture objects are used on this device.
- *
- * \param[in]   pointer to the GPU device info structure to inspect for texture objects support
- * \return      true if texture objects are used on this device
- */
-static bool use_texobj(const gmx_device_info_t *dev_info)
-{
-    assert(!c_disableCudaTextures);
-    /* Only device CC >= 3.0 (Kepler and later) support texture objects */
-    return (dev_info->prop.major >= 3);
-}
-
 /*! \brief Return whether combination rules are used.
  *
  * \param[in]   pointer to nonbonded paramter struct
@@ -109,62 +95,6 @@ static inline bool useLjCombRule(const cu_nbparam_t  *nbparam)
             nbparam->vdwtype == evdwCuCUTCOMBLB);
 }
 
-/*! \brief Set up float texture object.
- *
- * Set up texture object for float data and bind it to the device memory
- * \p devPtr points to.
- *
- * \param[out] texObj   texture object to initialize
- * \param[in]  devPtr   pointer to device global memory to bind \p texObj to
- * \param[in]  sizeInBytes  size of memory area to bind \p texObj to
- */
-static void setup1DFloatTexture(cudaTextureObject_t &texObj,
-                                void                *devPtr,
-                                size_t               sizeInBytes)
-{
-    assert(!c_disableCudaTextures);
-
-    cudaError_t      stat;
-    cudaResourceDesc rd;
-    cudaTextureDesc  td;
-
-    memset(&rd, 0, sizeof(rd));
-    rd.resType                  = cudaResourceTypeLinear;
-    rd.res.linear.devPtr        = devPtr;
-    rd.res.linear.desc.f        = cudaChannelFormatKindFloat;
-    rd.res.linear.desc.x        = 32;
-    rd.res.linear.sizeInBytes   = sizeInBytes;
-
-    memset(&td, 0, sizeof(td));
-    td.readMode                 = cudaReadModeElementType;
-    stat = cudaCreateTextureObject(&texObj, &rd, &td, NULL);
-    CU_RET_ERR(stat, "cudaCreateTextureObject failed");
-}
-
-/*! \brief Set up float texture reference.
- *
- * Set up texture object for float data and bind it to the device memory
- * \p devPtr points to.
- *
- * \param[out] texObj   texture reference to initialize
- * \param[in]  devPtr   pointer to device global memory to bind \p texObj to
- * \param[in]  sizeInBytes  size of memory area to bind \p texObj to
- */
-static void setup1DFloatTexture(const struct texture<float, 1, cudaReadModeElementType> *texRef,
-                                const void                                              *devPtr,
-                                size_t                                                   sizeInBytes)
-{
-    assert(!c_disableCudaTextures);
-
-    cudaError_t           stat;
-    cudaChannelFormatDesc cd;
-
-    cd   = cudaCreateChannelDesc<float>();
-    stat = cudaBindTexture(NULL, texRef, devPtr, &cd, sizeInBytes);
-    CU_RET_ERR(stat, "cudaBindTexture failed");
-}
-
-
 /*! \brief Initialized the Ewald Coulomb correction GPU table.
 
     Tabulates the Ewald Coulomb force and initializes the size/scale
@@ -175,36 +105,15 @@ static void init_ewald_coulomb_force_table(const interaction_const_t *ic,
                                            cu_nbparam_t              *nbp,
                                            const gmx_device_info_t   *dev_info)
 {
-    float       *coul_tab;
-    cudaError_t  stat;
-
     if (nbp->coulomb_tab != NULL)
     {
         nbnxn_cuda_free_nbparam_table(nbp, dev_info);
     }
 
-    /* initialize table data in nbp and crete/copy into in global mem */
-    stat = cudaMalloc((void **)&coul_tab, ic->tabq_size*sizeof(*coul_tab));
-    CU_RET_ERR(stat, "cudaMalloc failed on coulumb_tab");
-    cu_copy_H2D(coul_tab, ic->tabq_coul_F, ic->tabq_size*sizeof(*coul_tab));
-
-    nbp->coulomb_tab       = coul_tab;
-    nbp->coulomb_tab_size  = ic->tabq_size;
     nbp->coulomb_tab_scale = ic->tabq_scale;
-
-    if (!c_disableCudaTextures)
-    {
-        if (use_texobj(dev_info))
-        {
-            setup1DFloatTexture(nbp->coulomb_tab_texobj, nbp->coulomb_tab,
-                                nbp->coulomb_tab_size*sizeof(*nbp->coulomb_tab));
-        }
-        else
-        {
-            setup1DFloatTexture(&nbnxn_cuda_get_coulomb_tab_texref(), nbp->coulomb_tab,
-                                nbp->coulomb_tab_size*sizeof(*nbp->coulomb_tab));
-        }
-    }
+    initParamLookupTable(nbp->coulomb_tab, nbp->coulomb_tab_texobj,
+                         &nbnxn_cuda_get_coulomb_tab_texref(),
+                         ic->tabq_coul_F, ic->tabq_size, dev_info);
 }
 
 
@@ -313,47 +222,6 @@ static void set_cutoff_parameters(cu_nbparam_t              *nbp,
     nbp->dispersion_shift  = ic->dispersion_shift;
     nbp->repulsion_shift   = ic->repulsion_shift;
     nbp->vdw_switch        = ic->vdw_switch;
-}
-
-/*! \brief Initialize LJ parameter lookup table.
- *
- * Initializes device memory and copies data from host an binds
- * a texture to allocated device memory to be used for LJ parameter
- * lookup.
- *
- * \param[out] devPtr    device pointer to the memory to be allocated
- * \param[out] texObj    texture object to be initialized
- * \param[out] texRef    texture reference to be initialized
- * \param[in]  hostPtr   pointer to the host memory to be uploaded to the device
- * \param[in]  numElem   number of elements in the hostPtr
- * \param[in]  devInfo   pointer to the info struct of the device in use
- */
-static void initParamLookupTable(float                    * &devPtr,
-                                 cudaTextureObject_t       &texObj,
-                                 const struct texture<float, 1, cudaReadModeElementType> *texRef,
-                                 const float               *hostPtr,
-                                 int                        numElem,
-                                 const gmx_device_info_t   *devInfo)
-{
-    cudaError_t stat;
-
-    size_t      sizeInBytes = numElem*sizeof(*devPtr);
-
-    stat  = cudaMalloc((void **)&devPtr, sizeInBytes);
-    CU_RET_ERR(stat, "cudaMalloc failed in initParamLookupTable");
-    cu_copy_H2D(devPtr, (void *)hostPtr, sizeInBytes);
-
-    if (!c_disableCudaTextures)
-    {
-        if (use_texobj(devInfo))
-        {
-            setup1DFloatTexture(texObj, devPtr, sizeInBytes);
-        }
-        else
-        {
-            setup1DFloatTexture(texRef, devPtr, sizeInBytes);
-        }
-    }
 }
 
 /*! Initializes the nonbonded parameter data structure. */
@@ -519,47 +387,9 @@ static void init_plist(cu_plist_t *pl)
 /*! Initializes the timer data structure. */
 static void init_timers(cu_timers_t *t, bool bUseTwoStreams)
 {
-    cudaError_t stat;
-    int         eventflags = ( bUseCudaEventBlockingSync ? cudaEventBlockingSync : cudaEventDefault );
-
-    stat = cudaEventCreateWithFlags(&(t->start_atdat), eventflags);
-    CU_RET_ERR(stat, "cudaEventCreate on start_atdat failed");
-    stat = cudaEventCreateWithFlags(&(t->stop_atdat), eventflags);
-    CU_RET_ERR(stat, "cudaEventCreate on stop_atdat failed");
-
     /* The non-local counters/stream (second in the array) are needed only with DD. */
     for (int i = 0; i <= (bUseTwoStreams ? 1 : 0); i++)
     {
-        stat = cudaEventCreateWithFlags(&(t->start_nb_k[i]), eventflags);
-        CU_RET_ERR(stat, "cudaEventCreate on start_nb_k failed");
-        stat = cudaEventCreateWithFlags(&(t->stop_nb_k[i]), eventflags);
-        CU_RET_ERR(stat, "cudaEventCreate on stop_nb_k failed");
-
-        stat = cudaEventCreateWithFlags(&(t->start_prune_k[i]), eventflags);
-        CU_RET_ERR(stat, "cudaEventCreate on start_prune_k failed");
-        stat = cudaEventCreateWithFlags(&(t->stop_prune_k[i]), eventflags);
-        CU_RET_ERR(stat, "cudaEventCreate on stop_prune_k failed");
-
-        stat = cudaEventCreateWithFlags(&(t->start_rollingPrune_k[i]), eventflags);
-        CU_RET_ERR(stat, "cudaEventCreate on start_rollingPrune_k failed");
-        stat = cudaEventCreateWithFlags(&(t->stop_rollingPrune_k[i]), eventflags);
-        CU_RET_ERR(stat, "cudaEventCreate on stop_rollingPrune_k failed");
-
-        stat = cudaEventCreateWithFlags(&(t->start_pl_h2d[i]), eventflags);
-        CU_RET_ERR(stat, "cudaEventCreate on start_pl_h2d failed");
-        stat = cudaEventCreateWithFlags(&(t->stop_pl_h2d[i]), eventflags);
-        CU_RET_ERR(stat, "cudaEventCreate on stop_pl_h2d failed");
-
-        stat = cudaEventCreateWithFlags(&(t->start_nb_h2d[i]), eventflags);
-        CU_RET_ERR(stat, "cudaEventCreate on start_nb_h2d failed");
-        stat = cudaEventCreateWithFlags(&(t->stop_nb_h2d[i]), eventflags);
-        CU_RET_ERR(stat, "cudaEventCreate on stop_nb_h2d failed");
-
-        stat = cudaEventCreateWithFlags(&(t->start_nb_d2h[i]), eventflags);
-        CU_RET_ERR(stat, "cudaEventCreate on start_nb_d2h failed");
-        stat = cudaEventCreateWithFlags(&(t->stop_nb_d2h[i]), eventflags);
-        CU_RET_ERR(stat, "cudaEventCreate on stop_nb_d2h failed");
-
         t->didPairlistH2D[i]  = false;
         t->didPrune[i]        = false;
         t->didRollingPrune[i] = false;
@@ -567,7 +397,7 @@ static void init_timers(cu_timers_t *t, bool bUseTwoStreams)
 }
 
 /*! Initializes the timings data structure. */
-static void init_timings(gmx_wallclock_gpu_t *t)
+static void init_timings(gmx_wallclock_gpu_nbnxn_t *t)
 {
     int i, j;
 
@@ -594,10 +424,10 @@ static void init_timings(gmx_wallclock_gpu_t *t)
 static void nbnxn_cuda_init_const(gmx_nbnxn_cuda_t               *nb,
                                   const interaction_const_t      *ic,
                                   const NbnxnListParameters      *listParams,
-                                  const nonbonded_verlet_group_t *nbv_group)
+                                  const nbnxn_atomdata_t         *nbat)
 {
-    init_atomdata_first(nb->atdat, nbv_group[0].nbat->ntype);
-    init_nbparam(nb->nbparam, ic, listParams, nbv_group[0].nbat, nb->dev_info);
+    init_atomdata_first(nb->atdat, nbat->ntype);
+    init_nbparam(nb->nbparam, ic, listParams, nbat, nb->dev_info);
 
     /* clear energy and shift force outputs */
     nbnxn_cuda_clear_e_fshift(nb);
@@ -607,7 +437,7 @@ void nbnxn_gpu_init(gmx_nbnxn_cuda_t         **p_nb,
                     const gmx_device_info_t   *deviceInfo,
                     const interaction_const_t *ic,
                     const NbnxnListParameters *listParams,
-                    nonbonded_verlet_group_t  *nbv_grp,
+                    const nbnxn_atomdata_t    *nbat,
                     int                        /*rank*/,
                     gmx_bool                   bLocalAndNonlocal)
 {
@@ -630,7 +460,7 @@ void nbnxn_gpu_init(gmx_nbnxn_cuda_t         **p_nb,
 
     nb->bUseTwoStreams = bLocalAndNonlocal;
 
-    snew(nb->timers, 1);
+    nb->timers = new cu_timers_t();
     snew(nb->timings, 1);
 
     /* init nbst */
@@ -688,7 +518,7 @@ void nbnxn_gpu_init(gmx_nbnxn_cuda_t         **p_nb,
     /* pick L1 cache configuration */
     nbnxn_cuda_set_cacheconfig(nb->dev_info);
 
-    nbnxn_cuda_init_const(nb, ic, listParams, nbv_grp);
+    nbnxn_cuda_init_const(nb, ic, listParams, nbat);
 
     *p_nb = nb;
 
@@ -702,8 +532,12 @@ void nbnxn_gpu_init_pairlist(gmx_nbnxn_cuda_t       *nb,
                              const nbnxn_pairlist_t *h_plist,
                              int                     iloc)
 {
+    if (canSkipWork(nb, iloc))
+    {
+        return;
+    }
+
     char          sbuf[STRLEN];
-    cudaError_t   stat;
     bool          bDoTime    = nb->bDoTime;
     cudaStream_t  stream     = nb->stream[iloc];
     cu_plist_t   *d_plist    = nb->plist[iloc];
@@ -724,8 +558,7 @@ void nbnxn_gpu_init_pairlist(gmx_nbnxn_cuda_t       *nb,
 
     if (bDoTime)
     {
-        stat = cudaEventRecord(nb->timers->start_pl_h2d[iloc], stream);
-        CU_RET_ERR(stat, "cudaEventRecord failed");
+        nb->timers->pl_h2d[iloc].openTimingRegion(stream);
         nb->timers->didPairlistH2D[iloc] = true;
     }
 
@@ -752,8 +585,7 @@ void nbnxn_gpu_init_pairlist(gmx_nbnxn_cuda_t       *nb,
 
     if (bDoTime)
     {
-        stat = cudaEventRecord(nb->timers->stop_pl_h2d[iloc], stream);
-        CU_RET_ERR(stat, "cudaEventRecord failed");
+        nb->timers->pl_h2d[iloc].closeTimingRegion(stream);
     }
 
     /* the next use of thist list we be the first one, so we need to prune */
@@ -813,7 +645,7 @@ void nbnxn_gpu_clear_outputs(gmx_nbnxn_cuda_t *nb, int flags)
 }
 
 void nbnxn_gpu_init_atomdata(gmx_nbnxn_cuda_t              *nb,
-                             const struct nbnxn_atomdata_t *nbat)
+                             const nbnxn_atomdata_t        *nbat)
 {
     cudaError_t    stat;
     int            nalloc, natoms;
@@ -829,8 +661,7 @@ void nbnxn_gpu_init_atomdata(gmx_nbnxn_cuda_t              *nb,
     if (bDoTime)
     {
         /* time async copy */
-        stat = cudaEventRecord(timers->start_atdat, ls);
-        CU_RET_ERR(stat, "cudaEventRecord failed");
+        timers->atdat.openTimingRegion(ls);
     }
 
     /* need to reallocate if we have to copy more atoms than the amount of space
@@ -889,34 +720,17 @@ void nbnxn_gpu_init_atomdata(gmx_nbnxn_cuda_t              *nb,
 
     if (bDoTime)
     {
-        stat = cudaEventRecord(timers->stop_atdat, ls);
-        CU_RET_ERR(stat, "cudaEventRecord failed");
+        timers->atdat.closeTimingRegion(ls);
     }
 }
 
 static void nbnxn_cuda_free_nbparam_table(cu_nbparam_t            *nbparam,
                                           const gmx_device_info_t *dev_info)
 {
-    cudaError_t stat;
-
     if (nbparam->eeltype == eelCuEWALD_TAB || nbparam->eeltype == eelCuEWALD_TAB_TWIN)
     {
-        if (!c_disableCudaTextures)
-        {
-            /* Only device CC >= 3.0 (Kepler and later) support texture objects */
-            if (use_texobj(dev_info))
-            {
-                stat = cudaDestroyTextureObject(nbparam->coulomb_tab_texobj);
-                CU_RET_ERR(stat, "cudaDestroyTextureObject on coulomb_tab_texobj failed");
-            }
-            else
-            {
-                GMX_UNUSED_VALUE(dev_info);
-                stat = cudaUnbindTexture(nbnxn_cuda_get_coulomb_tab_texref());
-                CU_RET_ERR(stat, "cudaUnbindTexture on coulomb_tab_texref failed");
-            }
-        }
-        cu_free_buffered(nbparam->coulomb_tab, &nbparam->coulomb_tab_size);
+        destroyParamLookupTable(nbparam->coulomb_tab, nbparam->coulomb_tab_texobj,
+                                &nbnxn_cuda_get_coulomb_tab_texref(), dev_info);
     }
 }
 
@@ -926,7 +740,6 @@ void nbnxn_gpu_free(gmx_nbnxn_cuda_t *nb)
     cu_atomdata_t   *atdat;
     cu_nbparam_t    *nbparam;
     cu_plist_t      *plist, *plist_nl;
-    cu_timers_t     *timers;
 
     if (nb == NULL)
     {
@@ -937,7 +750,6 @@ void nbnxn_gpu_free(gmx_nbnxn_cuda_t *nb)
     nbparam     = nb->nbparam;
     plist       = nb->plist[eintLocal];
     plist_nl    = nb->plist[eintNonlocal];
-    timers      = nb->timers;
 
     nbnxn_cuda_free_nbparam_table(nbparam, nb->dev_info);
 
@@ -946,87 +758,28 @@ void nbnxn_gpu_free(gmx_nbnxn_cuda_t *nb)
     stat = cudaEventDestroy(nb->misc_ops_and_local_H2D_done);
     CU_RET_ERR(stat, "cudaEventDestroy failed on timers->misc_ops_and_local_H2D_done");
 
+    delete nb->timers;
     if (nb->bDoTime)
     {
-        stat = cudaEventDestroy(timers->start_atdat);
-        CU_RET_ERR(stat, "cudaEventDestroy failed on timers->start_atdat");
-        stat = cudaEventDestroy(timers->stop_atdat);
-        CU_RET_ERR(stat, "cudaEventDestroy failed on timers->stop_atdat");
-
         /* The non-local counters/stream (second in the array) are needed only with DD. */
         for (int i = 0; i <= (nb->bUseTwoStreams ? 1 : 0); i++)
         {
-            stat = cudaEventDestroy(timers->start_nb_k[i]);
-            CU_RET_ERR(stat, "cudaEventDestroy failed on timers->start_nb_k");
-            stat = cudaEventDestroy(timers->stop_nb_k[i]);
-            CU_RET_ERR(stat, "cudaEventDestroy failed on timers->stop_nb_k");
-
-            stat = cudaEventDestroy(timers->start_prune_k[i]);
-            CU_RET_ERR(stat, "cudaEventDestroy failed on timers->start_prune_k");
-            stat = cudaEventDestroy(timers->stop_prune_k[i]);
-            CU_RET_ERR(stat, "cudaEventDestroy failed on timers->stop_prune_k");
-
-            stat = cudaEventDestroy(timers->start_rollingPrune_k[i]);
-            CU_RET_ERR(stat, "cudaEventDestroy failed on timers->start_rollingPrune_k");
-            stat = cudaEventDestroy(timers->stop_rollingPrune_k[i]);
-            CU_RET_ERR(stat, "cudaEventDestroy failed on timers->stop_rollingPrune_k");
-
-            stat = cudaEventDestroy(timers->start_pl_h2d[i]);
-            CU_RET_ERR(stat, "cudaEventDestroy failed on timers->start_pl_h2d");
-            stat = cudaEventDestroy(timers->stop_pl_h2d[i]);
-            CU_RET_ERR(stat, "cudaEventDestroy failed on timers->stop_pl_h2d");
-
             stat = cudaStreamDestroy(nb->stream[i]);
             CU_RET_ERR(stat, "cudaStreamDestroy failed on stream");
-
-            stat = cudaEventDestroy(timers->start_nb_h2d[i]);
-            CU_RET_ERR(stat, "cudaEventDestroy failed on timers->start_nb_h2d");
-            stat = cudaEventDestroy(timers->stop_nb_h2d[i]);
-            CU_RET_ERR(stat, "cudaEventDestroy failed on timers->stop_nb_h2d");
-
-            stat = cudaEventDestroy(timers->start_nb_d2h[i]);
-            CU_RET_ERR(stat, "cudaEventDestroy failed on timers->start_nb_d2h");
-            stat = cudaEventDestroy(timers->stop_nb_d2h[i]);
-            CU_RET_ERR(stat, "cudaEventDestroy failed on timers->stop_nb_d2h");
         }
     }
 
     if (!useLjCombRule(nb->nbparam))
     {
-        if (!c_disableCudaTextures)
-        {
-            /* Only device CC >= 3.0 (Kepler and later) support texture objects */
-            if (use_texobj(nb->dev_info))
-            {
-                stat = cudaDestroyTextureObject(nbparam->nbfp_texobj);
-                CU_RET_ERR(stat, "cudaDestroyTextureObject on nbfp_texobj failed");
-            }
-            else
-            {
-                stat = cudaUnbindTexture(nbnxn_cuda_get_nbfp_texref());
-                CU_RET_ERR(stat, "cudaUnbindTexture on nbfp_texref failed");
-            }
-        }
-        cu_free_buffered(nbparam->nbfp);
+        destroyParamLookupTable(nbparam->nbfp, nbparam->nbfp_texobj,
+                                &nbnxn_cuda_get_nbfp_texref(), nb->dev_info);
+
     }
 
     if (nbparam->vdwtype == evdwCuEWALDGEOM || nbparam->vdwtype == evdwCuEWALDLB)
     {
-        if (!c_disableCudaTextures)
-        {
-            /* Only device CC >= 3.0 (Kepler and later) support texture objects */
-            if (use_texobj(nb->dev_info))
-            {
-                stat = cudaDestroyTextureObject(nbparam->nbfp_comb_texobj);
-                CU_RET_ERR(stat, "cudaDestroyTextureObject on nbfp_comb_texobj failed");
-            }
-            else
-            {
-                stat = cudaUnbindTexture(nbnxn_cuda_get_nbfp_comb_texref());
-                CU_RET_ERR(stat, "cudaUnbindTexture on nbfp_comb_texref failed");
-            }
-        }
-        cu_free_buffered(nbparam->nbfp_comb);
+        destroyParamLookupTable(nbparam->nbfp_comb, nbparam->nbfp_comb_texobj,
+                                &nbnxn_cuda_get_nbfp_comb_texref(), nb->dev_info);
     }
 
     stat = cudaFree(atdat->shift_vec);
@@ -1063,7 +816,6 @@ void nbnxn_gpu_free(gmx_nbnxn_cuda_t *nb)
     {
         sfree(plist_nl);
     }
-    sfree(timers);
     sfree(nb->timings);
     sfree(nb);
 
@@ -1073,9 +825,10 @@ void nbnxn_gpu_free(gmx_nbnxn_cuda_t *nb)
     }
 }
 
-gmx_wallclock_gpu_t * nbnxn_gpu_get_timings(gmx_nbnxn_cuda_t *nb)
+//! This function is documented in the header file
+gmx_wallclock_gpu_nbnxn_t *nbnxn_gpu_get_timings(gmx_nbnxn_cuda_t *nb)
 {
-    return (nb != NULL && nb->bDoTime) ? nb->timings : NULL;
+    return (nb != nullptr && nb->bDoTime) ? nb->timings : nullptr;
 }
 
 void nbnxn_gpu_reset_timings(nonbonded_verlet_t* nbv)

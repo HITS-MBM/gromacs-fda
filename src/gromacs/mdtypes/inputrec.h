@@ -84,8 +84,6 @@ typedef struct t_grpopts {
     real        *SAon;         /* at which gap (A.U.) the SA is switched on    */
     real        *SAoff;
     int         *SAsteps;      /* in how many steps SA goes from 1-1 to 0.5-0.5*/
-    gmx_bool    *bOPT;
-    gmx_bool    *bTS;
 } t_grpopts;
 
 typedef struct t_simtemp {
@@ -460,6 +458,9 @@ gmx_bool inputrecNptTrotter(const t_inputrec *ir);
 gmx_bool inputrecNvtTrotter(const t_inputrec *ir);
 
 gmx_bool inputrecNphTrotter(const t_inputrec *ir);
+
+/*! \brief Return true if the simulation is 2D periodic with two walls. */
+bool     inputrecPbcXY2Walls(const t_inputrec *ir);
 
 /* Returns true for MD integator with T and/or P-coupling that supports
  * calculating the conserved energy quantity.

@@ -55,6 +55,7 @@
 #    include <CL/opencl.h>
 #endif
 
+#include "gromacs/gpu_utils/gpuregiontimer_ocl.h"
 #include "gromacs/gpu_utils/oclutils.h"
 #include "gromacs/mdlib/nbnxn_pairlist.h"
 #include "gromacs/mdtypes/interaction_const.h"
@@ -227,7 +228,6 @@ typedef struct cl_nbparam
     cl_mem                  nbfp_comb_climg2d; /**< nonbonded parameter table per atom type, 2*ntype elements                          */
 
     /* Ewald Coulomb force table data - accessed through texture memory */
-    int                    coulomb_tab_size;    /**< table size (s.t. it fits in texture cache) */
     float                  coulomb_tab_scale;   /**< table scale/spacing                        */
     cl_mem                 coulomb_tab_climg2d; /**< pointer to the table in the device memory  */
 } cl_nbparam_t;
@@ -263,7 +263,6 @@ typedef struct cl_nbparam_params
     switch_consts_t vdw_switch;       /**< VdW switch constants                     */
 
     /* Ewald Coulomb force table data - accessed through texture memory */
-    int                    coulomb_tab_size;   /**< table size (s.t. it fits in texture cache) */
     float                  coulomb_tab_scale;  /**< table scale/spacing                        */
 } cl_nbparam_params_t;
 
@@ -299,7 +298,6 @@ typedef struct cl_plist
     int              rollingPruningPart;     /**< the next part to which the roling pruning needs to be applied */
 }cl_plist_t;
 
-
 /*! \internal
  * \brief OpenCL events used for timing GPU kernels and H2D/D2H transfers.
  *
@@ -308,27 +306,16 @@ typedef struct cl_plist
  */
 typedef struct cl_timers
 {
-    cl_event atdat;              /**< event for atom data transfer (every PS step)                 */
-
-    cl_event nb_h2d[2];          /**< events for x/q H2D transfers (l/nl, every step)              */
-
-    cl_event nb_d2h_f[2];        /**< events for f D2H transfer (l/nl, every step)                 */
-    cl_event nb_d2h_fshift[2];   /**< events for fshift D2H transfer (l/nl, every step)            */
-    cl_event nb_d2h_e_el[2];     /**< events for e_el D2H transfer (l/nl, every step)              */
-    cl_event nb_d2h_e_lj[2];     /**< events for e_lj D2H transfer (l/nl, every step)              */
-
-    cl_event pl_h2d_sci[2];      /**< events for pair-list sci H2D transfers (l/nl, every PS step) */
-    cl_event pl_h2d_cj4[2];      /**< events for pair-list cj4 H2D transfers (l/nl, every PS step) */
-    cl_event pl_h2d_excl[2];     /**< events for pair-list excl H2D transfers (l/nl, every PS step)*/
-    cl_event pl_h2d_imask[2];    /**< events for pair-list imask H2D transfers (l/nl, every PS step)*/
-
-    cl_event nb_k[2];            /**< event for non-bonded kernels (l/nl, every step)              */
-
-    bool     didPairlistH2D[2];  /**< tells if we timed a pair-list transfer */
-    cl_event prune_k[2];         /**< event for pruning kernel (every prune step) */
-    bool     didPrune[2];        /**< tells uf we timed pruning this (or previous step for rolling) and that the timings need to be accounted for */
-    cl_event rollingPrune_k[2];  /**< event for rolling pruning kernel (every prune step) */
-    bool     didRollingPrune[2]; /**< tells uf we timed pruning this (or previous step for rolling) and that the timings need to be accounted for */
+    GpuRegionTimer atdat;              /**< timer for atom data transfer (every PS step)            */
+    GpuRegionTimer nb_h2d[2];          /**< timer for x/q H2D transfers (l/nl, every step)          */
+    GpuRegionTimer nb_d2h[2];          /**< timer for f D2H transfer (l/nl, every step)             */
+    GpuRegionTimer pl_h2d[2];          /**< timer for pair-list H2D transfers (l/nl, every PS step) */
+    bool           didPairlistH2D[2];  /**< true when a pair-list transfer has been done at this step */
+    GpuRegionTimer nb_k[2];            /**< timer for non-bonded kernels (l/nl, every step)         */
+    GpuRegionTimer prune_k[2];         /**< timer for the 1st pass list pruning kernel (l/nl, every PS step)   */
+    bool           didPrune[2];        /**< true when we timed pruning and the timings need to be accounted for */
+    GpuRegionTimer rollingPrune_k[2];  /**< timer for rolling pruning kernels (l/nl, frequency depends on chunk size)  */
+    bool           didRollingPrune[2]; /**< true when we timed rolling pruning (at the previous step) and the timings need to be accounted for */
 } cl_timers_t;
 
 /*! \internal
@@ -372,16 +359,16 @@ struct gmx_nbnxn_ocl_t
     cl_command_queue    stream[2];             /**< local and non-local GPU queues                             */
 
     /** events used for synchronization */
-    cl_event nonlocal_done;               /**< event triggered when the non-local non-bonded kernel
-                                             is done (and the local transfer can proceed) */
-    cl_event misc_ops_and_local_H2D_done; /**< event triggered when the tasks issued in
-                                             the local stream that need to precede the
-                                             non-local force calculations are done
-                                             (e.g. f buffer 0-ing, local x/q H2D) */
+    cl_event nonlocal_done;                     /**< event triggered when the non-local non-bonded kernel
+                                                   is done (and the local transfer can proceed) */
+    cl_event misc_ops_and_local_H2D_done;       /**< event triggered when the tasks issued in
+                                                   the local stream that need to precede the
+                                                   non-local force calculations are done
+                                                   (e.g. f buffer 0-ing, local x/q H2D) */
 
-    cl_bool                     bDoTime;  /**< True if event-based timing is enabled.                     */
-    cl_timers_t                *timers;   /**< OpenCL event-based timers.                                 */
-    struct gmx_wallclock_gpu_t *timings;  /**< Timing data.                                               */
+    cl_bool                           bDoTime;  /**< True if event-based timing is enabled.                     */
+    cl_timers_t                      *timers;   /**< OpenCL event-based timers.                                 */
+    struct gmx_wallclock_gpu_nbnxn_t *timings;  /**< Timing data. TODO: deprecate this and query timers for accumulated data instead */
 };
 
 #ifdef __cplusplus

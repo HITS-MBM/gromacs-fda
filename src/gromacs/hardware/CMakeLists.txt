@@ -35,7 +35,6 @@
 gmx_add_libgromacs_sources(
     cpuinfo.cpp
     detecthardware.cpp
-    hardwareassign.cpp
     hardwaretopology.cpp
     gpu_hw_info.cpp
     printhardware.cpp

@@ -57,6 +57,7 @@
 #include "gromacs/mdlib/nb_verlet.h"
 #include "gromacs/mdlib/nbnxn_consts.h"
 #include "gromacs/mdlib/nbnxn_gpu.h"
+#include "gromacs/mdlib/nbnxn_gpu_common.h"
 #include "gromacs/mdlib/nbnxn_gpu_data_mgmt.h"
 #include "gromacs/mdlib/nbnxn_gpu_jit_support.h"
 #include "gromacs/mdtypes/interaction_const.h"
@@ -232,7 +233,6 @@ static void init_ewald_coulomb_force_table(const interaction_const_t       *ic,
     // TODO: handle errors, check clCreateBuffer flags
 
     nbp->coulomb_tab_climg2d  = coul_tab;
-    nbp->coulomb_tab_size     = ic->tabq_size;
     nbp->coulomb_tab_scale    = ic->tabq_scale;
 }
 
@@ -554,7 +554,7 @@ static void init_timers(cl_timers_t *t,
 
 /*! \brief Initializes the timings data structure.
  */
-static void init_timings(gmx_wallclock_gpu_t *t)
+static void init_timings(gmx_wallclock_gpu_nbnxn_t *t)
 {
     int i, j;
 
@@ -708,10 +708,10 @@ static void nbnxn_gpu_init_kernels(gmx_nbnxn_ocl_t *nb)
 static void nbnxn_ocl_init_const(gmx_nbnxn_ocl_t                *nb,
                                  const interaction_const_t      *ic,
                                  const NbnxnListParameters      *listParams,
-                                 const nonbonded_verlet_group_t *nbv_group)
+                                 const nbnxn_atomdata_t         *nbat)
 {
-    init_atomdata_first(nb->atdat, nbv_group[0].nbat->ntype, nb->dev_rundata);
-    init_nbparam(nb->nbparam, ic, listParams, nbv_group[0].nbat, nb->dev_rundata);
+    init_atomdata_first(nb->atdat, nbat->ntype, nb->dev_rundata);
+    init_nbparam(nb->nbparam, ic, listParams, nbat, nb->dev_rundata);
 }
 
 
@@ -720,7 +720,7 @@ void nbnxn_gpu_init(gmx_nbnxn_ocl_t          **p_nb,
                     const gmx_device_info_t   *deviceInfo,
                     const interaction_const_t *ic,
                     const NbnxnListParameters *listParams,
-                    nonbonded_verlet_group_t  *nbv_grp,
+                    const nbnxn_atomdata_t    *nbat,
                     int                        rank,
                     gmx_bool                   bLocalAndNonlocal)
 {
@@ -746,7 +746,7 @@ void nbnxn_gpu_init(gmx_nbnxn_ocl_t          **p_nb,
 
     nb->bUseTwoStreams = bLocalAndNonlocal;
 
-    snew(nb->timers, 1);
+    nb->timers = new cl_timers_t();
     snew(nb->timings, 1);
 
     /* set device info, just point it to the right GPU among the detected ones */
@@ -812,7 +812,7 @@ void nbnxn_gpu_init(gmx_nbnxn_ocl_t          **p_nb,
         init_timings(nb->timings);
     }
 
-    nbnxn_ocl_init_const(nb, ic, listParams, nbv_grp);
+    nbnxn_ocl_init_const(nb, ic, listParams, nbat);
 
     /* Enable LJ param manual prefetch for AMD or if we request through env. var.
      * TODO: decide about NVIDIA
@@ -901,7 +901,13 @@ void nbnxn_gpu_init_pairlist(gmx_nbnxn_ocl_t        *nb,
                              const nbnxn_pairlist_t *h_plist,
                              int                     iloc)
 {
+    if (canSkipWork(nb, iloc))
+    {
+        return;
+    }
+
     char             sbuf[STRLEN];
+    bool             bDoTime    = nb->bDoTime;
     cl_command_queue stream     = nb->stream[iloc];
     cl_plist_t      *d_plist    = nb->plist[iloc];
 
@@ -919,8 +925,9 @@ void nbnxn_gpu_init_pairlist(gmx_nbnxn_ocl_t        *nb,
         }
     }
 
-    if (nb->bDoTime)
+    if (bDoTime)
     {
+        nb->timers->pl_h2d[iloc].openTimingRegion(stream);
         nb->timers->didPairlistH2D[iloc] = true;
     }
 
@@ -928,26 +935,31 @@ void nbnxn_gpu_init_pairlist(gmx_nbnxn_ocl_t        *nb,
                          &d_plist->nsci, &d_plist->sci_nalloc,
                          h_plist->nsci,
                          nb->dev_rundata->context,
-                         stream, true, &(nb->timers->pl_h2d_sci[iloc]));
+                         stream, true, bDoTime ? nb->timers->pl_h2d[iloc].fetchNextEvent() : nullptr);
 
     ocl_realloc_buffered(&d_plist->cj4, h_plist->cj4, sizeof(nbnxn_cj4_t),
                          &d_plist->ncj4, &d_plist->cj4_nalloc,
                          h_plist->ncj4,
                          nb->dev_rundata->context,
-                         stream, true, &(nb->timers->pl_h2d_cj4[iloc]));
+                         stream, true, bDoTime ? nb->timers->pl_h2d[iloc].fetchNextEvent() : nullptr);
 
-    /* this call only allocates space on the device (no data is transferred) */
+    /* this call only allocates space on the device (no data is transferred) - no timing as well! */
     ocl_realloc_buffered(&d_plist->imask, NULL, sizeof(unsigned int),
                          &d_plist->nimask, &d_plist->imask_nalloc,
                          h_plist->ncj4*c_nbnxnGpuClusterpairSplit,
                          nb->dev_rundata->context,
-                         stream, true, &(nb->timers->pl_h2d_imask[iloc]));
+                         stream, true);
 
     ocl_realloc_buffered(&d_plist->excl, h_plist->excl, sizeof(nbnxn_excl_t),
                          &d_plist->nexcl, &d_plist->excl_nalloc,
                          h_plist->nexcl,
                          nb->dev_rundata->context,
-                         stream, true, &(nb->timers->pl_h2d_excl[iloc]));
+                         stream, true, bDoTime ? nb->timers->pl_h2d[iloc].fetchNextEvent() : nullptr);
+
+    if (bDoTime)
+    {
+        nb->timers->pl_h2d[iloc].closeTimingRegion(stream);
+    }
 
     /* need to prune the pair list during the next step */
     d_plist->haveFreshList = true;
@@ -971,7 +983,7 @@ void nbnxn_gpu_upload_shiftvec(gmx_nbnxn_ocl_t        *nb,
 
 //! This function is documented in the header file
 void nbnxn_gpu_init_atomdata(gmx_nbnxn_ocl_t               *nb,
-                             const struct nbnxn_atomdata_t *nbat)
+                             const nbnxn_atomdata_t        *nbat)
 {
     cl_int           cl_error;
     int              nalloc, natoms;
@@ -983,6 +995,12 @@ void nbnxn_gpu_init_atomdata(gmx_nbnxn_ocl_t               *nb,
 
     natoms    = nbat->natoms;
     realloced = false;
+
+    if (bDoTime)
+    {
+        /* time async copy */
+        timers->atdat.openTimingRegion(ls);
+    }
 
     /* need to reallocate if we have to copy more atoms than the amount of space
        available and only allocate if we haven't initialized yet, i.e d_atdat->natoms == -1 */
@@ -1041,13 +1059,18 @@ void nbnxn_gpu_init_atomdata(gmx_nbnxn_ocl_t               *nb,
     if (useLjCombRule(nb->nbparam->vdwtype))
     {
         ocl_copy_H2D_async(d_atdat->lj_comb, nbat->lj_comb, 0,
-                           natoms*sizeof(cl_float2), ls, bDoTime ? &(timers->atdat) : NULL);
+                           natoms*sizeof(cl_float2), ls, bDoTime ? timers->atdat.fetchNextEvent() : nullptr);
     }
     else
     {
         ocl_copy_H2D_async(d_atdat->atom_types, nbat->type, 0,
-                           natoms*sizeof(int), ls, bDoTime ? &(timers->atdat) : NULL);
+                           natoms*sizeof(int), ls, bDoTime ? timers->atdat.fetchNextEvent() : nullptr);
 
+    }
+
+    if (bDoTime)
+    {
+        timers->atdat.closeTimingRegion(ls);
     }
 
     /* kick off the tasks enqueued above to ensure concurrency with the search */
@@ -1206,7 +1229,7 @@ void nbnxn_gpu_free(gmx_nbnxn_ocl_t *nb)
     sfree(nb->dev_rundata);
 
     /* Free timers and timings */
-    sfree(nb->timers);
+    delete nb->timers;
     sfree(nb->timings);
     sfree(nb);
 
@@ -1216,11 +1239,10 @@ void nbnxn_gpu_free(gmx_nbnxn_ocl_t *nb)
     }
 }
 
-
 //! This function is documented in the header file
-gmx_wallclock_gpu_t * nbnxn_gpu_get_timings(gmx_nbnxn_ocl_t *nb)
+gmx_wallclock_gpu_nbnxn_t *nbnxn_gpu_get_timings(gmx_nbnxn_ocl_t *nb)
 {
-    return (nb != NULL && nb->bDoTime) ? nb->timings : NULL;
+    return (nb != nullptr && nb->bDoTime) ? nb->timings : nullptr;
 }
 
 //! This function is documented in the header file

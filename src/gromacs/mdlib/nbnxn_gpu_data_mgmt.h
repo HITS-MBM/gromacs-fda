@@ -55,8 +55,9 @@ struct nonbonded_verlet_group_t;
 struct nbnxn_pairlist_t;
 struct nbnxn_atomdata_t;
 struct NbnxnListParameters;
-struct gmx_wallclock_gpu_t;
+struct gmx_wallclock_gpu_nbnxn_t;
 struct gmx_gpu_info_t;
+struct gmx_device_info_t;
 
 /** Initializes the data structures related to GPU nonbonded calculations. */
 GPU_FUNC_QUALIFIER
@@ -64,7 +65,7 @@ void nbnxn_gpu_init(gmx_nbnxn_gpu_t gmx_unused            **p_nb,
                     const gmx_device_info_t gmx_unused     *deviceInfo,
                     const interaction_const_t gmx_unused   *ic,
                     const NbnxnListParameters gmx_unused   *listParams,
-                    nonbonded_verlet_group_t gmx_unused    *nbv_grp,
+                    const nbnxn_atomdata_t gmx_unused      *nbat,
                     int gmx_unused                          rank,
                     /* true if both local and non-local are done on GPU */
                     gmx_bool gmx_unused                     bLocalAndNonlocal) GPU_FUNC_TERM
@@ -78,7 +79,7 @@ void nbnxn_gpu_init_pairlist(gmx_nbnxn_gpu_t gmx_unused               *nb,
 /** Initializes atom-data on the GPU, called at every pair search step. */
 GPU_FUNC_QUALIFIER
 void nbnxn_gpu_init_atomdata(gmx_nbnxn_gpu_t gmx_unused               *nb,
-                             const struct nbnxn_atomdata_t gmx_unused *nbat) GPU_FUNC_TERM
+                             const nbnxn_atomdata_t gmx_unused        *nbat) GPU_FUNC_TERM
 
 /*! \brief Re-generate the GPU Ewald force table, resets rlist, and update the
  *  electrostatic type switching to twin cut-off (or back) if needed.
@@ -91,7 +92,7 @@ void nbnxn_gpu_pme_loadbal_update_param(const struct nonbonded_verlet_t gmx_unus
 /** Uploads shift vector to the GPU if the box is dynamic (otherwise just returns). */
 GPU_FUNC_QUALIFIER
 void nbnxn_gpu_upload_shiftvec(gmx_nbnxn_gpu_t gmx_unused               *nb,
-                               const struct nbnxn_atomdata_t gmx_unused *nbatom) GPU_FUNC_TERM
+                               const nbnxn_atomdata_t gmx_unused        *nbatom) GPU_FUNC_TERM
 
 /** Clears GPU outputs: nonbonded force, shift force and energy. */
 GPU_FUNC_QUALIFIER
@@ -104,7 +105,7 @@ void nbnxn_gpu_free(gmx_nbnxn_gpu_t gmx_unused *nb) GPU_FUNC_TERM
 
 /** Returns the GPU timings structure or NULL if GPU is not used or timing is off. */
 GPU_FUNC_QUALIFIER
-struct gmx_wallclock_gpu_t * nbnxn_gpu_get_timings(gmx_nbnxn_gpu_t gmx_unused *nb) GPU_FUNC_TERM_WITH_RETURN(NULL)
+struct gmx_wallclock_gpu_nbnxn_t *nbnxn_gpu_get_timings(gmx_nbnxn_gpu_t gmx_unused *nb) GPU_FUNC_TERM_WITH_RETURN(nullptr)
 
 /** Resets nonbonded GPU timings. */
 GPU_FUNC_QUALIFIER

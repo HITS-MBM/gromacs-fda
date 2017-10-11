@@ -49,6 +49,7 @@
 #include "gromacs/utility/real.h"
 
 struct interaction_const_t;
+struct nbnxn_atomdata_t;
 struct nonbonded_verlet_group_t;
 
 /*! \brief Dispatches the non-bonded N versus M atom cluster CPU kernels.
@@ -58,6 +59,7 @@ struct nonbonded_verlet_group_t;
  * within this function.
  *
  * \param[in,out] nbvg          The group (local/non-local) to compute interaction for
+ * \param[in]     nbat          The atomdata for the interactions
  * \param[in]     ic            Non-bonded interaction constants
  * \param[in]     shiftVectors  The PBC shift vectors
  * \param[in]     forceFlags    Flags that tell what to compute
@@ -68,6 +70,7 @@ struct nonbonded_verlet_group_t;
  */
 void
 nbnxn_kernel_cpu(nonbonded_verlet_group_t  *nbvg,
+                 const nbnxn_atomdata_t    *nbat,
                  const interaction_const_t *ic,
                  rvec                      *shiftVectors,
                  int                        forceFlags,

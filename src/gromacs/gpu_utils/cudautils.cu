@@ -37,8 +37,10 @@
 
 #include "cudautils.cuh"
 
-#include <stdlib.h>
+#include <cassert>
+#include <cstdlib>
 
+#include "gromacs/gpu_utils/cuda_arch_utils.cuh"
 #include "gromacs/utility/smalloc.h"
 
 /*** Generic CUDA data operation wrappers ***/
@@ -126,46 +128,6 @@ int cu_copy_H2D_async(void * d_dest, void * h_src, size_t bytes, cudaStream_t s 
     return cu_copy_H2D_generic(d_dest, h_src, bytes, true, s);
 }
 
-float cu_event_elapsed(cudaEvent_t start, cudaEvent_t end)
-{
-    float       t = 0.0;
-    cudaError_t stat;
-
-    stat = cudaEventElapsedTime(&t, start, end);
-    CU_RET_ERR(stat, "cudaEventElapsedTime failed in cu_event_elapsed");
-
-    return t;
-}
-
-int cu_wait_event(cudaEvent_t e)
-{
-    cudaError_t s;
-
-    s = cudaEventSynchronize(e);
-    CU_RET_ERR(s, "cudaEventSynchronize failed in cu_wait_event");
-
-    return 0;
-}
-
-/*!
- *  If time != NULL it also calculates the time elapsed between start and end and
- *  return this is milliseconds.
- */
-int cu_wait_event_time(cudaEvent_t end, cudaEvent_t start, float *time)
-{
-    cudaError_t s;
-
-    s = cudaEventSynchronize(end);
-    CU_RET_ERR(s, "cudaEventSynchronize failed in cu_wait_event");
-
-    if (time)
-    {
-        *time = cu_event_elapsed(start, end);
-    }
-
-    return 0;
-}
-
 /**** Operation on buffered arrays (arrays with "over-allocation" in gmx wording) *****/
 
 /*!
@@ -246,3 +208,126 @@ void cu_realloc_buffered(void **d_dest, void *h_src,
         }
     }
 }
+
+/*! \brief Return whether texture objects are used on this device.
+ *
+ * \param[in]   pointer to the GPU device info structure to inspect for texture objects support
+ * \return      true if texture objects are used on this device
+ */
+static inline bool use_texobj(const gmx_device_info_t *dev_info)
+{
+    assert(!c_disableCudaTextures);
+    /* Only device CC >= 3.0 (Kepler and later) support texture objects */
+    return (dev_info->prop.major >= 3);
+}
+
+/*! \brief Set up texture object for an array of type T.
+ *
+ * Set up texture object for an array of type T and bind it to the device memory
+ * \p d_ptr points to.
+ *
+ * \tparam[in] T        Raw data type
+ * \param[out] texObj   texture object to initialize
+ * \param[in]  d_ptr    pointer to device global memory to bind \p texObj to
+ * \param[in]  sizeInBytes  size of memory area to bind \p texObj to
+ */
+template <typename T>
+static void setup1DTexture(cudaTextureObject_t &texObj,
+                           void                *d_ptr,
+                           size_t               sizeInBytes)
+{
+    assert(!c_disableCudaTextures);
+
+    cudaError_t      stat;
+    cudaResourceDesc rd;
+    cudaTextureDesc  td;
+
+    memset(&rd, 0, sizeof(rd));
+    rd.resType                = cudaResourceTypeLinear;
+    rd.res.linear.devPtr      = d_ptr;
+    rd.res.linear.desc        = cudaCreateChannelDesc<T>();
+    rd.res.linear.sizeInBytes = sizeInBytes;
+
+    memset(&td, 0, sizeof(td));
+    td.readMode                 = cudaReadModeElementType;
+    stat = cudaCreateTextureObject(&texObj, &rd, &td, NULL);
+    CU_RET_ERR(stat, "cudaCreateTextureObject failed");
+}
+
+/*! \brief Set up texture reference for an array of type T.
+ *
+ * Set up texture object for an array of type T and bind it to the device memory
+ * \p d_ptr points to.
+ *
+ * \tparam[in] T        Raw data type
+ * \param[out] texObj   texture reference to initialize
+ * \param[in]  d_ptr    pointer to device global memory to bind \p texObj to
+ * \param[in]  sizeInBytes  size of memory area to bind \p texObj to
+ */
+template <typename T>
+static void setup1DTexture(const struct texture<T, 1, cudaReadModeElementType> *texRef,
+                           const void                                          *d_ptr,
+                           size_t                                              sizeInBytes)
+{
+    assert(!c_disableCudaTextures);
+
+    cudaError_t           stat;
+    cudaChannelFormatDesc cd;
+
+    cd   = cudaCreateChannelDesc<T>();
+    stat = cudaBindTexture(nullptr, texRef, d_ptr, &cd, sizeInBytes);
+    CU_RET_ERR(stat, "cudaBindTexture failed");
+}
+
+template <typename T>
+void initParamLookupTable(T                        * &d_ptr,
+                          cudaTextureObject_t       &texObj,
+                          const struct texture<T, 1, cudaReadModeElementType> *texRef,
+                          const T                   *h_ptr,
+                          int                        numElem,
+                          const gmx_device_info_t   *devInfo)
+{
+    const size_t sizeInBytes = numElem * sizeof(*d_ptr);
+    cudaError_t  stat        = cudaMalloc((void **)&d_ptr, sizeInBytes);
+    CU_RET_ERR(stat, "cudaMalloc failed in initParamLookupTable");
+    cu_copy_H2D(d_ptr, (void *)h_ptr, sizeInBytes);
+
+    if (!c_disableCudaTextures)
+    {
+        if (use_texobj(devInfo))
+        {
+            setup1DTexture<T>(texObj, d_ptr, sizeInBytes);
+        }
+        else
+        {
+            setup1DTexture<T>(texRef, d_ptr, sizeInBytes);
+        }
+    }
+}
+
+template <typename T>
+void destroyParamLookupTable(T                       *d_ptr,
+                             cudaTextureObject_t      texObj,
+                             const struct texture<T, 1, cudaReadModeElementType> *texRef,
+                             const gmx_device_info_t *devInfo)
+{
+    if (!c_disableCudaTextures)
+    {
+        if (use_texobj(devInfo))
+        {
+            CU_RET_ERR(cudaDestroyTextureObject(texObj), "cudaDestroyTextureObject on texObj failed");
+        }
+        else
+        {
+            CU_RET_ERR(cudaUnbindTexture(texRef), "cudaUnbindTexture on texRef failed");
+        }
+    }
+    CU_RET_ERR(cudaFree(d_ptr), "cudaFree failed");
+}
+
+/*! \brief Add explicit instantiations of init/destroyParamLookupTable() here as needed.
+ * One should also verify that the result of cudaCreateChannelDesc<T>() during texture setup
+ * looks reasonable, when instantiating the templates for new types - just in case.
+ */
+template void initParamLookupTable<float>(float * &, cudaTextureObject_t &, const texture<float, 1, cudaReadModeElementType> *, const float *, int, const gmx_device_info_t *);
+template void destroyParamLookupTable<float>(float *, cudaTextureObject_t, const texture<float, 1, cudaReadModeElementType> *, const gmx_device_info_t *);

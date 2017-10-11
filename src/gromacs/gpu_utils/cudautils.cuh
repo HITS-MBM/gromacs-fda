@@ -156,13 +156,44 @@ void cu_realloc_buffered(void **d_dest, void *h_src,
                          cudaStream_t s,
                          bool bAsync);
 
-/*! Waits for event e to complete, */
-int cu_wait_event(cudaEvent_t /*e*/);
+// TODO: the 2 functions below are pretty much a constructor/destructor of a simple
+// GPU table object. We just need to add a templated __device__ table data fetching to complete it.
 
-/*! Calculates and returns the time elapsed between event start and end. */
-float cu_event_elapsed(cudaEvent_t /*start*/, cudaEvent_t /*end*/);
+/*! \brief Initialize parameter lookup table.
+ *
+ * Initializes device memory, copies data from host and binds
+ * a texture to allocated device memory to be used for parameter lookup.
+ *
+ * \tparam[in] T         Raw data type
+ * \param[out] d_ptr     device pointer to the memory to be allocated
+ * \param[out] texObj    texture object to be initialized
+ * \param[out] texRef    texture reference to be initialized
+ * \param[in]  h_ptr     pointer to the host memory to be uploaded to the device
+ * \param[in]  numElem   number of elements in the h_ptr
+ * \param[in]  devInfo   pointer to the info struct of the device in use
+ */
+template <typename T>
+void initParamLookupTable(T                        * &d_ptr,
+                          cudaTextureObject_t       &texObj,
+                          const struct texture<T, 1, cudaReadModeElementType> *texRef,
+                          const T                   *h_ptr,
+                          int                        numElem,
+                          const gmx_device_info_t   *devInfo);
 
-/*! Waits for event end to complete and calculates the time between start and end. */
-int cu_wait_event_time(cudaEvent_t /*end*/, cudaEvent_t /*begin*/, float * /*time*/);
+/*! \brief Destroy parameter lookup table.
+ *
+ * Unbinds texture reference/object, deallocates device memory.
+ *
+ * \tparam[in] T         Raw data type
+ * \param[in]  d_ptr     Device pointer to the memory to be deallocated
+ * \param[in]  texObj    Texture object to be deinitialized
+ * \param[in]  texRef    Texture reference to be deinitialized
+ * \param[in]  devInfo   Pointer to the info struct of the device in use
+ */
+template <typename T>
+void destroyParamLookupTable(T                         *d_ptr,
+                             cudaTextureObject_t        texObj,
+                             const struct texture<T, 1, cudaReadModeElementType> *texRef,
+                             const gmx_device_info_t   *devInfo);
 
 #endif

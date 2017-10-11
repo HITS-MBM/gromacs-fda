@@ -100,7 +100,7 @@ nb_kernel_ElecRF_VdwLJ_GeomW4P1_VF_c
     gid              = nlist->gid;
     shiftvec         = fr->shift_vec[0];
     fshift           = fr->fshift[0];
-    facel            = fr->epsfac;
+    facel            = fr->ic->epsfac;
     charge           = mdatoms->chargeA;
     krf              = fr->ic->k_rf;
     krf2             = krf*2.0;
@@ -453,7 +453,7 @@ nb_kernel_ElecRF_VdwLJ_GeomW4P1_F_c
     gid              = nlist->gid;
     shiftvec         = fr->shift_vec[0];
     fshift           = fr->fshift[0];
-    facel            = fr->epsfac;
+    facel            = fr->ic->epsfac;
     charge           = mdatoms->chargeA;
     krf              = fr->ic->k_rf;
     krf2             = krf*2.0;

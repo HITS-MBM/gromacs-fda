@@ -133,108 +133,103 @@ gmx_unused static gmx_inline int ci_to_cj(int ci, int na_cj_2log)
     return 0;
 }
 
-#if GMX_SIMD
-
-/* Returns the j-cluster index corresponding to the i-cluster index */
-template<int cj_size> static gmx_inline int ci_to_cj(int ci)
+/* Layout for the nonbonded NxN pair lists */
+enum class NbnxnLayout
 {
-    if (cj_size == 2)
+    NoSimd4x4, // i-cluster size 4, j-cluster size 4
+    Simd4xN,   // i-cluster size 4, j-cluster size SIMD width
+    Simd2xNN,  // i-cluster size 4, j-cluster size half SIMD width
+    Gpu8x8x8   // i-cluster size 8, j-cluster size 8 + super-clustering
+};
+
+/* Returns the j-cluster size */
+template <NbnxnLayout layout>
+static constexpr int jClusterSize()
+{
+#if GMX_SIMD
+    static_assert(layout == NbnxnLayout::NoSimd4x4 || layout == NbnxnLayout::Simd4xN || layout == NbnxnLayout::Simd2xNN, "Currently jClusterSize only supports CPU layouts");
+
+    return layout == NbnxnLayout::Simd4xN ? GMX_SIMD_REAL_WIDTH : (layout == NbnxnLayout::Simd2xNN ? GMX_SIMD_REAL_WIDTH/2 : NBNXN_CPU_CLUSTER_I_SIZE);
+#else
+    static_assert(layout == NbnxnLayout::NoSimd4x4, "Currently without SIMD, jClusterSize only supports NoSimd4x4");
+
+    return NBNXN_CPU_CLUSTER_I_SIZE;
+#endif
+}
+
+/* Returns the j-cluster index given the i-cluster index */
+template <int jClusterSize>
+static inline int cjFromCi(int ci)
+{
+    static_assert(jClusterSize == NBNXN_CPU_CLUSTER_I_SIZE/2 || jClusterSize == NBNXN_CPU_CLUSTER_I_SIZE || jClusterSize == NBNXN_CPU_CLUSTER_I_SIZE*2, "Only j-cluster sizes 2, 4 and 8 are currently implemented");
+
+    if (jClusterSize == NBNXN_CPU_CLUSTER_I_SIZE/2)
     {
         return ci << 1;
     }
-    else if (cj_size == 4)
+    else if (jClusterSize == NBNXN_CPU_CLUSTER_I_SIZE)
     {
         return ci;
     }
-    else if (cj_size == 8)
+    else
     {
         return ci >> 1;
     }
-    else
-    {
-        GMX_ASSERT(false, "Only j-cluster sizes 2, 4, 8 are implemented");
-        return -1;
-    }
 }
 
-/* Returns the index in the coordinate array corresponding to the i-cluster index */
-template<int cj_size> static gmx_inline int x_ind_ci(int ci)
+/* Returns the j-cluster index given the i-cluster index */
+template <NbnxnLayout layout>
+static inline int cjFromCi(int ci)
 {
-    if (cj_size <= 4)
+    constexpr int clusterSize = jClusterSize<layout>();
+
+    return cjFromCi<clusterSize>(ci);
+}
+
+/* Returns the nbnxn coordinate data index given the i-cluster index */
+template <NbnxnLayout layout>
+static inline int xIndexFromCi(int ci)
+{
+    constexpr int clusterSize = jClusterSize<layout>();
+
+    static_assert(clusterSize == NBNXN_CPU_CLUSTER_I_SIZE/2 || clusterSize == NBNXN_CPU_CLUSTER_I_SIZE || clusterSize == NBNXN_CPU_CLUSTER_I_SIZE*2, "Only j-cluster sizes 2, 4 and 8 are currently implemented");
+
+    if (clusterSize <= NBNXN_CPU_CLUSTER_I_SIZE)
     {
         /* Coordinates are stored packed in groups of 4 */
         return ci*STRIDE_P4;
     }
-    else if (cj_size == 8)
+    else
     {
         /* Coordinates packed in 8, i-cluster size is half the packing width */
         return (ci >> 1)*STRIDE_P8 + (ci & 1)*(c_packX8 >> 1);
     }
-    else
-    {
-        GMX_ASSERT(false, "Only j-cluster sizes 2, 4, 8 are implemented");
-        return -1;
-    }
 }
 
-/* Returns the index in the coordinate array corresponding to the j-cluster index */
-template<int cj_size> static gmx_inline int x_ind_cj(int cj)
+/* Returns the nbnxn coordinate data index given the j-cluster index */
+template <NbnxnLayout layout>
+static inline int xIndexFromCj(int cj)
 {
-    if (cj_size == 2)
+    constexpr int clusterSize = jClusterSize<layout>();
+
+    static_assert(clusterSize == NBNXN_CPU_CLUSTER_I_SIZE/2 || clusterSize == NBNXN_CPU_CLUSTER_I_SIZE || clusterSize == NBNXN_CPU_CLUSTER_I_SIZE*2, "Only j-cluster sizes 2, 4 and 8 are currently implemented");
+
+    if (clusterSize == NBNXN_CPU_CLUSTER_I_SIZE/2)
     {
         /* Coordinates are stored packed in groups of 4 */
         return (cj >> 1)*STRIDE_P4 + (cj & 1)*(c_packX4 >> 1);
     }
-    else if (cj_size <= 4)
+    else if (clusterSize == NBNXN_CPU_CLUSTER_I_SIZE)
     {
         /* Coordinates are stored packed in groups of 4 */
         return cj*STRIDE_P4;
     }
-    else if (cj_size == 8)
+    else
     {
         /* Coordinates are stored packed in groups of 8 */
         return cj*STRIDE_P8;
     }
-    else
-    {
-        GMX_ASSERT(false, "Only j-cluster sizes 2, 4, 8 are implemented");
-        return -1;
-    }
 }
-
-/* The 6 functions below are only introduced to make the code more readable */
-
-static gmx_inline int ci_to_cj_simd_4xn(int ci)
-{
-    return ci_to_cj<GMX_SIMD_REAL_WIDTH>(ci);
-}
-
-static gmx_inline int x_ind_ci_simd_4xn(int ci)
-{
-    return x_ind_ci<GMX_SIMD_REAL_WIDTH>(ci);
-}
-
-static gmx_inline int x_ind_cj_simd_4xn(int cj)
-{
-    return x_ind_cj<GMX_SIMD_REAL_WIDTH>(cj);
-}
-
-static gmx_inline int ci_to_cj_simd_2xnn(int ci)
-{
-    return ci_to_cj<GMX_SIMD_REAL_WIDTH/2>(ci);
-}
-
-static gmx_inline int x_ind_ci_simd_2xnn(int ci)
-{
-    return x_ind_ci<GMX_SIMD_REAL_WIDTH/2>(ci);
-}
-
-static gmx_inline int x_ind_cj_simd_2xnn(int cj)
-{
-    return x_ind_cj<GMX_SIMD_REAL_WIDTH/2>(cj);
-}
-
-#endif // GMX_SIMD
 
 gmx_bool nbnxn_kernel_pairlist_simple(int nb_kernel_type)
 {
@@ -3028,7 +3023,6 @@ static void balance_fep_lists(const nbnxn_search_t  nbs,
 
 /* Returns the next ci to be processes by our thread */
 static gmx_bool next_ci(const nbnxn_grid_t *grid,
-                        int conv,
                         int nth, int ci_block,
                         int *ci_x, int *ci_y,
                         int *ci_b, int *ci)
@@ -3043,12 +3037,12 @@ static gmx_bool next_ci(const nbnxn_grid_t *grid,
         *ci_b  = 0;
     }
 
-    if (*ci >= grid->nc*conv)
+    if (*ci >= grid->nc)
     {
         return FALSE;
     }
 
-    while (*ci >= grid->cxy_ind[*ci_x*grid->ncy + *ci_y + 1]*conv)
+    while (*ci >= grid->cxy_ind[*ci_x*grid->ncy + *ci_y + 1])
     {
         *ci_y += 1;
         if (*ci_y == grid->ncy)
@@ -3194,7 +3188,7 @@ static void nbnxn_make_pairlist_part(const nbnxn_search_t nbs,
     ivec              shp;
     int               shift;
     real              shx, shy, shz;
-    int               conv_i, cell0_i;
+    int               cell0_i;
     const nbnxn_bb_t *bb_i = nullptr;
 #if NBNXN_BBXXXX
     const float      *pbb_i = nullptr;
@@ -3286,44 +3280,25 @@ static void nbnxn_make_pairlist_part(const nbnxn_search_t nbs,
         }
     }
 
-    if (nbl->bSimple && !gridi->bSimple)
+#if NBNXN_BBXXXX
+    if (gridi->bSimple)
     {
-        conv_i  = gridi->na_sc/gridj->na_sc;
-        bb_i    = gridi->bb_simple;
-        bbcz_i  = gridi->bbcz_simple;
-        flags_i = gridi->flags_simple;
+        bb_i  = gridi->bb;
     }
     else
     {
-        conv_i  = 1;
-#if NBNXN_BBXXXX
-        if (gridi->bSimple)
-        {
-            bb_i  = gridi->bb;
-        }
-        else
-        {
-            pbb_i = gridi->pbb;
-        }
-#else
-        /* We use the normal bounding box format for both grid types */
-        bb_i  = gridi->bb;
-#endif
-        bbcz_i  = gridi->bbcz;
-        flags_i = gridi->flags;
+        pbb_i = gridi->pbb;
     }
-    cell0_i = gridi->cell0*conv_i;
+#else
+    /* We use the normal bounding box format for both grid types */
+    bb_i  = gridi->bb;
+#endif
+    bbcz_i  = gridi->bbcz;
+    flags_i = gridi->flags;
+    cell0_i = gridi->cell0;
 
     bbcz_j = gridj->bbcz;
 
-    if (conv_i != 1)
-    {
-        /* Blocks of the conversion factor - 1 give a large repeat count
-         * combined with a small block size. This should result in good
-         * load balancing for both small and large domains.
-         */
-        ci_block = conv_i - 1;
-    }
     if (debug)
     {
         fprintf(debug, "nbl nc_i %d col.av. %.1f ci_block %d\n",
@@ -3339,7 +3314,7 @@ static void nbnxn_make_pairlist_part(const nbnxn_search_t nbs,
     ci   = th*ci_block - 1;
     ci_x = 0;
     ci_y = 0;
-    while (next_ci(gridi, conv_i, nth, ci_block, &ci_x, &ci_y, &ci_b, &ci))
+    while (next_ci(gridi, nth, ci_block, &ci_x, &ci_y, &ci_b, &ci))
     {
         if (nbl->bSimple && flags_i[ci] == 0)
         {
@@ -4125,7 +4100,6 @@ void nbnxn_make_pairlist(const nbnxn_search_t  nbs,
                          t_nrnb               *nrnb)
 {
     nbnxn_grid_t      *gridi, *gridj;
-    gmx_bool           bGPUCPU;
     int                nzi, zj0, zj1;
     int                nsubpair_target;
     float              nsubpair_tot_est;
@@ -4135,9 +4109,6 @@ void nbnxn_make_pairlist(const nbnxn_search_t  nbs,
     gmx_bool           CombineNBLists;
     gmx_bool           progBal;
     int                np_tot, np_noq, np_hlj, nap;
-
-    /* Check if we are running hybrid GPU + CPU nbnxn mode */
-    bGPUCPU = (!nbs->grid[0].bSimple && nbl_list->bSimple);
 
     nnbl            = nbl_list->nnbl;
     nbl             = nbl_list->nbl;
@@ -4150,7 +4121,7 @@ void nbnxn_make_pairlist(const nbnxn_search_t  nbs,
 
     nbat->bUseBufferFlags = (nbat->nout > 1);
     /* We should re-init the flags before making the first list */
-    if (nbat->bUseBufferFlags && (LOCAL_I(iloc) || bGPUCPU))
+    if (nbat->bUseBufferFlags && LOCAL_I(iloc))
     {
         init_buffer_flags(&nbat->buffer_flags, nbat->natoms);
     }
@@ -4242,15 +4213,7 @@ void nbnxn_make_pairlist(const nbnxn_search_t  nbs,
 
             nbs_cycle_start(&nbs->cc[enbsCCsearch]);
 
-            if (nbl[0]->bSimple && !gridi->bSimple)
-            {
-                /* Hybrid list, determine blocking later */
-                ci_block = 0;
-            }
-            else
-            {
-                ci_block = get_ci_block_size(gridi, nbs->DomDec, nnbl);
-            }
+            ci_block = get_ci_block_size(gridi, nbs->DomDec, nnbl);
 
             /* With GPU: generate progressively smaller lists for
              * load balancing for local only or non-local with 2 zones.
@@ -4265,8 +4228,7 @@ void nbnxn_make_pairlist(const nbnxn_search_t  nbs,
                     /* Re-init the thread-local work flag data before making
                      * the first list (not an elegant conditional).
                      */
-                    if (nbat->bUseBufferFlags && ((zi == 0 && zj == 0) ||
-                                                  (bGPUCPU && zi == 0 && zj == 1)))
+                    if (nbat->bUseBufferFlags && ((zi == 0 && zj == 0)))
                     {
                         init_buffer_flags(&nbs->work[th].buffer_flags, nbat->natoms);
                     }

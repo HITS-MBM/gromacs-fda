@@ -164,7 +164,8 @@ static void reset_all_counters(FILE *fplog, const gmx::MDLogger &mdlog, t_commre
                                gmx_int64_t *step_rel, t_inputrec *ir,
                                gmx_wallcycle_t wcycle, t_nrnb *nrnb,
                                gmx_walltime_accounting_t walltime_accounting,
-                               struct nonbonded_verlet_t *nbv)
+                               struct nonbonded_verlet_t *nbv,
+                               struct gmx_pme_t *pme)
 {
     char sbuf[STEPSTRSIZE];
 
@@ -176,6 +177,15 @@ static void reset_all_counters(FILE *fplog, const gmx::MDLogger &mdlog, t_commre
     if (use_GPU(nbv))
     {
         nbnxn_gpu_reset_timings(nbv);
+    }
+
+    if (pme_gpu_task_enabled(pme))
+    {
+        pme_gpu_reset_timings(pme);
+    }
+
+    if (use_GPU(nbv) || pme_gpu_task_enabled(pme))
+    {
         resetGpuProfiler();
     }
 
@@ -192,6 +202,78 @@ static void reset_all_counters(FILE *fplog, const gmx::MDLogger &mdlog, t_commre
     wallcycle_start(wcycle, ewcRUN);
     walltime_accounting_start(walltime_accounting);
     print_date_and_time(fplog, cr->nodeid, "Restarted time", gmx_gettime());
+}
+
+/*! \brief Copy the state from \p rerunFrame to \p globalState and, if requested, construct vsites
+ *
+ * \param[in]     rerunFrame      The trajectory frame to compute energy/forces for
+ * \param[in,out] globalState     The global state container
+ * \param[in]     constructVsites When true, vsite coordinates are constructed
+ * \param[in]     vsite           Vsite setup, can be nullptr when \p constructVsites = false
+ * \param[in]     idef            Topology parameters, used for constructing vsites
+ * \param[in]     timeStep        Time step, used for constructing vsites
+ * \param[in]     forceRec        Force record, used for constructing vsites
+ * \param[in,out] graph           The molecular graph, used for constructing vsites when != nullptr
+ * \param[in,out] warnWhenNoV     When true, issue a warning when no velocities are present in \p rerunFrame; is set to false when a warning was issued
+ */
+static void prepareRerunState(const t_trxframe  &rerunFrame,
+                              t_state           *globalState,
+                              bool               constructVsites,
+                              const gmx_vsite_t *vsite,
+                              const t_idef      &idef,
+                              double             timeStep,
+                              const t_forcerec  &forceRec,
+                              t_graph           *graph,
+                              gmx_bool          *warnWhenNoV)
+{
+    for (int i = 0; i < globalState->natoms; i++)
+    {
+        copy_rvec(rerunFrame.x[i], globalState->x[i]);
+    }
+    if (rerunFrame.bV)
+    {
+        for (int i = 0; i < globalState->natoms; i++)
+        {
+            copy_rvec(rerunFrame.v[i], globalState->v[i]);
+        }
+    }
+    else
+    {
+        for (int i = 0; i < globalState->natoms; i++)
+        {
+            clear_rvec(globalState->v[i]);
+        }
+        if (*warnWhenNoV)
+        {
+            fprintf(stderr, "\nWARNING: Some frames do not contain velocities.\n"
+                    "         Ekin, temperature and pressure are incorrect,\n"
+                    "         the virial will be incorrect when constraints are present.\n"
+                    "\n");
+            *warnWhenNoV = FALSE;
+        }
+    }
+    copy_mat(rerunFrame.box, globalState->box);
+
+    if (constructVsites)
+    {
+        GMX_ASSERT(vsite, "Need valid vsite for constructing vsites");
+
+        if (graph)
+        {
+            /* Following is necessary because the graph may get out of sync
+             * with the coordinates if we only have every N'th coordinate set
+             */
+            mk_mshift(nullptr, graph, forceRec.ePBC, globalState->box, as_rvec_array(globalState->x.data()));
+            shift_self(graph, globalState->box, as_rvec_array(globalState->x.data()));
+        }
+        construct_vsites(vsite, as_rvec_array(globalState->x.data()), timeStep, as_rvec_array(globalState->v.data()),
+                         idef.iparams, idef.il,
+                         forceRec.ePBC, forceRec.bMolPBC, nullptr, globalState->box);
+        if (graph)
+        {
+            unshift_self(graph, globalState->box, as_rvec_array(globalState->x.data()));
+        }
+    }
 }
 
 /*! \libinternal
@@ -349,9 +431,9 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, const gmx::MDLogger &mdlog,
     {
         /* Initialize essential dynamics sampling */
         ed = init_edsam(opt2fn_null("-ei", nfile, fnm), opt2fn("-eo", nfile, fnm),
-                        top_global, ir, cr, constr,
-                        as_rvec_array(state_global->x.data()),
-                        state_global->box, observablesHistory,
+                        top_global,
+                        ir, cr, constr,
+                        state_global, observablesHistory,
                         oenv, mdrunOptions.continuationOptions.appendFiles);
     }
 
@@ -359,13 +441,14 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, const gmx::MDLogger &mdlog,
     {
         /* Initialize ion swapping code */
         init_swapcoords(fplog, ir, opt2fn_master("-swap", nfile, fnm, cr),
-                        top_global, as_rvec_array(state_global->x.data()), state_global->box, observablesHistory, cr, oenv, mdrunOptions);
+                        top_global,
+                        state_global, observablesHistory,
+                        cr, oenv, mdrunOptions);
     }
 
     /* Initial values */
     init_md(fplog, cr, outputProvider, ir, oenv, mdrunOptions,
-            &t, &t0, state_global->lambda,
-            &(state_global->fep_state), lam0,
+            &t, &t0, state_global, lam0,
             nrnb, top_global, &upd,
             nfile, fnm, &outf, &mdebin,
             force_vir, shake_vir, mu_tot, &bSimAnn, &vcm, wcycle);
@@ -439,8 +522,7 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, const gmx::MDLogger &mdlog,
         /* We need to allocate one element extra, since we might use
          * (unaligned) 4-wide SIMD loads to access rvec entries.
          */
-        f.resize(state_global->natoms + 1);
-
+        f.resize(gmx::paddedRVecVectorSize(state_global->natoms));
         /* Copy the pointer to the global state */
         state = state_global;
 
@@ -450,12 +532,9 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, const gmx::MDLogger &mdlog,
 
         update_realloc(upd, state->natoms);
     }
-    // TODO Global state should be destroyed now that we have local
-    // state. Nothing should need to use it. (Global topology should
-    // persist.)
 
     /* Set up interactive MD (IMD) */
-    init_IMD(ir, cr, top_global, fplog, ir->nstcalcenergy, as_rvec_array(state_global->x.data()),
+    init_IMD(ir, cr, top_global, fplog, ir->nstcalcenergy, MASTER(cr) ? as_rvec_array(state_global->x.data()) : nullptr,
              nfile, fnm, oenv, mdrunOptions);
 
     if (DOMAINDECOMP(cr))
@@ -469,6 +548,11 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, const gmx::MDLogger &mdlog,
         shouldCheckNumberOfBondedInteractions = true;
         update_realloc(upd, state->natoms);
     }
+
+    // NOTE: The global state is no longer used at this point.
+    // But state_global is still used as temporary storage space for writing
+    // the global state to file and potentially for replica exchange.
+    // (Global topology should persist.)
 
     update_mdatoms(mdatoms, state->lambda[efptMASS]);
 
@@ -515,14 +599,14 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, const gmx::MDLogger &mdlog,
     const bool useReplicaExchange = (replExParams.exchangeInterval > 0);
     if (useReplicaExchange && MASTER(cr))
     {
-        repl_ex = init_replica_exchange(fplog, cr->ms, state_global, ir,
+        repl_ex = init_replica_exchange(fplog, cr->ms, top_global->natoms, ir,
                                         replExParams);
     }
 
     /* PME tuning is only supported in the Verlet scheme, with PME for
      * Coulomb. It is not supported with only LJ PME, or for
      * reruns. */
-    bPMETune = (mdrunOptions.tunePme && EEL_PME(fr->eeltype) && !bRerunMD &&
+    bPMETune = (mdrunOptions.tunePme && EEL_PME(fr->ic->eeltype) && !bRerunMD &&
                 !mdrunOptions.reproducible && ir->cutoff_scheme != ecutsGROUP);
     if (bPMETune)
     {
@@ -873,8 +957,17 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, const gmx::MDLogger &mdlog,
         {
             /* find and set the current lambdas.  If rerunning, we either read in a state, or a lambda value,
                requiring different logic. */
-
-            set_current_lambdas(step, ir->fepvals, bRerunMD, &rerun_fr, state_global, state, lam0);
+            if (bRerunMD)
+            {
+                if (MASTER(cr))
+                {
+                    setCurrentLambdasRerun(step, ir->fepvals, &rerun_fr, lam0, state_global);
+                }
+            }
+            else
+            {
+                setCurrentLambdasLocal(step, ir->fepvals, lam0, state);
+            }
             bDoDHDL      = do_per_step(step, ir->fepvals->nstdhdl);
             bDoFEP       = ((ir->efep != efepNO) && do_per_step(step, nstfep));
             bDoExpanded  = (do_per_step(step, ir->expandedvals->nstexpanded)
@@ -889,62 +982,14 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, const gmx::MDLogger &mdlog,
             update_annealing_target_temp(ir, t, upd);
         }
 
-        if (bRerunMD)
+        if (bRerunMD && MASTER(cr))
         {
-            if (!DOMAINDECOMP(cr) || MASTER(cr))
+            const bool constructVsites = (vsite && mdrunOptions.rerunConstructVsites);
+            if (constructVsites && DOMAINDECOMP(cr))
             {
-                for (i = 0; i < state_global->natoms; i++)
-                {
-                    copy_rvec(rerun_fr.x[i], state_global->x[i]);
-                }
-                if (rerun_fr.bV)
-                {
-                    for (i = 0; i < state_global->natoms; i++)
-                    {
-                        copy_rvec(rerun_fr.v[i], state_global->v[i]);
-                    }
-                }
-                else
-                {
-                    for (i = 0; i < state_global->natoms; i++)
-                    {
-                        clear_rvec(state_global->v[i]);
-                    }
-                    if (bRerunWarnNoV)
-                    {
-                        fprintf(stderr, "\nWARNING: Some frames do not contain velocities.\n"
-                                "         Ekin, temperature and pressure are incorrect,\n"
-                                "         the virial will be incorrect when constraints are present.\n"
-                                "\n");
-                        bRerunWarnNoV = FALSE;
-                    }
-                }
+                gmx_fatal(FARGS, "Vsite recalculation with -rerun is not implemented with domain decomposition, use a single rank");
             }
-            copy_mat(rerun_fr.box, state_global->box);
-            copy_mat(state_global->box, state->box);
-
-            if (vsite && mdrunOptions.rerunConstructVsites)
-            {
-                if (DOMAINDECOMP(cr))
-                {
-                    gmx_fatal(FARGS, "Vsite recalculation with -rerun is not implemented with domain decomposition, use a single rank");
-                }
-                if (graph)
-                {
-                    /* Following is necessary because the graph may get out of sync
-                     * with the coordinates if we only have every N'th coordinate set
-                     */
-                    mk_mshift(fplog, graph, fr->ePBC, state->box, as_rvec_array(state->x.data()));
-                    shift_self(graph, state->box, as_rvec_array(state->x.data()));
-                }
-                construct_vsites(vsite, as_rvec_array(state->x.data()), ir->delta_t, as_rvec_array(state->v.data()),
-                                 top->idef.iparams, top->idef.il,
-                                 fr->ePBC, fr->bMolPBC, cr, state->box);
-                if (graph)
-                {
-                    unshift_self(graph, state->box, as_rvec_array(state->x.data()));
-                }
-            }
+            prepareRerunState(rerun_fr, state_global, constructVsites, vsite, top->idef, ir->delta_t, *fr, graph, &bRerunWarnNoV);
         }
 
         /* Stop Center of Mass motion */
@@ -1304,7 +1349,10 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, const gmx::MDLogger &mdlog,
 
             lamnew = ExpandedEnsembleDynamics(fplog, ir, enerd, state, &MassQ, state->fep_state, state->dfhist, step, as_rvec_array(state->v.data()), mdatoms);
             /* history is maintained in state->dfhist, but state_global is what is sent to trajectory and log output */
-            copy_df_history(state_global->dfhist, state->dfhist);
+            if (MASTER(cr))
+            {
+                copy_df_history(state_global->dfhist, state->dfhist);
+            }
         }
 
         /* Now we have the energies and forces corresponding to the
@@ -1831,7 +1879,7 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, const gmx::MDLogger &mdlog,
                           "mdrun -resetstep.", step);
             }
             reset_all_counters(fplog, mdlog, cr, step, &step_rel, ir, wcycle, nrnb, walltime_accounting,
-                               use_GPU(fr->nbv) ? fr->nbv : nullptr);
+                               use_GPU(fr->nbv) ? fr->nbv : nullptr, fr->pmedata);
             wcycle_set_reset_counters(wcycle, -1);
             if (!(cr->duty & DUTY_PME))
             {

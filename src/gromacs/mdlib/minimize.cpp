@@ -342,15 +342,19 @@ static void init_em(FILE *fplog, const char *title,
         fprintf(fplog, "Initiating %s\n", title);
     }
 
-    state_global->ngtc = 0;
+    if (MASTER(cr))
+    {
+        state_global->ngtc = 0;
 
-    /* Initialize lambda variables */
-    initialize_lambdas(fplog, ir, &(state_global->fep_state), state_global->lambda, nullptr);
+        /* Initialize lambda variables */
+        initialize_lambdas(fplog, ir, &(state_global->fep_state), state_global->lambda, nullptr);
+    }
 
     init_nrnb(nrnb);
 
     /* Interactive molecular dynamics */
-    init_IMD(ir, cr, top_global, fplog, 1, as_rvec_array(state_global->x.data()),
+    init_IMD(ir, cr, top_global, fplog, 1,
+             MASTER(cr) ? as_rvec_array(state_global->x.data()) : nullptr,
              nfile, fnm, nullptr, mdrunOptions);
 
     if (ir->eI == eiNM)
@@ -401,7 +405,7 @@ static void init_em(FILE *fplog, const char *title,
         /* We need to allocate one element extra, since we might use
          * (unaligned) 4-wide SIMD loads to access rvec entries.
          */
-        ems->f.resize(ems->s.natoms + 1);
+        ems->f.resize(gmx::paddedRVecVectorSize(ems->s.natoms));
 
         snew(*top, 1);
         mdAlgorithmsSetupAtomData(cr, ir, top_global, *top, fr,
@@ -414,7 +418,7 @@ static void init_em(FILE *fplog, const char *title,
         }
     }
 
-    update_mdatoms(mdatoms, state_global->lambda[efptMASS]);
+    update_mdatoms(mdatoms, ems->s.lambda[efptMASS]);
 
     if (constr)
     {
@@ -587,7 +591,7 @@ static bool do_em_step(t_commrec *cr, t_inputrec *ir, t_mdatoms *md,
         /* We need to allocate one element extra, since we might use
          * (unaligned) 4-wide SIMD loads to access rvec entries.
          */
-        ems2->f.resize(s2->natoms + 1);
+        ems2->f.resize(gmx::paddedRVecVectorSize(s2->natoms));
     }
     if (DOMAINDECOMP(cr) && s2->cg_gl.size() != s1->cg_gl.size())
     {
@@ -2600,7 +2604,10 @@ double do_steep(FILE *fplog, t_commrec *cr, const gmx::MDLogger gmx_unused &mdlo
         }
 
         /* Send IMD energies and positions, if bIMD is TRUE. */
-        if (do_IMD(inputrec->bIMD, count, cr, TRUE, state_global->box, as_rvec_array(state_global->x.data()), inputrec, 0, wcycle) && MASTER(cr))
+        if (do_IMD(inputrec->bIMD, count, cr, TRUE, state_global->box,
+                   MASTER(cr) ? as_rvec_array(state_global->x.data()) : nullptr,
+                   inputrec, 0, wcycle) &&
+            MASTER(cr))
         {
             IMD_send_positions(inputrec->imd);
         }
@@ -2732,7 +2739,7 @@ double do_nm(FILE *fplog, t_commrec *cr, const gmx::MDLogger &mdlog,
      * will be when we use a cutoff.
      * For small systems (n<1000) it is easier to always use full matrix format, though.
      */
-    if (EEL_FULL(fr->eeltype) || fr->rlist == 0.0)
+    if (EEL_FULL(fr->ic->eeltype) || fr->rlist == 0.0)
     {
         GMX_LOG(mdlog.warning).appendText("Non-cutoff electrostatics used, forcing full Hessian format.");
         bSparse = FALSE;
