@@ -46,6 +46,7 @@
 #ifndef GMX_EWALD_PME_GPU_INTERNAL_H
 #define GMX_EWALD_PME_GPU_INTERNAL_H
 
+#include "gromacs/fft/fft.h"                   // for the gmx_fft_direction enum
 #include "gromacs/gpu_utils/gpu_macros.h"      // for the CUDA_FUNC_ macros
 
 #include "pme-gpu-types.h"                     // for the inline functions accessing pme_gpu_t members
@@ -56,11 +57,26 @@ struct gmx_pme_t;                              // only used in pme_gpu_reinit
 struct t_commrec;
 struct gmx_wallclock_gpu_pme_t;
 struct pme_atomcomm_t;
+struct t_complex;
 
 namespace gmx
 {
 class MDLogger;
 }
+
+//! Type of spline data
+enum class PmeSplineDataType
+{
+    Values,      // theta
+    Derivatives, // dtheta
+};               //TODO move this into new and shiny pme.h (pme-types.h?)
+
+//! PME grid dimension ordering (from major to minor)
+enum class GridOrdering
+{
+    YZX,
+    XYZ
+};
 
 /* Some general constants for PME GPU behaviour follow. */
 
@@ -107,7 +123,7 @@ CUDA_FUNC_QUALIFIER int pme_gpu_get_atom_data_alignment(const pme_gpu_t *CUDA_FU
  * \param[in] pmeGPU            The PME GPU structure.
  * \returns   Number of atoms in a single GPU atom spline data chunk.
  */
-CUDA_FUNC_QUALIFIER int pme_gpu_get_atom_spline_data_alignment(const pme_gpu_t *CUDA_FUNC_ARGUMENT(pmeGPU)) CUDA_FUNC_TERM_WITH_RETURN(1)
+CUDA_FUNC_QUALIFIER int pme_gpu_get_atoms_per_warp(const pme_gpu_t *CUDA_FUNC_ARGUMENT(pmeGPU)) CUDA_FUNC_TERM_WITH_RETURN(1)
 
 /*! \libinternal \brief
  * Synchronizes the current step, waiting for the GPU kernels/transfers to finish.
@@ -329,6 +345,20 @@ CUDA_FUNC_QUALIFIER void pme_gpu_copy_output_spread_grid(const pme_gpu_t *CUDA_F
                                                          float           *CUDA_FUNC_ARGUMENT(h_grid)) CUDA_FUNC_TERM
 
 /*! \libinternal \brief
+ * Copies the spread output spline data and gridline indices from the GPU to the host.
+ *
+ * \param[in] pmeGPU   The PME GPU structure.
+ */
+CUDA_FUNC_QUALIFIER void pme_gpu_copy_output_spread_atom_data(const pme_gpu_t *CUDA_FUNC_ARGUMENT(pmeGPU)) CUDA_FUNC_TERM
+
+/*! \libinternal \brief
+ * Copies the gather input spline data and gridline indices from the host to the GPU.
+ *
+ * \param[in] pmeGPU   The PME GPU structure.
+ */
+CUDA_FUNC_QUALIFIER void pme_gpu_copy_input_gather_atom_data(const pme_gpu_t *CUDA_FUNC_ARGUMENT(pmeGPU)) CUDA_FUNC_TERM
+
+/*! \libinternal \brief
  * Waits for the grid copying to the host-side buffer after spreading to finish.
  *
  * \param[in] pmeGPU  The PME GPU structure.
@@ -396,11 +426,18 @@ CUDA_FUNC_QUALIFIER void pme_gpu_destroy_3dfft(const pme_gpu_t *CUDA_FUNC_ARGUME
 /* Several CUDA event-based timing functions that live in pme-timings.cu */
 
 /*! \libinternal \brief
- * Finalizes all the PME GPU stage timings for the current step. Should be called at the end of every step.
+ * Finalizes all the active PME GPU stage timings for the current step. Should be called at the end of every step.
  *
  * \param[in] pmeGPU         The PME GPU structure.
  */
 CUDA_FUNC_QUALIFIER void pme_gpu_update_timings(const pme_gpu_t *CUDA_FUNC_ARGUMENT(pmeGPU)) CUDA_FUNC_TERM
+
+/*! \libinternal \brief
+ * Updates the internal list of active PME GPU stages (if timings are enabled).
+ *
+ * \param[in] pmeGPU         The PME GPU data structure.
+ */
+CUDA_FUNC_QUALIFIER void pme_gpu_reinit_timings(const pme_gpu_t *CUDA_FUNC_ARGUMENT(pmeGPU)) CUDA_FUNC_TERM
 
 /*! \brief
  * Resets the PME GPU timings. To be called at the reset step.
@@ -417,6 +454,64 @@ CUDA_FUNC_QUALIFIER void pme_gpu_reset_timings(const pme_gpu_t *CUDA_FUNC_ARGUME
  */
 CUDA_FUNC_QUALIFIER void pme_gpu_get_timings(const pme_gpu_t         *CUDA_FUNC_ARGUMENT(pmeGPU),
                                              gmx_wallclock_gpu_pme_t *CUDA_FUNC_ARGUMENT(timings)) CUDA_FUNC_TERM
+
+/* The PME stages themselves */
+
+/*! \libinternal \brief
+ * A GPU spline computation and charge spreading function.
+ *
+ * \param[in]  pmeGpu          The PME GPU structure.
+ * \param[in]  gridIndex       Index of the PME grid - unused, assumed to be 0.
+ * \param[out] h_grid          The host-side grid buffer (used only if the result of the spread is expected on the host,
+ *                             e.g. testing or host-side FFT)
+ * \param[in]  computeSplines  Should the computation of spline parameters and gridline indices be performed.
+ * \param[in]  spreadCharges   Should the charges/coefficients be spread on the grid.
+ */
+CUDA_FUNC_QUALIFIER void pme_gpu_spread(const pme_gpu_t *CUDA_FUNC_ARGUMENT(pmeGpu),
+                                        int              CUDA_FUNC_ARGUMENT(gridIndex),
+                                        real            *CUDA_FUNC_ARGUMENT(h_grid),
+                                        bool             CUDA_FUNC_ARGUMENT(computeSplines),
+                                        bool             CUDA_FUNC_ARGUMENT(spreadCharges)) CUDA_FUNC_TERM
+
+/*! \libinternal \brief
+ * 3D FFT R2C/C2R routine.
+ *
+ * \param[in]  pmeGpu          The PME GPU structure.
+ * \param[in]  direction       Transform direction (real-to-complex or complex-to-real)
+ * \param[in]  gridIndex       Index of the PME grid - unused, assumed to be 0.
+ */
+CUDA_FUNC_QUALIFIER void pme_gpu_3dfft(const pme_gpu_t       *CUDA_FUNC_ARGUMENT(pmeGpu),
+                                       enum gmx_fft_direction CUDA_FUNC_ARGUMENT(direction),
+                                       const int              CUDA_FUNC_ARGUMENT(gridIndex)) CUDA_FUNC_TERM
+
+/*! \libinternal \brief
+ * A GPU Fourier space solving function.
+ *
+ * \param[in]     pmeGpu                  The PME GPU structure.
+ * \param[in,out] h_grid                  The host-side input and output Fourier grid buffer (used only with testing or host-side FFT)
+ * \param[in]     gridOrdering            Specifies the dimenion ordering of the complex grid. TODO: store this information?
+ * \param[in]     computeEnergyAndVirial  Tells if the energy and virial computation should also be performed.
+ */
+CUDA_FUNC_QUALIFIER void pme_gpu_solve(const pme_gpu_t *CUDA_FUNC_ARGUMENT(pmeGpu),
+                                       t_complex       *CUDA_FUNC_ARGUMENT(h_grid),
+                                       GridOrdering     CUDA_FUNC_ARGUMENT(gridOrdering),
+                                       bool             CUDA_FUNC_ARGUMENT(computeEnergyAndVirial)) CUDA_FUNC_TERM
+
+/*! \libinternal \brief
+ * A GPU force gathering function.
+ *
+ * \param[in]     pmeGpu           The PME GPU structure.
+ * \param[in,out] h_forces         The host buffer with input and output forces.
+ * \param[in]     forceTreatment   Tells how data in h_forces should be treated.
+ *                                 TODO: determine efficiency/balance of host/device-side reductions.
+ * \param[in]     h_grid           The host-side grid buffer (used only in testing mode)
+ */
+CUDA_FUNC_QUALIFIER void pme_gpu_gather(const pme_gpu_t       *CUDA_FUNC_ARGUMENT(pmeGpu),
+                                        float                 *CUDA_FUNC_ARGUMENT(h_forces),
+                                        PmeForceOutputHandling CUDA_FUNC_ARGUMENT(forceTreatment),
+                                        const float           *CUDA_FUNC_ARGUMENT(h_grid)
+                                        ) CUDA_FUNC_TERM
+
 
 /* The inlined convenience PME GPU status getters */
 
@@ -475,6 +570,29 @@ gmx_inline bool pme_gpu_performs_solve(const pme_gpu_t *pmeGPU)
     return pmeGPU->settings.performGPUSolve;
 }
 
+/*! \libinternal \brief
+ * Enables or disables the testing mode.
+ * Testing mode only implies copying all the outputs, even the intermediate ones, to the host.
+ *
+ * \param[in] pmeGPU             The PME GPU structure.
+ * \param[in] testing            Should the testing mode be enabled, or disabled.
+ */
+gmx_inline void pme_gpu_set_testing(pme_gpu_t *pmeGPU, bool testing)
+{
+    pmeGPU->settings.copyAllOutputs = testing;
+}
+
+/*! \libinternal \brief
+ * Tells if PME is in the testing mode.
+ *
+ * \param[in] pmeGPU             The PME GPU structure.
+ * \returns                      true if testing mode is enabled, false otherwise.
+ */
+gmx_inline bool pme_gpu_is_testing(const pme_gpu_t *pmeGPU)
+{
+    return pmeGPU->settings.copyAllOutputs;
+}
+
 /* A block of C++ functions that live in pme-gpu-internal.cpp */
 
 /*! \libinternal \brief
@@ -488,23 +606,12 @@ gmx_inline bool pme_gpu_performs_solve(const pme_gpu_t *pmeGPU)
 void pme_gpu_get_energy_virial(const pme_gpu_t *pmeGPU, real *energy, matrix virial);
 
 /*! \libinternal \brief
- * Updates the unit cell parameters. Does not check if update is necessary - that is done in pme_gpu_start_step().
+ * Updates the unit cell parameters. Does not check if update is necessary - that is done in pme_gpu_prepare_step().
  *
  * \param[in] pmeGPU         The PME GPU structure.
  * \param[in] box            The unit cell box.
  */
 void pme_gpu_update_input_box(pme_gpu_t *pmeGPU, const matrix box);
-
-/*! \libinternal \brief
- * Starts the PME GPU step (copies coordinates onto GPU, possibly sets the unit cell parameters).
- *
- * \param[in] pmeGPU           The PME GPU structure.
- * \param[in] needToUpdateBox  Tells if the stored unit cell parameters should be updated from \p box.
- * \param[in] box              The unit cell box which does not necessarily change every step (only with pressure coupling enabled).
- *                             Would only be used if \p needToUpdateBox is true.
- * \param[in] h_coordinates    Input coordinates (XYZ rvec array).
- */
-void pme_gpu_start_step(pme_gpu_t *pmeGPU, bool needToUpdateBox, const matrix box, const rvec *h_coordinates);
 
 /*! \libinternal \brief
  * Finishes the PME GPU step, waiting for the output forces and/or energy/virial to be copied to the host.
@@ -515,6 +622,35 @@ void pme_gpu_start_step(pme_gpu_t *pmeGPU, bool needToUpdateBox, const matrix bo
  */
 void pme_gpu_finish_step(const pme_gpu_t *pmeGPU,  const bool       bCalcForces,
                          const bool       bCalcEnerVir);
+
+//! A binary enum for spline data layout transformation
+enum class PmeLayoutTransform
+{
+    GpuToHost,
+    HostToGpu
+};
+
+/*! \libinternal \brief
+ * Rearranges the atom spline data between the GPU and host layouts.
+ * Only used for test purposes so far, likely to be horribly slow.
+ *
+ * \param[in]  pmeGPU     The PME GPU structure.
+ * \param[out] atc        The PME CPU atom data structure (with a single-threaded layout).
+ * \param[in]  type       The spline data type (values or derivatives).
+ * \param[in]  dimIndex   Dimension index.
+ * \param[in]  transform  Layout transform type
+ */
+void pme_gpu_transform_spline_atom_data(const pme_gpu_t *pmeGPU, const pme_atomcomm_t *atc,
+                                        PmeSplineDataType type, int dimIndex, PmeLayoutTransform transform);
+
+/*! \libinternal \brief
+ * Get the normal/padded grid dimensions of the real-space PME grid on GPU. Only used in tests.
+ *
+ * \param[in] pmeGPU             The PME GPU structure.
+ * \param[out] gridSize          Pointer to the grid dimensions to fill in.
+ * \param[out] paddedGridSize    Pointer to the padded grid dimensions to fill in.
+ */
+void pme_gpu_get_real_grid_sizes(const pme_gpu_t *pmeGPU, gmx::IVec *gridSize, gmx::IVec *paddedGridSize);
 
 /*! \libinternal \brief
  * (Re-)initializes the PME GPU data at the beginning of the run or on DLB.

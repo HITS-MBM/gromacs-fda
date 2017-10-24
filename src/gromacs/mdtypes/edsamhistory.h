@@ -41,6 +41,9 @@
 #ifndef GMX_MDLIB_EDSAMHISTORY_H
 #define GMX_MDLIB_EDSAMHISTORY_H
 
+#include "gromacs/math/vectypes.h"
+#include "gromacs/utility/basedefinitions.h"
+
 /* Helper structure to be able to make essential dynamics / flooding group(s) whole
  *
  * If one uses essential dynamics or flooding on a group of atoms from

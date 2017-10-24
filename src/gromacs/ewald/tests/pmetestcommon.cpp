@@ -45,8 +45,8 @@
 
 #include <cstring>
 
-#include "gromacs/ewald/pme.h"
 #include "gromacs/ewald/pme-gather.h"
+#include "gromacs/ewald/pme-gpu-internal.h"
 #include "gromacs/ewald/pme-grid.h"
 #include "gromacs/ewald/pme-internal.h"
 #include "gromacs/ewald/pme-solve.h"
@@ -60,13 +60,42 @@
 #include "gromacs/utility/logger.h"
 #include "gromacs/utility/stringutil.h"
 
+#include "testutils/testasserts.h"
+
 namespace gmx
 {
 namespace test
 {
 
+bool pmeSupportsInputForMode(const t_inputrec *inputRec, CodePath mode)
+{
+    bool implemented;
+    switch (mode)
+    {
+        case CodePath::CPU:
+            implemented = true;
+            break;
+
+        case CodePath::CUDA:
+            implemented = pme_gpu_supports_input(inputRec, nullptr);
+            break;
+
+        default:
+            GMX_THROW(InternalError("Test not implemented for this mode"));
+    }
+    return implemented;
+}
+
+FloatingPointTolerance getSplineTolerance(gmx_int64_t toleranceUlps)
+{
+    /* Double precision is more affected by error propagation, as moduli are always computed in double. */
+    return relativeToleranceAsPrecisionDependentUlp(1.0, toleranceUlps, 2 * toleranceUlps);
+}
+
 //! PME initialization - internal
 static PmeSafePointer pmeInitInternal(const t_inputrec         *inputRec,
+                                      CodePath                  mode,
+                                      gmx_device_info_t        *gpuInfo,
                                       size_t                    atomCount,
                                       const Matrix3x3          &box,
                                       real                      ewaldCoeff_q = 1.0f,
@@ -75,10 +104,10 @@ static PmeSafePointer pmeInitInternal(const t_inputrec         *inputRec,
 {
     gmx_pme_t     *pmeDataRaw = nullptr;
     const MDLogger dummyLogger;
-    const auto     runMode       = PmeRunMode::CPU;
+    const auto     runMode       = (mode == CodePath::CPU) ? PmeRunMode::CPU : PmeRunMode::GPU;
     t_commrec      dummyCommrec  = {0};
     gmx_pme_init(&pmeDataRaw, &dummyCommrec, 1, 1, inputRec, atomCount, false, false, true,
-                 ewaldCoeff_q, ewaldCoeff_lj, 1, runMode, nullptr, nullptr, dummyLogger);
+                 ewaldCoeff_q, ewaldCoeff_lj, 1, runMode, nullptr, gpuInfo, dummyLogger);
     PmeSafePointer pme(pmeDataRaw); // taking ownership
 
     // TODO get rid of this with proper matrix type
@@ -92,24 +121,42 @@ static PmeSafePointer pmeInitInternal(const t_inputrec         *inputRec,
     }
     const char *boxError = check_box(-1, boxTemp);
     GMX_RELEASE_ASSERT(boxError == nullptr, boxError);
-    invertBoxMatrix(boxTemp, pme->recipbox);
+
+    switch (mode)
+    {
+        case CodePath::CPU:
+            invertBoxMatrix(boxTemp, pme->recipbox);
+            break;
+
+        case CodePath::CUDA:
+            pme_gpu_set_testing(pme->gpu, true);
+            pme_gpu_update_input_box(pme->gpu, boxTemp);
+            break;
+
+        default:
+            GMX_THROW(InternalError("Test not implemented for this mode"));
+    }
 
     return pme;
 }
 
 //! Simple PME initialization based on input, no atom data
 PmeSafePointer pmeInitEmpty(const t_inputrec         *inputRec,
+                            CodePath                  mode,
+                            gmx_device_info_t        *gpuInfo,
                             const Matrix3x3          &box,
                             real                      ewaldCoeff_q,
                             real                      ewaldCoeff_lj
                             )
 {
-    return pmeInitInternal(inputRec, 0, box, ewaldCoeff_q, ewaldCoeff_lj);
+    return pmeInitInternal(inputRec, mode, gpuInfo, 0, box, ewaldCoeff_q, ewaldCoeff_lj);
     // hiding the fact that PME actually needs to know the number of atoms in advance
 }
 
 //! PME initialization with atom data
 PmeSafePointer pmeInitAtoms(const t_inputrec         *inputRec,
+                            CodePath                  mode,
+                            gmx_device_info_t        *gpuInfo,
                             const CoordinatesVector  &coordinates,
                             const ChargesVector      &charges,
                             const Matrix3x3          &box
@@ -117,11 +164,27 @@ PmeSafePointer pmeInitAtoms(const t_inputrec         *inputRec,
 {
     const size_t    atomCount = coordinates.size();
     GMX_RELEASE_ASSERT(atomCount == charges.size(), "Mismatch in atom data");
-    PmeSafePointer  pmeSafe = pmeInitInternal(inputRec, atomCount, box);
-    pme_atomcomm_t *atc     = &(pmeSafe->atc[0]);
-    atc->x           = const_cast<rvec *>(as_rvec_array(coordinates.data()));
-    atc->coefficient = const_cast<real *>(charges.data());
-    /* With decomposition there would be more boilerplate atc code here, e.g. do_redist_pos_coeffs */
+    PmeSafePointer  pmeSafe = pmeInitInternal(inputRec, mode, gpuInfo, atomCount, box);
+    pme_atomcomm_t *atc     = nullptr;
+
+    switch (mode)
+    {
+        case CodePath::CPU:
+            atc              = &(pmeSafe->atc[0]);
+            atc->x           = const_cast<rvec *>(as_rvec_array(coordinates.data()));
+            atc->coefficient = const_cast<real *>(charges.data());
+            /* With decomposition there would be more boilerplate atc code here, e.g. do_redist_pos_coeffs */
+            break;
+
+        case CodePath::CUDA:
+            gmx_pme_reinit_atoms(pmeSafe.get(), atomCount, charges.data());
+            pme_gpu_copy_input_coordinates(pmeSafe->gpu, as_rvec_array(coordinates.data()));
+            break;
+
+        default:
+            GMX_THROW(InternalError("Test not implemented for this mode"));
+    }
+
     return pmeSafe;
 }
 
@@ -134,12 +197,25 @@ static real *pmeGetRealGridInternal(const gmx_pme_t *pme)
 
 //! Getting local PME real grid dimensions
 static void pmeGetRealGridSizesInternal(const gmx_pme_t      *pme,
+                                        CodePath              mode,
                                         IVec                 &gridSize,
                                         IVec                 &paddedGridSize)
 {
     const size_t gridIndex = 0;
     IVec         gridOffsetUnused;
-    gmx_parallel_3dfft_real_limits(pme->pfft_setup[gridIndex], gridSize, gridOffsetUnused, paddedGridSize);
+    switch (mode)
+    {
+        case CodePath::CPU:
+            gmx_parallel_3dfft_real_limits(pme->pfft_setup[gridIndex], gridSize, gridOffsetUnused, paddedGridSize);
+            break;
+
+        case CodePath::CUDA:
+            pme_gpu_get_real_grid_sizes(pme->gpu, &gridSize, &paddedGridSize);
+            break;
+
+        default:
+            GMX_THROW(InternalError("Test not implemented for this mode"));
+    }
 }
 
 //! Getting local PME complex grid pointer for test I/O
@@ -160,28 +236,28 @@ static void pmeGetComplexGridSizesInternal(const gmx_pme_t      *pme,
 }
 
 //! Getting the PME grid memory buffer and its sizes - template definition
-template<typename ValueType> static void pmeGetGridAndSizesInternal(const gmx_pme_t *, ValueType * &, IVec &, IVec &)
+template<typename ValueType> static void pmeGetGridAndSizesInternal(const gmx_pme_t *, CodePath, ValueType * &, IVec &, IVec &)
 {
     GMX_THROW(InternalError("Deleted function call"));
     // explicitly deleting general template does not compile in clang/icc, see https://llvm.org/bugs/show_bug.cgi?id=17537
 }
 
 //! Getting the PME real grid memory buffer and its sizes
-template<> void pmeGetGridAndSizesInternal<real>(const gmx_pme_t *pme, real * &grid, IVec &gridSize, IVec &paddedGridSize)
+template<> void pmeGetGridAndSizesInternal<real>(const gmx_pme_t *pme, CodePath mode, real * &grid, IVec &gridSize, IVec &paddedGridSize)
 {
     grid = pmeGetRealGridInternal(pme);
-    pmeGetRealGridSizesInternal(pme, gridSize, paddedGridSize);
+    pmeGetRealGridSizesInternal(pme, mode, gridSize, paddedGridSize);
 }
 
 //! Getting the PME complex grid memory buffer and its sizes
-template<> void pmeGetGridAndSizesInternal<t_complex>(const gmx_pme_t *pme, t_complex * &grid, IVec &gridSize, IVec &paddedGridSize)
+template<> void pmeGetGridAndSizesInternal<t_complex>(const gmx_pme_t *pme, CodePath, t_complex * &grid, IVec &gridSize, IVec &paddedGridSize)
 {
     grid = pmeGetComplexGridInternal(pme);
     pmeGetComplexGridSizesInternal(pme, gridSize, paddedGridSize);
 }
 
 //! PME spline calculation and charge spreading
-void pmePerformSplineAndSpread(gmx_pme_t *pme, CodePath mode, // TODO const qualifiers
+void pmePerformSplineAndSpread(gmx_pme_t *pme, CodePath mode, // TODO const qualifiers elsewhere
                                bool computeSplines, bool spreadCharges)
 {
     GMX_RELEASE_ASSERT(pme != nullptr, "PME data is not initialized");
@@ -189,6 +265,7 @@ void pmePerformSplineAndSpread(gmx_pme_t *pme, CodePath mode, // TODO const qual
     const size_t    gridIndex                    = 0;
     const bool      computeSplinesForZeroCharges = true;
     real           *fftgrid                      = spreadCharges ? pme->fftgrid[gridIndex] : nullptr;
+    real           *pmegrid                      = pme->pmegrid[gridIndex].grid.grid;
 
     switch (mode)
     {
@@ -197,9 +274,13 @@ void pmePerformSplineAndSpread(gmx_pme_t *pme, CodePath mode, // TODO const qual
                            fftgrid, computeSplinesForZeroCharges, gridIndex);
             if (spreadCharges && !pme->bUseThreads)
             {
-                wrap_periodic_pmegrid(pme, pme->pmegrid[gridIndex].grid.grid);
-                copy_pmegrid_to_fftgrid(pme, pme->pmegrid[gridIndex].grid.grid, fftgrid, gridIndex);
+                wrap_periodic_pmegrid(pme, pmegrid);
+                copy_pmegrid_to_fftgrid(pme, pmegrid, fftgrid, gridIndex);
             }
+            break;
+
+        case CodePath::CUDA:
+            pme_gpu_spread(pme->gpu, gridIndex, fftgrid, computeSplines, spreadCharges);
             break;
 
         default:
@@ -262,6 +343,18 @@ void pmePerformSolve(const gmx_pme_t *pme, CodePath mode,
             }
             break;
 
+        case CodePath::CUDA:
+            switch (method)
+            {
+                case PmeSolveAlgorithm::Coulomb:
+                    pme_gpu_solve(pme->gpu, h_grid, gridOrdering, computeEnergyAndVirial);
+                    break;
+
+                default:
+                    GMX_THROW(InternalError("Test not implemented for this mode"));
+            }
+            break;
+
         default:
             GMX_THROW(InternalError("Test not implemented for this mode"));
     }
@@ -269,16 +362,18 @@ void pmePerformSolve(const gmx_pme_t *pme, CodePath mode,
 
 //! PME force gathering
 void pmePerformGather(gmx_pme_t *pme, CodePath mode,
-                      PmeGatherInputHandling inputTreatment, ForcesVector &forces)
+                      PmeForceOutputHandling inputTreatment, ForcesVector &forces)
 {
     pme_atomcomm_t *atc                     = &(pme->atc[0]);
     const size_t    atomCount               = atc->n;
     GMX_RELEASE_ASSERT(forces.size() == atomCount, "Invalid force buffer size");
-    const bool      forceReductionWithInput = (inputTreatment == PmeGatherInputHandling::ReduceWith);
+    const bool      forceReductionWithInput = (inputTreatment == PmeForceOutputHandling::ReduceWithInput);
     const real      scale                   = 1.0;
     const size_t    threadIndex             = 0;
     const size_t    gridIndex               = 0;
-    real           *grid                    = pme->pmegrid[gridIndex].grid.grid;
+    real           *pmegrid                 = pme->pmegrid[gridIndex].grid.grid;
+    real           *fftgrid                 = pme->fftgrid[gridIndex];
+
     switch (mode)
     {
         case CodePath::CPU:
@@ -288,9 +383,30 @@ void pmePerformGather(gmx_pme_t *pme, CodePath mode,
                 // something which is normally done in serial spline computation (make_thread_local_ind())
                 atc->spline[threadIndex].n = atomCount;
             }
-            copy_fftgrid_to_pmegrid(pme, pme->fftgrid[gridIndex], grid, gridIndex, pme->nthread, threadIndex);
-            unwrap_periodic_pmegrid(pme, grid);
-            gather_f_bsplines(pme, grid, !forceReductionWithInput, atc, &atc->spline[threadIndex], scale);
+            copy_fftgrid_to_pmegrid(pme, fftgrid, pmegrid, gridIndex, pme->nthread, threadIndex);
+            unwrap_periodic_pmegrid(pme, pmegrid);
+            gather_f_bsplines(pme, pmegrid, !forceReductionWithInput, atc, &atc->spline[threadIndex], scale);
+            break;
+
+        case CodePath::CUDA:
+            pme_gpu_gather(pme->gpu, reinterpret_cast<float *>(forces.begin()), inputTreatment, reinterpret_cast<float *>(fftgrid));
+            break;
+
+        default:
+            GMX_THROW(InternalError("Test not implemented for this mode"));
+    }
+}
+
+//! PME test finalization before fetching the outputs
+void pmeFinalizeTest(const gmx_pme_t *pme, CodePath mode)
+{
+    switch (mode)
+    {
+        case CodePath::CPU:
+            break;
+
+        case CodePath::CUDA:
+            pme_gpu_synchronize(pme->gpu);
             break;
 
         default:
@@ -315,6 +431,11 @@ void pmeSetSplineData(const gmx_pme_t *pme, CodePath mode,
             std::copy(splineValues.begin(), splineValues.end(), splineBuffer);
             break;
 
+        case CodePath::CUDA:
+            std::copy(splineValues.begin(), splineValues.end(), splineBuffer);
+            pme_gpu_transform_spline_atom_data(pme->gpu, atc, type, dimIndex, PmeLayoutTransform::HostToGpu);
+            break;
+
         default:
             GMX_THROW(InternalError("Test not implemented for this mode"));
     }
@@ -329,7 +450,7 @@ void pmeSetGridLineIndices(const gmx_pme_t *pme, CodePath mode,
     GMX_RELEASE_ASSERT(atomCount == gridLineIndices.size(), "Mismatch in gridline indices size");
 
     IVec paddedGridSizeUnused, gridSize;
-    pmeGetRealGridSizesInternal(pme, gridSize, paddedGridSizeUnused);
+    pmeGetRealGridSizesInternal(pme, mode, gridSize, paddedGridSizeUnused);
 
     for (const auto &index : gridLineIndices)
     {
@@ -341,6 +462,10 @@ void pmeSetGridLineIndices(const gmx_pme_t *pme, CodePath mode,
 
     switch (mode)
     {
+        case CodePath::CUDA:
+            memcpy(pme->gpu->staging.h_gridlineIndices, gridLineIndices.data(), atomCount * sizeof(gridLineIndices[0]));
+            break;
+
         case CodePath::CPU:
             // incompatible IVec and ivec assignment?
             //std::copy(gridLineIndices.begin(), gridLineIndices.end(), atc->idx);
@@ -380,10 +505,11 @@ static void pmeSetGridInternal(const gmx_pme_t *pme, CodePath mode,
 {
     IVec       gridSize, paddedGridSize;
     ValueType *grid;
-    pmeGetGridAndSizesInternal<ValueType>(pme, grid, gridSize, paddedGridSize);
+    pmeGetGridAndSizesInternal<ValueType>(pme, mode, grid, gridSize, paddedGridSize);
 
     switch (mode)
     {
+        case CodePath::CUDA: // intentional absence of break, the grid will be copied from the host buffer in testing mode
         case CodePath::CPU:
             std::memset(grid, 0, paddedGridSize[XX] * paddedGridSize[YY] * paddedGridSize[ZZ] * sizeof(ValueType));
             for (const auto &gridValue : gridValues)
@@ -431,6 +557,10 @@ SplineParamsDimVector pmeGetSplineData(const gmx_pme_t *pme, CodePath mode,
     SplineParamsDimVector    result;
     switch (mode)
     {
+        case CodePath::CUDA:
+            pme_gpu_transform_spline_atom_data(pme->gpu, atc, type, dimIndex, PmeLayoutTransform::GpuToHost);
+        // fallthrough
+
         case CodePath::CPU:
             result = SplineParamsDimVector::fromArray(sourceBuffer, dimSize);
             break;
@@ -451,6 +581,10 @@ GridLineIndicesVector pmeGetGridlineIndices(const gmx_pme_t *pme, CodePath mode)
     GridLineIndicesVector gridLineIndices;
     switch (mode)
     {
+        case CodePath::CUDA:
+            gridLineIndices = GridLineIndicesVector::fromArray(reinterpret_cast<IVec *>(pme->gpu->staging.h_gridlineIndices), atomCount);
+            break;
+
         case CodePath::CPU:
             gridLineIndices = GridLineIndicesVector::fromArray(reinterpret_cast<IVec *>(atc->idx), atomCount);
             break;
@@ -467,10 +601,11 @@ static SparseGridValuesOutput<ValueType> pmeGetGridInternal(const gmx_pme_t *pme
 {
     IVec       gridSize, paddedGridSize;
     ValueType *grid;
-    pmeGetGridAndSizesInternal<ValueType>(pme, grid, gridSize, paddedGridSize);
+    pmeGetGridAndSizesInternal<ValueType>(pme, mode, grid, gridSize, paddedGridSize);
     SparseGridValuesOutput<ValueType> gridValues;
     switch (mode)
     {
+        case CodePath::CUDA: // intentional absence of break
         case CodePath::CPU:
             gridValues.clear();
             for (int ix = 0; ix < gridSize[XX]; ix++)
@@ -529,6 +664,17 @@ PmeSolveOutput pmeGetReciprocalEnergyAndVirial(const gmx_pme_t *pme, CodePath mo
 
                 case PmeSolveAlgorithm::LennardJones:
                     get_pme_ener_vir_lj(pme->solve_work, pme->nthread, &energy, virialTemp);
+                    break;
+
+                default:
+                    GMX_THROW(InternalError("Test not implemented for this mode"));
+            }
+            break;
+        case CodePath::CUDA:
+            switch (method)
+            {
+                case PmeSolveAlgorithm::Coulomb:
+                    pme_gpu_get_energy_virial(pme->gpu, &energy, virialTemp);
                     break;
 
                 default:

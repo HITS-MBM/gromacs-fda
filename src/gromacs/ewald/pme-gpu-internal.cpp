@@ -51,6 +51,7 @@
 #include <list>
 #include <string>
 
+#include "gromacs/ewald/ewald-utils.h"
 #include "gromacs/gpu_utils/gpu_utils.h"
 #include "gromacs/math/invertmatrix.h"
 #include "gromacs/math/units.h"
@@ -98,8 +99,10 @@ void pme_gpu_update_input_box(pme_gpu_t *pmeGPU, const matrix box)
 #if GMX_DOUBLE
     GMX_THROW(gmx::NotImplementedError("PME is implemented for single-precision only on GPU"));
 #else
-    matrix recipBox;
-    gmx::invertBoxMatrix(box, recipBox);
+    matrix scaledBox, recipBox;
+    pmeGPU->common->boxScaler->scaleBox(box, scaledBox);
+    gmx::invertBoxMatrix(scaledBox, recipBox);
+
     /* The GPU recipBox is transposed as compared to the CPU recipBox.
      * Spread uses matrix columns (while solve and gather use rows).
      * There is no particular reason for this; it might be further rethought/optimized for better access patterns.
@@ -112,15 +115,6 @@ void pme_gpu_update_input_box(pme_gpu_t *pmeGPU, const matrix box)
     };
     memcpy(kernelParamsPtr->step.recipBox, newRecipBox, sizeof(matrix));
 #endif
-}
-
-void pme_gpu_start_step(pme_gpu_t *pmeGPU, bool needToUpdateBox, const matrix box, const rvec *h_coordinates)
-{
-    pme_gpu_copy_input_coordinates(pmeGPU, h_coordinates);
-    if (needToUpdateBox)
-    {
-        pme_gpu_update_input_box(pmeGPU, box);
-    }
 }
 
 /*! \brief \libinternal
@@ -136,9 +130,6 @@ static void pme_gpu_reinit_step(const pme_gpu_t *pmeGPU)
 
 void pme_gpu_finish_step(const pme_gpu_t *pmeGPU, const bool bCalcF, const bool bCalcEnerVir)
 {
-    /* Needed for copy back as well as timing events */
-    pme_gpu_synchronize(pmeGPU);
-
     if (bCalcF && pme_gpu_performs_gather(pmeGPU))
     {
         pme_gpu_sync_output_forces(pmeGPU);
@@ -222,13 +213,16 @@ static void pme_gpu_copy_common_data_from(const gmx_pme_t *pme)
         pmeGPU->common->bsp_mod[i].assign(pme->bsp_mod[i], pme->bsp_mod[i] + pmeGPU->common->nk[i]);
     }
     const int cellCount = c_pmeNeighborUnitcellCount;
-    pmeGPU->common->fsh[XX].assign(pme->fshx, pme->fshx + cellCount * pme->nkx);
-    pmeGPU->common->fsh[YY].assign(pme->fshy, pme->fshy + cellCount * pme->nky);
-    pmeGPU->common->fsh[ZZ].assign(pme->fshz, pme->fshz + cellCount * pme->nkz);
-    pmeGPU->common->nn[XX].assign(pme->nnx, pme->nnx + cellCount * pme->nkx);
-    pmeGPU->common->nn[YY].assign(pme->nny, pme->nny + cellCount * pme->nky);
-    pmeGPU->common->nn[ZZ].assign(pme->nnz, pme->nnz + cellCount * pme->nkz);
-    pmeGPU->common->runMode = pme->runMode;
+    pmeGPU->common->fsh.resize(0);
+    pmeGPU->common->fsh.insert(pmeGPU->common->fsh.end(), pme->fshx, pme->fshx + cellCount * pme->nkx);
+    pmeGPU->common->fsh.insert(pmeGPU->common->fsh.end(), pme->fshy, pme->fshy + cellCount * pme->nky);
+    pmeGPU->common->fsh.insert(pmeGPU->common->fsh.end(), pme->fshz, pme->fshz + cellCount * pme->nkz);
+    pmeGPU->common->nn.resize(0);
+    pmeGPU->common->nn.insert(pmeGPU->common->nn.end(), pme->nnx, pme->nnx + cellCount * pme->nkx);
+    pmeGPU->common->nn.insert(pmeGPU->common->nn.end(), pme->nny, pme->nny + cellCount * pme->nky);
+    pmeGPU->common->nn.insert(pmeGPU->common->nn.end(), pme->nnz, pme->nnz + cellCount * pme->nkz);
+    pmeGPU->common->runMode   = pme->runMode;
+    pmeGPU->common->boxScaler = pme->boxScaler;
 }
 
 /*! \brief \libinternal
@@ -306,6 +300,8 @@ static void pme_gpu_init(gmx_pme_t *pme, gmx_device_info_t *gpuInfo, const gmx::
     /* TODO: CPU gather with GPU spread is broken due to different theta/dtheta layout. */
     pmeGPU->settings.performGPUGather = true;
 
+    pme_gpu_set_testing(pmeGPU, false);
+
     // GPU initialization
     init_gpu(mdlog, cr->nodeid, gpuInfo);
     pmeGPU->deviceInfo = gpuInfo;
@@ -320,6 +316,77 @@ static void pme_gpu_init(gmx_pme_t *pme, gmx_device_info_t *gpuInfo, const gmx::
 
     auto *kernelParamsPtr = pme_gpu_get_kernel_params_base_ptr(pmeGPU);
     kernelParamsPtr->constants.elFactor = ONE_4PI_EPS0 / pmeGPU->common->epsilon_r;
+}
+
+void pme_gpu_transform_spline_atom_data(const pme_gpu_t *pmeGPU, const pme_atomcomm_t *atc,
+                                        PmeSplineDataType type, int dimIndex, PmeLayoutTransform transform)
+{
+    // The GPU atom spline data is laid out in a different way currently than the CPU one.
+    // This function converts the data from GPU to CPU layout (in the host memory).
+    // It is only intended for testing purposes so far.
+    // Ideally we should use similar layouts on CPU and GPU if we care about mixed modes and their performance
+    // (e.g. spreading on GPU, gathering on CPU).
+    GMX_RELEASE_ASSERT(atc->nthread == 1, "Only the serial PME data layout is supported");
+    const uintmax_t threadIndex  = 0;
+    const auto      atomCount    = pme_gpu_get_kernel_params_base_ptr(pmeGPU)->atoms.nAtoms;
+    const auto      atomsPerWarp = pme_gpu_get_atoms_per_warp(pmeGPU);
+    const auto      pmeOrder     = pmeGPU->common->pme_order;
+
+    real           *cpuSplineBuffer;
+    float          *h_splineBuffer;
+    switch (type)
+    {
+        case PmeSplineDataType::Values:
+            cpuSplineBuffer = atc->spline[threadIndex].theta[dimIndex];
+            h_splineBuffer  = pmeGPU->staging.h_theta;
+            break;
+
+        case PmeSplineDataType::Derivatives:
+            cpuSplineBuffer = atc->spline[threadIndex].dtheta[dimIndex];
+            h_splineBuffer  = pmeGPU->staging.h_dtheta;
+            break;
+
+        default:
+            GMX_THROW(gmx::InternalError("Unknown spline data type"));
+    }
+
+    for (auto atomIndex = 0; atomIndex < atomCount; atomIndex++)
+    {
+        auto atomWarpIndex = atomIndex % atomsPerWarp;
+        auto warpIndex     = atomIndex / atomsPerWarp;
+        for (auto orderIndex = 0; orderIndex < pmeOrder; orderIndex++)
+        {
+            const auto gpuValueIndex = ((pmeOrder * warpIndex + orderIndex) * DIM + dimIndex) * atomsPerWarp + atomWarpIndex;
+            const auto cpuValueIndex = atomIndex * pmeOrder + orderIndex;
+            GMX_ASSERT(cpuValueIndex < atomCount * pmeOrder, "Atom spline data index out of bounds (while transforming GPU data layout for host)");
+            switch (transform)
+            {
+                case PmeLayoutTransform::GpuToHost:
+                    cpuSplineBuffer[cpuValueIndex] = h_splineBuffer[gpuValueIndex];
+                    break;
+
+                case PmeLayoutTransform::HostToGpu:
+                    h_splineBuffer[gpuValueIndex] = cpuSplineBuffer[cpuValueIndex];
+                    break;
+
+                default:
+                    GMX_THROW(gmx::InternalError("Unknown layout transform"));
+            }
+        }
+    }
+}
+
+void pme_gpu_get_real_grid_sizes(const pme_gpu_t *pmeGPU, gmx::IVec *gridSize, gmx::IVec *paddedGridSize)
+{
+    GMX_ASSERT(gridSize != nullptr, "");
+    GMX_ASSERT(paddedGridSize != nullptr, "");
+    GMX_ASSERT(pmeGPU != nullptr, "");
+    auto *kernelParamsPtr = pme_gpu_get_kernel_params_base_ptr(pmeGPU);
+    for (int i = 0; i < DIM; i++)
+    {
+        (*gridSize)[i]       = kernelParamsPtr->grid.realGridSize[i];
+        (*paddedGridSize)[i] = kernelParamsPtr->grid.realGridSizePadded[i];
+    }
 }
 
 void pme_gpu_reinit(gmx_pme_t *pme, gmx_device_info_t *gpuInfo, const gmx::MDLogger &mdlog, const t_commrec *cr)
@@ -342,6 +409,9 @@ void pme_gpu_reinit(gmx_pme_t *pme, gmx_device_info_t *gpuInfo, const gmx::MDLog
     /* GPU FFT will only get used for a single rank.*/
     pme->gpu->settings.performGPUFFT   = (pme->gpu->common->runMode == PmeRunMode::GPU) && !pme_gpu_uses_dd(pme->gpu);
     pme->gpu->settings.performGPUSolve = (pme->gpu->common->runMode == PmeRunMode::GPU);
+
+    /* Reinit active timers */
+    pme_gpu_reinit_timings(pme->gpu);
 
     pme_gpu_reinit_grids(pme->gpu);
     pme_gpu_reinit_step(pme->gpu);

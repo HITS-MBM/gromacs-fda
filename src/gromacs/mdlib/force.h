@@ -65,6 +65,7 @@ struct t_pbc;
 
 namespace gmx
 {
+class ForceWithVirial;
 class MDLogger;
 }
 
@@ -142,7 +143,7 @@ void reset_enerdata(gmx_enerdata_t *enerd);
 void sum_epot(gmx_grppairener_t *grpp, real *epot);
 /* Locally sum the non-bonded potential energy terms */
 
-void sum_dhdl(gmx_enerdata_t *enerd, gmx::ConstArrayRef<real> lambda, t_lambda *fepvals);
+void sum_dhdl(gmx_enerdata_t *enerd, gmx::ArrayRef<const real> lambda, t_lambda *fepvals);
 /* Sum the free energy contributions */
 
 /* Compute the average C6 and C12 params for LJ corrections */
@@ -198,6 +199,7 @@ void do_force_lowlevel(t_forcerec   *fr,
                        rvec         x[],
                        history_t    *hist,
                        rvec         f_shortrange[],
+                       gmx::ForceWithVirial *forceWithVirial,
                        gmx_enerdata_t *enerd,
                        t_fcdata     *fcd,
                        gmx_localtop_t *top,

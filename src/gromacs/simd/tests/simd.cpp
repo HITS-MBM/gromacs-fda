@@ -141,7 +141,7 @@ vector2SimdReal(const std::vector<real> &v)
     {
         mem[i] = v[i % v.size()];  // repeat vector contents to fill simd width
     }
-    return load(mem);
+    return load<SimdReal>(mem);
 }
 
 SimdReal
@@ -173,8 +173,8 @@ SimdTest::compareSimdRealUlp(const char *  refExpr,     const char *  tstExpr,
 }
 
 testing::AssertionResult
-SimdTest::compareSimdRealEq(const char * refExpr, const char * tstExpr,
-                            const SimdReal ref, const SimdReal tst)
+SimdTest::compareSimdEq(const char * refExpr, const char * tstExpr,
+                        const SimdReal ref, const SimdReal tst)
 {
     return compareVectorEq(refExpr, tstExpr, simdReal2Vector(ref), simdReal2Vector(tst));
 }
@@ -199,7 +199,7 @@ vector2SimdInt(const std::vector<int> &v)
     {
         mem[i] = v[i % v.size()];  // repeat vector contents to fill simd width
     }
-    return load(mem);
+    return load<SimdInt32>(mem);
 }
 
 SimdInt32
@@ -224,8 +224,8 @@ setSimdIntFrom1I(int value)
 }
 
 ::testing::AssertionResult
-SimdTest::compareSimdInt32(const char *  refExpr,      const char *  tstExpr,
-                           const SimdInt32 ref, const SimdInt32 tst)
+SimdTest::compareSimdEq(const char *  refExpr,      const char *  tstExpr,
+                        const SimdInt32 ref, const SimdInt32 tst)
 {
     return compareVectorEq(refExpr, tstExpr, simdInt2Vector(ref), simdInt2Vector(tst));
 }
