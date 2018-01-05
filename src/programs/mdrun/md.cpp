@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2011,2012,2013,2014,2015,2016, by the GROMACS development team, led by
+ * Copyright (c) 2011,2012,2013,2014,2015,2016,2017, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -463,11 +463,11 @@ double do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
                                         repl_ex_nst, repl_ex_nex, repl_ex_seed);
     }
 
-    /* PME tuning is only supported with PME for Coulomb. Is is not supported
-     * with only LJ PME, or for reruns.
-     */
+    /* PME tuning is only supported in the Verlet scheme, with PME for
+     * Coulomb. It is not supported with only LJ PME, or for
+     * reruns. */
     bPMETune = ((Flags & MD_TUNEPME) && EEL_PME(fr->eeltype) && !bRerunMD &&
-                !(Flags & MD_REPRODUCIBLE));
+                !(Flags & MD_REPRODUCIBLE) && ir->cutoff_scheme != ecutsGROUP);
     if (bPMETune)
     {
         pme_loadbal_init(&pme_loadbal, cr, fplog, ir, state->box,
@@ -1224,8 +1224,15 @@ double do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
             }
             if (bTrotter && !bInitStep)
             {
-                copy_mat(shake_vir, state->svir_prev);
-                copy_mat(force_vir, state->fvir_prev);
+                /* TODO This is only needed when we're about to write
+                 * a checkpoint, because we use it after the restart
+                 * (in a kludge?). But what should we be doing if
+                 * startingFromCheckpoint or bInitStep are true? */
+                if (IR_NPT_TROTTER(ir) || IR_NPH_TROTTER(ir))
+                {
+                    copy_mat(shake_vir, state->svir_prev);
+                    copy_mat(force_vir, state->fvir_prev);
+                }
                 if (IR_NVT_TROTTER(ir) && ir->eI == eiVV)
                 {
                     /* update temperature and kinetic energy now that step is over - this is the v(t+dt) point */
@@ -1296,7 +1303,7 @@ double do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
         bIMDstep = do_IMD(ir->bIMD, step, cr, bNS, state->box, state->x, ir, t, wcycle);
 
         /* kludge -- virial is lost with restart for MTTK NPT control. Must reload (saved earlier). */
-        if (bStartingFromCpt && bTrotter)
+        if (bStartingFromCpt && (IR_NPT_TROTTER(ir) || IR_NPH_TROTTER(ir)))
         {
             copy_mat(state->svir_prev, shake_vir);
             copy_mat(state->fvir_prev, force_vir);
