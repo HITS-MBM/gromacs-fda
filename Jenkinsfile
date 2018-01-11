@@ -64,29 +64,6 @@ pipeline {
         ])
       }
     }
-    stage('Deploy') {
-      when {
-        branch "*/tags/*"
-      }
-      steps {
-        sh '''
-         ## Extract version and project name from CMakeLists.txt
-         #version="$(grep project CMakeLists.txt | cut -d " " -f3)"
-         #project="$(grep project CMakeLists.txt | cut -d " " -f1 | cut -d "(" -f2)"
-         #modulefile_path=/hits/fast/jenkins/modules
-         #installation_path=/hits/fast/jenkins/software
-
-         ## Write modulefile
-         #mkdir -p &{modulefile_path}/${project}
-         #cat > ${installation_path}/${project}/${version} << EOF
-         ##%Module
-         #module-whatis "Gromacs FDA ${version}";
-         #prepend-path PATH ${installation_path}/${version}
-         #EOF
-        '''
-      }
-    }
-  }
   }
   post {
     success {
