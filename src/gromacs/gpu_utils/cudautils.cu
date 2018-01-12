@@ -41,16 +41,15 @@
 #include <cstdlib>
 
 #include "gromacs/gpu_utils/cuda_arch_utils.cuh"
+#include "gromacs/gpu_utils/gpu_utils.h"
+#include "gromacs/utility/gmxassert.h"
 #include "gromacs/utility/smalloc.h"
 
 /*** Generic CUDA data operation wrappers ***/
 
-/*! Launches synchronous or asynchronous host to device memory copy.
- *
- *  The copy is launched in stream s or if not specified, in stream 0.
- */
-static int cu_copy_D2H_generic(void * h_dest, void * d_src, size_t bytes,
-                               bool bAsync = false, cudaStream_t s = 0)
+// TODO: template on transferKind to avoid runtime conditionals
+int cu_copy_D2H(void *h_dest, void *d_src, size_t bytes,
+                GpuApiCallBehavior transferKind, cudaStream_t s = 0)
 {
     cudaError_t stat;
 
@@ -59,24 +58,29 @@ static int cu_copy_D2H_generic(void * h_dest, void * d_src, size_t bytes,
         return -1;
     }
 
-    if (bAsync)
+    switch (transferKind)
     {
-        stat = cudaMemcpyAsync(h_dest, d_src, bytes, cudaMemcpyDeviceToHost, s);
-        CU_RET_ERR(stat, "DtoH cudaMemcpyAsync failed");
+        case GpuApiCallBehavior::Async:
+            GMX_ASSERT(isHostMemoryPinned(h_dest), "Destination buffer was not pinned for CUDA");
+            stat = cudaMemcpyAsync(h_dest, d_src, bytes, cudaMemcpyDeviceToHost, s);
+            CU_RET_ERR(stat, "DtoH cudaMemcpyAsync failed");
+            break;
 
-    }
-    else
-    {
-        stat = cudaMemcpy(h_dest, d_src, bytes, cudaMemcpyDeviceToHost);
-        CU_RET_ERR(stat, "DtoH cudaMemcpy failed");
+        case GpuApiCallBehavior::Sync:
+            stat = cudaMemcpy(h_dest, d_src, bytes, cudaMemcpyDeviceToHost);
+            CU_RET_ERR(stat, "DtoH cudaMemcpy failed");
+            break;
+
+        default:
+            throw;
     }
 
     return 0;
 }
 
-int cu_copy_D2H(void * h_dest, void * d_src, size_t bytes)
+int cu_copy_D2H_sync(void * h_dest, void * d_src, size_t bytes)
 {
-    return cu_copy_D2H_generic(h_dest, d_src, bytes, false);
+    return cu_copy_D2H(h_dest, d_src, bytes, GpuApiCallBehavior::Sync);
 }
 
 /*!
@@ -84,15 +88,12 @@ int cu_copy_D2H(void * h_dest, void * d_src, size_t bytes)
  */
 int cu_copy_D2H_async(void * h_dest, void * d_src, size_t bytes, cudaStream_t s = 0)
 {
-    return cu_copy_D2H_generic(h_dest, d_src, bytes, true, s);
+    return cu_copy_D2H(h_dest, d_src, bytes, GpuApiCallBehavior::Async, s);
 }
 
-/*! Launches synchronous or asynchronous device to host memory copy.
- *
- *  The copy is launched in stream s or if not specified, in stream 0.
- */
-static int cu_copy_H2D_generic(void * d_dest, void * h_src, size_t bytes,
-                               bool bAsync = false, cudaStream_t s = 0)
+// TODO: template on transferKind to avoid runtime conditionals
+int cu_copy_H2D(void *d_dest, void *h_src, size_t bytes,
+                GpuApiCallBehavior transferKind, cudaStream_t s = 0)
 {
     cudaError_t stat;
 
@@ -101,23 +102,29 @@ static int cu_copy_H2D_generic(void * d_dest, void * h_src, size_t bytes,
         return -1;
     }
 
-    if (bAsync)
+    switch (transferKind)
     {
-        stat = cudaMemcpyAsync(d_dest, h_src, bytes, cudaMemcpyHostToDevice, s);
-        CU_RET_ERR(stat, "HtoD cudaMemcpyAsync failed");
-    }
-    else
-    {
-        stat = cudaMemcpy(d_dest, h_src, bytes, cudaMemcpyHostToDevice);
-        CU_RET_ERR(stat, "HtoD cudaMemcpy failed");
+        case GpuApiCallBehavior::Async:
+            GMX_ASSERT(isHostMemoryPinned(h_src), "Source buffer was not pinned for CUDA");
+            stat = cudaMemcpyAsync(d_dest, h_src, bytes, cudaMemcpyHostToDevice, s);
+            CU_RET_ERR(stat, "HtoD cudaMemcpyAsync failed");
+            break;
+
+        case GpuApiCallBehavior::Sync:
+            stat = cudaMemcpy(d_dest, h_src, bytes, cudaMemcpyHostToDevice);
+            CU_RET_ERR(stat, "HtoD cudaMemcpy failed");
+            break;
+
+        default:
+            throw;
     }
 
     return 0;
 }
 
-int cu_copy_H2D(void * d_dest, void * h_src, size_t bytes)
+int cu_copy_H2D_sync(void * d_dest, void * h_src, size_t bytes)
 {
-    return cu_copy_H2D_generic(d_dest, h_src, bytes, false);
+    return cu_copy_H2D(d_dest, h_src, bytes, GpuApiCallBehavior::Sync);
 }
 
 /*!
@@ -125,7 +132,7 @@ int cu_copy_H2D(void * d_dest, void * h_src, size_t bytes)
  */
 int cu_copy_H2D_async(void * d_dest, void * h_src, size_t bytes, cudaStream_t s = 0)
 {
-    return cu_copy_H2D_generic(d_dest, h_src, bytes, true, s);
+    return cu_copy_H2D(d_dest, h_src, bytes, GpuApiCallBehavior::Async, s);
 }
 
 /**** Operation on buffered arrays (arrays with "over-allocation" in gmx wording) *****/
@@ -204,7 +211,7 @@ void cu_realloc_buffered(void **d_dest, void *h_src,
         }
         else
         {
-            cu_copy_H2D(*d_dest, h_src,  *curr_size * type_size);
+            cu_copy_H2D_sync(*d_dest, h_src,  *curr_size * type_size);
         }
     }
 }
@@ -290,7 +297,7 @@ void initParamLookupTable(T                        * &d_ptr,
     const size_t sizeInBytes = numElem * sizeof(*d_ptr);
     cudaError_t  stat        = cudaMalloc((void **)&d_ptr, sizeInBytes);
     CU_RET_ERR(stat, "cudaMalloc failed in initParamLookupTable");
-    cu_copy_H2D(d_ptr, (void *)h_ptr, sizeInBytes);
+    cu_copy_H2D_sync(d_ptr, (void *)h_ptr, sizeInBytes);
 
     if (!c_disableCudaTextures)
     {

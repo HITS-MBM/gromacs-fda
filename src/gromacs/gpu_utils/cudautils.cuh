@@ -42,7 +42,53 @@
 #include <nvml.h>
 #endif /* HAVE_NVML */
 
+#include <string>
+
+#include "gromacs/math/vec.h"
+#include "gromacs/math/vectypes.h"
 #include "gromacs/utility/fatalerror.h"
+#include "gromacs/utility/gmxassert.h"
+#include "gromacs/utility/stringutil.h"
+
+namespace gmx
+{
+namespace
+{
+
+/*! \brief Helper function to ensure no pending error silently
+ * disrupts error handling.
+ *
+ * Asserts in a debug build if an unhandled error is present. Issues a
+ * warning at run time otherwise.
+ *
+ * \todo This is similar to CU_CHECK_PREV_ERR, which should be
+ * consolidated.
+ */
+static inline void ensureNoPendingCudaError(const char *errorMessage)
+{
+    // Ensure there is no pending error that would otherwise affect
+    // the behaviour of future error handling.
+    cudaError_t stat = cudaGetLastError();
+    if (stat == cudaSuccess)
+    {
+        return;
+    }
+
+    // If we would find an error in a release build, we do not know
+    // what is appropriate to do about it, so assert only for debug
+    // builds.
+    auto fullMessage = formatString("%s An unhandled error from a previous CUDA operation was detected. %s: %s",
+                                    errorMessage, cudaGetErrorName(stat), cudaGetErrorString(stat));
+    GMX_ASSERT(stat == cudaSuccess, fullMessage.c_str());
+    // TODO When we evolve a better logging framework, use that
+    // for release-build error reporting.
+    gmx_warning(fullMessage.c_str());
+}
+
+}   // namespace
+}   // namespace
+
+enum class GpuApiCallBehavior;
 
 /* TODO error checking needs to be rewritten. We have 2 types of error checks needed
    based on where they occur in the code:
@@ -132,15 +178,26 @@ struct gmx_device_info_t
 #endif                                           /* HAVE_NVML */
 };
 
+/*! Launches synchronous or asynchronous device to host memory copy.
+ *
+ *  The copy is launched in stream s or if not specified, in stream 0.
+ */
+int cu_copy_D2H(void *h_dest, void *d_src, size_t bytes, GpuApiCallBehavior transferKind, cudaStream_t s /*= 0*/);
 
-/*! Launches asynchronous host to device memory copy in stream 0. */
-int cu_copy_D2H(void * /*h_dest*/, void * /*d_src*/, size_t /*bytes*/);
+/*! Launches synchronous host to device memory copy in stream 0. */
+int cu_copy_D2H_sync(void * /*h_dest*/, void * /*d_src*/, size_t /*bytes*/);
 
 /*! Launches asynchronous host to device memory copy in stream s. */
 int cu_copy_D2H_async(void * /*h_dest*/, void * /*d_src*/, size_t /*bytes*/, cudaStream_t /*s = 0*/);
 
+/*! Launches synchronous or asynchronous host to device memory copy.
+ *
+ *  The copy is launched in stream s or if not specified, in stream 0.
+ */
+int cu_copy_H2D(void *d_dest, void *h_src, size_t bytes, GpuApiCallBehavior transferKind, cudaStream_t /*s = 0*/);
+
 /*! Launches synchronous host to device memory copy. */
-int cu_copy_H2D(void * /*d_dest*/, void * /*h_src*/, size_t /*bytes*/);
+int cu_copy_H2D_sync(void * /*d_dest*/, void * /*h_src*/, size_t /*bytes*/);
 
 /*! Launches asynchronous host to device memory copy in stream s. */
 int cu_copy_H2D_async(void * /*d_dest*/, void * /*h_src*/, size_t /*bytes*/, cudaStream_t /*s = 0*/);
@@ -197,5 +254,52 @@ void destroyParamLookupTable(T                         *d_ptr,
                              cudaTextureObject_t        texObj,
                              const struct texture<T, 1, cudaReadModeElementType> *texRef,
                              const gmx_device_info_t   *devInfo);
+
+/*! \brief Add a triplets stored in a float3 to an rvec variable.
+ *
+ * \param[out]  a Rvec to increment
+ * \param[in]   b Float triplet to increment with.
+ */
+static inline void rvec_inc(rvec a, const float3 b)
+{
+    rvec tmp = {b.x, b.y, b.z};
+    rvec_inc(a, tmp);
+}
+
+/*! \brief Wait for all taks in stream \p s to complete.
+ *
+ * \param[in] s stream to synchronize with
+ */
+static inline void gpuStreamSynchronize(cudaStream_t s)
+{
+    cudaError_t stat = cudaStreamSynchronize(s);
+    CU_RET_ERR(stat, "cudaStreamSynchronize failed");
+}
+
+/*! \brief  Returns true if all tasks in \p s have completed.
+ *
+ * \param[in] s stream to check
+ *
+ *  \returns     True if all tasks enqueued in the stream \p s (at the time of this call) have completed.
+ */
+static inline bool haveStreamTasksCompleted(cudaStream_t s)
+{
+    cudaError_t stat = cudaStreamQuery(s);
+
+    if (stat == cudaErrorNotReady)
+    {
+        // work is still in progress in the stream
+        return false;
+    }
+
+    GMX_ASSERT(stat !=  cudaErrorInvalidResourceHandle, "Stream idnetifier not valid");
+
+    // cudaSuccess and cudaErrorNotReady are the expected return values
+    CU_RET_ERR(stat, "Unexpected cudaStreamQuery failure");
+
+    GMX_ASSERT(stat == cudaSuccess, "Values other than cudaSuccess should have been explicitly handled");
+
+    return true;
+}
 
 #endif

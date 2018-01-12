@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2015,2016,2017, by the GROMACS development team, led by
+ * Copyright (c) 2015,2016,2017,2018, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -48,6 +48,7 @@
 
 #include <vector>
 
+#include "gromacs/ewald/pme.h"
 #include "gromacs/utility/basedefinitions.h"
 
 struct gmx_hw_info_t;
@@ -58,6 +59,7 @@ struct t_inputrec;
 
 namespace gmx
 {
+class HardwareTopology;
 class MDLogger;
 }
 
@@ -71,8 +73,9 @@ class MDLogger;
  */
 int get_nthreads_mpi(const gmx_hw_info_t    *hwinfo,
                      gmx_hw_opt_t           *hw_opt,
-                     int                     numPmeRanks,
+                     const std::vector<int> &gpuIdsToUse,
                      bool                    nonbondedOnGpu,
+                     bool                    pmeOnGpu,
                      const t_inputrec       *inputrec,
                      const gmx_mtop_t       *mtop,
                      const gmx::MDLogger    &mdlog,
@@ -87,7 +90,6 @@ int get_nthreads_mpi(const gmx_hw_info_t    *hwinfo,
  * This function should be called after thread-MPI and OpenMP are set up.
  */
 void check_resource_division_efficiency(const gmx_hw_info_t *hwinfo,
-                                        int                  numTotalThreads,
                                         bool                 willUsePhysicalGpu,
                                         gmx_bool             bNtOmpOptionSet,
                                         t_commrec           *cr,
@@ -102,7 +104,21 @@ void check_and_update_hw_opt_1(gmx_hw_opt_t    *hw_opt,
 void check_and_update_hw_opt_2(gmx_hw_opt_t *hw_opt,
                                int           cutoff_scheme);
 
-/*! \brief Checks we can do when we know the thread-MPI rank count */
-void check_and_update_hw_opt_3(gmx_hw_opt_t *hw_opt);
+/*! \brief Check, and if necessary update, the number of OpenMP threads requested
+ *
+ * Should be called when we know the MPI rank count and PME run mode.
+ */
+void checkAndUpdateRequestedNumOpenmpThreads(gmx_hw_opt_t        *hw_opt,
+                                             const gmx_hw_info_t &hwinfo,
+                                             const t_commrec     *cr,
+                                             PmeRunMode           pmeRunMode,
+                                             const gmx_mtop_t    &mtop);
+
+/*! \brief Warns for oversubscribing the hardware threads, when that is the case
+ */
+void checkHardwareOversubscription(int                          numThreadsOnThisRank,
+                                   const gmx::HardwareTopology &hwTop,
+                                   const t_commrec             *cr,
+                                   const gmx::MDLogger         &mdlog);
 
 #endif

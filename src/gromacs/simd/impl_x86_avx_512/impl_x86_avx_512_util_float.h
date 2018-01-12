@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2014,2015,2016,2017, by the GROMACS development team, led by
+ * Copyright (c) 2014,2015,2016,2017,2018, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -63,15 +63,15 @@ SimdFInt32 fastMultiply(SimdFInt32 x)
 {
     if (n == 2)
     {
-        return x << 1;
+        return _mm512_slli_epi32(x.simdInternal_, 1);
     }
     else if (n == 4)
     {
-        return x << 2;
+        return _mm512_slli_epi32(x.simdInternal_, 2);
     }
     else if (n == 8)
     {
-        return x << 3;
+        return _mm512_slli_epi32(x.simdInternal_, 3);
     }
     else
     {
@@ -137,12 +137,12 @@ transposeScatterStoreU(float *              base,
     {
         simdoffset = fastMultiply<align>(simdoffset);
     }
-    constexpr int align_ = (align > 2) ? 1 : align;
-    _mm512_i32scatter_ps(base,   simdoffset.simdInternal_, v0.simdInternal_, sizeof(float)*align_);
-    _mm512_i32scatter_ps(base+1, simdoffset.simdInternal_, v1.simdInternal_, sizeof(float)*align_);
-    _mm512_i32scatter_ps(base+2, simdoffset.simdInternal_, v2.simdInternal_, sizeof(float)*align_);
-}
+    constexpr size_t scale = (align > 2) ? sizeof(float) : sizeof(float) * align;
 
+    _mm512_i32scatter_ps(base,       simdoffset.simdInternal_, v0.simdInternal_, scale);
+    _mm512_i32scatter_ps(&(base[1]), simdoffset.simdInternal_, v1.simdInternal_, scale);
+    _mm512_i32scatter_ps(&(base[2]), simdoffset.simdInternal_, v2.simdInternal_, scale);
+}
 
 template <int align>
 static inline void gmx_simdcall
@@ -154,7 +154,7 @@ transposeScatterIncrU(float *              base,
 {
     __m512 t[4], t5, t6, t7, t8;
     int    i;
-    GMX_ALIGNED(std::int32_t, 16)    o[16];
+    alignas(GMX_SIMD_ALIGNMENT) std::int32_t    o[16];
     store(o, fastMultiply<align>(simdLoad(offset, SimdFInt32Tag())));
     if (align < 4)
     {
@@ -226,7 +226,7 @@ transposeScatterDecrU(float *              base,
 {
     __m512 t[4], t5, t6, t7, t8;
     int    i;
-    GMX_ALIGNED(std::int32_t, 16)    o[16];
+    alignas(GMX_SIMD_ALIGNMENT) std::int32_t    o[16];
     store(o, fastMultiply<align>(simdLoad(offset, SimdFInt32Tag())));
     if (align < 4)
     {
@@ -360,7 +360,7 @@ loadDuplicateHsimd(const float * m)
 }
 
 static inline SimdFloat gmx_simdcall
-load1DualHsimd(const float * m)
+loadU1DualHsimd(const float * m)
 {
     return {
                _mm512_shuffle_f32x4(_mm512_broadcastss_ps(_mm_load_ss(m)),
@@ -476,6 +476,33 @@ reduceIncr4ReturnSumHsimd(float *     m,
     t3 = _mm_add_ps(t3, _mm_permute_ps(t3, 0xB1));
 
     return _mm_cvtss_f32(t3);
+}
+
+static inline SimdFloat gmx_simdcall
+loadUNDuplicate4(const float* f)
+{
+    return {
+               _mm512_permute_ps(_mm512_maskz_expandloadu_ps(0x1111, f), 0)
+    };
+}
+
+static inline SimdFloat gmx_simdcall
+load4DuplicateN(const float* f)
+{
+    return {
+               _mm512_broadcast_f32x4(_mm_load_ps(f))
+    };
+}
+
+static inline SimdFloat gmx_simdcall
+loadU4NOffset(const float* f, int offset)
+{
+    const __m256i idx = _mm256_setr_epi32(0, 0, 1, 1, 2, 2, 3, 3);
+    const __m256i gdx = _mm256_add_epi32(_mm256_setr_epi32(0, 2, 0, 2, 0, 2, 0, 2),
+                                         _mm256_mullo_epi32(idx, _mm256_set1_epi32(offset)));
+    return {
+               _mm512_castpd_ps(_mm512_i32gather_pd(gdx, reinterpret_cast<const double*>(f), sizeof(float)))
+    };
 }
 
 }      // namespace gmx

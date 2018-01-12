@@ -66,7 +66,7 @@ typedef struct gmx_parallel_3dfft *gmx_parallel_3dfft_t;
 
 struct t_commrec;
 struct t_inputrec;
-struct pme_gpu_t;
+struct PmeGpu;
 
 //@{
 //! Grid indices for A state for charge and Lennard-Jones C6
@@ -99,13 +99,13 @@ static const real lb_scale_factor_symm[] = { 2.0/64, 12.0/64, 30.0/64, 20.0/64 }
 /*! \brief As gmx_pme_init, but takes most settings, except the grid/Ewald coefficients, from pme_src.
  * This is only called when the PME cut-off/grid size changes.
  */
-int gmx_pme_reinit(struct gmx_pme_t **pmedata,
-                   t_commrec *        cr,
-                   struct gmx_pme_t * pme_src,
-                   const t_inputrec * ir,
-                   ivec               grid_size,
-                   real               ewaldcoeff_q,
-                   real               ewaldcoeff_lj);
+void gmx_pme_reinit(struct gmx_pme_t **pmedata,
+                    t_commrec *        cr,
+                    struct gmx_pme_t * pme_src,
+                    const t_inputrec * ir,
+                    const ivec         grid_size,
+                    real               ewaldcoeff_q,
+                    real               ewaldcoeff_lj);
 
 
 /* Temporary suppression until these structs become opaque and don't live in
@@ -263,7 +263,7 @@ struct gmx_pme_t {
                               * and ideally not be duplicated here.
                               */
 
-    pme_gpu_t      *gpu;     /* A pointer to the GPU data.
+    PmeGpu      *gpu;        /* A pointer to the GPU data.
                               * TODO: this should be unique or a shared pointer.
                               * Currently in practice there is a single gmx_pme_t instance while a code
                               * is partially set up for many of them. The PME tuning calls gmx_pme_reinit()
@@ -358,24 +358,6 @@ inline bool pme_gpu_active(const gmx_pme_t *pme)
 {
     return (pme != nullptr) && (pme->runMode != PmeRunMode::CPU);
 }
-
-/*! \brief Check restrictions on pme_order and the PME grid nkx,nky,nkz.
- *
- * With bFatal=TRUE, a fatal error is generated on violation,
- * bValidSettings=NULL can be passed.
- * With bFatal=FALSE, *bValidSettings reports the validity of the settings.
- * bUseThreads tells if any MPI rank doing PME uses more than 1 threads.
- * If at calling you bUseThreads is unknown, pass TRUE for conservative
- * checking.
- *
- * TODO: the GPU restrictions are checked separately during pme_gpu_init().
- */
-void gmx_pme_check_restrictions(int pme_order,
-                                int nkx, int nky, int nkz,
-                                int nnodes_major,
-                                gmx_bool bUseThreads,
-                                gmx_bool bFatal,
-                                gmx_bool *bValidSettings);
 
 /*! \brief Tell our PME-only node to switch to a new grid size */
 void gmx_pme_send_switchgrid(t_commrec *cr,

@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2015,2017, by the GROMACS development team, led by
+ * Copyright (c) 2015,2017,2018, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -33,6 +33,8 @@
  * the research papers on the package. Check out http://www.gromacs.org.
  */
 #include "gmxpre.h"
+
+#include <numeric>
 
 #include "gromacs/simd/simd.h"
 #include "gromacs/utility/alignedallocator.h"
@@ -724,7 +726,7 @@ TEST_F(SimdFloatingpointUtilTest, loadDuplicateHsimd)
 }
 
 
-TEST_F(SimdFloatingpointUtilTest, load1DualHsimd)
+TEST_F(SimdFloatingpointUtilTest, loadU1DualHsimd)
 {
     SimdReal        v0, v1;
     int             i;
@@ -740,7 +742,7 @@ TEST_F(SimdFloatingpointUtilTest, load1DualHsimd)
     }
 
     v0 = load<SimdReal>(val0_);
-    v1 = load1DualHsimd(data);
+    v1 = loadU1DualHsimd(data);
 
     GMX_EXPECT_SIMD_REAL_EQ(v0, v1);
 }
@@ -915,8 +917,74 @@ TEST_F(SimdFloatingpointUtilTest, reduceIncr4SumHsimd)
     EXPECT_REAL_EQ_TOL(sum0 + sum1 + sum2 + sum3, tstsum, tolerance);
 }
 
-
 #endif      // GMX_SIMD_HAVE_HSIMD_UTIL_REAL
+
+//Test Currently doesn't work for GMX_SIMD_REAL_WIDTH<4. Should be fixed by having GMX_EXPECT_SIMD_REAL_EQ which works for both Simd and Simd4
+#if GMX_SIMD_HAVE_4NSIMD_UTIL_REAL && GMX_SIMD_REAL_WIDTH >= 4
+
+TEST_F(SimdFloatingpointUtilTest, loadUNDuplicate4)
+{
+    Simd4NReal      v0, v1;
+    int             i;
+    real            data[GMX_SIMD_REAL_WIDTH/4];
+    std::iota(data, data+GMX_SIMD_REAL_WIDTH/4, 1);
+
+#if defined __ICC && __ICC == 1800 || defined __ICL && __ICL == 1800
+#pragma novector /* Work-around for incorrect vectorization for AVX_512(_KNL) */
+#endif
+    for (i = 0; i < GMX_SIMD_REAL_WIDTH / 4; i++)
+    {
+        val0_[i*4] = val0_[i*4+1] = val0_[i*4+2] = val0_[i*4+3] = data[i];
+    }
+
+    v0 = load<Simd4NReal>(val0_);
+    v1 = loadUNDuplicate4(data);
+
+    GMX_EXPECT_SIMD_REAL_EQ(v0, v1);
+}
+
+TEST_F(SimdFloatingpointUtilTest, load4DuplicateN)
+{
+    Simd4NReal        v0, v1;
+    int               i;
+    real              data[4] = { 1, 2, 3, 4};
+
+    for (i = 0; i < GMX_SIMD_REAL_WIDTH / 4; i++)
+    {
+        val0_[i*4]   = data[0];
+        val0_[i*4+1] = data[1];
+        val0_[i*4+2] = data[2];
+        val0_[i*4+3] = data[3];
+    }
+
+    v0 = load<Simd4NReal>(val0_);
+    v1 = load4DuplicateN(val0_);
+
+    GMX_EXPECT_SIMD_REAL_EQ(v0, v1);
+}
+
+TEST_F(SimdFloatingpointUtilTest, loadU4NOffset)
+{
+    constexpr int   offset  = 6; //non power of 2
+    constexpr int   dataLen = 4+offset*(GMX_SIMD_REAL_WIDTH/4-1);
+    real            data[dataLen];
+    std::iota(data, data+dataLen, 1);
+
+    for (int i = 0; i < GMX_SIMD_REAL_WIDTH / 4; i++)
+    {
+        val0_[i*4]   = data[0+offset*i];
+        val0_[i*4+1] = data[1+offset*i];
+        val0_[i*4+2] = data[2+offset*i];
+        val0_[i*4+3] = data[3+offset*i];
+    }
+
+    const Simd4NReal v0 = load<Simd4NReal>(val0_);
+    const Simd4NReal v1 = loadU4NOffset(data, offset);
+
+    GMX_EXPECT_SIMD_REAL_EQ(v0, v1);
+}
+
+#endif      // GMX_SIMD_HAVE_4NSIMD_UTIL_REAL
 
 #endif      // GMX_SIMD_HAVE_REAL
 

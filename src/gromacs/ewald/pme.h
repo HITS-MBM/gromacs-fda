@@ -48,19 +48,25 @@
 #ifndef GMX_EWALD_PME_H
 #define GMX_EWALD_PME_H
 
+#include <string>
+
+#include "gromacs/math/vectypes.h"
 #include "gromacs/timing/wallcycle.h"
 #include "gromacs/timing/walltime_accounting.h"
+#include "gromacs/utility/arrayref.h"
+#include "gromacs/utility/basedefinitions.h"
 #include "gromacs/utility/real.h"
-
-#include "pme-gpu-types.h"
 
 struct interaction_const_t;
 struct t_commrec;
 struct t_inputrec;
 struct t_nrnb;
-struct pme_gpu_t;
+struct PmeGpu;
 struct gmx_wallclock_gpu_pme_t;
 struct gmx_device_info_t;
+struct gmx_pme_t;
+
+enum class GpuTaskCompletion;
 
 namespace gmx
 {
@@ -70,6 +76,25 @@ class MDLogger;
 
 enum {
     GMX_SUM_GRID_FORWARD, GMX_SUM_GRID_BACKWARD
+};
+
+/*! \brief Possible PME codepaths on a rank.
+ * \todo: make this enum class with gmx_pme_t C++ refactoring
+ */
+enum PmeRunMode
+{
+    None,    //!< No PME task is done
+    CPU,     //!< Whole PME computation is done on CPU
+    GPU,     //!< Whole PME computation is done on GPU
+    Mixed,   //!< Mixed mode: only spread and gather run on GPU; FFT and solving are done on CPU.
+};
+
+//! PME gathering output forces treatment
+enum class PmeForceOutputHandling
+{
+    Set,             /**< Gather simply writes into provided force buffer */
+    ReduceWithInput, /**< Gather adds its output to the buffer.
+                        On GPU, that means additional H2D copy before the kernel launch. */
 };
 
 /*! \brief Return the smallest allowed PME grid size for \p pmeOrder */
@@ -83,6 +108,8 @@ int minimalPmeGridSize(int pmeOrder);
  * When all restrictions are obeyed, true is returned.
  * Argument useThreads tells if any MPI rank doing PME uses more than 1 threads.
  * If at calling useThreads is unknown, pass true for conservative checking.
+ *
+ * The PME GPU restrictions are checked separately during pme_gpu_init().
  */
 bool gmx_pme_check_restrictions(int pme_order,
                                 int nkx, int nky, int nkz,
@@ -90,22 +117,22 @@ bool gmx_pme_check_restrictions(int pme_order,
                                 bool useThreads,
                                 bool errorsAreFatal);
 
-/*! \brief Initialize \p pmedata
+/*! \brief Construct PME data
  *
- * \returns  0 indicates all well, non zero is an error code.
  * \throws   gmx::InconsistentInputError if input grid sizes/PME order are inconsistent.
+ * \returns  Pointer to newly allocated and initialized PME data.
  */
-int gmx_pme_init(struct gmx_pme_t **pmedata, struct t_commrec *cr,
-                 int nnodes_major, int nnodes_minor,
-                 const t_inputrec *ir, int homenr,
-                 gmx_bool bFreeEnergy_q, gmx_bool bFreeEnergy_lj,
-                 gmx_bool bReproducible,
-                 real ewaldcoeff_q, real ewaldcoeff_lj,
-                 int nthread,
-                 PmeRunMode runMode,
-                 pme_gpu_t *pmeGPU,
-                 gmx_device_info_t *gpuInfo,
-                 const gmx::MDLogger &mdlog);
+gmx_pme_t *gmx_pme_init(const t_commrec *cr,
+                        int nnodes_major, int nnodes_minor,
+                        const t_inputrec *ir, int homenr,
+                        gmx_bool bFreeEnergy_q, gmx_bool bFreeEnergy_lj,
+                        gmx_bool bReproducible,
+                        real ewaldcoeff_q, real ewaldcoeff_lj,
+                        int nthread,
+                        PmeRunMode runMode,
+                        PmeGpu *pmeGpu,
+                        gmx_device_info_t *gpuInfo,
+                        const gmx::MDLogger &mdlog);
 
 /*! \brief Destroys the PME data structure.*/
 void gmx_pme_destroy(gmx_pme_t *pme);
@@ -195,7 +222,7 @@ void gmx_pme_receive_f(struct t_commrec *cr,
 /*! \brief
  * This function updates the local atom data on GPU after DD (charges, coordinates, etc.).
  * TODO: it should update the PME CPU atom data as well.
- * (currently PME CPU call gmx_pme_do() gets passed the input pointers each step).
+ * (currently PME CPU call gmx_pme_do() gets passed the input pointers for each computation).
  *
  * \param[in] pme            The PME structure.
  * \param[in] nAtoms         The number of particles.
@@ -258,19 +285,19 @@ void pme_gpu_get_timings(const gmx_pme_t         *pme,
 /* The main PME GPU functions */
 
 /*! \brief
- * Prepares PME on GPU step (updating the box if needed)
+ * Prepares PME on GPU computation (updating the box if needed)
  * \param[in] pme               The PME data structure.
  * \param[in] needToUpdateBox   Tells if the stored unit cell parameters should be updated from \p box.
  * \param[in] box               The unit cell box.
  * \param[in] wcycle            The wallclock counter.
- * \param[in] flags             The combination of flags to affect the PME computation on this step.
+ * \param[in] flags             The combination of flags to affect this PME computation.
  *                              The flags are the GMX_PME_ flags from pme.h.
  */
-void pme_gpu_prepare_step(gmx_pme_t      *pme,
-                          bool            needToUpdateBox,
-                          const matrix    box,
-                          gmx_wallcycle_t wcycle,
-                          int             flags);
+void pme_gpu_prepare_computation(gmx_pme_t      *pme,
+                                 bool            needToUpdateBox,
+                                 const matrix    box,
+                                 gmx_wallcycle_t wcycle,
+                                 int             flags);
 
 /*! \brief
  * Launches first stage of PME on GPU - H2D input transfers, spreading kernel, and D2H grid transfer if needed.
@@ -297,14 +324,12 @@ void pme_gpu_launch_complex_transforms(gmx_pme_t       *pme,
  *
  * \param[in]  pme               The PME data structure.
  * \param[in]  wcycle            The wallclock counter.
- * \param[in,out] forces         The array of local atoms' resulting forces.
- * \param[in]  forceTreatment    Tells how data in h_forces should be treated. The gathering kernel either stores
+ * \param[in]  forceTreatment    Tells how data should be treated. The gathering kernel either stores
  *                               the output reciprocal forces into the host array, or copies its contents to the GPU first
  *                               and accumulates. The reduction is non-atomic.
  */
 void pme_gpu_launch_gather(const gmx_pme_t        *pme,
                            gmx_wallcycle_t         wcycle,
-                           rvec                   *forces,
                            PmeForceOutputHandling  forceTreatment);
 
 /*! \brief
@@ -312,13 +337,43 @@ void pme_gpu_launch_gather(const gmx_pme_t        *pme,
  * (if they were to be computed).
  *
  * \param[in]  pme            The PME data structure.
- * \param[in]  wcycle         The wallclock counter.
- * \param[out] vir_q          The output virial matrix.
- * \param[out] energy_q       The output energy.
+ * \param[out] wcycle         The wallclock counter.
+ * \param[out] forces         The output forces.
+ * \param[out] virial         The output virial matrix.
+ * \param[out] energy         The output energy.
  */
-void pme_gpu_wait_for_gpu(const gmx_pme_t *pme,
-                          gmx_wallcycle_t  wcycle,
-                          matrix           vir_q,
-                          real            *energy_q);
+void pme_gpu_wait_finish_task(const gmx_pme_t                *pme,
+                              gmx_wallcycle_t                 wcycle,
+                              gmx::ArrayRef<const gmx::RVec> *forces,
+                              matrix                          virial,
+                              real                           *energy);
+/*! \brief
+ * Attempts to complete PME GPU tasks.
+ *
+ * The \p completionKind argument controls whether the function blocks until all
+ * PME GPU tasks enqueued completed (as pme_gpu_wait_finish_task() does) or only
+ * checks and returns immediately if they did not.
+ * When blocking or the tasks have completed it also gets the output forces
+ * by assigning the ArrayRef to the \p forces pointer passed in.
+ * Virial/energy are also outputs if they were to be computed.
+ *
+ * Note: also launches the reinitalization of the PME output buffers.
+ * TODO: this should be moved out to avoid miscounting its wall-time (as wait iso launch).
+ *
+ * \param[in]  pme            The PME data structure.
+ * \param[in]  wcycle         The wallclock counter.
+ * \param[out] forces         The output forces.
+ * \param[out] virial         The output virial matrix.
+ * \param[out] energy         The output energy.
+ * \param[in]  completionKind  Indicates whether PME task completion should only be checked rather than waited for
+ * \returns                   True if the PME GPU tasks have completed
+ */
+bool pme_gpu_try_finish_task(const gmx_pme_t                *pme,
+                             gmx_wallcycle_t                 wcycle,
+                             gmx::ArrayRef<const gmx::RVec> *forces,
+                             matrix                          virial,
+                             real                           *energy,
+                             GpuTaskCompletion               completionKind);
+
 
 #endif

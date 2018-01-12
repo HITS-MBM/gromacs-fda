@@ -60,6 +60,8 @@
 
 #include <stdio.h>
 
+#include <vector>
+
 #include "gromacs/gmxlib/nrnb.h"
 #include "gromacs/math/vectypes.h"
 #include "gromacs/mdlib/vsite.h"
@@ -69,6 +71,7 @@
 #include "gromacs/topology/block.h"
 #include "gromacs/topology/idef.h"
 #include "gromacs/topology/topology.h"
+#include "gromacs/utility/arrayref.h"
 #include "gromacs/utility/basedefinitions.h"
 #include "gromacs/utility/real.h"
 
@@ -79,6 +82,11 @@ struct MdrunOptions;
 struct t_commrec;
 struct t_inputrec;
 class t_state;
+
+namespace gmx
+{
+class MDAtoms;
+} // namespace
 
 /*! \brief Returns the global topology atom number belonging to local atom index i.
  *
@@ -118,9 +126,8 @@ void dd_get_constraint_range(const gmx_domdec_t *dd,
 void get_pme_nnodes(const struct gmx_domdec_t *dd,
                     int *npmenodes_x, int *npmenodes_y);
 
-/*! \brief Returns the set of DD nodes that communicate with pme node cr->nodeid */
-void get_pme_ddnodes(struct t_commrec *cr, int pmenodeid,
-                     int *nmy_ddnodes, int **my_ddnodes, int *node_peer);
+/*! \brief Returns the set of DD ranks that communicate with pme node cr->nodeid */
+std::vector<int> get_pme_ddranks(t_commrec *cr, int pmenodeid);
 
 /*! \brief Returns the maximum shift for coordinate communication in PME, dim x */
 int dd_pme_maxshift_x(const gmx_domdec_t *dd);
@@ -250,16 +257,10 @@ void dd_setup_dlb_resource_sharing(t_commrec           *cr,
                                    int                  gpu_id);
 
 /*! \brief Collects local rvec arrays \p lv to \p v on the master rank */
-void dd_collect_vec(struct gmx_domdec_t    *dd,
-                    const t_state          *state_local,
-                    const PaddedRVecVector *lv,
-                    rvec                   *v);
-
-/*! \brief Collects local rvec arrays \p lv to \p v on the master rank */
-void dd_collect_vec(struct gmx_domdec_t    *dd,
-                    const t_state          *state_local,
-                    const PaddedRVecVector *lv,
-                    PaddedRVecVector       *v);
+void dd_collect_vec(struct gmx_domdec_t           *dd,
+                    const t_state                 *state_local,
+                    gmx::ArrayRef<const gmx::RVec> lv,
+                    gmx::ArrayRef<gmx::RVec>       v);
 
 /*! \brief Collects the local state \p state_local to \p state on the master rank */
 void dd_collect_state(struct gmx_domdec_t *dd,
@@ -318,7 +319,7 @@ void dd_partition_system(FILE                *fplog,
                          const t_inputrec    *ir,
                          t_state             *state_local,
                          PaddedRVecVector    *f,
-                         t_mdatoms           *mdatoms,
+                         gmx::MDAtoms        *mdatoms,
                          gmx_localtop_t      *top_local,
                          t_forcerec          *fr,
                          gmx_vsite_t         *vsite,

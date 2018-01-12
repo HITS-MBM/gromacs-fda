@@ -814,6 +814,9 @@ min(SimdDouble a, SimdDouble b)
  *
  * \param a Any floating-point value
  * \return The nearest integer, represented in floating-point format.
+ *
+ * \note Round mode is implementation defined. The only guarantee is that it
+ * is consistent between rounding functions (round, cvtR2I).
  */
 static inline SimdDouble gmx_simdcall
 round(SimdDouble a)
@@ -1146,52 +1149,6 @@ blend(SimdDouble a, SimdDouble b, SimdDBool sel)
  * \name SIMD implementation integer (corresponding to double) bitwise logical operations
  * \{
  */
-
-/*! \brief SIMD integer shift left logical, based on immediate value.
- *
- * Available if \ref GMX_SIMD_HAVE_DINT32_LOGICAL is 1.
- *
- *  Logical shift. Each element is shifted (independently) up to 32 positions
- *  left, while zeros are shifted in from the right.
- *
- * \param a integer data to shift
- * \param n number of positions to shift left. n<=32.
- * \return shifted values
- */
-static inline SimdDInt32 gmx_simdcall
-operator<<(SimdDInt32 a, int n)
-{
-    SimdDInt32         res;
-
-    for (std::size_t i = 0; i < res.simdInternal_.size(); i++)
-    {
-        res.simdInternal_[i] = a.simdInternal_[i] << n;
-    }
-    return res;
-}
-
-/*! \brief SIMD integer shift right logical, based on immediate value.
- *
- * Available if \ref GMX_SIMD_HAVE_DINT32_LOGICAL is 1.
- *
- *  Logical shift. Each element is shifted (independently) up to 32 positions
- *  right, while zeros are shifted in from the left.
- *
- * \param a integer data to shift
- * \param n number of positions to shift right. n<=32.
- * \return shifted values
- */
-static inline SimdDInt32 gmx_simdcall
-operator>>(SimdDInt32 a, int n)
-{
-    SimdDInt32         res;
-
-    for (std::size_t i = 0; i < res.simdInternal_.size(); i++)
-    {
-        res.simdInternal_[i] = a.simdInternal_[i] >> n;
-    }
-    return res;
-}
 
 /*! \brief Integer SIMD bitwise and.
  *
@@ -1547,6 +1504,9 @@ blend(SimdDInt32 a, SimdDInt32 b, SimdDIBool sel)
  *
  * \param a SIMD floating-point
  * \return SIMD integer, rounded to nearest integer.
+ *
+ * \note Round mode is implementation defined. The only guarantee is that it
+ * is consistent between rounding functions (round, cvtR2I).
  */
 static inline SimdDInt32 gmx_simdcall
 cvtR2I(SimdDouble a)

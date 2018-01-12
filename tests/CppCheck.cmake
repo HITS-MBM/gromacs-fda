@@ -1,7 +1,7 @@
 #
 # This file is part of the GROMACS molecular simulation package.
 #
-# Copyright (c) 2013,2014,2015,2016,2017, by the GROMACS development team, led by
+# Copyright (c) 2013,2014,2015,2016,2017,2018, by the GROMACS development team, led by
 # Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
 # and including many others, as listed in the AUTHORS file in the
 # top-level source directory and at http://www.gromacs.org.
@@ -51,15 +51,13 @@ if (CPPCHECK_EXECUTABLE AND UNIX)
         ${CMAKE_SOURCE_DIR}/src/nb_kernel_Elec*.c
         ${CMAKE_SOURCE_DIR}/src/gromacs/linearalgebra/gmx_blas/*.c
         ${CMAKE_SOURCE_DIR}/src/gromacs/linearalgebra/gmx_lapack/*.c
-        ${CMAKE_SOURCE_DIR}/src/contrib/*.c
-        ${CMAKE_SOURCE_DIR}/src/contrib/*.cpp
-        ${CMAKE_SOURCE_DIR}/src/contrib/*.cu
         ${CMAKE_SOURCE_DIR}/src/external/*.c
         ${CMAKE_SOURCE_DIR}/src/external/*.cpp
         ${CMAKE_SOURCE_DIR}/src/external/*.cu
         ${CMAKE_SOURCE_DIR}/src/gromacs/selection/scanner.cpp
         ${CMAKE_SOURCE_DIR}/src/gromacs/selection/parser.cpp
         ${CMAKE_SOURCE_DIR}/src/gromacs/gpu_utils/ocl_compiler.cpp
+        ${CMAKE_SOURCE_DIR}/src/*\#* #ignore emacs lock files throwing of cmake
         )
     list(REMOVE_ITEM _inputfiles ${_files_to_ignore})
 

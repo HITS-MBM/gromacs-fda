@@ -78,6 +78,15 @@ Output Control
         Defaults to 1, which prints frame count e.g. when reading trajectory
         files. Set to 0 for quiet operation.
 
+``GMX_ENABLE_GPU_TIMING``
+        Enables GPU timings in the log file for CUDA. Note that CUDA timings
+        are incorrect with multiple streams, as happens with domain
+        decomposition or with both non-bondeds and PME on the GPU (this is
+        also the main reason why they are not turned on by default).
+
+``GMX_DISABLE_GPU_TIMING``
+        Disables GPU timings in the log file for OpenCL.
+
 Debugging
 ---------
 ``GMX_PRINT_DEBUG_LINES``
@@ -103,6 +112,12 @@ Debugging
 ``GMX_DD_NPULSE``
         over-ride the number of DD pulses used
         (default 0, meaning no over-ride). Normally 1 or 2.
+
+``GMX_DISABLE_ALTERNATING_GPU_WAIT``
+        disables the specialized polling wait path used to wait for the PME and nonbonded
+        GPU tasks completion to overlap to do the reduction of the resulting forces that
+        arrive first. Setting this variable switches to the generic path with fixed waiting
+        order.
 
 There are a number of extra environment variables like these
 that are used in debugging - check the code!
@@ -209,8 +224,14 @@ Performance and Run Control
 
 ``GMX_GPU_ID``
         set in the same way as ``mdrun -gpu_id``, ``GMX_GPU_ID``
-        allows the user to specify different GPU id-s, which can be useful for selecting different
+        allows the user to specify different GPU IDs for different ranks, which can be useful for selecting different
         devices on different compute nodes in a cluster.  Cannot be used in conjunction with ``mdrun -gpu_id``.
+
+``GMX_GPUTASKS``
+        set in the same way as ``mdrun -gputasks``, ``GMX_GPUTASKS`` allows the mapping
+        of GPU tasks to GPU device IDs to be different on different ranks, if e.g. the MPI
+        runtime permits this variable to be different for different ranks. Cannot be used
+        in conjunction with ``mdrun -gputasks``. Has all the same requirements as ``mdrun -gputasks``.
 
 ``GMX_IGNORE_FSYNC_FAILURE_ENV``
         allow :ref:`gmx mdrun` to continue even if
@@ -363,7 +384,7 @@ Performance and Run Control
 ``GMX_NSTLIST_DYNAMICPRUNING``
         overrides the dynamic pair-list pruning interval chosen heuristically
         by mdrun. Values should be between the pruning frequency value
-        (1 for CPU and 2 for GPU) and :mdp:`nstlist - 1`.
+        (1 for CPU and 2 for GPU) and :mdp:`nstlist` ``- 1``.
 
 ``GMX_USE_TREEREDUCE``
         use tree reduction for nbnxn force reduction. Potentially faster for large number of
@@ -453,9 +474,6 @@ compilation of OpenCL kernels, but they are also used in device selection.
 ``GMX_OCL_NB_EWALD_TWINCUT``
         Forces the use of twin-range cutoff kernel. Equivalent of
         CUDA environment variable ``GMX_CUDA_NB_EWALD_TWINCUT``
-
-``GMX_DISABLE_OCL_TIMING``
-        Disables timing for OpenCL operations
 
 ``GMX_OCL_FILE_PATH``
         Use this parameter to force |Gromacs| to load the OpenCL

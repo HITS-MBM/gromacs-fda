@@ -155,8 +155,8 @@ void do_force(FILE *log, t_commrec *cr,
               gmx_int64_t step, struct t_nrnb *nrnb, gmx_wallcycle_t wcycle,
               gmx_localtop_t *top,
               gmx_groups_t *groups,
-              matrix box, PaddedRVecVector *coordinates, history_t *hist,
-              PaddedRVecVector *force,
+              matrix box, gmx::PaddedArrayRef<gmx::RVec> coordinates, history_t *hist,
+              gmx::PaddedArrayRef<gmx::RVec> force,
               tensor vir_force,
               t_mdatoms *mdatoms,
               gmx_enerdata_t *enerd, t_fcdata *fcd,
@@ -216,7 +216,6 @@ void do_force_lowlevel(t_forcerec   *fr,
 /* Call all the force routines */
 
 void free_gpu_resources(const t_forcerec            *fr,
-                        const t_commrec             *cr,
-                        const gmx_device_info_t     *deviceInfo);
+                        const t_commrec             *cr);
 
 #endif

@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014,2015,2016,2017, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016,2017,2018, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -48,6 +48,7 @@
 
 #include <sys/types.h>
 
+#include "gromacs/awh/read-params.h"
 #include "gromacs/commandline/pargs.h"
 #include "gromacs/ewald/ewald-utils.h"
 #include "gromacs/ewald/pme.h"
@@ -78,6 +79,7 @@
 #include "gromacs/mdlib/constr.h"
 #include "gromacs/mdlib/genborn.h"
 #include "gromacs/mdlib/perf_est.h"
+#include "gromacs/mdlib/sim_util.h"
 #include "gromacs/mdrunutility/mdmodules.h"
 #include "gromacs/mdtypes/inputrec.h"
 #include "gromacs/mdtypes/md_enums.h"
@@ -654,6 +656,15 @@ new_status(const char *topfile, const char *topppfile, const char *confin,
                 "atom names from %s will be ignored\n",
                 nmismatch, (nmismatch == 1) ? "" : "s", topfile, confin);
         warning(wi, buf);
+    }
+
+    /* If using the group scheme, make sure charge groups are made whole to avoid errors
+     * in calculating charge group size later on
+     */
+    if (ir->cutoff_scheme == ecutsGROUP && ir->ePBC != epbcNONE)
+    {
+        // Need temporary rvec for coordinates
+        do_pbc_first_mtop(nullptr, ir->ePBC, state->box, sys, as_rvec_array(state->x.data()));
     }
 
     /* Do more checks, mostly related to constraints */
@@ -1628,7 +1639,6 @@ static void set_verlet_buffer(const gmx_mtop_t *mtop,
                               matrix            box,
                               warninp_t         wi)
 {
-    verletbuf_list_setup_t ls;
     real                   rlist_1x1;
     int                    n_nonlin_vsite;
     char                   warn_buf[STRLEN];
@@ -1636,15 +1646,19 @@ static void set_verlet_buffer(const gmx_mtop_t *mtop,
     printf("Determining Verlet buffer for a tolerance of %g kJ/mol/ps at %g K\n", ir->verletbuf_tol, buffer_temp);
 
     /* Calculate the buffer size for simple atom vs atoms list */
-    ls.cluster_size_i = 1;
-    ls.cluster_size_j = 1;
+    VerletbufListSetup listSetup1x1;
+    listSetup1x1.cluster_size_i = 1;
+    listSetup1x1.cluster_size_j = 1;
     calc_verlet_buffer_size(mtop, det(box), ir, ir->nstlist, ir->nstlist - 1,
-                            buffer_temp, &ls, &n_nonlin_vsite, &rlist_1x1);
+                            buffer_temp, &listSetup1x1,
+                            &n_nonlin_vsite, &rlist_1x1);
 
     /* Set the pair-list buffer size in ir */
-    verletbuf_get_list_setup(FALSE, FALSE, &ls);
+    VerletbufListSetup listSetup4x4 =
+        verletbufGetSafeListSetup(ListSetupType::CpuNoSimd);
     calc_verlet_buffer_size(mtop, det(box), ir, ir->nstlist, ir->nstlist - 1,
-                            buffer_temp, &ls, &n_nonlin_vsite, &ir->rlist);
+                            buffer_temp, &listSetup4x4,
+                            &n_nonlin_vsite, &ir->rlist);
 
     if (n_nonlin_vsite > 0)
     {
@@ -1656,7 +1670,7 @@ static void set_verlet_buffer(const gmx_mtop_t *mtop,
            1, 1, rlist_1x1, rlist_1x1-std::max(ir->rvdw, ir->rcoulomb));
 
     printf("Set rlist, assuming %dx%d atom pair-list, to %.3f nm, buffer size %.3f nm\n",
-           ls.cluster_size_i, ls.cluster_size_j,
+           listSetup4x4.cluster_size_i, listSetup4x4.cluster_size_j,
            ir->rlist, ir->rlist-std::max(ir->rvdw, ir->rcoulomb));
 
     printf("Note that mdrun will redetermine rlist based on the actual pair-list setup\n");
@@ -1979,12 +1993,36 @@ int gmx_grompp(int argc, char *argv[])
     if (nint_ftype(sys, mi, F_POSRES) > 0 ||
         nint_ftype(sys, mi, F_FBPOSRES) > 0)
     {
+        if (ir->epc == epcPARRINELLORAHMAN || ir->epc == epcMTTK)
+        {
+            sprintf(warn_buf, "You are combining position restraints with %s pressure coupling, which can lead to instabilities. If you really want to combine position restraints with pressure coupling, we suggest to use %s pressure coupling instead.",
+                    EPCOUPLTYPE(ir->epc), EPCOUPLTYPE(epcBERENDSEN));
+            warning_note(wi, warn_buf);
+        }
+
         const char *fn = opt2fn("-r", NFILE, fnm);
         const char *fnB;
+
+        if (!gmx_fexist(fn))
+        {
+            gmx_fatal(FARGS,
+                      "Cannot find position restraint file %s (option -r).\n"
+                      "From GROMACS-2018, you need to specify the position restraint "
+                      "coordinate files explicitly to avoid mistakes, although you can "
+                      "still use the same file as you specify for the -c option.", fn);
+        }
 
         if (opt2bSet("-rb", NFILE, fnm))
         {
             fnB = opt2fn("-rb", NFILE, fnm);
+            if (!gmx_fexist(fnB))
+            {
+                gmx_fatal(FARGS,
+                          "Cannot find B-state position restraint file %s (option -rb).\n"
+                          "From GROMACS-2018, you need to specify the position restraint "
+                          "coordinate files explicitly to avoid mistakes, although you can "
+                          "still use the same file as you specify for the -c option.", fn);
+            }
         }
         else
         {
@@ -2301,6 +2339,12 @@ int gmx_grompp(int argc, char *argv[])
      * should register those potentials here. finish_pull() will check
      * that providers have been registerd for all external potentials.
      */
+
+    if (ir->bDoAwh)
+    {
+        setStateDependentAwhParams(ir->awhParams, ir->pull, pull,
+                                   state.box, ir->ePBC, &ir->opts, wi);
+    }
 
     if (ir->bPull)
     {

@@ -18,12 +18,18 @@ gcc-4.8 simd=ARM_NEON release-with-assert
 gcc-5 simd=ARM_NEON_ASIMD release-with-assert
 
 # Test the mdrun-only build
+# Test newest gcc at time of release
 # TODO In combination with gmx from another build, arrange to run regressiontests
-clang-3.7 double mpi no-openmp fftpack mdrun-only
+gcc-7 mpi no-openmp fftpack mdrun-only
 
 # Test MPMD PME with thread-MPI
-# TODO Add double to this configuration if/when we stablize the essentialdynamics tests
-gcc-7 npme=1 nranks=2 no-openmp fftpack release-with-assert
+# Test newest icc at time of release
+# Test icc without SIMD in double precision in release mode
+# TODO enable simd=avx_256 in this config, and change the above description once #2335 is resolved
+icc-18 npme=1 nranks=2 no-openmp  double fftpack release simd=none
+
+# Test CUDA build on a slave with no CUDA devices
+gcc-4.9 gpu cuda-7.0 openmp release-with-assert
 
 # Test non-default GMX_PREFER_STATIC_LIBS behavior
 # TODO enable this
@@ -47,8 +53,13 @@ clang-5 openmp simd=avx_128_fma npme=1 nranks=2 mpi
 # Test CMAKE_BUILD_TYPE=Release
 gcc-4.8 gpu npme=1 nranks=2 gpu_id=2 cuda-7.5 simd=sse2 release
 
+# Test GPU-sharing among 4 PP ranks
+gcc-5 gpu nranks=4 gpu_id=1 cuda-8.0 release-with-assert
+
 # TODO
-# Re-enable Phi build
+# Add SIMD + OpenMP + CUDA asan build
+# Add OpenMP + CUDA + device sharing TSAN build
+# Re-enable Phi build (FIXME: do we still care?)
 # Test without TNG support
 # Test without hwloc support
 # Test with NVML support

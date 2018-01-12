@@ -235,7 +235,7 @@ template <
     const bool wrapY
     >
 __launch_bounds__(c_gatherMaxThreadsPerBlock, c_gatherMinBlocksPerMP)
-__global__ void pme_gather_kernel(const pme_gpu_cuda_kernel_params_t    kernelParams)
+__global__ void pme_gather_kernel(const PmeGpuCudaKernelParams    kernelParams)
 {
     /* Global memory pointers */
     const float * __restrict__  gm_coefficients     = kernelParams.atoms.d_coefficients;
@@ -373,9 +373,9 @@ __global__ void pme_gather_kernel(const pme_gpu_cuda_kernel_params_t    kernelPa
         const float3  atomForces               = sm_forces[forceIndexLocal];
         const float   negCoefficient           = -gm_coefficients[forceIndexGlobal];
         float3        result;
-        result.x                   = negCoefficient * kernelParams.step.recipBox[XX][XX] * atomForces.x;
-        result.y                   = negCoefficient * (kernelParams.step.recipBox[XX][YY] * atomForces.x + kernelParams.step.recipBox[YY][YY] * atomForces.y);
-        result.z                   = negCoefficient * (kernelParams.step.recipBox[XX][ZZ] * atomForces.x + kernelParams.step.recipBox[YY][ZZ] * atomForces.y + kernelParams.step.recipBox[ZZ][ZZ] * atomForces.z);
+        result.x                   = negCoefficient * kernelParams.current.recipBox[XX][XX] * atomForces.x;
+        result.y                   = negCoefficient * (kernelParams.current.recipBox[XX][YY] * atomForces.x + kernelParams.current.recipBox[YY][YY] * atomForces.y);
+        result.z                   = negCoefficient * (kernelParams.current.recipBox[XX][ZZ] * atomForces.x + kernelParams.current.recipBox[YY][ZZ] * atomForces.y + kernelParams.current.recipBox[ZZ][ZZ] * atomForces.z);
         sm_forces[forceIndexLocal] = result;
     }
 
@@ -410,8 +410,7 @@ __global__ void pme_gather_kernel(const pme_gpu_cuda_kernel_params_t    kernelPa
     }
 }
 
-void pme_gpu_gather(const pme_gpu_t       *pmeGpu,
-                    float                 *h_forces,
+void pme_gpu_gather(PmeGpu                *pmeGpu,
                     PmeForceOutputHandling forceTreatment,
                     const float           *h_grid
                     )
@@ -419,7 +418,7 @@ void pme_gpu_gather(const pme_gpu_t       *pmeGpu,
     /* Copying the input CPU forces for reduction */
     if (forceTreatment != PmeForceOutputHandling::Set)
     {
-        pme_gpu_copy_input_forces(pmeGpu, h_forces);
+        pme_gpu_copy_input_forces(pmeGpu);
     }
 
     cudaStream_t stream          = pmeGpu->archSpecific->pmeStream;
@@ -468,5 +467,5 @@ void pme_gpu_gather(const pme_gpu_t       *pmeGpu,
     CU_LAUNCH_ERR("pme_gather_kernel");
     pme_gpu_stop_timing(pmeGpu, gtPME_GATHER);
 
-    pme_gpu_copy_output_forces(pmeGpu, h_forces);
+    pme_gpu_copy_output_forces(pmeGpu);
 }

@@ -107,7 +107,7 @@ template<typename T,
          const int atomsPerBlock,
          const int dataCountPerAtom>
 __device__  __forceinline__
-void pme_gpu_stage_atom_data(const pme_gpu_cuda_kernel_params_t kernelParams,
+void pme_gpu_stage_atom_data(const PmeGpuCudaKernelParams       kernelParams,
                              T * __restrict__                   sm_destination,
                              const T * __restrict__             gm_source)
 {
@@ -141,7 +141,7 @@ void pme_gpu_stage_atom_data(const pme_gpu_cuda_kernel_params_t kernelParams,
  */
 template <const int order,
           const int atomsPerBlock>
-__device__ __forceinline__ void calculate_splines(const pme_gpu_cuda_kernel_params_t     kernelParams,
+__device__ __forceinline__ void calculate_splines(const PmeGpuCudaKernelParams           kernelParams,
                                                   const int                              atomIndexOffset,
                                                   const float3 * __restrict__            sm_coordinates,
                                                   const float * __restrict__             sm_coefficients,
@@ -221,19 +221,19 @@ __device__ __forceinline__ void calculate_splines(const pme_gpu_cuda_kernel_para
                 case XX:
                     tableIndex  = kernelParams.grid.tablesOffsets[XX];
                     n           = kernelParams.grid.realGridSizeFP[XX];
-                    t           = x.x * kernelParams.step.recipBox[dimIndex][XX] + x.y * kernelParams.step.recipBox[dimIndex][YY] + x.z * kernelParams.step.recipBox[dimIndex][ZZ];
+                    t           = x.x * kernelParams.current.recipBox[dimIndex][XX] + x.y * kernelParams.current.recipBox[dimIndex][YY] + x.z * kernelParams.current.recipBox[dimIndex][ZZ];
                     break;
 
                 case YY:
                     tableIndex  = kernelParams.grid.tablesOffsets[YY];
                     n           = kernelParams.grid.realGridSizeFP[YY];
-                    t           = /*x.x * kernelParams.step.recipbox[dimIndex][XX] + */ x.y * kernelParams.step.recipBox[dimIndex][YY] + x.z * kernelParams.step.recipBox[dimIndex][ZZ];
+                    t           = /*x.x * kernelParams.current.recipbox[dimIndex][XX] + */ x.y * kernelParams.current.recipBox[dimIndex][YY] + x.z * kernelParams.current.recipBox[dimIndex][ZZ];
                     break;
 
                 case ZZ:
                     tableIndex  = kernelParams.grid.tablesOffsets[ZZ];
                     n           = kernelParams.grid.realGridSizeFP[ZZ];
-                    t           = /*x.x * kernelParams.step.recipbox[dimIndex][XX] + x.y * kernelParams.step.recipbox[dimIndex][YY] + */ x.z * kernelParams.step.recipBox[dimIndex][ZZ];
+                    t           = /*x.x * kernelParams.current.recipbox[dimIndex][XX] + x.y * kernelParams.current.recipbox[dimIndex][YY] + */ x.z * kernelParams.current.recipBox[dimIndex][ZZ];
                     break;
             }
             const float shift = c_pmeMaxUnitcellShift;
@@ -354,7 +354,7 @@ __device__ __forceinline__ void calculate_splines(const pme_gpu_cuda_kernel_para
  */
 template <
     const int order, const bool wrapX, const bool wrapY>
-__device__ __forceinline__ void spread_charges(const pme_gpu_cuda_kernel_params_t     kernelParams,
+__device__ __forceinline__ void spread_charges(const PmeGpuCudaKernelParams           kernelParams,
                                                int                                    atomIndexOffset,
                                                const float * __restrict__             sm_coefficients,
                                                const int * __restrict__               sm_gridlineIndices,
@@ -444,7 +444,7 @@ template <
     const bool wrapY
     >
 __launch_bounds__(c_spreadMaxThreadsPerBlock)
-__global__ void pme_spline_and_spread_kernel(const pme_gpu_cuda_kernel_params_t kernelParams)
+__global__ void pme_spline_and_spread_kernel(const PmeGpuCudaKernelParams kernelParams)
 {
     const int        atomsPerBlock = c_spreadMaxThreadsPerBlock / PME_SPREADGATHER_THREADS_PER_ATOM;
     // Gridline indices, ivec
@@ -491,7 +491,7 @@ __global__ void pme_spline_and_spread_kernel(const pme_gpu_cuda_kernel_params_t 
     }
 }
 
-void pme_gpu_spread(const pme_gpu_t *pmeGpu,
+void pme_gpu_spread(const PmeGpu    *pmeGpu,
                     int gmx_unused   gridIndex,
                     real            *h_grid,
                     bool             computeSplines,

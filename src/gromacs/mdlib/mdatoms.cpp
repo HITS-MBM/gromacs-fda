@@ -38,8 +38,12 @@
 
 #include "mdatoms.h"
 
-#include <math.h>
+#include <cmath>
 
+#include <memory>
+
+#include "gromacs/compat/make_unique.h"
+#include "gromacs/gpu_utils/hostallocator.h"
 #include "gromacs/math/functions.h"
 #include "gromacs/mdlib/gmx_omp_nthreads.h"
 #include "gromacs/mdlib/qmmm.h"
@@ -48,16 +52,41 @@
 #include "gromacs/topology/mtop_lookup.h"
 #include "gromacs/topology/mtop_util.h"
 #include "gromacs/topology/topology.h"
-#include "gromacs/utility/alignedallocator.h"
 #include "gromacs/utility/exceptions.h"
 #include "gromacs/utility/smalloc.h"
 
 #define ALMOST_ZERO 1e-30
 
-t_mdatoms *init_mdatoms(FILE *fp, const gmx_mtop_t &mtop, const t_inputrec &ir)
+namespace gmx
 {
+
+MDAtoms::MDAtoms()
+    : mdatoms_(nullptr), chargeA_()
+{
+}
+
+void MDAtoms::resize(int newSize)
+{
+    chargeA_.resize(newSize);
+    mdatoms_->chargeA = chargeA_.data();
+}
+
+void MDAtoms::reserve(int newCapacity)
+{
+    chargeA_.reserve(newCapacity);
+    mdatoms_->chargeA = chargeA_.data();
+}
+
+std::unique_ptr<MDAtoms>
+makeMDAtoms(FILE *fp, const gmx_mtop_t &mtop, const t_inputrec &ir,
+            bool useGpuForPme)
+{
+    auto       mdAtoms = compat::make_unique<MDAtoms>();
+    // GPU transfers want to use the pinning mode.
+    changePinningPolicy(&mdAtoms->chargeA_, useGpuForPme ? PinningPolicy::CanBePinned : PinningPolicy::CannotBePinned);
     t_mdatoms *md;
     snew(md, 1);
+    mdAtoms->mdatoms_.reset(md);
 
     md->nenergrp = mtop.groups.grps[egcENER].nr;
     md->bVCMgrps = (mtop.groups.grps[egcVCM].nr > 1);
@@ -66,6 +95,7 @@ t_mdatoms *init_mdatoms(FILE *fp, const gmx_mtop_t &mtop, const t_inputrec &ir)
     double                     totalMassA = 0.0;
     double                     totalMassB = 0.0;
 
+    md->haveVsites = FALSE;
     gmx_mtop_atomloop_block_t  aloop = gmx_mtop_atomloop_block_init(&mtop);
     const t_atom              *atom;
     int                        nmol;
@@ -73,6 +103,11 @@ t_mdatoms *init_mdatoms(FILE *fp, const gmx_mtop_t &mtop, const t_inputrec &ir)
     {
         totalMassA += nmol*atom->m;
         totalMassB += nmol*atom->mB;
+
+        if (atom->ptype == eptVSite)
+        {
+            md->haveVsites = TRUE;
+        }
 
         if (ir.efep != efepNO && PERTURBED(*atom))
         {
@@ -116,13 +151,15 @@ t_mdatoms *init_mdatoms(FILE *fp, const gmx_mtop_t &mtop, const t_inputrec &ir)
 
     md->bOrires = gmx_mtop_ftype_count(&mtop, F_ORIRES);
 
-    return md;
+    return mdAtoms;
 }
+
+} // namespace
 
 void atoms2md(const gmx_mtop_t *mtop, const t_inputrec *ir,
               int nindex, const int *index,
               int homenr,
-              t_mdatoms *md)
+              gmx::MDAtoms *mdAtoms)
 {
     gmx_bool              bLJPME;
     const t_grpopts      *opts;
@@ -135,6 +172,7 @@ void atoms2md(const gmx_mtop_t *mtop, const t_inputrec *ir,
 
     groups = &mtop->groups;
 
+    auto md = mdAtoms->mdatoms();
     /* nindex>=0 indicates DD where we use an index */
     if (nindex >= 0)
     {
@@ -161,7 +199,12 @@ void atoms2md(const gmx_mtop_t *mtop, const t_inputrec *ir,
         gmx::AlignedAllocationPolicy::free(md->invmass);
         md->invmass = new(gmx::AlignedAllocationPolicy::malloc((md->nalloc + GMX_REAL_MAX_SIMD_WIDTH)*sizeof(*md->invmass)))real;
         srenew(md->invMassPerDim, md->nalloc);
-        srenew(md->chargeA, md->nalloc);
+        // TODO eventually we will have vectors and just resize
+        // everything, but for now the semantics of md->nalloc being
+        // the capacity are preserved by keeping vectors within
+        // mdAtoms having the same properties as the other arrays.
+        mdAtoms->reserve(md->nalloc);
+        mdAtoms->resize(md->nr);
         srenew(md->typeA, md->nalloc);
         if (md->nPerturbed)
         {

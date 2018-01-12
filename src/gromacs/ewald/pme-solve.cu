@@ -81,7 +81,7 @@ template<
     bool computeEnergyAndVirial
     >
 __launch_bounds__(c_solveMaxThreadsPerBlock)
-__global__ void pme_solve_kernel(const struct pme_gpu_cuda_kernel_params_t kernelParams)
+__global__ void pme_solve_kernel(const struct PmeGpuCudaKernelParams kernelParams)
 {
     /* This kernel supports 2 different grid dimension orderings: YZX and XYZ */
     int majorDim, middleDim, minorDim;
@@ -218,14 +218,14 @@ __global__ void pme_solve_kernel(const struct pme_gpu_cuda_kernel_params_t kerne
 
         if (notZeroPoint)
         {
-            const float mhxk = mX * kernelParams.step.recipBox[XX][XX];
-            const float mhyk = mX * kernelParams.step.recipBox[XX][YY] + mY * kernelParams.step.recipBox[YY][YY];
-            const float mhzk = mX * kernelParams.step.recipBox[XX][ZZ] + mY * kernelParams.step.recipBox[YY][ZZ] + mZ * kernelParams.step.recipBox[ZZ][ZZ];
+            const float mhxk = mX * kernelParams.current.recipBox[XX][XX];
+            const float mhyk = mX * kernelParams.current.recipBox[XX][YY] + mY * kernelParams.current.recipBox[YY][YY];
+            const float mhzk = mX * kernelParams.current.recipBox[XX][ZZ] + mY * kernelParams.current.recipBox[YY][ZZ] + mZ * kernelParams.current.recipBox[ZZ][ZZ];
 
             const float m2k        = mhxk * mhxk + mhyk * mhyk + mhzk * mhzk;
             assert(m2k != 0.0f);
             //TODO: use LDG/textures for gm_splineValue
-            float       denom = m2k * float(M_PI) * kernelParams.step.boxVolume * gm_splineValueMajor[kMajor] * gm_splineValueMiddle[kMiddle] * gm_splineValueMinor[kMinor];
+            float       denom = m2k * float(M_PI) * kernelParams.current.boxVolume * gm_splineValueMajor[kMajor] * gm_splineValueMiddle[kMiddle] * gm_splineValueMinor[kMinor];
             assert(isfinite(denom));
             assert(denom != 0.0f);
             const float   tmp1   = expf(-kernelParams.grid.ewaldFactor * m2k);
@@ -417,7 +417,7 @@ __global__ void pme_solve_kernel(const struct pme_gpu_cuda_kernel_params_t kerne
     }
 }
 
-void pme_gpu_solve(const pme_gpu_t *pmeGpu, t_complex *h_grid,
+void pme_gpu_solve(const PmeGpu *pmeGpu, t_complex *h_grid,
                    GridOrdering gridOrdering, bool computeEnergyAndVirial)
 {
     const bool   copyInputAndOutputGrid = pme_gpu_is_testing(pmeGpu) || !pme_gpu_performs_FFT(pmeGpu);
@@ -427,7 +427,8 @@ void pme_gpu_solve(const pme_gpu_t *pmeGpu, t_complex *h_grid,
 
     if (copyInputAndOutputGrid)
     {
-        cu_copy_H2D_async(kernelParamsPtr->grid.d_fourierGrid, h_grid, pmeGpu->archSpecific->complexGridSize * sizeof(float), stream);
+        cu_copy_H2D(kernelParamsPtr->grid.d_fourierGrid, h_grid, pmeGpu->archSpecific->complexGridSize * sizeof(float),
+                    pmeGpu->settings.transferKind, stream);
     }
 
     int majorDim = -1, middleDim = -1, minorDim = -1;
@@ -489,16 +490,13 @@ void pme_gpu_solve(const pme_gpu_t *pmeGpu, t_complex *h_grid,
 
     if (computeEnergyAndVirial)
     {
-        cu_copy_D2H_async(pmeGpu->staging.h_virialAndEnergy, kernelParamsPtr->constants.d_virialAndEnergy,
-                          c_virialAndEnergyCount * sizeof(float), stream);
-        cudaError_t stat = cudaEventRecord(pmeGpu->archSpecific->syncEnerVirD2H, stream);
-        CU_RET_ERR(stat, "PME solve energy/virial event record failure");
+        cu_copy_D2H(pmeGpu->staging.h_virialAndEnergy, kernelParamsPtr->constants.d_virialAndEnergy,
+                    c_virialAndEnergyCount * sizeof(float), pmeGpu->settings.transferKind, stream);
     }
 
     if (copyInputAndOutputGrid)
     {
-        cu_copy_D2H_async(h_grid, kernelParamsPtr->grid.d_fourierGrid, pmeGpu->archSpecific->complexGridSize * sizeof(float), stream);
-        cudaError_t stat = cudaEventRecord(pmeGpu->archSpecific->syncSolveGridD2H, stream);
-        CU_RET_ERR(stat, "PME solve grid sync event record failure");
+        cu_copy_D2H(h_grid, kernelParamsPtr->grid.d_fourierGrid, pmeGpu->archSpecific->complexGridSize * sizeof(float),
+                    pmeGpu->settings.transferKind, stream);
     }
 }

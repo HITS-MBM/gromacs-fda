@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014,2015,2017, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2017,2018, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -130,8 +130,10 @@ struct do_fspline
         return f;
     }
 
-#ifdef PME_SIMD4_UNALIGNED //TODO: Consider always have at least a dummy implementation of Simd (enough for first phase of two-phase lookup) and then use enable_if instead of #ifdef
+//TODO: Consider always have at least a dummy implementation of Simd (enough for first phase of two-phase lookup) and then use enable_if instead of #ifdef
+#if PME_4NSIMD_GATHER
 /* Gather for one charge with pme_order=4 with unaligned SIMD4 load+store.
+ * Uses 4N SIMD where N is SIMD_WIDTH/4 to operate on all of z and N of y.
  * This code does not assume any memory alignment for the grid.
  */
     RVec
@@ -146,30 +148,32 @@ struct do_fspline
         const real *const gmx_restrict dthy = spline->dtheta[YY] + norder;
         const real *const gmx_restrict dthz = spline->dtheta[ZZ] + norder;
 
-        Simd4Real                      fx_S = setZero();
-        Simd4Real                      fy_S = setZero();
-        Simd4Real                      fz_S = setZero();
+        Simd4NReal                     fx_S = setZero();
+        Simd4NReal                     fy_S = setZero();
+        Simd4NReal                     fz_S = setZero();
 
         /* With order 4 the z-spline is actually aligned */
-        const Simd4Real tz_S = load4(thz);
-        const Simd4Real dz_S = load4(dthz);
+        const Simd4NReal tz_S = load4DuplicateN(thz);
+        const Simd4NReal dz_S = load4DuplicateN(dthz);
 
-        for (int ithx = 0; (ithx < 4); ithx++)
+        for (int ithx = 0; ithx < 4; ithx++)
         {
-            const int       index_x = (idxX + ithx)*gridNY*gridNZ;
-            const Simd4Real tx_S    = Simd4Real(thx[ithx]);
-            const Simd4Real dx_S    = Simd4Real(dthx[ithx]);
+            const int        index_x = (idxX + ithx)*gridNY*gridNZ;
+            const Simd4NReal tx_S    = Simd4NReal(thx[ithx]);
+            const Simd4NReal dx_S    = Simd4NReal(dthx[ithx]);
 
-            for (int ithy = 0; (ithy < 4); ithy++)
+            for (int ithy = 0; ithy < 4; ithy += GMX_SIMD4N_REAL_WIDTH/4)
             {
-                const int       index_xy = index_x + (idxY + ithy)*gridNZ;
-                const Simd4Real ty_S     = Simd4Real(thy[ithy]);
-                const Simd4Real dy_S     = Simd4Real(dthy[ithy]);
+                const int        index_xy = index_x + (idxY+ithy)*gridNZ;
 
-                const Simd4Real gval_S = load4U(grid + index_xy + idxZ);
+                const Simd4NReal ty_S = loadUNDuplicate4(thy +ithy);
+                const Simd4NReal dy_S = loadUNDuplicate4(dthy+ithy);
 
-                const Simd4Real fxy1_S = tz_S * gval_S;
-                const Simd4Real fz1_S  = dz_S * gval_S;
+                const Simd4NReal gval_S = loadU4NOffset(grid+index_xy+idxZ, gridNZ);
+
+
+                const Simd4NReal fxy1_S = tz_S * gval_S;
+                const Simd4NReal fz1_S  = dz_S * gval_S;
 
                 fx_S = fma(dx_S * ty_S, fxy1_S, fx_S);
                 fy_S = fma(tx_S * dy_S, fxy1_S, fy_S);
@@ -189,11 +193,11 @@ struct do_fspline
     static inline void loadOrderU(const real* data, std::integral_constant<int, order>,
                                   int offset, Simd4Real* S0, Simd4Real* S1)
     {
-#ifdef PME_SIMD4_UNALIGNED //TODO: Extract into helper function
+#ifdef PME_SIMD4_UNALIGNED
         *S0 = load4U(data-offset);
         *S1 = load4U(data-offset+4);
 #else
-        GMX_ALIGNED(real, GMX_SIMD4_WIDTH)  buf_aligned[GMX_SIMD4_WIDTH*2];
+        alignas(GMX_SIMD_ALIGNMENT) real  buf_aligned[GMX_SIMD4_WIDTH*2];
         /* Copy data to an aligned buffer */
         for (int i = 0; i < order; i++)
         {

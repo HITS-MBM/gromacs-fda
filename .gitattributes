@@ -28,6 +28,7 @@ cmake/Platform/BluegeneQ*.cmake         !filter
 cmake/*.c                               -filter -gmx-doxygen
 cmake/*.cpp                             -filter -gmx-doxygen
 cmake/*.c.cmakein                       !filter
+cmake/FindCUDA/*.cmake                  !filter
 docs/doxygen/Doxyfile-*.cmakein         !filter
 docs/doxygen/*.cpp                      !filter
 docs/doxygen/examples/*.cpp             filter=uncrustify_only
@@ -35,8 +36,8 @@ docs/doxygen/examples/*.c               filter=uncrustify_only
 docs/manual/UseLATEX.cmake              !filter
 scripts/GMXRC.*                         !filter
 scripts/make_gromos_rtp.py              !filter
+share/template/template.cpp             filter=copyright
 share/template/README.cmakein           !filter
-src/contrib/*                           -filter -gmx-doxygen
 src/gromacs/gmxlib/nonbonded/preprocessor/gmxpreprocess.py !filter
 src/gromacs/linearalgebra/gmx_blas/*    !filter
 src/gromacs/linearalgebra/gmx_lapack/*  !filter

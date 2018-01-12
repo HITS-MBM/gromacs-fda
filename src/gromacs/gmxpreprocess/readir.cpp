@@ -47,6 +47,7 @@
 #include <algorithm>
 #include <string>
 
+#include "gromacs/awh/read-params.h"
 #include "gromacs/fileio/readinp.h"
 #include "gromacs/fileio/warninp.h"
 #include "gromacs/gmxlib/chargegroup.h"
@@ -372,6 +373,12 @@ void check_ir(const char *mdparin, t_inputrec *ir, t_gromppopts *opts,
         if (ir->implicit_solvent != eisNO)
         {
             warning_error(wi, "Implicit solvent is not (yet) supported with the with Verlet lists.");
+        }
+
+        if (EEL_USER(ir->coulombtype))
+        {
+            sprintf(warn_buf, "Coulomb type %s is not supported with the verlet scheme", eel_names[ir->coulombtype]);
+            warning_error(wi, warn_buf);
         }
 
         if (ir->nstlist <= 0)
@@ -2092,6 +2099,22 @@ void get_ir(const char *mdparin, const char *mdparout,
     {
         snew(ir->pull, 1);
         is->pull_grp = read_pullparams(&ninp, &inp, ir->pull, wi);
+    }
+
+    /* AWH biasing
+       NOTE: needs COM pulling input */
+    CCTYPE("AWH biasing");
+    EETYPE("awh", ir->bDoAwh, yesno_names);
+    if (ir->bDoAwh)
+    {
+        if (ir->bPull)
+        {
+            ir->awhParams = gmx::readAndCheckAwhParams(&ninp, &inp, ir, wi);
+        }
+        else
+        {
+            gmx_fatal(FARGS, "AWH biasing is only compatible with COM pulling turned on");
+        }
     }
 
     /* Enforced rotation */

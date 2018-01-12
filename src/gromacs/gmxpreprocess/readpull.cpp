@@ -508,15 +508,15 @@ pull_t *set_pull_init(t_inputrec *ir, const gmx_mtop_t *mtop,
 {
     pull_params_t *pull;
     pull_t        *pull_work;
-    t_mdatoms     *md;
     t_pbc          pbc;
     int            c;
     double         t_start;
 
     pull      = ir->pull;
     pull_work = init_pull(nullptr, pull, ir, 0, nullptr, mtop, nullptr, oenv, lambda, FALSE, ContinuationOptions());
-    md        = init_mdatoms(nullptr, *mtop, *ir);
-    atoms2md(mtop, ir, -1, nullptr, mtop->natoms, md);
+    auto mdAtoms = gmx::makeMDAtoms(nullptr, *mtop, *ir, false);
+    auto md      = mdAtoms->mdatoms();
+    atoms2md(mtop, ir, -1, nullptr, mtop->natoms, mdAtoms.get());
     if (ir->efep)
     {
         update_mdatoms(md, lambda);
@@ -551,7 +551,7 @@ pull_t *set_pull_init(t_inputrec *ir, const gmx_mtop_t *mtop,
             pcrd->init = 0;
         }
 
-        get_pull_coord_value(pull_work, c, &pbc, &value);
+        value  = get_pull_coord_value(pull_work, c, &pbc);
 
         value *= pull_conversion_factor_internal2userinput(pcrd);
         fprintf(stderr, " %10.3f %s", value, pull_coordinate_units(pcrd));

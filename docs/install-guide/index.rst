@@ -112,6 +112,10 @@ Other compilers may work (Cray, Pathscale, older clang) but do
 not offer competitive performance. We recommend against PGI because
 the performance with C++ is very bad.
 
+The xlc compiler is not supported and has not been tested on POWER
+architectures for |Gromacs|\ -\ |version|. We recommend to use the gcc
+compiler instead, as it is being extensively tested.
+
 You may also need the most recent version of other compiler toolchain
 components beside the compiler itself (e.g. assembler or linker);
 these are often shipped by your OS distribution's binutils package.
@@ -324,8 +328,8 @@ Other optional build components
   source already.
 * zlib is used by TNG for compressing some kinds of trajectory data
 * Building the |Gromacs| documentation is optional, and requires
-  ImageMagick, pdflatex, bibtex, doxygen, python 2.7, sphinx 1.2.4,
-  and pygments.
+  ImageMagick, pdflatex, bibtex, doxygen, python 2.7, sphinx 
+  |EXPECTED_SPHINX_VERSION|, and pygments.
 * The |Gromacs| utility programs often write data files in formats
   suitable for the Grace plotting tool, but it is straightforward to
   use these files in other plotting programs, too.
@@ -338,6 +342,8 @@ resources available on the web, which we suggest you search for when
 you encounter problems not covered here. The material below applies
 specifically to builds on Unix-like systems, including Linux, and Mac
 OS X. For other platforms, see the specialist instructions below.
+
+.. _configure-cmake:
 
 Configuring with CMake
 ----------------------
@@ -595,17 +601,18 @@ this `NVIDIA blog post
 NVML support is only available if detected, and may be disabled by
 turning off the ``GMX_USE_NVML`` CMake advanced option.
 
-By default, optimized code will be generated for CUDA architectures
-supported by the nvcc compiler (and the |Gromacs| build system). 
-However, it can be beneficial to manually pick the specific CUDA architecture(s)
-to generate code for either to reduce compilation time (and binary size) or to
-target a new architecture not yet supported by the |Gromacs| build system.
-Setting the desired CUDA architecture(s) and virtual architecture(s)
-can be done using the ``GMX_CUDA_TARGET_SM`` and ``GMX_CUDA_TARGET_COMPUTE``
-variables, respectively. These take a semicolon delimited string with 
-the two digit suffixes of CUDA (virtual) architectures names
-(for details see the "Options for steering GPU code generation" section of the
-nvcc man / help or Chapter 6. of the nvcc manual).
+By default, code will be generated for the most common CUDA architectures.
+However, to reduce build time and binary size we do not generate code for
+every single possible architecture, which in rare cases (say, Tegra systems)
+can result in the default build not being able to use some GPUs.
+If this happens, or if you want to remove some architectures to reduce
+binary size and build time, you can alter the target CUDA architectures. 
+This can be done either with the ``GMX_CUDA_TARGET_SM`` or
+``GMX_CUDA_TARGET_COMPUTE`` CMake variables, which take a semicolon delimited
+string with the two digit suffixes of CUDA (virtual) architectures names, for
+instance "35;50;51;52;53;60". For details, see the "Options for steering GPU
+code generation" section of the nvcc man / help or Chapter 6. of the nvcc
+manual.
 
 The GPU acceleration has been tested on AMD64/x86-64 platforms with
 Linux, Mac OS X and Windows operating systems, but Linux is the
@@ -1012,6 +1019,8 @@ follow these steps to find the solution:
    questions, so you will get an answer faster if you provide as much
    information as you think could possibly help. High quality bug
    reports tend to receive rapid high quality answers.
+
+.. _gmx-special-build:
 
 Special instructions for some platforms
 =======================================

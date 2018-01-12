@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2010, The GROMACS development team.
- * Copyright (c) 2012,2013,2014,2015,2016,2017, by the GROMACS development team, led by
+ * Copyright (c) 2012,2013,2014,2015,2016,2017,2018, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -47,6 +47,9 @@
 
 #include <cstdio>
 
+#include <string>
+#include <vector>
+
 #include "gromacs/gpu_utils/gpu_macros.h"
 #include "gromacs/utility/basedefinitions.h"
 
@@ -58,31 +61,57 @@ namespace gmx
 class MDLogger;
 }
 
-/*! \brief Detect all GPUs in the system.
+//! Enum which is only used to describe transfer calls at the moment
+enum class GpuApiCallBehavior
+{
+    Sync,
+    Async
+};
+
+//! Types of actions associated to waiting or checking the completion of GPU tasks
+enum class GpuTaskCompletion
+{
+    Wait, /*<< Issue a blocking wait for the task */
+    Check /*<< Only check whether the task has completed */
+};
+
+/*! \brief Return whether GPUs can be detected
  *
- *  Will detect every GPU supported by the device driver in use. Also
- *  check for the compatibility of each and fill the gpu_info->gpu_dev array
- *  with the required information on each the device: ID, device properties,
- *  status.
+ * Returns true when this is a build of \Gromacs configured to support
+ * GPU usage, and a valid device driver, ICD, and/or runtime was detected.
+ *
+ * \param[out] errorMessage  When returning false and non-nullptr was passed,
+ *                           the string contains a descriptive message about
+ *                           why GPUs cannot be detected.
+ *
+ * Does not throw. */
+GPU_FUNC_QUALIFIER
+bool canDetectGpus(std::string *GPU_FUNC_ARGUMENT(errorMessage)) GPU_FUNC_TERM_WITH_RETURN(false);
+
+/*! \brief Find all GPUs in the system.
+ *
+ *  Will detect every GPU supported by the device driver in use. Must
+ *  only be called if canDetectGpus() has returned true. This routine
+ *  also checks for the compatibility of each and fill the
+ *  gpu_info->gpu_dev array with the required information on each the
+ *  device: ID, device properties, status.
  *
  *  \param[in] gpu_info    pointer to structure holding GPU information.
- *  \param[out] err_str    The error message of any GPU API error that caused
- *                         the detection to fail (if there was any). The memory
- *                         the pointer points to should be managed externally.
- *  \returns               non-zero if the detection encountered a failure, zero otherwise.
- */
-GPU_FUNC_QUALIFIER
-int detect_gpus(struct gmx_gpu_info_t *GPU_FUNC_ARGUMENT(gpu_info), char *GPU_FUNC_ARGUMENT(err_str)) GPU_FUNC_TERM_WITH_RETURN(-1)
-
-/*! \brief Return whether the GPU with given \c index is compatible, ie suitable for use.
  *
- * \param[in]   gpu_info    Information about detected GPUs
- * \param[in]   index       index of GPU to ask about
- * \returns                 Whether the GPU is compatible.
+ *  \throws                InternalError if a GPU API returns an unexpected failure (because
+ *                         the call to canDetectGpus() should always prevent this occuring)
  */
 GPU_FUNC_QUALIFIER
-bool isGpuCompatible(const gmx_gpu_info_t &GPU_FUNC_ARGUMENT(gpu_info),
-                     int GPU_FUNC_ARGUMENT(index)) GPU_FUNC_TERM_WITH_RETURN(false)
+void findGpus(struct gmx_gpu_info_t *GPU_FUNC_ARGUMENT(gpu_info)) GPU_FUNC_TERM
+
+/*! \brief Return a container of the detected GPUs that are compatible.
+ *
+ * This function filters the result of the detection for compatible
+ * GPUs, based on the previously run compatibility tests.
+ *
+ * \param[in]     gpu_info    Information detected about GPUs, including compatibility.
+ * \return                    vector of IDs of GPUs already recorded as compatible */
+std::vector<int> getCompatibleGpus(const gmx_gpu_info_t &gpu_info);
 
 /*! \brief Return a string describing how compatible the GPU with given \c index is.
  *
@@ -90,9 +119,8 @@ bool isGpuCompatible(const gmx_gpu_info_t &GPU_FUNC_ARGUMENT(gpu_info),
  * \param[in]   index       index of GPU to ask about
  * \returns                 A null-terminated C string describing the compatibility status, useful for error messages.
  */
-GPU_FUNC_QUALIFIER
 const char *getGpuCompatibilityDescription(const gmx_gpu_info_t &GPU_FUNC_ARGUMENT(gpu_info),
-                                           int GPU_FUNC_ARGUMENT(index)) GPU_FUNC_TERM_WITH_RETURN("")
+                                           int GPU_FUNC_ARGUMENT(index));
 
 /*! \brief Frees the gpu_dev and dev_use array fields of \p gpu_info.
  *
@@ -107,7 +135,6 @@ void free_gpu_info(const struct gmx_gpu_info_t *GPU_FUNC_ARGUMENT(gpu_info)) GPU
  * the patterns here are the same as elsewhere in this header.
  *
  *  param[in]    mdlog        log file to write to
- *  param[in]    rank         MPI rank of this process (for error output)
  * \param[inout] deviceInfo   device info of the GPU to initialize
  *
  * Issues a fatal error for any critical errors that occur during
@@ -115,23 +142,25 @@ void free_gpu_info(const struct gmx_gpu_info_t *GPU_FUNC_ARGUMENT(gpu_info)) GPU
  */
 GPU_FUNC_QUALIFIER
 void init_gpu(const gmx::MDLogger &GPU_FUNC_ARGUMENT(mdlog),
-              int GPU_FUNC_ARGUMENT(rank),
               gmx_device_info_t *GPU_FUNC_ARGUMENT(deviceInfo)) GPU_FUNC_TERM
 
 /*! \brief Frees up the CUDA GPU used by the active context at the time of calling.
  *
- * The context is explicitly destroyed and therefore all data uploaded to the GPU
- * is lost. This should only be called when none of this data is required anymore.
+ * If \c deviceInfo is nullptr, then it is understood that no device
+ * was selected so no context is active to be freed. Otherwise, the
+ * context is explicitly destroyed and therefore all data uploaded to
+ * the GPU is lost. This must only be called when none of this data is
+ * required anymore, because subsequent attempts to free memory
+ * associated with the context will otherwise fail.
+ *
+ * Calls gmx_warning upon errors.
  *
  * \param[in]  deviceInfo   device info of the GPU to clean up for
- * \param[out] result_str   the message related to the error that occurred
- *                          during the initialization (if there was any).
  *
  * \returns                 true if no error occurs during the freeing.
  */
 CUDA_FUNC_QUALIFIER
-gmx_bool free_cuda_gpu(const gmx_device_info_t *CUDA_FUNC_ARGUMENT(deviceInfo),
-                       char *CUDA_FUNC_ARGUMENT(result_str)) CUDA_FUNC_TERM_WITH_RETURN(TRUE)
+void free_gpu(const gmx_device_info_t *CUDA_FUNC_ARGUMENT(deviceInfo)) CUDA_FUNC_TERM
 
 /*! \brief Return a pointer to the device info for \c deviceId
  *
@@ -235,5 +264,8 @@ void resetGpuProfiler(void) CUDA_FUNC_TERM
 CUDA_FUNC_QUALIFIER
 void stopGpuProfiler(void) CUDA_FUNC_TERM
 
+//! Tells whether the host buffer was pinned for non-blocking transfers. Only implemented for CUDA.
+CUDA_FUNC_QUALIFIER
+bool isHostMemoryPinned(void *CUDA_FUNC_ARGUMENT(h_ptr)) CUDA_FUNC_TERM_WITH_RETURN(false)
 
 #endif

@@ -52,6 +52,7 @@
 #include "gromacs/ewald/pme-solve.h"
 #include "gromacs/ewald/pme-spread.h"
 #include "gromacs/fft/parallel_3dfft.h"
+#include "gromacs/gpu_utils/gpu_utils.h"
 #include "gromacs/math/invertmatrix.h"
 #include "gromacs/mdtypes/commrec.h"
 #include "gromacs/pbcutil/pbc.h"
@@ -86,10 +87,13 @@ bool pmeSupportsInputForMode(const t_inputrec *inputRec, CodePath mode)
     return implemented;
 }
 
-FloatingPointTolerance getSplineTolerance(gmx_int64_t toleranceUlps)
+gmx_uint64_t getSplineModuliDoublePrecisionUlps(int splineOrder)
 {
-    /* Double precision is more affected by error propagation, as moduli are always computed in double. */
-    return relativeToleranceAsPrecisionDependentUlp(1.0, toleranceUlps, 2 * toleranceUlps);
+    /* Arbitrary ulp tolerance for sine/cosine implementation. It's
+     * hard to know what to pick without testing lots of
+     * implementations. */
+    const gmx_uint64_t sineUlps = 10;
+    return 4 * (splineOrder - 2) + 2 * sineUlps * splineOrder;
 }
 
 //! PME initialization - internal
@@ -102,12 +106,15 @@ static PmeSafePointer pmeInitInternal(const t_inputrec         *inputRec,
                                       real                      ewaldCoeff_lj = 1.0f
                                       )
 {
-    gmx_pme_t     *pmeDataRaw = nullptr;
     const MDLogger dummyLogger;
+    if (gpuInfo)
+    {
+        init_gpu(dummyLogger, gpuInfo);
+    }
     const auto     runMode       = (mode == CodePath::CPU) ? PmeRunMode::CPU : PmeRunMode::GPU;
     t_commrec      dummyCommrec  = {0};
-    gmx_pme_init(&pmeDataRaw, &dummyCommrec, 1, 1, inputRec, atomCount, false, false, true,
-                 ewaldCoeff_q, ewaldCoeff_lj, 1, runMode, nullptr, gpuInfo, dummyLogger);
+    gmx_pme_t     *pmeDataRaw    = gmx_pme_init(&dummyCommrec, 1, 1, inputRec, atomCount, false, false, true,
+                                                ewaldCoeff_q, ewaldCoeff_lj, 1, runMode, nullptr, gpuInfo, dummyLogger);
     PmeSafePointer pme(pmeDataRaw); // taking ownership
 
     // TODO get rid of this with proper matrix type
@@ -389,8 +396,24 @@ void pmePerformGather(gmx_pme_t *pme, CodePath mode,
             break;
 
         case CodePath::CUDA:
-            pme_gpu_gather(pme->gpu, reinterpret_cast<float *>(forces.begin()), inputTreatment, reinterpret_cast<float *>(fftgrid));
-            break;
+        {
+            // Variable initialization needs a non-switch scope
+            auto stagingForces = pme_gpu_get_forces(pme->gpu);
+            GMX_ASSERT(forces.size() == stagingForces.size(), "Size of force buffers did not match");
+            if (forceReductionWithInput)
+            {
+                for (size_t i = 0; i != forces.size(); ++i)
+                {
+                    stagingForces[i] = forces[i];
+                }
+            }
+            pme_gpu_gather(pme->gpu, inputTreatment, reinterpret_cast<float *>(fftgrid));
+            for (size_t i = 0; i != forces.size(); ++i)
+            {
+                forces[i] = stagingForces[i];
+            }
+        }
+        break;
 
         default:
             GMX_THROW(InternalError("Test not implemented for this mode"));
@@ -562,7 +585,7 @@ SplineParamsDimVector pmeGetSplineData(const gmx_pme_t *pme, CodePath mode,
         // fallthrough
 
         case CodePath::CPU:
-            result = SplineParamsDimVector::fromArray(sourceBuffer, dimSize);
+            result = arrayRefFromArray(sourceBuffer, dimSize);
             break;
 
         default:
@@ -582,11 +605,11 @@ GridLineIndicesVector pmeGetGridlineIndices(const gmx_pme_t *pme, CodePath mode)
     switch (mode)
     {
         case CodePath::CUDA:
-            gridLineIndices = GridLineIndicesVector::fromArray(reinterpret_cast<IVec *>(pme->gpu->staging.h_gridlineIndices), atomCount);
+            gridLineIndices = arrayRefFromArray(reinterpret_cast<IVec *>(pme->gpu->staging.h_gridlineIndices), atomCount);
             break;
 
         case CodePath::CPU:
-            gridLineIndices = GridLineIndicesVector::fromArray(reinterpret_cast<IVec *>(atc->idx), atomCount);
+            gridLineIndices = arrayRefFromArray(reinterpret_cast<IVec *>(atc->idx), atomCount);
             break;
 
         default:

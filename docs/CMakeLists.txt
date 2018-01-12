@@ -104,7 +104,10 @@ if (SPHINX_FOUND)
         download.rst
         dev-manual/index.rst
         dev-manual/build-system.rst
+        dev-manual/commitstyle.rst
+        dev-manual/documentation-generation.rst
         dev-manual/doxygen.rst
+        dev-manual/error-handling.rst
         dev-manual/formatting.rst
         dev-manual/gmxtree.rst
         dev-manual/includestyle.rst
@@ -112,7 +115,9 @@ if (SPHINX_FOUND)
         dev-manual/language-features.rst
         dev-manual/naming.rst
         dev-manual/overview.rst
+        dev-manual/redmine-states.png
         dev-manual/relocatable-binaries.rst
+        dev-manual/reportstyle.rst
         dev-manual/style.rst
         dev-manual/testutils.rst
         dev-manual/tools.rst
@@ -120,11 +125,14 @@ if (SPHINX_FOUND)
         fragments/doxygen-links.rst
         install-guide/index.rst
         user-guide/index.rst
+        user-guide/cutoff-schemes.rst
         user-guide/getting-started.rst
+        user-guide/force-fields.rst
+        user-guide/faq.rst
         user-guide/flow.rst
         user-guide/floating-point.rst
+        user-guide/how-to.rst
         user-guide/system-preparation.rst
-        user-guide/cutoff-schemes.rst
         user-guide/managing-simulations.rst
         user-guide/mdrun-features.rst
         user-guide/mdrun-performance.rst

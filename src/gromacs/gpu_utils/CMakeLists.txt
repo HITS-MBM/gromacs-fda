@@ -1,7 +1,7 @@
 #
 # This file is part of the GROMACS molecular simulation package.
 #
-# Copyright (c) 2015,2016, by the GROMACS development team, led by
+# Copyright (c) 2015,2016,2017, by the GROMACS development team, led by
 # Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
 # and including many others, as listed in the AUTHORS file in the
 # top-level source directory and at http://www.gromacs.org.
@@ -32,12 +32,32 @@
 # To help us fund GROMACS development, we humbly ask that you cite
 # the research papers on the package. Check out http://www.gromacs.org.
 
-if (GMX_USE_OPENCL)
-    gmx_add_libgromacs_sources(gpu_utils_ocl.cpp ocl_compiler.cpp ocl_caching.cpp oclutils.cpp)
+gmx_add_libgromacs_sources(
+        hostallocator.cpp
+        )
+if(GMX_USE_OPENCL)
+    gmx_add_libgromacs_sources(
+        gpu_utils_ocl.cpp
+        ocl_compiler.cpp
+        ocl_caching.cpp
+        oclutils.cpp
+        )
+elseif(GMX_USE_CUDA)
+    gmx_add_libgromacs_sources(
+        cudautils.cu
+        gpu_utils.cu
+        pinning.cu
+        pmalloc_cuda.cu
+        )
+else()
+    gmx_add_libgromacs_sources(
+        gpu_utils.cpp
+        )
 endif()
-if (GMX_USE_CUDA)
-    gmx_add_libgromacs_sources(cudautils.cu gpu_utils.cu pmalloc_cuda.cu)
-endif()
-if (NOT GMX_USE_OPENCL AND NOT GMX_USE_CUDA)
-    gmx_add_libgromacs_sources(gpu_utils.cpp)
+
+# workaround for the state - host allocator dependency
+gmx_install_headers(hostallocator.h)
+
+if (BUILD_TESTING)
+    add_subdirectory(tests)
 endif()

@@ -105,8 +105,11 @@ static const char *wcn[ewcNR] =
     "DD comm. bounds", "Vsite constr.", "Send X to PME", "Neighbor search", "Launch GPU ops.",
     "Comm. coord.", "Born radii", "Force", "Wait + Comm. F", "PME mesh",
     "PME redist. X/F", "PME spread", "PME gather", "PME 3D-FFT", "PME 3D-FFT Comm.", "PME solve LJ", "PME solve Elec",
-    "PME wait for PP", "Wait + Recv. PME F", "Wait PME GPU spread", "Wait PME GPU gather", "Wait GPU NB nonloc.", "Wait GPU NB local", "NB X/F buffer ops.",
-    "Vsite spread", "COM pull force",
+    "PME wait for PP", "Wait + Recv. PME F",
+    "Wait PME GPU spread", "PME 3D-FFT", "PME solve", /* the strings for FFT/solve are repeated here for mixed mode counters */
+    "Wait PME GPU gather", "Reduce GPU PME F",
+    "Wait GPU NB nonloc.", "Wait GPU NB local", "NB X/F buffer ops.",
+    "Vsite spread", "COM pull force", "AWH",
     "Write traj.", "Update", "Constraints", "Comm. energies",
     "Enforced rotation", "Add rot. forces", "Position swapping", "IMD", "Test"
 };
@@ -132,13 +135,13 @@ static const char *wcsn[ewcsNR] =
 /* PME GPU timing events' names - correspond to the enum in the gpu_timing.h */
 static const char *PMEStageNames[] =
 {
-    "Spline",
-    "Spread",
-    "Spline/spread",
-    "FFT r2c",
-    "Solve",
-    "FFT c2r",
-    "Gather",
+    "PME spline",
+    "PME spread",
+    "PME spline + spread",
+    "PME 3D-FFT r2c",
+    "PME solve",
+    "PME 3D-FFT c2r",
+    "PME gather",
 };
 
 gmx_bool wallcycle_have_counter(void)

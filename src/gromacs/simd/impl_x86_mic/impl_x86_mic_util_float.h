@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2014,2015,2016,2017, by the GROMACS development team, led by
+ * Copyright (c) 2014,2015,2016,2017,2018, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -70,11 +70,11 @@ gatherLoadBySimdIntTranspose(const float *  base,
     // but multiplication otherwise.
     if (align == 4)
     {
-        simdoffset = simdoffset << 2;
+        simdoffset.simdInternal_ = _mm512_slli_epi32(simdoffset.simdInternal_, 2);
     }
     else if (align == 8)
     {
-        simdoffset = simdoffset << 3;
+        simdoffset.simdInternal_ = _mm512_slli_epi32(simdoffset.simdInternal_, 3);
     }
     else
     {
@@ -108,11 +108,11 @@ gatherLoadUBySimdIntTranspose(const float *  base,
     {
         if (align == 4)
         {
-            simdoffset = simdoffset << 2;
+            simdoffset.simdInternal_ = _mm512_slli_epi32(simdoffset.simdInternal_, 2);
         }
         else if (align == 8)
         {
-            simdoffset = simdoffset << 3;
+            simdoffset.simdInternal_ = _mm512_slli_epi32(simdoffset.simdInternal_, 3);
         }
         else
         {
@@ -178,11 +178,11 @@ gatherLoadUTranspose(const float *        base,
     // but multiplication otherwise.
     if (align == 4)
     {
-        simdoffset = simdoffset << 2;
+        simdoffset.simdInternal_ = _mm512_slli_epi32(simdoffset.simdInternal_, 2);
     }
     else if (align == 8)
     {
-        simdoffset = simdoffset << 3;
+        simdoffset.simdInternal_ = _mm512_slli_epi32(simdoffset.simdInternal_, 3);
     }
     else
     {
@@ -214,11 +214,11 @@ transposeScatterStoreU(float *              base,
     // but multiplication otherwise.
     if (align == 4)
     {
-        simdoffset = simdoffset << 2;
+        simdoffset.simdInternal_ = _mm512_slli_epi32(simdoffset.simdInternal_, 2);
     }
     else if (align == 8)
     {
-        simdoffset = simdoffset << 3;
+        simdoffset.simdInternal_ = _mm512_slli_epi32(simdoffset.simdInternal_, 3);
     }
     else
     {
@@ -239,9 +239,9 @@ transposeScatterIncrU(float *              base,
                       SimdFloat            v1,
                       SimdFloat            v2)
 {
-    GMX_ALIGNED(float, GMX_SIMD_FLOAT_WIDTH)  rdata0[GMX_SIMD_FLOAT_WIDTH];
-    GMX_ALIGNED(float, GMX_SIMD_FLOAT_WIDTH)  rdata1[GMX_SIMD_FLOAT_WIDTH];
-    GMX_ALIGNED(float, GMX_SIMD_FLOAT_WIDTH)  rdata2[GMX_SIMD_FLOAT_WIDTH];
+    alignas(GMX_SIMD_ALIGNMENT) float  rdata0[GMX_SIMD_FLOAT_WIDTH];
+    alignas(GMX_SIMD_ALIGNMENT) float  rdata1[GMX_SIMD_FLOAT_WIDTH];
+    alignas(GMX_SIMD_ALIGNMENT) float  rdata2[GMX_SIMD_FLOAT_WIDTH];
 
     store(rdata0, v0);
     store(rdata1, v1);
@@ -263,9 +263,9 @@ transposeScatterDecrU(float *              base,
                       SimdFloat            v1,
                       SimdFloat            v2)
 {
-    GMX_ALIGNED(float, GMX_SIMD_FLOAT_WIDTH)  rdata0[GMX_SIMD_FLOAT_WIDTH];
-    GMX_ALIGNED(float, GMX_SIMD_FLOAT_WIDTH)  rdata1[GMX_SIMD_FLOAT_WIDTH];
-    GMX_ALIGNED(float, GMX_SIMD_FLOAT_WIDTH)  rdata2[GMX_SIMD_FLOAT_WIDTH];
+    alignas(GMX_SIMD_ALIGNMENT) float  rdata0[GMX_SIMD_FLOAT_WIDTH];
+    alignas(GMX_SIMD_ALIGNMENT) float  rdata1[GMX_SIMD_FLOAT_WIDTH];
+    alignas(GMX_SIMD_ALIGNMENT) float  rdata2[GMX_SIMD_FLOAT_WIDTH];
 
     store(rdata0, v0);
     store(rdata1, v1);
@@ -347,7 +347,7 @@ loadDuplicateHsimd(const float * m)
 }
 
 static inline SimdFloat gmx_simdcall
-load1DualHsimd(const float * m)
+loadU1DualHsimd(const float * m)
 {
     return _mm512_mask_extload_ps(_mm512_extload_ps(m, _MM_UPCONV_PS_NONE, _MM_BROADCAST_1X16, _MM_HINT_NONE), _mm512_int2mask(0xFF00),
                                   m+1, _MM_UPCONV_PS_NONE, _MM_BROADCAST_1X16, _MM_HINT_NONE);

@@ -40,6 +40,7 @@ endif()
 
 set_property(GLOBAL PROPERTY GMX_LIBGROMACS_SOURCES)
 set_property(GLOBAL PROPERTY GMX_INSTALLED_HEADERS)
+set_property(GLOBAL PROPERTY GMX_AVX_512_SOURCE)
 
 function (_gmx_add_files_to_property PROPERTY)
     foreach (_file ${ARGN})
@@ -102,6 +103,7 @@ add_subdirectory(fileio)
 add_subdirectory(swap)
 add_subdirectory(essentialdynamics)
 add_subdirectory(pulling)
+add_subdirectory(awh)
 add_subdirectory(simd)
 add_subdirectory(imd)
 if (NOT GMX_BUILD_MDRUN_ONLY)
@@ -190,6 +192,11 @@ if (HAS_NO_UNUSED)
     set(_scanner_cpp_compiler_flags "${_scanner_cpp_compiler_flags} -Wno-unused-parameter -Wno-unused-function")
 endif()
 set_source_files_properties(selection/scanner.cpp PROPERTIES COMPILE_FLAGS "${_scanner_cpp_compiler_flags}")
+
+if(SIMD_AVX_512_CXX_SUPPORTED)
+    # Since we might be overriding -march=core-avx2, add a flag so we don't warn for this specific file
+    set_source_files_properties(hardware/identifyavx512fmaunits.cpp PROPERTIES COMPILE_FLAGS "${SIMD_AVX_512_CXX_FLAGS} ${CXX_NO_UNUSED_OPTION_WARNING_FLAGS}")
+endif()
 
 gmx_setup_tng_for_libgromacs()
 

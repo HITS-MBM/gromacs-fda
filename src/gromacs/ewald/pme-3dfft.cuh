@@ -46,7 +46,7 @@
 
 #include "gromacs/fft/fft.h"        // for the enum gmx_fft_direction
 
-struct pme_gpu_t;
+struct PmeGpu;
 
 /*! \brief \internal A 3D FFT class for performing R2C/C2R transforms
  * \todo Make this class actually parallel over multiple GPUs
@@ -62,9 +62,9 @@ class GpuParallel3dFft
         /*! \brief
          * Constructs CUDA FFT plans for performing 3D FFT on a PME grid.
          *
-         * \param[in] pmeGPU                  The PME GPU structure.
+         * \param[in] pmeGpu                  The PME GPU structure.
          */
-        GpuParallel3dFft(const pme_gpu_t *pmeGPU);
+        GpuParallel3dFft(const PmeGpu *pmeGpu);
         /*! \brief Destroys CUDA FFT plans. */
         ~GpuParallel3dFft();
         /*! \brief Performs the FFT transform in given direction */

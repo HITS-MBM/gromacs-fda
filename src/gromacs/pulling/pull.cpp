@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014,2015,2016,2017, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016,2017,2018, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -41,10 +41,11 @@
 #include "config.h"
 
 #include <assert.h>
-#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include <cmath>
 
 #include <algorithm>
 
@@ -79,7 +80,7 @@
 #include "gromacs/utility/real.h"
 #include "gromacs/utility/smalloc.h"
 
-static bool pull_coordinate_is_angletype(const t_pull_coord *pcrd)
+bool pull_coordinate_is_angletype(const t_pull_coord *pcrd)
 {
     return (pcrd->eGeom == epullgANGLE ||
             pcrd->eGeom == epullgDIHEDRAL ||
@@ -963,14 +964,13 @@ static double get_pull_coord_deviation(struct pull_t *pull,
     return dev;
 }
 
-void get_pull_coord_value(struct pull_t *pull,
-                          int            coord_ind,
-                          const t_pbc   *pbc,
-                          double        *value)
+double get_pull_coord_value(struct pull_t *pull,
+                            int            coord_ind,
+                            const t_pbc   *pbc)
 {
     get_pull_coord_distance(pull, coord_ind, pbc);
 
-    *value = pull->coord[coord_ind].value;
+    return pull->coord[coord_ind].value;
 }
 
 static void clear_pull_forces_coord(pull_coord_work_t *pcrd)
@@ -1649,11 +1649,11 @@ static void check_external_potential_registration(const struct pull_t *pull)
  * potential energy is added either to the pull term or to a term
  * specific to the external module.
  */
-void apply_external_pull_coord_force(struct pull_t *pull,
-                                     int coord_index,
-                                     double coord_force,
-                                     const t_mdatoms *mdatoms,
-                                     rvec *force, tensor virial)
+void apply_external_pull_coord_force(struct pull_t        *pull,
+                                     int                   coord_index,
+                                     double                coord_force,
+                                     const t_mdatoms      *mdatoms,
+                                     gmx::ForceWithVirial *forceWithVirial)
 {
     pull_coord_work_t *pcrd;
 
@@ -1674,9 +1674,15 @@ void apply_external_pull_coord_force(struct pull_t *pull,
         calc_pull_coord_vector_force(pcrd);
 
         /* Add the forces for this coordinate to the total virial and force */
-        add_virial_coord(virial, pcrd);
+        if (forceWithVirial->computeVirial_)
+        {
+            matrix virial = { { 0 } };
+            add_virial_coord(virial, pcrd);
+            forceWithVirial->addVirialContribution(virial);
+        }
 
-        apply_forces_coord(pull, coord_index, mdatoms, force);
+        apply_forces_coord(pull, coord_index, mdatoms,
+                           as_rvec_array(forceWithVirial->force_.data()));
     }
 
     pull->numExternalPotentialsStillToBeAppliedThisStep--;
@@ -2312,15 +2318,18 @@ init_pull(FILE *fplog, const pull_params_t *pull_params, const t_inputrec *ir,
         {
             fprintf(fplog, "Will apply constraint COM pulling\n");
         }
+        // Don't include the reference group 0 in output, so we report ngroup-1
+        GMX_RELEASE_ASSERT(pull->ngroup - 1 > 0, "The reference absolute position pull group should always be present");
         fprintf(fplog, "with %d pull coordinate%s and %d group%s\n",
                 pull->ncoord, pull->ncoord == 1 ? "" : "s",
-                pull->ngroup, pull->ngroup == 1 ? "" : "s");
+                (pull->ngroup - 1), (pull->ngroup - 1) == 1 ? "" : "s");
         if (bAbs)
         {
             fprintf(fplog, "with an absolute reference\n");
         }
         bCos = FALSE;
-        for (g = 0; g < pull->ngroup; g++)
+        // Don't include the reference group 0 in loop
+        for (g = 1; g < pull->ngroup; g++)
         {
             if (pull->group[g].params.nat > 1 &&
                 pull->group[g].params.pbcatom < 0)

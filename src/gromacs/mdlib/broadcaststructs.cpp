@@ -45,6 +45,7 @@
 #include "gromacs/math/vec.h"
 #include "gromacs/mdlib/mdrun.h"
 #include "gromacs/mdlib/tgroup.h"
+#include "gromacs/mdtypes/awh-params.h"
 #include "gromacs/mdtypes/commrec.h"
 #include "gromacs/mdtypes/inputrec.h"
 #include "gromacs/mdtypes/md_enums.h"
@@ -258,7 +259,8 @@ static void bc_groups(const t_commrec *cr, t_symtab *symtab,
     }
 }
 
-static void bcastPaddedRVecVector(const t_commrec *cr, PaddedRVecVector *v, int numAtoms)
+template <typename AllocatorType>
+static void bcastPaddedRVecVector(const t_commrec *cr, std::vector<gmx::RVec, AllocatorType> *v, int numAtoms)
 {
     v->resize(gmx::paddedRVecVectorSize(numAtoms));
     nblock_bc(cr, numAtoms, as_rvec_array(v->data()));
@@ -449,6 +451,26 @@ static void bc_grpopts(const t_commrec *cr, t_grpopts *g)
         nblock_bc(cr, g->ngQM, g->SAoff);
         nblock_bc(cr, g->ngQM, g->SAsteps);
         /* end of QMMM stuff */
+    }
+}
+
+static void bc_awhBias(const t_commrec *cr, gmx::AwhBiasParams *awhBiasParams)
+{
+    block_bc(cr, *awhBiasParams);
+
+    snew_bc(cr, awhBiasParams->dimParams, awhBiasParams->ndim);
+    nblock_bc(cr, awhBiasParams->ndim, awhBiasParams->dimParams);
+}
+
+static void bc_awh(const t_commrec *cr, gmx::AwhParams *awhParams)
+{
+    int k;
+
+    block_bc(cr, *awhParams);
+    snew_bc(cr, awhParams->awhBiasParams, awhParams->numBias);
+    for (k = 0; k < awhParams->numBias; k++)
+    {
+        bc_awhBias(cr, &awhParams->awhBiasParams[k]);
     }
 }
 
@@ -688,6 +710,12 @@ static void bc_inputrec(const t_commrec *cr, t_inputrec *inputrec)
         snew_bc(cr, inputrec->pull, 1);
         bc_pull(cr, inputrec->pull);
     }
+    if (inputrec->bDoAwh)
+    {
+        snew_bc(cr, inputrec->awhParams, 1);
+        bc_awh(cr, inputrec->awhParams);
+    }
+
     if (inputrec->bRot)
     {
         snew_bc(cr, inputrec->rot, 1);

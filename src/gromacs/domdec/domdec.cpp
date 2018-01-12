@@ -41,10 +41,11 @@
 
 #include <assert.h>
 #include <limits.h>
-#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include <cmath>
 
 #include <algorithm>
 
@@ -1156,8 +1157,9 @@ static void dd_collect_cg(gmx_domdec_t  *dd,
     dd->comm->master_cg_ddp_count = state_local->ddp_count;
 }
 
-static void dd_collect_vec_sendrecv(gmx_domdec_t *dd,
-                                    const rvec *lv, rvec *v)
+static void dd_collect_vec_sendrecv(gmx_domdec_t                  *dd,
+                                    gmx::ArrayRef<const gmx::RVec> lv,
+                                    gmx::ArrayRef<gmx::RVec>       v)
 {
     gmx_domdec_master_t *ma;
     int                  n, i, c, a, nalloc = 0;
@@ -1169,7 +1171,7 @@ static void dd_collect_vec_sendrecv(gmx_domdec_t *dd,
     if (!DDMASTER(dd))
     {
 #if GMX_MPI
-        MPI_Send(const_cast<void *>(static_cast<const void *>(lv)), dd->nat_home*sizeof(rvec), MPI_BYTE,
+        MPI_Send(const_cast<void *>(static_cast<const void *>(lv.data())), dd->nat_home*sizeof(rvec), MPI_BYTE,
                  DDMASTERRANK(dd), dd->rank, dd->mpi_comm_all);
 #endif
     }
@@ -1233,8 +1235,9 @@ static void get_commbuffer_counts(gmx_domdec_t *dd,
     }
 }
 
-static void dd_collect_vec_gatherv(gmx_domdec_t *dd,
-                                   const rvec *lv, rvec *v)
+static void dd_collect_vec_gatherv(gmx_domdec_t                  *dd,
+                                   gmx::ArrayRef<const gmx::RVec> lv,
+                                   gmx::ArrayRef<gmx::RVec>       v)
 {
     gmx_domdec_master_t *ma;
     int                 *rcounts = nullptr, *disps = nullptr;
@@ -1251,7 +1254,7 @@ static void dd_collect_vec_gatherv(gmx_domdec_t *dd,
         buf = ma->vbuf;
     }
 
-    dd_gatherv(dd, dd->nat_home*sizeof(rvec), lv, rcounts, disps, buf);
+    dd_gatherv(dd, dd->nat_home*sizeof(rvec), lv.data(), rcounts, disps, buf);
 
     if (DDMASTER(dd))
     {
@@ -1271,14 +1274,12 @@ static void dd_collect_vec_gatherv(gmx_domdec_t *dd,
     }
 }
 
-void dd_collect_vec(gmx_domdec_t           *dd,
-                    const t_state          *state_local,
-                    const PaddedRVecVector *localVector,
-                    rvec                   *v)
+void dd_collect_vec(gmx_domdec_t                  *dd,
+                    const t_state                 *state_local,
+                    gmx::ArrayRef<const gmx::RVec> lv,
+                    gmx::ArrayRef<gmx::RVec>       v)
 {
     dd_collect_cg(dd, state_local);
-
-    const rvec *lv = as_rvec_array(localVector->data());
 
     if (dd->nnodes <= GMX_DD_NNODES_SENDRECV)
     {
@@ -1288,15 +1289,6 @@ void dd_collect_vec(gmx_domdec_t           *dd,
     {
         dd_collect_vec_gatherv(dd, lv, v);
     }
-}
-
-void dd_collect_vec(gmx_domdec_t           *dd,
-                    const t_state          *state_local,
-                    const PaddedRVecVector *localVector,
-                    PaddedRVecVector       *vector)
-{
-    dd_collect_vec(dd, state_local, localVector,
-                   DDMASTER(dd) ? as_rvec_array(vector->data()) : nullptr);
 }
 
 
@@ -1343,15 +1335,18 @@ void dd_collect_state(gmx_domdec_t *dd,
     }
     if (state_local->flags & (1 << estX))
     {
-        dd_collect_vec(dd, state_local, &state_local->x, &state->x);
+        gmx::ArrayRef<gmx::RVec> globalXRef = state ? gmx::makeArrayRef(state->x) : gmx::EmptyArrayRef();
+        dd_collect_vec(dd, state_local, state_local->x, globalXRef);
     }
     if (state_local->flags & (1 << estV))
     {
-        dd_collect_vec(dd, state_local, &state_local->v, &state->v);
+        gmx::ArrayRef<gmx::RVec> globalVRef = state ? gmx::makeArrayRef(state->v) : gmx::EmptyArrayRef();
+        dd_collect_vec(dd, state_local, state_local->v, globalVRef);
     }
     if (state_local->flags & (1 << estCGP))
     {
-        dd_collect_vec(dd, state_local, &state_local->cg_p, &state->cg_p);
+        gmx::ArrayRef<gmx::RVec> globalCgpRef = state ? gmx::makeArrayRef(state->cg_p) : gmx::EmptyArrayRef();
+        dd_collect_vec(dd, state_local, state_local->cg_p, globalCgpRef);
     }
 }
 
@@ -2016,8 +2011,7 @@ void get_pme_nnodes(const gmx_domdec_t *dd,
     }
 }
 
-void get_pme_ddnodes(t_commrec *cr, int pmenodeid,
-                     int *nmy_ddnodes, int **my_ddnodes, int *node_peer)
+std::vector<int> get_pme_ddranks(t_commrec *cr, int pmenodeid)
 {
     gmx_domdec_t *dd;
     int           x, y, z;
@@ -2025,9 +2019,9 @@ void get_pme_ddnodes(t_commrec *cr, int pmenodeid,
 
     dd = cr->dd;
 
-    snew(*my_ddnodes, (dd->nnodes+cr->npmenodes-1)/cr->npmenodes);
+    std::vector<int> ddranks;
+    ddranks.reserve((dd->nnodes+cr->npmenodes-1)/cr->npmenodes);
 
-    *nmy_ddnodes = 0;
     for (x = 0; x < dd->nc[XX]; x++)
     {
         for (y = 0; y < dd->nc[YY]; y++)
@@ -2044,7 +2038,7 @@ void get_pme_ddnodes(t_commrec *cr, int pmenodeid,
                         dd->ci[YY] == coord_pme[YY] &&
                         dd->ci[ZZ] == coord_pme[ZZ])
                     {
-                        (*my_ddnodes)[(*nmy_ddnodes)++] = ddcoord2simnodeid(cr, x, y, z);
+                        ddranks.push_back(ddcoord2simnodeid(cr, x, y, z));
                     }
                 }
                 else
@@ -2052,25 +2046,13 @@ void get_pme_ddnodes(t_commrec *cr, int pmenodeid,
                     /* The slab corresponds to the nodeid in the PME group */
                     if (gmx_ddcoord2pmeindex(cr, x, y, z) == pmenodeid)
                     {
-                        (*my_ddnodes)[(*nmy_ddnodes)++] = ddcoord2simnodeid(cr, x, y, z);
+                        ddranks.push_back(ddcoord2simnodeid(cr, x, y, z));
                     }
                 }
             }
         }
     }
-
-    /* The last PP-only node is the peer node */
-    *node_peer = (*my_ddnodes)[*nmy_ddnodes-1];
-
-    if (debug)
-    {
-        fprintf(debug, "Receive coordinates from PP ranks:");
-        for (x = 0; x < *nmy_ddnodes; x++)
-        {
-            fprintf(debug, " %d", (*my_ddnodes)[x]);
-        }
-        fprintf(debug, "\n");
-    }
+    return ddranks;
 }
 
 static gmx_bool receive_vir_ener(const gmx_domdec_t *dd, const t_commrec *cr)
@@ -5407,7 +5389,7 @@ void dd_setup_dlb_resource_sharing(t_commrec            *cr,
     gmx_domdec_t *dd;
     MPI_Comm      mpi_comm_pp_physicalnode;
 
-    if (!(cr->duty & DUTY_PP) || gpu_id < 0)
+    if (!thisRankHasDuty(cr, DUTY_PP) || gpu_id < 0)
     {
         /* Only ranks with short-ranged tasks (currently) use GPUs.
          * If we don't have GPUs assigned, there are no resources to share.
@@ -5688,7 +5670,7 @@ static void make_pp_communicator(FILE                 *fplog,
          */
         snew(comm->ddindex2simnodeid, dd->nnodes);
         snew(buf, dd->nnodes);
-        if (cr->duty & DUTY_PP)
+        if (thisRankHasDuty(cr, DUTY_PP))
         {
             buf[dd_index(dd->nc, dd->ci)] = cr->sim_nodeid;
         }
@@ -5749,7 +5731,7 @@ static void receive_ddindex2simnodeid(gmx_domdec_t         *dd,
         int *buf;
         snew(comm->ddindex2simnodeid, dd->nnodes);
         snew(buf, dd->nnodes);
-        if (cr->duty & DUTY_PP)
+        if (thisRankHasDuty(cr, DUTY_PP))
         {
             buf[dd_index(dd->nc, dd->ci)] = cr->sim_nodeid;
         }
@@ -5845,9 +5827,9 @@ static void split_communicator(FILE *fplog, t_commrec *cr, gmx_domdec_t *dd,
         }
     }
 
-#if GMX_MPI
     if (comm->bCartesianPP_PME)
     {
+#if GMX_MPI
         int  rank;
         ivec periods;
 
@@ -5894,9 +5876,10 @@ static void split_communicator(FILE *fplog, t_commrec *cr, gmx_domdec_t *dd,
 
         /* Split the sim communicator into PP and PME only nodes */
         MPI_Comm_split(cr->mpi_comm_mysim,
-                       cr->duty,
+                       getThisRankDuties(cr),
                        dd_index(comm->ntot, dd->ci),
                        &cr->mpi_comm_mygroup);
+#endif
     }
     else
     {
@@ -5930,20 +5913,20 @@ static void split_communicator(FILE *fplog, t_commrec *cr, gmx_domdec_t *dd,
         {
             cr->duty = DUTY_PP;
         }
-
+#if GMX_MPI
         /* Split the sim communicator into PP and PME only nodes */
         MPI_Comm_split(cr->mpi_comm_mysim,
-                       cr->duty,
+                       getThisRankDuties(cr),
                        cr->nodeid,
                        &cr->mpi_comm_mygroup);
         MPI_Comm_rank(cr->mpi_comm_mygroup, &cr->nodeid);
-    }
 #endif
+    }
 
     if (fplog)
     {
         fprintf(fplog, "This rank does only %s work.\n\n",
-                (cr->duty & DUTY_PP) ? "particle-particle" : "PME-mesh");
+                thisRankHasDuty(cr, DUTY_PP) ? "particle-particle" : "PME-mesh");
     }
 }
 
@@ -5988,7 +5971,7 @@ static void make_dd_communicators(FILE *fplog, t_commrec *cr,
 #endif
     }
 
-    if (cr->duty & DUTY_PP)
+    if (thisRankHasDuty(cr, DUTY_PP))
     {
         /* Copy or make a new PP communicator */
         make_pp_communicator(fplog, dd, cr, CartReorder);
@@ -5998,7 +5981,7 @@ static void make_dd_communicators(FILE *fplog, t_commrec *cr,
         receive_ddindex2simnodeid(dd, cr);
     }
 
-    if (!(cr->duty & DUTY_PME))
+    if (!thisRankHasDuty(cr, DUTY_PME))
     {
         /* Set up the commnuication to our PME node */
         dd->pme_nodeid           = dd_simnode2pmenode(dd, cr, cr->sim_nodeid);
@@ -7274,7 +7257,7 @@ gmx_domdec_t *init_domain_decomposition(FILE *fplog, t_commrec *cr,
 
     make_dd_communicators(fplog, cr, dd, options.rankOrder);
 
-    if (cr->duty & DUTY_PP)
+    if (thisRankHasDuty(cr, DUTY_PP))
     {
         set_ddgrid_parameters(fplog, dd, options.dlbScaling, mtop, ir, ddbox);
 
@@ -8477,9 +8460,26 @@ static void set_cg_boundaries(gmx_domdec_zones_t *zones)
     }
 }
 
+/* \brief Set zone dimensions for zones \p zone_start to \p zone_end-1
+ *
+ * Also sets the atom density for the home zone when \p zone_start=0.
+ * For this \p numMovedChargeGroupsInHomeZone needs to be passed to tell
+ * how many charge groups will move but are still part of the current range.
+ * \todo When converting domdec to use proper classes, all these variables
+ *       should be private and a method should return the correct count
+ *       depending on an internal state.
+ *
+ * \param[in,out] dd          The domain decomposition struct
+ * \param[in]     box         The box
+ * \param[in]     ddbox       The domain decomposition box struct
+ * \param[in]     zone_start  The start of the zone range to set sizes for
+ * \param[in]     zone_end    The end of the zone range to set sizes for
+ * \param[in]     numMovedChargeGroupsInHomeZone  The number of charge groups in the home zone that should moved but are still present in dd->comm->zones.cg_range
+ */
 static void set_zones_size(gmx_domdec_t *dd,
                            matrix box, const gmx_ddbox_t *ddbox,
-                           int zone_start, int zone_end)
+                           int zone_start, int zone_end,
+                           int numMovedChargeGroupsInHomeZone)
 {
     gmx_domdec_comm_t  *comm;
     gmx_domdec_zones_t *zones;
@@ -8698,7 +8698,7 @@ static void set_zones_size(gmx_domdec_t *dd,
         {
             vol *= zones->size[0].x1[dim] - zones->size[0].x0[dim];
         }
-        zones->dens_zone0 = (zones->cg_range[1] - zones->cg_range[0])/vol;
+        zones->dens_zone0 = (zones->cg_range[1] - zones->cg_range[0] - numMovedChargeGroupsInHomeZone)/vol;
     }
 
     if (debug)
@@ -9180,7 +9180,7 @@ void dd_partition_system(FILE                *fplog,
                          const t_inputrec    *ir,
                          t_state             *state_local,
                          PaddedRVecVector    *f,
-                         t_mdatoms           *mdatoms,
+                         gmx::MDAtoms        *mdAtoms,
                          gmx_localtop_t      *top_local,
                          t_forcerec          *fr,
                          gmx_vsite_t         *vsite,
@@ -9510,6 +9510,11 @@ void dd_partition_system(FILE                *fplog,
 
     ncg_home_old = dd->ncg_home;
 
+    /* When repartitioning we mark charge groups that will move to neighboring
+     * DD cells, but we do not move them right away for performance reasons.
+     * Thus we need to keep track of how many charge groups will move for
+     * obtaining correct local charge group / atom counts.
+     */
     ncg_moved = 0;
     if (bRedist)
     {
@@ -9568,7 +9573,7 @@ void dd_partition_system(FILE                *fplog,
         switch (fr->cutoff_scheme)
         {
             case ecutsVERLET:
-                set_zones_size(dd, state_local->box, &ddbox, 0, 1);
+                set_zones_size(dd, state_local->box, &ddbox, 0, 1, ncg_moved);
 
                 nbnxn_put_on_grid(fr->nbv->nbs, fr->ePBC, state_local->box,
                                   0,
@@ -9638,7 +9643,8 @@ void dd_partition_system(FILE                *fplog,
     if (fr->cutoff_scheme == ecutsVERLET)
     {
         set_zones_size(dd, state_local->box, &ddbox,
-                       bSortCG ? 1 : 0, comm->zones.n);
+                       bSortCG ? 1 : 0, comm->zones.n,
+                       0);
     }
 
     wallcycle_sub_stop(wcycle, ewcsDD_SETUPCOMM);
@@ -9737,14 +9743,15 @@ void dd_partition_system(FILE                *fplog,
 
     /* Update atom data for mdatoms and several algorithms */
     mdAlgorithmsSetupAtomData(cr, ir, top_global, top_local, fr,
-                              nullptr, mdatoms, vsite, nullptr);
+                              nullptr, mdAtoms, vsite, nullptr);
 
     if (ir->implicit_solvent)
     {
         make_local_gb(cr, fr->born, ir->gb_algorithm);
     }
 
-    if (!(cr->duty & DUTY_PME))
+    auto mdatoms = mdAtoms->mdatoms();
+    if (!thisRankHasDuty(cr, DUTY_PME))
     {
         /* Send the charges and/or c6/sigmas to our PME only node */
         gmx_pme_send_parameters(cr,

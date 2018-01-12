@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2012,2013,2014,2015,2016,2017, by the GROMACS development team, led by
+ * Copyright (c) 2012,2013,2014,2015,2016,2017,2018, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -61,7 +61,9 @@
 #include "gromacs/utility/exceptions.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/gmxomp.h"
+#include "gromacs/utility/logger.h"
 #include "gromacs/utility/smalloc.h"
+#include "gromacs/utility/stringutil.h"
 
 using namespace gmx; // TODO: Remove when this file is moved into gmx namespace
 
@@ -479,7 +481,7 @@ nbnxn_atomdata_init_simple_exclusion_masks(nbnxn_atomdata_t *nbat)
 #endif
 
 /* Initializes an nbnxn_atomdata_t data structure */
-void nbnxn_atomdata_init(FILE *fp,
+void nbnxn_atomdata_init(const gmx::MDLogger &mdlog,
                          nbnxn_atomdata_t *nbat,
                          int nb_kernel_type,
                          int enbnxninitcombrule,
@@ -626,17 +628,18 @@ void nbnxn_atomdata_init(FILE *fp,
                 nbat->free(nbat->nbfp_comb);
             }
 
-            if (fp)
             {
+                std::string mesg;
                 if (nbat->comb_rule == ljcrNONE)
                 {
-                    fprintf(fp, "Using full Lennard-Jones parameter combination matrix\n\n");
+                    mesg = "Using full Lennard-Jones parameter combination matrix";
                 }
                 else
                 {
-                    fprintf(fp, "Using %s Lennard-Jones combination rule\n\n",
-                            nbat->comb_rule == ljcrGEOM ? "geometric" : "Lorentz-Berthelot");
+                    mesg = gmx::formatString("Using %s Lennard-Jones combination rule",
+                                             nbat->comb_rule == ljcrGEOM ? "geometric" : "Lorentz-Berthelot");
                 }
+                GMX_LOG(mdlog.info).asParagraph().appendText(mesg);
             }
             break;
         case enbnxninitcombruleGEOM:
@@ -698,12 +701,8 @@ void nbnxn_atomdata_init(FILE *fp,
     nbat->nenergrp = n_energygroups;
     if (!simple)
     {
-        /* Energy groups not supported yet for super-sub lists */
-        if (n_energygroups > 1 && fp != nullptr)
-        {
-            fprintf(fp, "\nNOTE: With GPUs, reporting energy group contributions is not supported\n\n");
-        }
-        nbat->nenergrp = 1;
+        // We now check for energy groups already when starting mdrun
+        GMX_RELEASE_ASSERT(n_energygroups == 1, "GPU kernels do not support energy groups");
     }
     /* Temporary storage goes as #grp^3*simd_width^2/2, so limit to 64 */
     if (nbat->nenergrp > 64)
@@ -761,10 +760,8 @@ void nbnxn_atomdata_init(FILE *fp,
     }
     if (nbat->bUseTreeReduce)
     {
-        if (fp)
-        {
-            fprintf(fp, "Using tree force reduction\n\n");
-        }
+        GMX_LOG(mdlog.info).asParagraph().appendText("Using tree force reduction");
+
         snew(nbat->syncStep, nth);
     }
 }

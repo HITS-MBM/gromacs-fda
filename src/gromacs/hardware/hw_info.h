@@ -36,6 +36,7 @@
 #define GMX_HARDWARE_HWINFO_H
 
 #include <string>
+#include <vector>
 
 #include "gromacs/hardware/gpu_hw_info.h"
 #include "gromacs/utility/basedefinitions.h"
@@ -50,7 +51,7 @@ class HardwareTopology;
  * It is initialized by gmx_detect_hardware().
  * NOTE: this structure may only contain structures that are globally valid
  *       (i.e. must be able to be shared among all threads) */
-typedef struct gmx_hw_info_t
+struct gmx_hw_info_t
 {
     /* Data for our local physical node */
     struct gmx_gpu_info_t gpu_info;                /* Information about GPUs detected in the system */
@@ -78,7 +79,8 @@ typedef struct gmx_hw_info_t
     int                 simd_suggest_max;    /* Highest SIMD instruction set supported by at least one rank */
 
     gmx_bool            bIdenticalGPUs;      /* TRUE if all ranks have the same type(s) and order of GPUs */
-} gmx_hw_info_t;
+    bool                haveAmdZenCpu;       /* TRUE when at least one CPU in any of the nodes is AMD Zen */
+};
 
 
 /* The options for the thread affinity setting, default: auto */
@@ -111,8 +113,12 @@ struct gmx_hw_opt_t
     int           core_pinning_stride = 0;
     //! Logical core pinning offset.
     int           core_pinning_offset = 0;
-    //! Empty, or a GPU task-assignment string provided by the user.
-    std::string   gpuIdTaskAssignment = "";
+    //! Empty, or a string provided by the user declaring (unique) GPU IDs available for mdrun to use.
+    std::string   gpuIdsAvailable = "";
+    //! Empty, or a string provided by the user mapping GPU tasks to devices.
+    std::string   userGpuTaskAssignment = "";
+    //! Tells whether mdrun is free to choose the total number of threads (by choosing the number of OpenMP and/or thread-MPI threads).
+    bool          totNumThreadsIsAuto;
 };
 
 #endif

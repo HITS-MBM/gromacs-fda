@@ -55,15 +55,23 @@
 #define GMX_MDTYPES_STATE_H
 
 #include <array>
+#include <memory>
 #include <vector>
 
+#include "gromacs/gpu_utils/hostallocator.h"
 #include "gromacs/math/paddedvector.h"
 #include "gromacs/math/vectypes.h"
 #include "gromacs/mdtypes/md_enums.h"
+#include "gromacs/utility/arrayref.h"
 #include "gromacs/utility/basedefinitions.h"
 #include "gromacs/utility/real.h"
 
 struct t_inputrec;
+
+namespace gmx
+{
+struct AwhHistory;
+}
 
 /*
  * The t_state struct should contain all the (possibly) non-static
@@ -183,40 +191,41 @@ class t_state
         t_state();
 
         // All things public
-        int                      natoms;          //!< Number of atoms, local + non-local; this is the size of \p x, \p v and \p cg_p, when used
-        int                      ngtc;            //!< The number of temperature coupling groups
-        int                      nnhpres;         //!< The NH-chain length for the MTTK barostat
-        int                      nhchainlength;   //!< The NH-chain length for temperature coupling
-        int                      flags;           //!< Set of bit-flags telling which entries are present, see enum at the top of the file
-        int                      fep_state;       //!< indicates which of the alchemical states we are in
-        std::array<real, efptNR> lambda;          //!< Free-energy lambda vector
-        matrix                   box;             //!< Matrix of box vectors
-        matrix                   box_rel;         //!< Relative box vectors to preserve box shape
-        matrix                   boxv;            //!< Box velocities for Parrinello-Rahman P-coupling
-        matrix                   pres_prev;       //!< Pressure of the previous step for pcoupl
-        matrix                   svir_prev;       //!< Shake virial for previous step for pcoupl
-        matrix                   fvir_prev;       //!< Force virial of the previous step for pcoupl
-        std::vector<double>      nosehoover_xi;   //!< Nose-Hoover coordinates (ngtc)
-        std::vector<double>      nosehoover_vxi;  //!< Nose-Hoover velocities (ngtc)
-        std::vector<double>      nhpres_xi;       //!< Pressure Nose-Hoover coordinates
-        std::vector<double>      nhpres_vxi;      //!< Pressure Nose-Hoover velocities
-        std::vector<double>      therm_integral;  //!< Work exterted N-H/V-rescale T-coupling (ngtc)
-        double                   baros_integral;  //!< For Berendsen P-coupling conserved quantity
-        real                     veta;            //!< Trotter based isotropic P-coupling
-        real                     vol0;            //!< Initial volume,required for computing MTTK conserved quantity
-        PaddedRVecVector         x;               //!< The coordinates (natoms)
-        PaddedRVecVector         v;               //!< The velocities (natoms)
-        PaddedRVecVector         cg_p;            //!< p vector for conjugate gradient minimization
+        int                        natoms;         //!< Number of atoms, local + non-local; this is the size of \p x, \p v and \p cg_p, when used
+        int                        ngtc;           //!< The number of temperature coupling groups
+        int                        nnhpres;        //!< The NH-chain length for the MTTK barostat
+        int                        nhchainlength;  //!< The NH-chain length for temperature coupling
+        int                        flags;          //!< Set of bit-flags telling which entries are present, see enum at the top of the file
+        int                        fep_state;      //!< indicates which of the alchemical states we are in
+        std::array<real, efptNR>   lambda;         //!< Free-energy lambda vector
+        matrix                     box;            //!< Matrix of box vectors
+        matrix                     box_rel;        //!< Relative box vectors to preserve box shape
+        matrix                     boxv;           //!< Box velocities for Parrinello-Rahman P-coupling
+        matrix                     pres_prev;      //!< Pressure of the previous step for pcoupl
+        matrix                     svir_prev;      //!< Shake virial for previous step for pcoupl
+        matrix                     fvir_prev;      //!< Force virial of the previous step for pcoupl
+        std::vector<double>        nosehoover_xi;  //!< Nose-Hoover coordinates (ngtc)
+        std::vector<double>        nosehoover_vxi; //!< Nose-Hoover velocities (ngtc)
+        std::vector<double>        nhpres_xi;      //!< Pressure Nose-Hoover coordinates
+        std::vector<double>        nhpres_vxi;     //!< Pressure Nose-Hoover velocities
+        std::vector<double>        therm_integral; //!< Work exterted N-H/V-rescale T-coupling (ngtc)
+        double                     baros_integral; //!< For Berendsen P-coupling conserved quantity
+        real                       veta;           //!< Trotter based isotropic P-coupling
+        real                       vol0;           //!< Initial volume,required for computing MTTK conserved quantity
+        gmx::HostVector<gmx::RVec> x;              //!< The coordinates (natoms)
+        PaddedRVecVector           v;              //!< The velocities (natoms)
+        PaddedRVecVector           cg_p;           //!< p vector for conjugate gradient minimization
 
-        ekinstate_t              ekinstate;       //!< The state of the kinetic energy
+        ekinstate_t                ekinstate;      //!< The state of the kinetic energy
 
         /* History for special algorithms, should be moved to a history struct */
-        history_t                hist;            //!< Time history for restraints
-        df_history_t            *dfhist;          //!< Free-energy history for free energy analysis
+        history_t                         hist;            //!< Time history for restraints
+        df_history_t                     *dfhist;          //!< Free-energy history for free energy analysis
+        std::shared_ptr<gmx::AwhHistory>  awhHistory;      //!< Accelerated weight histogram history
 
-        int                      ddp_count;       //!< The DD partitioning count for this state
-        int                      ddp_count_cg_gl; //!< The DD partitioning count for index_gl
-        std::vector<int>         cg_gl;           //!< The global cg number of the local cgs
+        int                               ddp_count;       //!< The DD partitioning count for this state
+        int                               ddp_count_cg_gl; //!< The DD partitioning count for index_gl
+        std::vector<int>                  cg_gl;           //!< The global cg number of the local cgs
 };
 
 #ifndef DOXYGEN
@@ -258,8 +267,8 @@ void init_dfhist_state(t_state *state, int dfhistNumLambda);
 void comp_state(const t_state *st1, const t_state *st2, gmx_bool bRMSD, real ftol, real abstol);
 
 /*! \brief Allocates an rvec pointer and copy the contents of v to it */
-rvec *getRvecArrayFromPaddedRVecVector(const PaddedRVecVector *v,
-                                       unsigned int            n);
+rvec *makeRvecArray(gmx::ArrayRef<const gmx::RVec> v,
+                    unsigned int                   n);
 
 /*! \brief Determine the relative box components
  *

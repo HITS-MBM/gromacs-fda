@@ -134,7 +134,7 @@ class PmeSplineAndSpreadTest : public ::testing::TestWithParam<SplineAndSpreadIn
                     continue;
                 }
 
-                const auto contextsToTest = pmeEnv->getHardwareContexts(mode.first);
+                const auto contextsToTest = getPmeTestEnv()->getHardwareContexts(mode.first);
                 for (const auto &context : contextsToTest)
                 {
                     for (const auto &option : optionsToTest)
@@ -174,8 +174,10 @@ class PmeSplineAndSpreadTest : public ::testing::TestWithParam<SplineAndSpreadIn
                         TestReferenceChecker rootChecker(refData.rootChecker());
 
                         const auto           maxGridSize              = std::max(std::max(gridSize[XX], gridSize[YY]), gridSize[ZZ]);
-                        const auto           ulpToleranceSplineValues = 2 * (pmeOrder - 2) * maxGridSize;
-                        /* 2 is empiric, the rest follows from the amount of operations */
+                        const auto           ulpToleranceSplineValues = 4 * (pmeOrder - 2) * maxGridSize;
+                        /* 4 is a modest estimate for amount of operations; (pmeOrder - 2) is a number of iterations;
+                         * maxGridSize is inverse of the smallest positive fractional coordinate (which are interpolated by the splines).
+                         */
 
                         if (computeSplines)
                         {
@@ -184,7 +186,7 @@ class PmeSplineAndSpreadTest : public ::testing::TestWithParam<SplineAndSpreadIn
                             /* Spline values */
                             SCOPED_TRACE(formatString("Testing spline values with tolerance of %ld", ulpToleranceSplineValues));
                             TestReferenceChecker splineValuesChecker(rootChecker.checkCompound("Splines", "Values"));
-                            splineValuesChecker.setDefaultTolerance(getSplineTolerance(ulpToleranceSplineValues));
+                            splineValuesChecker.setDefaultTolerance(relativeToleranceAsUlp(1.0, ulpToleranceSplineValues));
                             for (int i = 0; i < DIM; i++)
                             {
                                 auto splineValuesDim = pmeGetSplineData(pmeSafe.get(), mode.first, PmeSplineDataType::Values, i);
@@ -196,7 +198,7 @@ class PmeSplineAndSpreadTest : public ::testing::TestWithParam<SplineAndSpreadIn
                             /* 4 is just a wild guess since the derivatives are deltas of neighbor spline values which could differ greatly */
                             SCOPED_TRACE(formatString("Testing spline derivatives with tolerance of %ld", ulpToleranceSplineDerivatives));
                             TestReferenceChecker splineDerivativesChecker(rootChecker.checkCompound("Splines", "Derivatives"));
-                            splineDerivativesChecker.setDefaultTolerance(getSplineTolerance(ulpToleranceSplineDerivatives));
+                            splineDerivativesChecker.setDefaultTolerance(relativeToleranceAsUlp(1.0, ulpToleranceSplineDerivatives));
                             for (int i = 0; i < DIM; i++)
                             {
                                 auto splineDerivativesDim = pmeGetSplineData(pmeSafe.get(), mode.first, PmeSplineDataType::Derivatives, i);
@@ -226,7 +228,7 @@ class PmeSplineAndSpreadTest : public ::testing::TestWithParam<SplineAndSpreadIn
                                 EXPECT_EQ(previousGridValuesSize, nonZeroGridValues.size());
                             }
 
-                            gridValuesChecker.setDefaultTolerance(getSplineTolerance(ulpToleranceGrid));
+                            gridValuesChecker.setDefaultTolerance(relativeToleranceAsUlp(1.0, ulpToleranceGrid));
                             for (const auto &point : nonZeroGridValues)
                             {
                                 gridValuesChecker.checkReal(point.second, point.first.c_str());
@@ -281,11 +283,11 @@ static std::vector<real> const c_sampleChargesFull
     4.95f, 3.11f, 3.97f, 1.08f, 2.09f, 1.1f, 4.13f, 3.31f, 2.8f, 5.83f, 5.09f, 6.1f, 2.86f, 0.24f, 5.76f, 5.19f, 0.72f
 };
 //! 1 charge
-static auto const c_sampleCharges1 = ChargesVector::fromVector(c_sampleChargesFull.begin(), c_sampleChargesFull.begin() + 1);
+static auto const c_sampleCharges1 = ChargesVector(c_sampleChargesFull).subArray(0, 1);
 //! 2 charges
-static auto const c_sampleCharges2 = ChargesVector::fromVector(c_sampleChargesFull.begin() + 1, c_sampleChargesFull.begin() + 3);
+static auto const c_sampleCharges2 = ChargesVector(c_sampleChargesFull).subArray(1, 2);
 //! 13 charges
-static auto const c_sampleCharges13 = ChargesVector::fromVector(c_sampleChargesFull.begin() + 3, c_sampleChargesFull.begin() + 16);
+static auto const c_sampleCharges13 = ChargesVector(c_sampleChargesFull).subArray(3, 13);
 
 //! Random coordinate vectors
 static CoordinatesVector const c_sampleCoordinatesFull

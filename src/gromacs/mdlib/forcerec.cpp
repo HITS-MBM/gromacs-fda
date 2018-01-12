@@ -57,7 +57,7 @@
 #include "gromacs/gmxlib/network.h"
 #include "gromacs/gmxlib/nonbonded/nonbonded.h"
 #include "gromacs/gpu_utils/gpu_utils.h"
-#include "gromacs/hardware/detecthardware.h"
+#include "gromacs/hardware/hw_info.h"
 #include "gromacs/listed-forces/manage-threading.h"
 #include "gromacs/listed-forces/pairs.h"
 #include "gromacs/math/functions.h"
@@ -1514,11 +1514,6 @@ void forcerec_set_ranges(t_forcerec *fr,
     {
         fr->forceBufferForDirectVirialContributions->resize(natoms_f_novirsum);
     }
-
-    if (fr->ic->cutoff_scheme == ecutsVERLET)
-    {
-        fr->forceBufferIntermediate->resize(ncg_home);
-    }
 }
 
 static real cutoff_inf(real cutoff)
@@ -1590,9 +1585,10 @@ gmx_bool nbnxn_simd_supported(const gmx::MDLogger &mdlog,
 }
 
 
-static void pick_nbnxn_kernel_cpu(const t_inputrec gmx_unused *ir,
-                                  int                         *kernel_type,
-                                  int                         *ewald_excl)
+static void pick_nbnxn_kernel_cpu(const t_inputrec gmx_unused    *ir,
+                                  int                            *kernel_type,
+                                  int                            *ewald_excl,
+                                  const gmx_hw_info_t gmx_unused &hardwareInfo)
 {
     *kernel_type = nbnxnk4x4_PlainC;
     *ewald_excl  = ewaldexclTable;
@@ -1608,8 +1604,8 @@ static void pick_nbnxn_kernel_cpu(const t_inputrec gmx_unused *ir,
 
 #if defined GMX_NBNXN_SIMD_2XNN && defined GMX_NBNXN_SIMD_4XN
         /* We need to choose if we want 2x(N+N) or 4xN kernels.
-         * Currently this is based on the SIMD acceleration choice,
-         * but it might be better to decide this at runtime based on CPU.
+         * This is based on the SIMD acceleration choice and CPU information
+         * detected at runtime.
          *
          * 4xN calculates more (zero) interactions, but has less pair-search
          * work and much better kernel instruction scheduling.
@@ -1635,6 +1631,11 @@ static void pick_nbnxn_kernel_cpu(const t_inputrec gmx_unused *ir,
             *kernel_type = nbnxnk4xN_SIMD_2xNN;
         }
 #endif
+        if (hardwareInfo.haveAmdZenCpu)
+        {
+            /* One 256-bit FMA per cycle makes 2xNN faster */
+            *kernel_type = nbnxnk4xN_SIMD_2xNN;
+        }
 #endif  /* GMX_NBNXN_SIMD_2XNN && GMX_NBNXN_SIMD_4XN */
 
 
@@ -1662,11 +1663,16 @@ static void pick_nbnxn_kernel_cpu(const t_inputrec gmx_unused *ir,
          * With FMA analytical is sometimes faster for a width if 4 as well.
          * On BlueGene/Q, this is faster regardless of precision.
          * In single precision, this is faster on Bulldozer.
-         * On Skylake table is faster in single and double. TODO: Test 5xxx series.
          */
-#if ((GMX_SIMD_REAL_WIDTH >= 8 || (GMX_SIMD_REAL_WIDTH >= 4 && GMX_SIMD_HAVE_FMA && !GMX_DOUBLE)) \
-        && !GMX_SIMD_X86_AVX_512) || GMX_SIMD_IBM_QPX
-        *ewald_excl = ewaldexclAnalytical;
+#if GMX_SIMD_REAL_WIDTH >= 8 || \
+        (GMX_SIMD_REAL_WIDTH >= 4 && GMX_SIMD_HAVE_FMA && !GMX_DOUBLE) || GMX_SIMD_IBM_QPX
+        /* On AMD Zen, tabulated Ewald kernels are faster on all 4 combinations
+         * of single or double precision and 128 or 256-bit AVX2.
+         */
+        if (!hardwareInfo.haveAmdZenCpu)
+        {
+            *ewald_excl = ewaldexclAnalytical;
+        }
 #endif
         if (getenv("GMX_NBNXN_EWALD_TABLE") != nullptr)
         {
@@ -1713,9 +1719,9 @@ const char *lookup_nbnxn_kernel_name(int kernel_type)
     return returnvalue;
 };
 
-static void pick_nbnxn_kernel(FILE                *fp,
-                              const gmx::MDLogger &mdlog,
+static void pick_nbnxn_kernel(const gmx::MDLogger &mdlog,
                               gmx_bool             use_simd_kernels,
+                              const gmx_hw_info_t &hardwareInfo,
                               gmx_bool             bUseGPU,
                               EmulateGpuNonbonded  emulateGpu,
                               const t_inputrec    *ir,
@@ -1747,7 +1753,7 @@ static void pick_nbnxn_kernel(FILE                *fp,
         if (use_simd_kernels &&
             nbnxn_simd_supported(mdlog, ir))
         {
-            pick_nbnxn_kernel_cpu(ir, kernel_type, ewald_excl);
+            pick_nbnxn_kernel_cpu(ir, kernel_type, ewald_excl, hardwareInfo);
         }
         else
         {
@@ -1755,9 +1761,10 @@ static void pick_nbnxn_kernel(FILE                *fp,
         }
     }
 
-    if (bDoNonbonded && fp != nullptr)
+    if (bDoNonbonded)
     {
-        fprintf(fp, "\nUsing %s %dx%d non-bonded kernels\n\n",
+        GMX_LOG(mdlog.info).asParagraph().appendTextFormatted(
+                "Using %s %dx%d nonbonded short-range kernels",
                 lookup_nbnxn_kernel_name(*kernel_type),
                 nbnxn_kernel_to_cluster_i_size(*kernel_type),
                 nbnxn_kernel_to_cluster_j_size(*kernel_type));
@@ -2139,20 +2146,16 @@ init_interaction_const(FILE                       *fp,
     *interaction_const = ic;
 }
 
-/* TODO deviceInfo should be logically const, but currently
- * init_gpu modifies it to set up NVML support. This could
- * happen during the detection phase, and deviceInfo could
- * the become const. */
-static void init_nb_verlet(FILE                *fp,
-                           const gmx::MDLogger &mdlog,
-                           nonbonded_verlet_t **nb_verlet,
-                           gmx_bool             bFEP_NonBonded,
-                           const t_inputrec    *ir,
-                           const t_forcerec    *fr,
-                           const t_commrec     *cr,
-                           gmx_device_info_t   *deviceInfo,
-                           const gmx_mtop_t    *mtop,
-                           matrix               box)
+static void init_nb_verlet(const gmx::MDLogger     &mdlog,
+                           nonbonded_verlet_t     **nb_verlet,
+                           gmx_bool                 bFEP_NonBonded,
+                           const t_inputrec        *ir,
+                           const t_forcerec        *fr,
+                           const t_commrec         *cr,
+                           const gmx_hw_info_t     &hardwareInfo,
+                           const gmx_device_info_t *deviceInfo,
+                           const gmx_mtop_t        *mtop,
+                           matrix                   box)
 {
     nonbonded_verlet_t *nbv;
     char               *env;
@@ -2167,12 +2170,6 @@ static void init_nb_verlet(FILE                *fp,
 
     GMX_RELEASE_ASSERT(!(nbv->emulateGpu == EmulateGpuNonbonded::Yes && nbv->bUseGPU), "When GPU emulation is active, there cannot be a GPU assignment");
 
-    if (nbv->bUseGPU)
-    {
-        /* Use the assigned GPU. */
-        init_gpu(mdlog, cr->nodeid, deviceInfo);
-    }
-
     nbv->nbs             = nullptr;
     nbv->min_ci_balanced = 0;
 
@@ -2184,7 +2181,7 @@ static void init_nb_verlet(FILE                *fp,
 
         if (i == 0) /* local */
         {
-            pick_nbnxn_kernel(fp, mdlog, fr->use_simd_kernels,
+            pick_nbnxn_kernel(mdlog, fr->use_simd_kernels, hardwareInfo,
                               nbv->bUseGPU, nbv->emulateGpu, ir,
                               &nbv->grp[i].kernel_type,
                               &nbv->grp[i].ewald_excl,
@@ -2199,7 +2196,7 @@ static void init_nb_verlet(FILE                *fp,
     }
 
     nbv->listParams = std::unique_ptr<NbnxnListParameters>(new NbnxnListParameters(ir->rlist));
-    setupDynamicPairlistPruning(fp, ir, mtop, box, nbv->bUseGPU, fr->ic,
+    setupDynamicPairlistPruning(mdlog, ir, mtop, box, nbv->grp[0].kernel_type, fr->ic,
                                 nbv->listParams.get());
 
     nbnxn_init_search(&nbv->nbs,
@@ -2249,7 +2246,7 @@ static void init_nb_verlet(FILE                *fp,
 
     snew(nbv->nbat, 1);
     bool bSimpleList = nbnxn_kernel_pairlist_simple(nbv->grp[0].kernel_type);
-    nbnxn_atomdata_init(fp,
+    nbnxn_atomdata_init(mdlog,
                         nbv->nbat,
                         nbv->grp[0].kernel_type,
                         enbnxninitcombrule,
@@ -2325,20 +2322,21 @@ gmx_bool usingGpu(nonbonded_verlet_t *nbv)
     return nbv != nullptr && nbv->bUseGPU;
 }
 
-void init_forcerec(FILE                *fp,
-                   const gmx::MDLogger &mdlog,
-                   t_forcerec          *fr,
-                   t_fcdata            *fcd,
-                   const t_inputrec    *ir,
-                   const gmx_mtop_t    *mtop,
-                   const t_commrec     *cr,
-                   matrix               box,
-                   const char          *tabfn,
-                   const char          *tabpfn,
-                   const t_filenm      *tabbfnm,
-                   gmx_device_info_t   *deviceInfo,
-                   gmx_bool             bNoSolvOpt,
-                   real                 print_force)
+void init_forcerec(FILE                    *fp,
+                   const gmx::MDLogger     &mdlog,
+                   t_forcerec              *fr,
+                   t_fcdata                *fcd,
+                   const t_inputrec        *ir,
+                   const gmx_mtop_t        *mtop,
+                   const t_commrec         *cr,
+                   matrix                   box,
+                   const char              *tabfn,
+                   const char              *tabpfn,
+                   const t_filenm          *tabbfnm,
+                   const gmx_hw_info_t     &hardwareInfo,
+                   const gmx_device_info_t *deviceInfo,
+                   gmx_bool                 bNoSolvOpt,
+                   real                     print_force)
 {
     int            i, m, negp_pp, negptable, egi, egj;
     real           rtab;
@@ -2768,6 +2766,15 @@ void init_forcerec(FILE                *fp,
         {
             gmx_fatal(FARGS, "Cut-off scheme %S only supports LJ repulsion power 12", ecutscheme_names[ir->cutoff_scheme]);
         }
+        /* Older tpr files can contain Coulomb user tables with the Verlet cutoff-scheme,
+         * while mdrun does not (and never did) support this.
+         */
+        if (EEL_USER(fr->ic->eeltype))
+        {
+            gmx_fatal(FARGS, "Combination of %s and cutoff scheme %s is not supported",
+                      eel_names[ir->coulombtype], ecutscheme_names[ir->cutoff_scheme]);
+        }
+
         fr->bvdwtab  = FALSE;
         fr->bcoultab = FALSE;
     }
@@ -2797,8 +2804,6 @@ void init_forcerec(FILE                *fp,
     {
         fr->forceBufferForDirectVirialContributions = new std::vector<gmx::RVec>;
     }
-
-    fr->forceBufferIntermediate = new std::vector<gmx::RVec>; //TODO add proper conditionals
 
     if (fr->cutoff_scheme == ecutsGROUP &&
         ncg_mtop(mtop) > fr->cg_nalloc && !DOMAINDECOMP(cr))
@@ -2861,7 +2866,7 @@ void init_forcerec(FILE                *fp,
         gmx_fatal(FARGS, "Verlet cutoff-scheme is not supported with Buckingham");
     }
 
-    if (fp)
+    if (fp && fr->cutoff_scheme == ecutsGROUP)
     {
         fprintf(fp, "Cut-off's:   NS: %g   Coulomb: %g   %s: %g\n",
                 fr->rlist, ic->rcoulomb, fr->bBHAM ? "BHAM" : "LJ", ic->rvdw);
@@ -3123,7 +3128,7 @@ void init_forcerec(FILE                *fp,
     snew(fr->ns, 1);
     init_ns(fp, cr, fr->ns, fr, mtop);
 
-    if (cr->duty & DUTY_PP)
+    if (thisRankHasDuty(cr, DUTY_PP))
     {
         gmx_nonbonded_setup(fr, bGenericKernelOnly);
     }
@@ -3148,9 +3153,18 @@ void init_forcerec(FILE                *fp,
             GMX_RELEASE_ASSERT(ir->rcoulomb == ir->rvdw, "With Verlet lists and no PME rcoulomb and rvdw should be identical");
         }
 
-        init_nb_verlet(fp, mdlog, &fr->nbv, bFEP_NonBonded, ir, fr,
-                       cr, deviceInfo,
+        init_nb_verlet(mdlog, &fr->nbv, bFEP_NonBonded, ir, fr,
+                       cr, hardwareInfo, deviceInfo,
                        mtop, box);
+    }
+
+    if (fp != nullptr)
+    {
+        /* Here we switch from using mdlog, which prints the newline before
+         * the paragraph, to our old fprintf logging, which prints the newline
+         * after the paragraph, so we should add a newline here.
+         */
+        fprintf(fp, "\n");
     }
 
     if (ir->eDispCorr != edispcNO)
@@ -3159,27 +3173,26 @@ void init_forcerec(FILE                *fp,
     }
 }
 
-/* Frees GPU memory and destroys the GPU context.
+/* Frees GPU memory and sets a tMPI node barrier.
  *
  * Note that this function needs to be called even if GPUs are not used
  * in this run because the PME ranks have no knowledge of whether GPUs
  * are used or not, but all ranks need to enter the barrier below.
+ * \todo Remove physical node barrier from this function after making sure
+ * that it's not needed anymore (with a shared GPU run).
  */
 void free_gpu_resources(const t_forcerec        *fr,
-                        const t_commrec         *cr,
-                        const gmx_device_info_t *deviceInfo)
+                        const t_commrec         *cr)
 {
-    gmx_bool bIsPPrankUsingGPU;
-    char     gpu_err_str[STRLEN];
+    bool isPPrankUsingGPU = fr && fr->nbv && fr->nbv->bUseGPU;
 
-    bIsPPrankUsingGPU = (cr->duty & DUTY_PP) && fr && fr->nbv && fr->nbv->bUseGPU;
+    /* stop the GPU profiler (only CUDA) */
+    stopGpuProfiler();
 
-    if (bIsPPrankUsingGPU)
+    if (isPPrankUsingGPU)
     {
         /* free nbnxn data in GPU memory */
         nbnxn_gpu_free(fr->nbv->gpu_nbv);
-        /* stop the GPU profiler (only CUDA) */
-        stopGpuProfiler();
     }
 
     /* With tMPI we need to wait for all ranks to finish deallocation before
@@ -3192,20 +3205,8 @@ void free_gpu_resources(const t_forcerec        *fr,
      * Note: it is safe to not call the barrier on the ranks which do not use GPU,
      * but it is easier and more futureproof to call it on the whole node.
      */
-#if GMX_THREAD_MPI
-    if (PAR(cr) || MULTISIM(cr))
+    if (GMX_THREAD_MPI && (PAR(cr) || MULTISIM(cr)))
     {
         gmx_barrier_physical_node(cr);
-    }
-#endif  /* GMX_THREAD_MPI */
-
-    if (bIsPPrankUsingGPU)
-    {
-        /* uninitialize GPU (by destroying the context) */
-        if (!free_cuda_gpu(deviceInfo, gpu_err_str))
-        {
-            gmx_warning("On rank %d failed to free GPU #%d: %s",
-                        cr->nodeid, get_current_cuda_gpu_device_id(), gpu_err_str);
-        }
     }
 }

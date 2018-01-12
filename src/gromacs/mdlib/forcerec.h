@@ -45,6 +45,7 @@
 #include "gromacs/timing/wallcycle.h"
 
 struct gmx_device_info_t;
+struct gmx_hw_info_t;
 struct t_commrec;
 struct t_fcdata;
 struct t_filenm;
@@ -107,24 +108,26 @@ void init_interaction_const_tables(FILE                   *fp,
  * \param[in]  tabfn       Table potential file for non-bonded interactions
  * \param[in]  tabpfn      Table potential file for pair interactions
  * \param[in]  tabbfnm     Table potential files for bonded interactions
+ * \param[in]  hardwareInfo  Information about hardware
  * \param[in]  deviceInfo  Info about GPU device to use for short-ranged work
  * \param[in]  bNoSolvOpt  Do not use solvent optimization
  * \param[in]  print_force Print forces for atoms with force >= print_force
  */
-void init_forcerec(FILE                   *fplog,
-                   const gmx::MDLogger    &mdlog,
-                   t_forcerec             *fr,
-                   t_fcdata               *fcd,
-                   const t_inputrec       *ir,
-                   const gmx_mtop_t       *mtop,
-                   const t_commrec        *cr,
-                   matrix                  box,
-                   const char             *tabfn,
-                   const char             *tabpfn,
-                   const t_filenm         *tabbfnm,
-                   gmx_device_info_t      *deviceInfo,
-                   gmx_bool                bNoSolvOpt,
-                   real                    print_force);
+void init_forcerec(FILE                    *fplog,
+                   const gmx::MDLogger     &mdlog,
+                   t_forcerec              *fr,
+                   t_fcdata                *fcd,
+                   const t_inputrec        *ir,
+                   const gmx_mtop_t        *mtop,
+                   const t_commrec         *cr,
+                   matrix                   box,
+                   const char              *tabfn,
+                   const char              *tabpfn,
+                   const t_filenm          *tabbfnm,
+                   const gmx_hw_info_t     &hardwareInfo,
+                   const gmx_device_info_t *deviceInfo,
+                   gmx_bool                 bNoSolvOpt,
+                   real                     print_force);
 
 /*! \brief Divide exclusions over threads
  *

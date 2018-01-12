@@ -136,7 +136,7 @@ namespace gmx
                            t_inputrec *inputrec,
                            gmx_mtop_t *top_global, t_fcdata *fcd,
                            t_state *state_global,
-                           t_mdatoms *mdatoms,
+                           gmx::MDAtoms *mdAtoms,
                            t_nrnb *nrnb, gmx_wallcycle_t wcycle,
                            gmx_edsam_t ed,
                            t_forcerec *fr,
@@ -154,7 +154,7 @@ double do_tpi(FILE *fplog, t_commrec *cr, const gmx::MDLogger gmx_unused &mdlog,
               gmx_mtop_t *top_global, t_fcdata *fcd,
               t_state *state_global,
               ObservablesHistory gmx_unused *observablesHistory,
-              t_mdatoms *mdatoms,
+              gmx::MDAtoms *mdAtoms,
               t_nrnb *nrnb, gmx_wallcycle_t wcycle,
               t_forcerec *fr,
               const ReplicaExchangeParameters gmx_unused &replExParams,
@@ -190,6 +190,7 @@ double do_tpi(FILE *fplog, t_commrec *cr, const gmx::MDLogger gmx_unused &mdlog,
     real             prescorr, enercorr, dvdlcorr;
     gmx_bool         bEnergyOutOfBounds;
     const char      *tpid_leg[2] = {"direct", "reweighted"};
+    auto             mdatoms     = mdAtoms->mdatoms();
 
     GMX_UNUSED_VALUE(outputProvider);
 
@@ -282,7 +283,7 @@ double do_tpi(FILE *fplog, t_commrec *cr, const gmx::MDLogger gmx_unused &mdlog,
         sscanf(dump_pdb, "%20lf", &dump_ener);
     }
 
-    atoms2md(top_global, inputrec, -1, nullptr, top_global->natoms, mdatoms);
+    atoms2md(top_global, inputrec, -1, nullptr, top_global->natoms, mdAtoms);
     update_mdatoms(mdatoms, inputrec->fepvals->init_lambda);
 
     snew(enerd, 1);
@@ -660,8 +661,8 @@ double do_tpi(FILE *fplog, t_commrec *cr, const gmx::MDLogger gmx_unused &mdlog,
             cr->nnodes = 1;
             do_force(fplog, cr, inputrec,
                      step, nrnb, wcycle, top, &top_global->groups,
-                     state_global->box, &state_global->x, &state_global->hist,
-                     &f, force_vir, mdatoms, enerd, fcd,
+                     state_global->box, state_global->x, &state_global->hist,
+                     f, force_vir, mdatoms, enerd, fcd,
                      state_global->lambda,
                      nullptr, fr, nullptr, mu_tot, t, nullptr, FALSE,
                      GMX_FORCE_NONBONDED | GMX_FORCE_ENERGY |

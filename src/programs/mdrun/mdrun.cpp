@@ -218,12 +218,16 @@ int Mdrunner::mainFunction(int argc, char *argv[])
         "terminated only when the time limit set by [TT]-maxh[tt] is reached (if any)"
         "or upon receiving a signal."
         "[PAR]",
-        "When [TT]mdrun[tt] receives a TERM signal, it will stop as soon as",
-        "checkpoint file can be written, i.e. after the next global communication step.",
-        "When [TT]mdrun[tt] receives an INT signal (e.g. when ctrl+C is",
+        "When [TT]mdrun[tt] receives a TERM or INT signal (e.g. when ctrl+C is",
         "pressed), it will stop at the next neighbor search step or at the",
         "second global communication step, whichever happens later.",
-        "In both cases all the usual output will be written to file.",
+        "When [TT]mdrun[tt] receives a second TERM or INT signal and",
+        "reproducibility is not requested, it will stop at the first global",
+        "communication step.",
+        "In both cases all the usual output will be written to file and",
+        "a checkpoint file is written at the last step.",
+        "When [TT]mdrun[tt] receives an ABRT signal or the third TERM or INT signal,",
+        "it will abort directly without writing a new checkpoint file.",
         "When running with MPI, a signal to one of the [TT]mdrun[tt] ranks",
         "is sufficient, this signal should not be sent to mpirun or",
         "the [TT]mdrun[tt] process that is the parent of the others.",
@@ -250,8 +254,13 @@ int Mdrunner::mainFunction(int argc, char *argv[])
     { nullptr, "auto", "on", "off", nullptr };
     const char       *nbpu_opt_choices[] =
     { nullptr, "auto", "cpu", "gpu", nullptr };
+    const char       *pme_opt_choices[] =
+    { nullptr, "auto", "cpu", "gpu", nullptr };
+    const char       *pme_fft_opt_choices[] =
+    { nullptr, "auto", "cpu", "gpu", nullptr };
     gmx_bool          bTryToAppendFiles     = TRUE;
-    const char       *gpuIdTaskAssignment   = "";
+    const char       *gpuIdsAvailable       = "";
+    const char       *userGpuTaskAssignment = "";
 
     ImdOptions       &imdOptions = mdrunOptions.imdOptions;
 
@@ -266,7 +275,7 @@ int Mdrunner::mainFunction(int argc, char *argv[])
         { "-nt",      FALSE, etINT, {&hw_opt.nthreads_tot},
           "Total number of threads to start (0 is guess)" },
         { "-ntmpi",   FALSE, etINT, {&hw_opt.nthreads_tmpi},
-          "Number of thread-MPI threads to start (0 is guess)" },
+          "Number of thread-MPI ranks to start (0 is guess)" },
         { "-ntomp",   FALSE, etINT, {&hw_opt.nthreads_omp},
           "Number of OpenMP threads per MPI rank to start (0 is guess)" },
         { "-ntomp_pme", FALSE, etINT, {&hw_opt.nthreads_omp_pme},
@@ -277,8 +286,10 @@ int Mdrunner::mainFunction(int argc, char *argv[])
           "The lowest logical core number to which mdrun should pin the first thread" },
         { "-pinstride", FALSE, etINT, {&hw_opt.core_pinning_stride},
           "Pinning distance in logical cores for threads, use 0 to minimize the number of threads per physical core" },
-        { "-gpu_id",  FALSE, etSTR, {&gpuIdTaskAssignment},
-          "List of GPU device id-s to use, specifies the per-node PP rank to GPU mapping" },
+        { "-gpu_id",  FALSE, etSTR, {&gpuIdsAvailable},
+          "List of unique GPU device IDs available to use" },
+        { "-gputasks",  FALSE, etSTR, {&userGpuTaskAssignment},
+          "List of GPU device IDs, mapping each PP task on each node to a device" },
         { "-ddcheck", FALSE, etBOOL, {&domdecOptions.checkBondedInteractions},
           "Check for all bonded interactions with DD" },
         { "-ddbondcomm", FALSE, etBOOL, {&domdecOptions.useBondedCommunication},
@@ -312,6 +323,10 @@ int Mdrunner::mainFunction(int argc, char *argv[])
           "Set nstlist when using a Verlet buffer tolerance (0 is guess)" },
         { "-tunepme", FALSE, etBOOL, {&mdrunOptions.tunePme},
           "Optimize PME load between PP/PME ranks or GPU/CPU (only with the Verlet cut-off scheme)" },
+        { "-pme",     FALSE, etENUM, {pme_opt_choices},
+          "Perform PME calculations on" },
+        { "-pmefft", FALSE, etENUM, {pme_fft_opt_choices},
+          "Perform PME FFT calculations on" },
         { "-v",       FALSE, etBOOL, {&mdrunOptions.verbose},
           "Be loud and noisy" },
         { "-pforce",  FALSE, etREAL, {&pforce},
@@ -389,24 +404,42 @@ int Mdrunner::mainFunction(int argc, char *argv[])
         return 0;
     }
 
-    // Handle the option that permits the user to select a GPU task
-    // assignment, which could be in an environment variable (so that
-    // there is a way to customize it, when using MPI in heterogeneous
-    // contexts).
+    // Handle the options that permits the user to either declare
+    // which compatible GPUs are availble for use, or to select a GPU
+    // task assignment. Either could be in an environment variable (so
+    // that there is a way to customize it, when using MPI in
+    // heterogeneous contexts).
     {
         // TODO Argument parsing can't handle std::string. We should
         // fix that by changing the parsing, once more of the roles of
         // handling, validating and implementing defaults for user
         // command-line options have been seperated.
-        hw_opt.gpuIdTaskAssignment = gpuIdTaskAssignment;
+        hw_opt.gpuIdsAvailable       = gpuIdsAvailable;
+        hw_opt.userGpuTaskAssignment = userGpuTaskAssignment;
+
         const char *env = getenv("GMX_GPU_ID");
         if (env != nullptr)
         {
-            if (!hw_opt.gpuIdTaskAssignment.empty())
+            if (!hw_opt.gpuIdsAvailable.empty())
             {
                 gmx_fatal(FARGS, "GMX_GPU_ID and -gpu_id can not be used at the same time");
             }
-            hw_opt.gpuIdTaskAssignment = env;
+            hw_opt.gpuIdsAvailable = env;
+        }
+
+        env = getenv("GMX_GPUTASKS");
+        if (env != nullptr)
+        {
+            if (!hw_opt.userGpuTaskAssignment.empty())
+            {
+                gmx_fatal(FARGS, "GMX_GPUTASKS and -gputasks can not be used at the same time");
+            }
+            hw_opt.userGpuTaskAssignment = env;
+        }
+
+        if (!hw_opt.gpuIdsAvailable.empty() && !hw_opt.userGpuTaskAssignment.empty())
+        {
+            gmx_fatal(FARGS, "-gpu_id and -gputasks cannot be used at the same time");
         }
     }
 
@@ -487,8 +520,12 @@ int Mdrunner::mainFunction(int argc, char *argv[])
     domdecOptions.numCells[YY] = (int)(realddxyz[YY] + 0.5);
     domdecOptions.numCells[ZZ] = (int)(realddxyz[ZZ] + 0.5);
 
-    nbpu_opt  = nbpu_opt_choices[0];
-    rc        = mdrunner();
+    nbpu_opt    = nbpu_opt_choices[0];
+    pme_opt     = pme_opt_choices[0];
+    pme_fft_opt = pme_fft_opt_choices[0];
+
+
+    rc = mdrunner();
 
     /* Log file has to be closed in mdrunner if we are appending to it
        (fplog not set here) */

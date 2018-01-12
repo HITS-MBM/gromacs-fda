@@ -33,7 +33,7 @@
  * the research papers on the package. Check out http://www.gromacs.org.
  */
 /*! \internal \file
- * \brief Tests for gmx::AlignedAllocator
+ * \brief Tests for gmx::AlignedAllocator and gmx::PageAlignedAllocator.
  *
  * \author Erik Lindahl <erik.lindahl@gmail.com>
  * \author Mark Abraham <mark.j.abraham@gmail.com>
@@ -49,23 +49,11 @@
 #include <gtest/gtest.h>
 
 #include "gromacs/math/vectypes.h"
-#include "gromacs/utility/real.h"
 
 namespace gmx
 {
-
-//! Templated test fixture.
-template <typename T>
-class AllocatorTest : public ::testing::Test
+namespace test
 {
-    public:
-        /*! \brief Bitmask for testing the alignment.
-         *
-         * e.g. for 128-byte alignment the mask is 128-1 - all of
-         * these bits should be zero in pointers that have the
-         * intended alignment. */
-        std::size_t mask_ = T::allocation_policy::alignment()-1;
-};
 
 //! Declare allocator types to test.
 using AllocatorTypesToTest = ::testing::Types<AlignedAllocator<real>,
@@ -75,51 +63,26 @@ using AllocatorTypesToTest = ::testing::Types<AlignedAllocator<real>,
                                               AlignedAllocator<RVec>,
                                               PageAlignedAllocator<RVec>
                                               >;
+
 TYPED_TEST_CASE(AllocatorTest, AllocatorTypesToTest);
 
-// NB need to use this->mask_ because of GoogleTest quirks
+} // namespace
+} // namespace
 
-TYPED_TEST(AllocatorTest, AllocatorAlignAllocatesWithAlignment)
+// Includes tests common to all allocation policies.
+#include "gromacs/utility/tests/alignedallocator-impl.h"
+
+namespace gmx
 {
-    using pointer = typename TypeParam::pointer;
-    TypeParam a;
-    pointer   p = a.allocate(1000);
+namespace test
+{
 
-    EXPECT_EQ(0, reinterpret_cast<std::size_t>(p) & this->mask_);
-    a.deallocate(p, 1000);
-}
-
-
-TYPED_TEST(AllocatorTest, VectorAllocatesAndResizesWithAlignment)
+TYPED_TEST(AllocatorTest, StatelessAllocatorUsesNoMemory)
 {
     using value_type = typename TypeParam::value_type;
-    std::vector<value_type, TypeParam> v(10);
-    EXPECT_EQ(0, reinterpret_cast<std::size_t>(v.data()) & this->mask_);
-
-    // Reserve a few times to check things work ok, making sure we
-    // will trigger several reallocations on common vector
-    // implementations.
-    for (std::size_t i = 1000; i <= 10000; i += 1000)
-    {
-        v.resize(i);
-        EXPECT_EQ(0, reinterpret_cast<std::size_t>(v.data()) & this->mask_);
-    }
+    EXPECT_EQ(sizeof(std::vector<value_type>),
+              sizeof(std::vector<value_type, TypeParam>));
 }
 
-TYPED_TEST(AllocatorTest, VectorAllocatesAndReservesWithAlignment)
-{
-    using value_type = typename TypeParam::value_type;
-    std::vector<value_type, TypeParam> v(10);
-    EXPECT_EQ(0, reinterpret_cast<std::size_t>(v.data()) & this->mask_);
-
-    // Reserve a few times to check things work ok, making sure we
-    // will trigger several reallocations on common vector
-    // implementations.
-    for (std::size_t i = 1000; i <= 10000; i += 1000)
-    {
-        v.reserve(i);
-        EXPECT_EQ(0, reinterpret_cast<std::size_t>(v.data()) & this->mask_);
-    }
-}
-
-}
+} // namespace
+} // namespace

@@ -140,22 +140,14 @@ int __device__ __forceinline__ pme_gpu_check_atom_charge(const float coefficient
 /*! \brief \internal
  * The main PME CUDA-specific host data structure, included in the PME GPU structure by the archSpecific pointer.
  */
-struct pme_gpu_cuda_t
+struct PmeGpuCuda
 {
     /*! \brief The CUDA stream where everything related to the PME happens. */
     cudaStream_t pmeStream;
 
     /* Synchronization events */
-    /*! \brief Triggered after the energy/virial have been copied to the host (after the solving stage). */
-    cudaEvent_t syncEnerVirD2H;
-    /*! \brief Triggered after the output forces have been copied to the host (after the gathering stage). */
-    cudaEvent_t syncForcesD2H;
     /*! \brief Triggered after the grid has been copied to the host (after the spreading stage). */
     cudaEvent_t syncSpreadGridD2H;
-    /*! \brief Triggered after the atom spline data has been copied to the host (after the spline computation). */
-    cudaEvent_t syncSplineAtomDataD2H;
-    /*! \brief Triggered after the grid hes been copied to the host (after the solving stage) */
-    cudaEvent_t syncSolveGridD2H;
 
     // TODO: consider moving some things below into the non-CUDA struct.
 
@@ -220,10 +212,10 @@ struct pme_gpu_cuda_t
 
 /*! \brief \internal
  * A single structure encompassing all the PME data used in CUDA kernels.
- * This inherits from pme_gpu_kernel_params_base_t and adds a couple cudaTextureObject_t handles,
+ * This inherits from PmeGpuKernelParamsBase and adds a couple cudaTextureObject_t handles,
  * which we would like to avoid in plain C++.
  */
-struct pme_gpu_cuda_kernel_params_t : pme_gpu_kernel_params_base_t
+struct PmeGpuCudaKernelParams : PmeGpuKernelParamsBase
 {
     /* These are CUDA texture objects, related to the grid size. */
     /*! \brief CUDA texture object for accessing grid.d_fractShiftsTable */

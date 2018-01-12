@@ -74,7 +74,6 @@ real bond_angle(const rvec xi, const rvec xj, const rvec xk,
 real dih_angle(const rvec xi, const rvec xj, const rvec xk, const rvec xl,
                const struct t_pbc *pbc,
                rvec r_ij, rvec r_kj, rvec r_kl, rvec m, rvec n, /* out */
-               real *sign,
                int *t1, int *t2, int *t3);
 
 /*! \brief Do an update of the forces for dihedral potentials */
@@ -137,6 +136,17 @@ void
                        real gmx_unused lambda,
                        const t_mdatoms gmx_unused *md, t_fcdata gmx_unused *fcd,
                        int gmx_unused *global_atom_index);
+
+/* As urey_bradley, but using SIMD to calculate many potentials at once.
+ * This routines does not calculate energies and shift forces.
+ */
+void urey_bradley_noener_simd(int nbonds,
+                              const t_iatom forceatoms[], const t_iparams forceparams[],
+                              const rvec x[], rvec4 f[],
+                              const t_pbc *pbc, const t_graph gmx_unused *g,
+                              real gmx_unused lambda,
+                              const t_mdatoms gmx_unused *md, t_fcdata gmx_unused *fcd,
+                              int gmx_unused *global_atom_index);
 
 /* As pdihs_noener(), but using SIMD to calculate many dihedrals at once. */
 void

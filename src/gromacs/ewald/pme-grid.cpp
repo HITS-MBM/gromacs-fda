@@ -509,7 +509,7 @@ void set_grid_alignment(int gmx_unused *pmegrid_nz, int gmx_unused pme_order)
 {
 #ifdef PME_SIMD4_SPREAD_GATHER
     if (pme_order == 5
-#ifndef PME_SIMD4_UNALIGNED
+#if !PME_4NSIMD_GATHER
         || pme_order == 4
 #endif
         )
@@ -523,7 +523,7 @@ void set_grid_alignment(int gmx_unused *pmegrid_nz, int gmx_unused pme_order)
 static void set_gridsize_alignment(int gmx_unused *gridsize, int gmx_unused pme_order)
 {
 #ifdef PME_SIMD4_SPREAD_GATHER
-#ifndef PME_SIMD4_UNALIGNED
+#if !PME_4NSIMD_GATHER
     if (pme_order == 4)
     {
         /* Add extra elements to ensured aligned operations do not go
@@ -871,46 +871,4 @@ void reuse_pmegrids(const pmegrids_t *oldgrid, pmegrids_t *newgrid)
             newgrid->grid_th[t].grid = oldgrid->grid_th[t].grid;
         }
     }
-}
-
-static void dump_grid(FILE *fp,
-                      int sx, int sy, int sz, int nx, int ny, int nz,
-                      int my, int mz, const real *g)
-{
-    int x, y, z;
-
-    for (x = 0; x < nx; x++)
-    {
-        for (y = 0; y < ny; y++)
-        {
-            for (z = 0; z < nz; z++)
-            {
-                fprintf(fp, "%2d %2d %2d %6.3f\n",
-                        sx+x, sy+y, sz+z, g[(x*my + y)*mz + z]);
-            }
-        }
-    }
-}
-
-/* This function is called from gmx_pme_do() only from debugging code
-   that is commented out. */
-void dump_local_fftgrid(struct gmx_pme_t *pme, const real *fftgrid)
-{
-    ivec local_fft_ndata, local_fft_offset, local_fft_size;
-
-    gmx_parallel_3dfft_real_limits(pme->pfft_setup[PME_GRID_QA],
-                                   local_fft_ndata,
-                                   local_fft_offset,
-                                   local_fft_size);
-
-    dump_grid(stderr,
-              pme->pmegrid_start_ix,
-              pme->pmegrid_start_iy,
-              pme->pmegrid_start_iz,
-              pme->pmegrid_nx-pme->pme_order+1,
-              pme->pmegrid_ny-pme->pme_order+1,
-              pme->pmegrid_nz-pme->pme_order+1,
-              local_fft_size[YY],
-              local_fft_size[ZZ],
-              fftgrid);
 }

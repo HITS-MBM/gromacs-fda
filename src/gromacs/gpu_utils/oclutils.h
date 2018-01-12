@@ -41,17 +41,12 @@
 #ifndef GMX_GPU_UTILS_OCLUTILS_H
 #define GMX_GPU_UTILS_OCLUTILS_H
 
-/*! \brief Declare to OpenCL SDKs that we intend to use OpenCL API
-   features that were deprecated in 2.0, so that they don't warn about
-   it. */
-#define CL_USE_DEPRECATED_OPENCL_2_0_APIS
-#ifdef __APPLE__
-#    include <OpenCL/opencl.h>
-#else
-#    include <CL/opencl.h>
-#endif
-
 #include <string>
+
+#include "gromacs/gpu_utils/gmxopencl.h"
+#include "gromacs/utility/gmxassert.h"
+
+enum class GpuApiCallBehavior;
 
 /*! \brief OpenCL vendor IDs */
 typedef enum {
@@ -108,12 +103,18 @@ struct gmx_device_runtime_data_t
     cl_program program; /**< OpenCL program */
 };
 
+/*! \brief Launches synchronous or asynchronous device to host memory copy.
+ *
+ *  If copy_event is not NULL, on return it will contain an event object
+ *  identifying this particular device to host operation. The event can further
+ *  be used to queue a wait for this operation or to query profiling information.
+ */
+int ocl_copy_D2H(void * h_dest, cl_mem d_src,
+                 size_t offset, size_t bytes,
+                 GpuApiCallBehavior transferKind,
+                 cl_command_queue command_queue,
+                 cl_event *copy_event);
 
-/*! \brief Launches asynchronous host to device memory copy. */
-int ocl_copy_H2D_async(cl_mem d_dest, void * h_src,
-                       size_t offset, size_t bytes,
-                       cl_command_queue command_queue,
-                       cl_event *copy_event);
 
 /*! \brief Launches asynchronous device to host memory copy. */
 int ocl_copy_D2H_async(void * h_dest, cl_mem d_src,
@@ -121,10 +122,28 @@ int ocl_copy_D2H_async(void * h_dest, cl_mem d_src,
                        cl_command_queue command_queue,
                        cl_event *copy_event);
 
-/*! \brief Launches synchronous host to device memory copy. */
-int ocl_copy_H2D(cl_mem d_dest, void * h_src,
+/*! \brief Launches synchronous or asynchronous host to device memory copy.
+ *
+ *  If copy_event is not NULL, on return it will contain an event object
+ *  identifying this particular host to device operation. The event can further
+ *  be used to queue a wait for this operation or to query profiling information.
+ */
+int ocl_copy_H2D(cl_mem d_dest, void* h_src,
                  size_t offset, size_t bytes,
-                 cl_command_queue command_queue);
+                 GpuApiCallBehavior transferKind,
+                 cl_command_queue command_queue,
+                 cl_event *copy_event);
+
+/*! \brief Launches asynchronous host to device memory copy. */
+int ocl_copy_H2D_async(cl_mem d_dest, void * h_src,
+                       size_t offset, size_t bytes,
+                       cl_command_queue command_queue,
+                       cl_event *copy_event);
+
+/*! \brief Launches synchronous host to device memory copy. */
+int ocl_copy_H2D_sync(cl_mem d_dest, void * h_src,
+                      size_t offset, size_t bytes,
+                      cl_command_queue command_queue);
 
 /*! \brief Allocate host memory in malloc style */
 void ocl_pmalloc(void **h_ptr, size_t nbytes);
@@ -134,5 +153,28 @@ void ocl_pfree(void *h_ptr);
 
 /*! \brief Convert error code to diagnostic string */
 std::string ocl_get_error_string(cl_int error);
+
+/*! \brief Calls clFinish() in the stream \p s.
+ *
+ * \param[in] s stream to synchronize with
+ */
+static inline void gpuStreamSynchronize(cl_command_queue s)
+{
+    cl_int cl_error = clFinish(s);
+    GMX_RELEASE_ASSERT(CL_SUCCESS == cl_error,
+                       ("Error caught during clFinish:" + ocl_get_error_string(cl_error)).c_str());
+}
+
+/*! \brief Pretend to synchronize an OpenCL stream (dummy implementation).
+ *
+ * \param[in] s queue to check
+ *
+ *  \returns     True if all tasks enqueued in the stream \p s (at the time of this call) have completed.
+ */
+static inline bool haveStreamTasksCompleted(cl_command_queue gmx_unused s)
+{
+    GMX_RELEASE_ASSERT(false, "haveStreamTasksCompleted is not implemented for OpenCL");
+    return false;
+}
 
 #endif

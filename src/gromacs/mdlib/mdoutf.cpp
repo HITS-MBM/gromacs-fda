@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2013,2014,2015,2016,2017, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016,2017,2018, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -251,7 +251,7 @@ void mdoutf_write_to_trajectory_files(FILE *fplog, t_commrec *cr,
                                       gmx_int64_t step, double t,
                                       t_state *state_local, t_state *state_global,
                                       ObservablesHistory *observablesHistory,
-                                      PaddedRVecVector *f_local)
+                                      gmx::ArrayRef<gmx::RVec> f_local)
 {
     rvec *f_global;
 
@@ -265,19 +265,19 @@ void mdoutf_write_to_trajectory_files(FILE *fplog, t_commrec *cr,
         {
             if (mdof_flags & (MDOF_X | MDOF_X_COMPRESSED))
             {
-                dd_collect_vec(cr->dd, state_local, &state_local->x,
-                               MASTER(cr) ? &state_global->x : nullptr);
+                gmx::ArrayRef<gmx::RVec> globalXRef = MASTER(cr) ? gmx::makeArrayRef(state_global->x) : gmx::EmptyArrayRef();
+                dd_collect_vec(cr->dd, state_local, state_local->x, globalXRef);
             }
             if (mdof_flags & MDOF_V)
             {
-                dd_collect_vec(cr->dd, state_local, &state_local->v,
-                               MASTER(cr) ? &state_global->v : nullptr);
+                gmx::ArrayRef<gmx::RVec> globalVRef = MASTER(cr) ? gmx::makeArrayRef(state_global->v) : gmx::EmptyArrayRef();
+                dd_collect_vec(cr->dd, state_local, state_local->v, globalVRef);
             }
         }
         f_global = of->f_global;
         if (mdof_flags & MDOF_F)
         {
-            dd_collect_vec(cr->dd, state_local, f_local, f_global);
+            dd_collect_vec(cr->dd, state_local, f_local, gmx::arrayRefFromArray(reinterpret_cast<gmx::RVec *>(f_global), f_local.size()));
         }
     }
     else
@@ -285,7 +285,7 @@ void mdoutf_write_to_trajectory_files(FILE *fplog, t_commrec *cr,
         /* We have the whole state locally: copy the local state pointer */
         state_global = state_local;
 
-        f_global     = as_rvec_array(f_local->data());
+        f_global     = as_rvec_array(f_local.data());
     }
 
     if (MASTER(cr))
@@ -369,7 +369,10 @@ void mdoutf_write_to_trajectory_files(FILE *fplog, t_commrec *cr,
             if (write_xtc(of->fp_xtc, of->natoms_x_compressed, step, t,
                           state_local->box, xxtc, of->x_compression_precision) == 0)
             {
-                gmx_fatal(FARGS, "XTC error - maybe you are out of disk space?");
+                gmx_fatal(FARGS,
+                          "XTC error. This indicates you are out of disk space, or a "
+                          "simulation with major instabilities resulting in coordinates "
+                          "that are NaN or too large to be represented in the XTC format.\n");
             }
             gmx_fwrite_tng(of->tng_low_prec,
                            TRUE,
