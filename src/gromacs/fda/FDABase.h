@@ -13,6 +13,7 @@
 #include <vector>
 #include "FDASettings.h"
 #include "DistributedForces.h"
+#include "gromacs/gpu_utils/hostallocator.h"
 #include "gromacs/topology/topology.h"
 #include "gromacs/utility/fatalerror.h"
 #include "OnePair.h"
@@ -78,17 +79,17 @@ public:
                result_type == ResultType::VIRIAL_STRESS_VON_MISES;
     }
 
-    void write_frame(PaddedRVecVector const& x, int nsteps);
+    void write_frame(gmx::HostVector<gmx::RVec> const& x, int nsteps);
 
-    void write_frame_detailed(PaddedRVecVector const& x, bool print_vector, int nsteps);
+    void write_frame_detailed(gmx::HostVector<gmx::RVec> const& x, bool print_vector, int nsteps);
 
-    void write_frame_summed(PaddedRVecVector const& x, bool print_vector, int nsteps);
+    void write_frame_summed(gmx::HostVector<gmx::RVec> const& x, bool print_vector, int nsteps);
 
     void write_frame_scalar(int nsteps);
 
-    void sum_total_forces(PaddedRVecVector const& x);
+    void sum_total_forces(gmx::HostVector<gmx::RVec> const& x);
 
-    void write_total_forces(PaddedRVecVector const& x);
+    void write_total_forces(gmx::HostVector<gmx::RVec> const& x);
 
     /**
      * Writes a header as in original PF implementation;
@@ -102,7 +103,7 @@ public:
 
     void write_frame_scalar_compat(int nsteps);
 
-    void write_frame_summed_compat(PaddedRVecVector const& x, int nsteps);
+    void write_frame_summed_compat(gmx::HostVector<gmx::RVec> const& x, int nsteps);
 
     /// The stress is the negative atom_vir value.
     void write_virial_sum();

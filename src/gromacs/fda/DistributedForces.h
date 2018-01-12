@@ -9,7 +9,7 @@
 #define SRC_GROMACS_FDA_DISTRIBUTEDFORCES_H_
 
 #include <vector>
-#include "gromacs/math/paddedvector.h"
+#include "gromacs/gpu_utils/hostallocator.h"
 #include "gromacs/math/vectypes.h"
 #include "gromacs/utility/real.h"
 #include "DetailedForce.h"
@@ -55,28 +55,28 @@ public:
 
     void write_detailed_vector(std::ostream& os) const;
 
-    void write_detailed_scalar(std::ostream& os, PaddedRVecVector const& x) const;
+    void write_detailed_scalar(std::ostream& os, gmx::HostVector<gmx::RVec> const& x) const;
 
     void write_summed_vector(std::ostream& os) const;
 
-    void write_summed_scalar(std::ostream& os, PaddedRVecVector const& x) const;
+    void write_summed_scalar(std::ostream& os, gmx::HostVector<gmx::RVec> const& x) const;
 
     void write_scalar(std::ostream& os) const;
 
-    void write_total_forces(std::ostream& os, PaddedRVecVector const& x) const;
+    void write_total_forces(std::ostream& os, gmx::HostVector<gmx::RVec> const& x) const;
 
     void write_scalar_compat_ascii(std::ostream& os) const;
 
-    void write_summed_compat_ascii(std::ostream& os, PaddedRVecVector const& x) const;
+    void write_summed_compat_ascii(std::ostream& os, gmx::HostVector<gmx::RVec> const& x) const;
 
     void write_scalar_compat_bin(std::ostream& os) const;
 
-    void write_summed_compat_bin(std::ostream& os, PaddedRVecVector const& x) const;
+    void write_summed_compat_bin(std::ostream& os, gmx::HostVector<gmx::RVec> const& x) const;
 
     /// Divide all scalar forces by the divisor
     void scalar_real_divide(real divisor);
 
-    void summed_merge_to_scalar(PaddedRVecVector const& x);
+    void summed_merge_to_scalar(gmx::HostVector<gmx::RVec> const& x);
 
 private:
 

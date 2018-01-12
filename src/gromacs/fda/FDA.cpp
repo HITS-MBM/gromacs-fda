@@ -406,13 +406,13 @@ void FDA::add_virial_dihedral(int i, int j, int k, int l,
     add_virial(l, v, QUARTER);
 }
 
-void FDA::save_and_write_scalar_time_averages(PaddedRVecVector const& x, gmx_mtop_t *mtop)
+void FDA::save_and_write_scalar_time_averages(gmx::HostVector<gmx::RVec> const& x, gmx_mtop_t *mtop)
 {
     if (fda_settings.time_averaging_period != 1) {
         if (atom_based.PF_or_PS_mode())
             atom_based.distributed_forces.summed_merge_to_scalar(x);
         if (residue_based.PF_or_PS_mode()) {
-        	PaddedRVecVector com = get_residues_com(x, mtop);
+        	gmx::HostVector<gmx::RVec> com = get_residues_com(x, mtop);
             residue_based.distributed_forces.summed_merge_to_scalar(com);
             for (int i = 0; i != fda_settings.syslen_residues; ++i) {
                 rvec_inc(time_averaging_com[i], com[i]);
@@ -458,7 +458,7 @@ void FDA::write_scalar_time_averages()
     time_averaging_steps = 0;
 }
 
-void FDA::write_frame(PaddedRVecVector const& x, gmx_mtop_t *mtop)
+void FDA::write_frame(gmx::HostVector<gmx::RVec> const& x, gmx_mtop_t *mtop)
 {
     atom_based.write_frame(x, nsteps);
     residue_based.write_frame(get_residues_com(x, mtop), nsteps);
@@ -685,7 +685,7 @@ void FDA::modify_energy_group_exclusions(gmx_mtop_t *mtop, t_inputrec *inputrec)
 
 }
 
-PaddedRVecVector FDA::get_residues_com(PaddedRVecVector const& x, gmx_mtop_t *mtop) const
+gmx::HostVector<gmx::RVec> FDA::get_residues_com(gmx::HostVector<gmx::RVec> const& x, gmx_mtop_t *mtop) const
 {
     int moltype_index, mol_index, d;
     int i, atom_index, atom_global_index, residue_global_index;
@@ -695,7 +695,7 @@ PaddedRVecVector FDA::get_residues_com(PaddedRVecVector const& x, gmx_mtop_t *mt
     rvec r;
 
     std::vector<real> mass(fda_settings.syslen_residues);
-    PaddedRVecVector com(fda_settings.syslen_residues);
+    gmx::HostVector<gmx::RVec> com(fda_settings.syslen_residues);
 
     for (i = 0; i < fda_settings.syslen_residues; i++) {
         mass[i] = 0.0;
