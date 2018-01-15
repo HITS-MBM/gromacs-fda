@@ -1,0 +1,29 @@
+/* XPM */
+/* Created by: */
+/* GROMACS:      fda-graph-test, VERSION 5.0 */
+/* Executable:   /fast/doserbd/git/mbm_fda/gromacs-5.0/build_debug/bin/fda-graph-test */
+/* Library dir:  /fast/doserbd/git/mbm_fda/gromacs-5.0/share/top */
+/* Command line: */
+/*   fda-graph-test --gtest_color=no --gtest_filter=* */
+/* This file can be converted to EPS by the GROMACS program xpm2ps */
+/* title:   "Punctual stress over atoms" */
+/* legend:  "" */
+/* x-label: "Particle" */
+/* y-label: "Frame" */
+/* type:    "Continuous" */
+static char *gromacs_xpm[] = {
+"30 4   10 1",
+"A  c #FFFFFF " /* "839" */,
+"B  c #E3E3E3 " /* "2.5e+03" */,
+"C  c #C6C6C6 " /* "4.16e+03" */,
+"D  c #AAAAAA " /* "5.82e+03" */,
+"E  c #8E8E8E " /* "7.48e+03" */,
+"F  c #717171 " /* "9.14e+03" */,
+"G  c #555555 " /* "1.08e+04" */,
+"H  c #393939 " /* "1.25e+04" */,
+"I  c #1C1C1C " /* "1.41e+04" */,
+"J  c #000000 " /* "1.58e+04" */,
+"CBCBCAAFCDCBBBCBAFDFCBBBCABFCE",
+"DBDDDBBGDEDBDBCBBGEHDCCDDBBGEG",
+"EBDDDBBFECDBDCCBBFDHECCDDBBFDF",
+"CBCCDBBHFFCBDBCBBHEJDCBDDBBGDH"

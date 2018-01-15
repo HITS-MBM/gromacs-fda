@@ -1,0 +1,16 @@
+onepair = summed
+
+; group1 and group2 as defined in the -pfn file
+; if not defined, defaults to 'Protein'
+group1 = Protein
+group2 = Protein
+
+atombased = virial_stress_von_mises
+residuebased = no
+
+; interactions type could be one of more of:
+; bond angle dihedral polar coulomb lj nb14 bonded nonbonded all
+type = nonbonded
+
+; FDA energy group exclusion
+energy_grp_exclusion = no

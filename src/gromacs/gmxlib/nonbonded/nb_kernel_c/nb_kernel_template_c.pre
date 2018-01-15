@@ -37,12 +37,11 @@
 /* #endif */
 /* #if INCLUDE_HEADER */
 #include "gmxpre.h"
-
 #include "config.h"
-
 #include <math.h>
 
 #include "../nb_kernel.h"
+#include "gromacs/fda/FDA.h"
 #include "gromacs/gmxlib/nrnb.h"
 /* #endif */
 
@@ -120,6 +119,7 @@ void
                      nb_kernel_data_t gmx_unused * gmx_restrict kernel_data,
                      t_nrnb                      * gmx_restrict        nrnb)
 {
+    /* ## fprintf(stdout,"Calling {KERNEL_NAME}\n"); */
     /* ## Not all variables are used for all kernels, but any optimizing compiler fixes that, */
     /* ## so there is no point in going to extremes to exclude variables that are not needed. */
     int              i_shift_offset,i_coord_offset,j_coord_offset;
@@ -174,6 +174,8 @@ void
     /* #if 'PotentialSwitch' in [KERNEL_MOD_ELEC,KERNEL_MOD_VDW] */
     real             rswitch,swV3,swV4,swV5,swF2,swF3,swF4,d,d2,sw,dsw;
     /* #endif */
+
+    struct FDA *fda = fr->fda;
 
     x                = xx[0];
     f                = ff[0];
@@ -828,6 +830,19 @@ void
             f[j_coord_offset+DIM*{J}+XX] -= tx;
             f[j_coord_offset+DIM*{J}+YY] -= ty;
             f[j_coord_offset+DIM*{J}+ZZ] -= tz;
+
+            /* pairwise forces */
+            /*         #if 'electrostatics' in INTERACTION_FLAGS[I][J] and 'vdw' in INTERACTION_FLAGS[I][J] */
+            fda_add_nonbonded(fda, inr+{I}, jnr+{J}, felec, fvdw, dx{I}{J}, dy{I}{J}, dz{I}{J});
+                /* ## fprintf(stdout, "add coulomb and vdw %i %i %15.8f %15.8f\n", inr+{I}, jnr+{J}, felec, fvdw); */
+            /*         #elif 'electrostatics' in INTERACTION_FLAGS[I][J] */
+            fda_add_nonbonded_coulomb(fda, inr+{I}, jnr+{J}, felec, dx{I}{J}, dy{I}{J}, dz{I}{J});
+                /* ## fprintf(stdout, "add coulomb %i %i %15.8f\n", inr+{I}, jnr+{J}, felec); */
+            /*         #elif 'vdw' in INTERACTION_FLAGS[I][J] */
+            fda_add_nonbonded_lj(fda, inr+{I}, jnr+{J}, fvdw, dx{I}{J}, dy{I}{J}, dz{I}{J});
+                /* ## fprintf(stdout, "add vdw %i %i %15.8f\n", inr+{I}, jnr+{J}, fvdw); */
+            /*        #endif */
+            fda_virial_bond(fda, inr+{I}, jnr+{J}, fscal, dx{I}{J}, dy{I}{J}, dz{I}{J});
 
             /*         #define INNERFLOPS INNERFLOPS+9 */
             /*     #endif */
