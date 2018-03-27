@@ -325,7 +325,7 @@ static bool gpuAccelerationOfNonbondedIsUseful(const MDLogger   &mdlog,
                                                const t_inputrec *ir,
                                                bool              issueWarning)
 {
-    if (ir->opts.ngener > 1)
+    if (ir->opts.ngener - ir->nwall > 1)
     {
         /* The GPU code does not support more than one energy group.
          * If the user requested GPUs explicitly, a fatal error is given later.
@@ -924,7 +924,7 @@ int Mdrunner::mdrunner()
 
     /* Initialize per-physical-node MPI process/thread ID and counters. */
     gmx_init_intranode_counters(cr);
-    if (opt2bSet("-multi", nfile, fnm))
+    if (cr->ms && cr->ms->nsim > 1 && !opt2bSet("-multidir", nfile, fnm))
     {
         GMX_LOG(mdlog.info).asParagraph().
             appendText("The -multi flag is deprecated, and may be removed in a future version. Please "
@@ -1053,7 +1053,14 @@ int Mdrunner::mdrunner()
     }
     if (MULTISIM(cr))
     {
-        MPI_Barrier(cr->ms->mpi_comm_masters);
+        if (SIMMASTER(cr))
+        {
+            MPI_Barrier(cr->ms->mpi_comm_masters);
+        }
+        /* We need another barrier to prevent non-master ranks from contiuing
+         * when an error occured in a different simulation.
+         */
+        MPI_Barrier(cr->mpi_comm_mysim);
     }
 #endif
 

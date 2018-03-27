@@ -1350,12 +1350,18 @@ static void make_nbf_tables(FILE *fp,
     nbl->table_vdw->stride        = nbl->table_vdw->formatsize * nbl->table_vdw->ninteractions;
     snew_aligned(nbl->table_vdw->data, nbl->table_vdw->stride*(nbl->table_vdw->n+1), 32);
 
+    /* NOTE: Using a single i-loop here leads to mix-up of data in table_vdw
+     *       with (at least) gcc 6.2, 6.3 and 6.4 when compiled with -O3 and AVX
+     */
     for (i = 0; i <= nbl->table_elec_vdw->n; i++)
     {
         for (j = 0; j < 4; j++)
         {
             nbl->table_elec->data[4*i+j] = nbl->table_elec_vdw->data[12*i+j];
         }
+    }
+    for (i = 0; i <= nbl->table_elec_vdw->n; i++)
+    {
         for (j = 0; j < 8; j++)
         {
             nbl->table_vdw->data[8*i+j] = nbl->table_elec_vdw->data[12*i+4+j];
@@ -2245,13 +2251,22 @@ static void init_nb_verlet(const gmx::MDLogger     &mdlog,
     }
 
     snew(nbv->nbat, 1);
+    int mimimumNumEnergyGroupNonbonded = ir->opts.ngener;
+    if (ir->opts.ngener - ir->nwall == 1)
+    {
+        /* We have only one non-wall energy group, we do not need energy group
+         * support in the non-bondeds kernels, since all non-bonded energy
+         * contributions go to the first element of the energy group matrix.
+         */
+        mimimumNumEnergyGroupNonbonded = 1;
+    }
     bool bSimpleList = nbnxn_kernel_pairlist_simple(nbv->grp[0].kernel_type);
     nbnxn_atomdata_init(mdlog,
                         nbv->nbat,
                         nbv->grp[0].kernel_type,
                         enbnxninitcombrule,
                         fr->ntype, fr->nbfp,
-                        ir->opts.ngener,
+                        mimimumNumEnergyGroupNonbonded,
                         bSimpleList ? gmx_omp_nthreads_get(emntNonbonded) : 1,
                         nb_alloc, nb_free);
 
@@ -2658,6 +2673,7 @@ void init_forcerec(FILE                    *fp,
             gmx_fatal(FARGS, "Unsupported electrostatic interaction: %s", eel_names[ic->eeltype]);
             break;
     }
+    fr->nbkernel_elec_modifier = ic->coulomb_modifier;
 
     /* Vdw: Translate from mdp settings to kernel format */
     switch (ic->vdwtype)
@@ -2687,6 +2703,7 @@ void init_forcerec(FILE                    *fp,
             gmx_fatal(FARGS, "Unsupported vdw interaction: %s", evdw_names[ic->vdwtype]);
             break;
     }
+    fr->nbkernel_vdw_modifier = ic->vdw_modifier;
 
     /* These start out identical to ir, but might be altered if we e.g. tabulate the interaction in the kernel */
     fr->nbkernel_elec_modifier    = ic->coulomb_modifier;

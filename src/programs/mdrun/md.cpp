@@ -96,6 +96,7 @@
 #include "gromacs/mdlib/vcm.h"
 #include "gromacs/mdlib/vsite.h"
 #include "gromacs/mdtypes/awh-history.h"
+#include "gromacs/mdtypes/awh-params.h"
 #include "gromacs/mdtypes/commrec.h"
 #include "gromacs/mdtypes/df_history.h"
 #include "gromacs/mdtypes/energyhistory.h"
@@ -322,7 +323,7 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, const gmx::MDLogger &mdlog,
     gmx_bool        bGStatEveryStep, bGStat, bCalcVir, bCalcEnerStep, bCalcEner;
     gmx_bool        bNS, bNStList, bSimAnn, bStopCM,
                     bFirstStep, bInitStep, bLastStep = FALSE,
-                    bBornRadii, bUsingEnsembleRestraints;
+                    bBornRadii;
     gmx_bool          bDoDHDL = FALSE, bDoFEP = FALSE, bDoExpanded = FALSE;
     gmx_bool          do_ene, do_log, do_verbose, bRerunWarnNoV = TRUE,
                       bForceUpdate = FALSE, bCPT;
@@ -918,22 +919,34 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, const gmx::MDLogger &mdlog,
     bSumEkinhOld     = FALSE;
     bExchanged       = FALSE;
     bNeedRepartition = FALSE;
-    // TODO This implementation of ensemble orientation restraints is nasty because
-    // a user can't just do multi-sim with single-sim orientation restraints.
-    bUsingEnsembleRestraints = (fcd->disres.nsystems > 1) || (cr->ms && fcd->orires.nr);
 
+    bool simulationsShareState = false;
+    int  nstSignalComm         = nstglobalcomm;
     {
-        // Replica exchange and ensemble restraints need all
+        // TODO This implementation of ensemble orientation restraints is nasty because
+        // a user can't just do multi-sim with single-sim orientation restraints.
+        bool usingEnsembleRestraints = (fcd->disres.nsystems > 1) || (cr->ms && fcd->orires.nr);
+        bool awhUsesMultiSim         = (ir->bDoAwh && ir->awhParams->shareBiasMultisim && cr->ms);
+
+        // Replica exchange, ensemble restraints and AWH need all
         // simulations to remain synchronized, so they need
         // checkpoints and stop conditions to act on the same step, so
         // the propagation of such signals must take place between
         // simulations, not just within simulations.
-        bool checkpointIsLocal    = !useReplicaExchange && !bUsingEnsembleRestraints;
-        bool stopConditionIsLocal = !useReplicaExchange && !bUsingEnsembleRestraints;
+        // TODO: Make algorithm initializers set these flags.
+        simulationsShareState     = useReplicaExchange || usingEnsembleRestraints || awhUsesMultiSim;
         bool resetCountersIsLocal = true;
-        signals[eglsCHKPT]         = SimulationSignal(checkpointIsLocal);
-        signals[eglsSTOPCOND]      = SimulationSignal(stopConditionIsLocal);
+        signals[eglsCHKPT]         = SimulationSignal(!simulationsShareState);
+        signals[eglsSTOPCOND]      = SimulationSignal(!simulationsShareState);
         signals[eglsRESETCOUNTERS] = SimulationSignal(resetCountersIsLocal);
+
+        if (simulationsShareState)
+        {
+            // Inter-simulation signal communication does not need to happen
+            // often, so we use a minimum of 200 steps to reduce overhead.
+            const int c_minimumInterSimulationSignallingInterval = 200;
+            nstSignalComm = ((c_minimumInterSimulationSignallingInterval + nstglobalcomm - 1)/nstglobalcomm)*nstglobalcomm;
+        }
     }
 
     DdOpenBalanceRegionBeforeForceComputation ddOpenBalanceRegion   = (DOMAINDECOMP(cr) ? DdOpenBalanceRegionBeforeForceComputation::yes : DdOpenBalanceRegionBeforeForceComputation::no);
@@ -1464,7 +1477,7 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, const gmx::MDLogger &mdlog,
                  * to allow for exact continuation, when possible.
                  */
                 signals[eglsSTOPCOND].sig = 1;
-                nsteps_stop               = std::max(ir->nstlist, 2*nstglobalcomm);
+                nsteps_stop               = std::max(ir->nstlist, 2*nstSignalComm);
             }
             else if (gmx_get_stop_condition() == gmx_stop_cond_next)
             {
@@ -1472,7 +1485,7 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, const gmx::MDLogger &mdlog,
                  * This breaks exact continuation.
                  */
                 signals[eglsSTOPCOND].sig = -1;
-                nsteps_stop               = nstglobalcomm + 1;
+                nsteps_stop               = nstSignalComm + 1;
             }
             if (fplog)
             {
@@ -1689,7 +1702,7 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, const gmx::MDLogger &mdlog,
         {
             // Organize to do inter-simulation signalling on steps if
             // and when algorithms require it.
-            bool doInterSimSignal = (!bFirstStep && bDoReplEx) || bUsingEnsembleRestraints;
+            bool doInterSimSignal = (simulationsShareState && do_per_step(step, nstSignalComm));
 
             if (bGStat || (!EI_VV(ir->eI) && do_per_step(step+1, nstglobalcomm)) || doInterSimSignal)
             {
@@ -2002,7 +2015,8 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, const gmx::MDLogger &mdlog,
                        eprAVER, mdebin, fcd, groups, &(ir->opts), ir->awh);
         }
     }
-
+    // TODO Enable the next line when merging to master branch
+    // done_ebin(mdebin->ebin);
     done_mdoutf(outf);
 
     if (bPMETune)
