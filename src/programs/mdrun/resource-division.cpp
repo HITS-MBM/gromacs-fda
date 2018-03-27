@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2015,2016, by the GROMACS development team, led by
+ * Copyright (c) 2015,2016,2017, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -54,6 +54,7 @@
 #include "gromacs/mdtypes/commrec.h"
 #include "gromacs/mdtypes/inputrec.h"
 #include "gromacs/mdtypes/md_enums.h"
+#include "gromacs/topology/mtop_util.h"
 #include "gromacs/topology/topology.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/gmxassert.h"
@@ -192,6 +193,14 @@ static int get_tmpi_omp_thread_division(const gmx_hw_info_t *hwinfo,
      */
     if (ngpu > 0)
     {
+        if (hw_opt->nthreads_omp > 0)
+        {
+            /* In this case it is unclear if we should use 1 rank per GPU
+             * or more or less, so we require also setting the number of ranks.
+             */
+            gmx_fatal(FARGS, "When using GPUs, setting the number of OpenMP threads without specifying the number of ranks can lead to conflicting demands. Please specify the number of thread-MPI ranks as well (option -ntmpi).");
+        }
+
         nrank = ngpu;
 
         /* When the user sets nthreads_omp, we can end up oversubscribing CPU cores
@@ -365,6 +374,8 @@ int get_nthreads_mpi(const gmx_hw_info_t *hwinfo,
         checker.applyConstraint(inputrec->eI == eiLBFGS, "L-BFGS minimization");
         checker.applyConstraint(inputrec->coulombtype == eelEWALD, "Plain Ewald electrostatics");
         checker.applyConstraint(doMembed, "Membrane embedding");
+        bool useOrientationRestraints = (gmx_mtop_ftype_count(mtop, F_ORIRES) > 0);
+        checker.applyConstraint(useOrientationRestraints, "Orientation restraints");
         if (checker.mustUseOneRank())
         {
             std::string message = checker.getMessage();

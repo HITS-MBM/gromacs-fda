@@ -372,6 +372,12 @@ void check_ir(const char *mdparin, t_inputrec *ir, t_gromppopts *opts,
             warning_error(wi, "Implicit solvent is not (yet) supported with the with Verlet lists.");
         }
 
+        if (EEL_USER(ir->coulombtype))
+        {
+            sprintf(warn_buf, "Coulomb type %s is not supported with the verlet scheme", eel_names[ir->coulombtype]);
+            warning_error(wi, warn_buf);
+        }
+
         if (ir->nstlist <= 0)
         {
             warning_error(wi, "With Verlet lists nstlist should be larger than 0");
@@ -4096,11 +4102,14 @@ void triple_check(const char *mdparin, t_inputrec *ir, gmx_mtop_t *sys,
             CHECK(ir->opts.tau_t[i] < 0);
         }
 
-        for (i = 0; i < ir->opts.ngtc; i++)
+        if (ir->etc == etcANDERSENMASSIVE && ir->comm_mode != ecmNO)
         {
-            int nsteps = (int)(ir->opts.tau_t[i]/ir->delta_t);
-            sprintf(err_buf, "tau_t/delta_t for group %d for temperature control method %s must be a multiple of nstcomm (%d), as velocities of atoms in coupled groups are randomized every time step. The input tau_t (%8.3f) leads to %d steps per randomization", i, etcoupl_names[ir->etc], ir->nstcomm, ir->opts.tau_t[i], nsteps);
-            CHECK((nsteps % ir->nstcomm) && (ir->etc == etcANDERSENMASSIVE));
+            for (i = 0; i < ir->opts.ngtc; i++)
+            {
+                int nsteps = static_cast<int>(ir->opts.tau_t[i]/ir->delta_t + 0.5);
+                sprintf(err_buf, "tau_t/delta_t for group %d for temperature control method %s must be a multiple of nstcomm (%d), as velocities of atoms in coupled groups are randomized every time step. The input tau_t (%8.3f) leads to %d steps per randomization", i, etcoupl_names[ir->etc], ir->nstcomm, ir->opts.tau_t[i], nsteps);
+                CHECK(nsteps % ir->nstcomm != 0);
+            }
         }
     }
 
