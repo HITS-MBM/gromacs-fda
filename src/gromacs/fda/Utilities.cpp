@@ -18,9 +18,9 @@ real vector2signedscalar(const rvec v, const rvec xi, const rvec xj, Vector2Scal
     switch (v2s) {
         case Vector2Scalar::NORM:
             // based on the cos of the angle between vectors:
-            // if it's positive, the vector v is oriented within -90 to 90 degress with respect to r - considered to be same direction = attractive = negative;
-            // if it's negative, the vector v is oriented within 90 to 270 degrees with respect to r - considered to be in opposite direction = repulsvive = positive;
-            // if it's zero, the vector v is oriented at exactly 90 or 270 degrees with respect to r - the force can be considered neither attractive nor repulsvive, so it's set to zero
+            // if it's positive, the vector v is oriented within -90 to 90 degrees with respect to r - considered to be same direction = attractive = negative;
+            // if it's negative, the vector v is oriented within 90 to 270 degrees with respect to r - considered to be in opposite direction = repulsive = positive;
+            // if it's zero, the vector v is oriented at exactly 90 or 270 degrees with respect to r - the force can be considered neither attractive nor repulsive, so it's set to zero
             if (c > 0) {
                 return -norm(v);
             } else if (c < 0) {
