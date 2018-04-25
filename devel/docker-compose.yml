@@ -10,7 +10,6 @@ services:
       - /etc/localtime:/etc/localtime:ro
       - home:/home/${USER_NAME}
       - ..:/home/${USER_NAME}/git/${PROJECT}
-      - /mag/doserbd/projects/fda-issues:/home/${USER_NAME}/fda-issues
     environment:
       - DISPLAY
       - USER_ID=${USER_ID}
