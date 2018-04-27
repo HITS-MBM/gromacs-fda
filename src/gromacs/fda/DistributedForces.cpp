@@ -90,7 +90,7 @@ void DistributedForces::write_detailed_vector(std::ostream& os) const
     }
 }
 
-void DistributedForces::write_detailed_scalar(std::ostream& os, rvec *x) const
+void DistributedForces::write_detailed_scalar(std::ostream& os, rvec *x, const matrix box) const
 {
     for (size_t i = 0; i != detailed.size(); ++i) {
         auto const& detailed_i = detailed[i];
@@ -102,7 +102,7 @@ void DistributedForces::write_detailed_scalar(std::ostream& os, rvec *x) const
                 if (detailed_j.number[type] == 0) continue;
                 Vector const& force = detailed_j.force[type];
                 os << i << " " << j << " "
-                   << vector2signedscalar(force.get_pointer(), x[i], x[j], fda_settings.v2s) << " "
+                   << vector2signedscalar(force.get_pointer(), x[i], x[j], box, fda_settings.v2s) << " "
                    << from_pure(static_cast<PureInteractionType>(type)) << std::endl;
             }
         }
@@ -125,7 +125,7 @@ void DistributedForces::write_summed_vector(std::ostream& os) const
     }
 }
 
-void DistributedForces::write_summed_scalar(std::ostream& os, rvec *x) const
+void DistributedForces::write_summed_scalar(std::ostream& os, rvec *x, const matrix box) const
 {
     for (size_t i = 0; i != summed.size(); ++i) {
         auto const& summed_i = summed[i];
@@ -134,7 +134,7 @@ void DistributedForces::write_summed_scalar(std::ostream& os, rvec *x) const
             size_t j = indices_i[p];
             auto const& summed_j = summed_i[p];
             os << i << " " << j << " "
-               << vector2signedscalar(summed_j.force.get_pointer(), x[i], x[j], fda_settings.v2s) << " "
+               << vector2signedscalar(summed_j.force.get_pointer(), x[i], x[j], box, fda_settings.v2s) << " "
                << summed_j.type << std::endl;
         }
     }
@@ -247,7 +247,7 @@ void DistributedForces::write_scalar_compat_ascii(std::ostream& os) const
     os << std::endl;
 }
 
-void DistributedForces::write_summed_compat_ascii(std::ostream& os, rvec *x) const
+void DistributedForces::write_summed_compat_ascii(std::ostream& os, rvec *x, const matrix box) const
 {
     // Print total number of interactions
     int nb_interactions = 0;
@@ -278,7 +278,7 @@ void DistributedForces::write_summed_compat_ascii(std::ostream& os, rvec *x) con
         for (size_t p = 0; p != summed_i.size(); ++p) {
             size_t j = summed_indices_i[p];
             auto const& summed_j = summed_i[p];
-            os << vector2signedscalar(summed_j.force.get_pointer(), x[i], x[j], fda_settings.v2s) << " ";
+            os << vector2signedscalar(summed_j.force.get_pointer(), x[i], x[j], box, fda_settings.v2s) << " ";
         }
     }
     os << std::endl;
@@ -338,7 +338,7 @@ void DistributedForces::write_scalar_compat_bin(std::ostream& os) const
     }
 }
 
-void DistributedForces::write_summed_compat_bin(std::ostream& os, rvec *x) const
+void DistributedForces::write_summed_compat_bin(std::ostream& os, rvec *x, const matrix box) const
 {
     // Print total number of interactions
     int nb_interactions = 0;
@@ -369,7 +369,7 @@ void DistributedForces::write_summed_compat_bin(std::ostream& os, rvec *x) const
         for (size_t p = 0; p != summed_i.size(); ++p) {
             size_t j = summed_indices_i[p];
             auto const& summed_j = summed_i[p];
-            real force = vector2signedscalar(summed_j.force.get_pointer(), x[i], x[j], fda_settings.v2s);
+            real force = vector2signedscalar(summed_j.force.get_pointer(), x[i], x[j], box, fda_settings.v2s);
             os.write(reinterpret_cast<const char*>(&force), sizeof(force));
         }
     }
@@ -392,7 +392,7 @@ void DistributedForces::scalar_real_divide(real divisor)
         for (auto& scalar_j : scalar_i) scalar_j.force *= inv;
 }
 
-void DistributedForces::summed_merge_to_scalar(const rvec *x)
+void DistributedForces::summed_merge_to_scalar(const rvec *x, const matrix box)
 {
     for (size_t i = 0; i != summed.size(); ++i) {
         auto & scalar_i = scalar[i];
@@ -403,7 +403,7 @@ void DistributedForces::summed_merge_to_scalar(const rvec *x)
             size_t j = indices_i[p];
             auto const& summed_j = summed_i[p];
             auto iter = std::find(scalar_indices_i.begin(), scalar_indices_i.end(), j);
-            Force<real> scalar_force(vector2signedscalar(summed_j.force.get_pointer(), x[i], x[j], fda_settings.v2s), summed_j.type);
+            Force<real> scalar_force(vector2signedscalar(summed_j.force.get_pointer(), x[i], x[j], box, fda_settings.v2s), summed_j.type);
             if (iter == scalar_indices_i.end()) {
                 scalar_indices_i.push_back(j);
                 scalar_i.push_back(scalar_force);

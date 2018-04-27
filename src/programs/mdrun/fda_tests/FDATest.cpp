@@ -100,8 +100,8 @@ TEST_P(FDATest, Basic)
         
         const double error_factor = 1e4;
         const bool weight_by_magnitude = true;
-        const bool ignore_sign = true;
-        
+        const bool ignore_sign = false;
+
         LogicallyEqualComparer<weight_by_magnitude, ignore_sign> comparer(error_factor);
         
         // Check results
@@ -142,6 +142,7 @@ INSTANTIATE_TEST_CASE_P(AllFDATests, FDATest, ::testing::Values(
     TestDataStructure("alagly_pairwise_forces_scalar_detailed_nonbonded", "pfa", "pfr"),
     TestDataStructure("alagly_pairwise_forces_vector_detailed_nonbonded", "pfa", "pfr", "traj.trr", true),
     TestDataStructure("alagly_verlet_summed_scalar", "pfa", "pfr"),
+    TestDataStructure("alagly_verlet_pbc_summed_scalar", "pfa", "pfr"),
     TestDataStructure("alagly_group_excl", "pfa", "pfr"),
     TestDataStructure("alagly_group_excl_uncomplete_cgs", "pfa", "pfr"),
     TestDataStructure("alagly_pairwise_forces_scalar_all", "pfa", "pfr"),

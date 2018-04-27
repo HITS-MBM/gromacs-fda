@@ -406,14 +406,14 @@ void FDA::add_virial_dihedral(int i, int j, int k, int l,
     add_virial(l, v, QUARTER);
 }
 
-void FDA::save_and_write_scalar_time_averages(rvec *x, gmx_mtop_t *mtop)
+void FDA::save_and_write_scalar_time_averages(rvec *x, const matrix box, gmx_mtop_t *mtop)
 {
     if (fda_settings.time_averaging_period != 1) {
         if (atom_based.PF_or_PS_mode())
-            atom_based.distributed_forces.summed_merge_to_scalar(x);
+            atom_based.distributed_forces.summed_merge_to_scalar(x, box);
         if (residue_based.PF_or_PS_mode()) {
-                rvec *com = get_residues_com(x, mtop);
-            residue_based.distributed_forces.summed_merge_to_scalar(com);
+            rvec *com = get_residues_com(x, mtop);
+            residue_based.distributed_forces.summed_merge_to_scalar(com, box);
             for (int i = 0; i != fda_settings.syslen_residues; ++i) {
                 rvec_inc(time_averaging_com[i], com[i]);
             }
@@ -423,7 +423,7 @@ void FDA::save_and_write_scalar_time_averages(rvec *x, gmx_mtop_t *mtop)
         if (fda_settings.time_averaging_period != 0 and time_averaging_steps >= fda_settings.time_averaging_period)
             write_scalar_time_averages();
     } else {
-        write_frame(x, mtop);
+        write_frame(x, box, mtop);
     }
     // Clear arrays for next frame
     atom_based.distributed_forces.clear();
@@ -459,11 +459,11 @@ void FDA::write_scalar_time_averages()
     time_averaging_steps = 0;
 }
 
-void FDA::write_frame(rvec *x, gmx_mtop_t *mtop)
+void FDA::write_frame(rvec *x, const matrix box, gmx_mtop_t *mtop)
 {
     rvec *com = get_residues_com(x, mtop);
-    atom_based.write_frame(x, nsteps);
-    residue_based.write_frame(com, nsteps);
+    atom_based.write_frame(x, box, nsteps);
+    residue_based.write_frame(com, box, nsteps);
     sfree(com);
     ++nsteps;
 }

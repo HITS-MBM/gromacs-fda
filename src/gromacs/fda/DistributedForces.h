@@ -54,11 +54,11 @@ public:
 
     void write_detailed_vector(std::ostream& os) const;
 
-    void write_detailed_scalar(std::ostream& os, rvec *x) const;
+    void write_detailed_scalar(std::ostream& os, rvec *x, const matrix box) const;
 
     void write_summed_vector(std::ostream& os) const;
 
-    void write_summed_scalar(std::ostream& os, rvec *x) const;
+    void write_summed_scalar(std::ostream& os, rvec *x, const matrix box) const;
 
     void write_scalar(std::ostream& os) const;
 
@@ -66,16 +66,16 @@ public:
 
     void write_scalar_compat_ascii(std::ostream& os) const;
 
-    void write_summed_compat_ascii(std::ostream& os, rvec *x) const;
+    void write_summed_compat_ascii(std::ostream& os, rvec *x, const matrix box) const;
 
     void write_scalar_compat_bin(std::ostream& os) const;
 
-    void write_summed_compat_bin(std::ostream& os, rvec *x) const;
+    void write_summed_compat_bin(std::ostream& os, rvec *x, const matrix box) const;
 
     /// Divide all scalar forces by the divisor
     void scalar_real_divide(real divisor);
 
-    void summed_merge_to_scalar(const rvec *x);
+    void summed_merge_to_scalar(const rvec *x, const matrix box);
 
 private:
 

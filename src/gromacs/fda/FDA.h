@@ -101,7 +101,7 @@ public:
      * writing because for this fda->atoms would need to be initialized (to get the atom
      * number or to get the sys2ps mapping) which only happens when AtomBased is non-zero
      */
-    void save_and_write_scalar_time_averages(rvec *x, gmx_mtop_t *mtop);
+    void save_and_write_scalar_time_averages(rvec *x, const matrix box, gmx_mtop_t *mtop);
 
     /**
      * Write scalar time averages; this is similar to pf_write_frame, except that time averages are used
@@ -116,7 +116,7 @@ public:
      */
     void write_scalar_time_averages();
 
-    void write_frame(rvec *x, gmx_mtop_t *mtop);
+    void write_frame(rvec *x, const matrix box, gmx_mtop_t *mtop);
 
     /// Main routine for FDA exclusions
     void modify_energy_group_exclusions(gmx_mtop_t *mtop, t_inputrec *inputrec) const;
