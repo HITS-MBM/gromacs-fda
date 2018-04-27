@@ -31,7 +31,7 @@ FDABase<Base>::FDABase(ResultType result_type, int syslen, std::string const& re
 }
 
 template <class Base>
-void FDABase<Base>::write_frame(gmx::HostVector<gmx::RVec> const& x, int nsteps)
+void FDABase<Base>::write_frame(gmx::HostVector<gmx::RVec> const& x, const matrix box, int nsteps)
 {
     switch (fda_settings.one_pair) {
         case OnePair::DETAILED:
@@ -40,10 +40,10 @@ void FDABase<Base>::write_frame(gmx::HostVector<gmx::RVec> const& x, int nsteps)
                     // do nothing
                     break;
                 case ResultType::PAIRWISE_FORCES_VECTOR:
-                    write_frame_detailed(x, true, nsteps);
+                    write_frame_detailed(x, box, true, nsteps);
                     break;
                 case ResultType::PAIRWISE_FORCES_SCALAR:
-                    write_frame_detailed(x, false, nsteps);
+                    write_frame_detailed(x, box, false, nsteps);
                     break;
                 case ResultType::PUNCTUAL_STRESS:
                     gmx_fatal(FARGS, "Punctual stress is not supported for detailed output.\n");
@@ -68,10 +68,10 @@ void FDABase<Base>::write_frame(gmx::HostVector<gmx::RVec> const& x, int nsteps)
                     // do nothing
                     break;
                 case ResultType::PAIRWISE_FORCES_VECTOR:
-                    write_frame_summed(x, true, nsteps);
+                    write_frame_summed(x, box, true, nsteps);
                     break;
                 case ResultType::PAIRWISE_FORCES_SCALAR:
-                    write_frame_summed(x, false, nsteps);
+                    write_frame_summed(x, box, false, nsteps);
                     break;
                 case ResultType::PUNCTUAL_STRESS:
                     write_total_forces(x);
@@ -86,7 +86,7 @@ void FDABase<Base>::write_frame(gmx::HostVector<gmx::RVec> const& x, int nsteps)
                     gmx_fatal(FARGS, "Compatibility binary mode is not supported for summed output.\n");
                     break;
                 case ResultType::COMPAT_ASCII:
-                    write_frame_summed_compat(x, nsteps);
+                    write_frame_summed_compat(x, box, nsteps);
                     break;
             }
             break;
@@ -94,23 +94,23 @@ void FDABase<Base>::write_frame(gmx::HostVector<gmx::RVec> const& x, int nsteps)
 }
 
 template <class Base>
-void FDABase<Base>::write_frame_detailed(gmx::HostVector<gmx::RVec> const& x, bool print_vector, int nsteps)
+void FDABase<Base>::write_frame_detailed(gmx::HostVector<gmx::RVec> const& x, const matrix box, bool print_vector, int nsteps)
 {
     result_file << "frame " << nsteps << std::endl;
     if (print_vector)
         distributed_forces.write_detailed_vector(result_file);
     else
-        distributed_forces.write_detailed_scalar(result_file, x);
+        distributed_forces.write_detailed_scalar(result_file, x, box);
 }
 
 template <class Base>
-void FDABase<Base>::write_frame_summed(gmx::HostVector<gmx::RVec> const& x, bool print_vector, int nsteps)
+void FDABase<Base>::write_frame_summed(gmx::HostVector<gmx::RVec> const& x, const matrix box, bool print_vector, int nsteps)
 {
     result_file << "frame " << nsteps << std::endl;
     if (print_vector)
         distributed_forces.write_summed_vector(result_file);
     else
-        distributed_forces.write_summed_scalar(result_file, x);
+        distributed_forces.write_summed_scalar(result_file, x, box);
 }
 
 template <class Base>
@@ -162,16 +162,16 @@ void FDABase<Base>::write_frame_scalar_compat(int nsteps)
 }
 
 template <class Base>
-void FDABase<Base>::write_frame_summed_compat(gmx::HostVector<gmx::RVec> const& x, int nsteps)
+void FDABase<Base>::write_frame_summed_compat(gmx::HostVector<gmx::RVec> const& x, const matrix box, int nsteps)
 {
     if (result_type == ResultType::COMPAT_ASCII) {
         result_file << "<begin_block>" << std::endl;
         result_file << nsteps << std::endl;
-        distributed_forces.write_summed_compat_ascii(result_file, x);
+        distributed_forces.write_summed_compat_ascii(result_file, x, box);
         result_file << "<end_block>" << std::endl;
     } else {
         result_file.write(reinterpret_cast<const char *>(&nsteps), sizeof(nsteps));
-        distributed_forces.write_summed_compat_bin(result_file, x);
+        distributed_forces.write_summed_compat_bin(result_file, x, box);
     }
 }
 

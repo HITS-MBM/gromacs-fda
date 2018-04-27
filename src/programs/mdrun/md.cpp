@@ -1391,7 +1391,7 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, const gmx::MDLogger &mdlog,
         /* ########  If doing VV, we now have v(dt) ###### */
 
         // FDA
-        fr->fda->save_and_write_scalar_time_averages(state->x, top_global);
+        fr->fda->save_and_write_scalar_time_averages(state->x, state->box, top_global);
 
         if (bDoExpanded)
         {

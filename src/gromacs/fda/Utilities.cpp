@@ -10,10 +10,19 @@
 
 namespace fda {
 
-real vector2signedscalar(const rvec v, const rvec xi, const rvec xj, Vector2Scalar v2s)
+real vector2signedscalar(const rvec v, const rvec xi, const rvec xj, const matrix box, Vector2Scalar v2s)
 {
-    rvec r; //< position vector
+    rvec r;
     rvec_sub(xj, xi, r);
+
+    // periodic boundary correction of bonds crossing the border
+    if      (std::abs(r[0] + box[0][0]) < std::abs(r[0])) r[0] += box[0][0];
+    else if (std::abs(r[0] - box[0][0]) < std::abs(r[0])) r[0] -= box[0][0];
+    if      (std::abs(r[1] + box[1][1]) < std::abs(r[1])) r[1] += box[1][1];
+    else if (std::abs(r[1] - box[1][1]) < std::abs(r[1])) r[1] -= box[1][1];
+    if      (std::abs(r[2] + box[2][2]) < std::abs(r[2])) r[2] += box[2][2];
+    else if (std::abs(r[2] - box[2][2]) < std::abs(r[2])) r[2] -= box[2][2];
+
     real c = cos_angle(r, v);
     switch (v2s) {
         case Vector2Scalar::NORM:
