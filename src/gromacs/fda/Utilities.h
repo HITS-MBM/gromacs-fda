@@ -21,7 +21,7 @@ namespace fda {
  * the sign will be negative (=attractive force) when the vector is in the same direction
  * as the position vector formed by atoms i and j and positive otherwise
  */
-real vector2signedscalar(const rvec v, const rvec xi, const rvec xj, Vector2Scalar v2s);
+real vector2signedscalar(const rvec v, const rvec xi, const rvec xj, const matrix box, Vector2Scalar v2s);
 
 real vector2unsignedscalar(const rvec v, int i, int j, gmx::HostVector<gmx::RVec> const& x);
 

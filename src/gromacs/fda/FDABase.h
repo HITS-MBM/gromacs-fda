@@ -79,11 +79,11 @@ public:
                result_type == ResultType::VIRIAL_STRESS_VON_MISES;
     }
 
-    void write_frame(gmx::HostVector<gmx::RVec> const& x, int nsteps);
+    void write_frame(gmx::HostVector<gmx::RVec> const& x, const matrix box, int nsteps);
 
-    void write_frame_detailed(gmx::HostVector<gmx::RVec> const& x, bool print_vector, int nsteps);
+    void write_frame_detailed(gmx::HostVector<gmx::RVec> const& x, const matrix box, bool print_vector, int nsteps);
 
-    void write_frame_summed(gmx::HostVector<gmx::RVec> const& x, bool print_vector, int nsteps);
+    void write_frame_summed(gmx::HostVector<gmx::RVec> const& x, const matrix box, bool print_vector, int nsteps);
 
     void write_frame_scalar(int nsteps);
 
@@ -103,7 +103,7 @@ public:
 
     void write_frame_scalar_compat(int nsteps);
 
-    void write_frame_summed_compat(gmx::HostVector<gmx::RVec> const& x, int nsteps);
+    void write_frame_summed_compat(gmx::HostVector<gmx::RVec> const& x, const matrix box, int nsteps);
 
     /// The stress is the negative atom_vir value.
     void write_virial_sum();
