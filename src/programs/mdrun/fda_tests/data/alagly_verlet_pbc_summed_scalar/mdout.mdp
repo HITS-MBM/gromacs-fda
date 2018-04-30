@@ -2,14 +2,15 @@
 ;	File 'mdout.mdp' was generated
 ;	By user: unknown (15005)
 ;	On host: rh02912.villa-bosch.de
-;	At date: Fri Apr 27 13:31:11 2018
+;	At date: Mon Apr 30 16:46:07 2018
+
 ;
 ;	Created by:
-;	       :-) GROMACS - gmx grompp, 2018-dev-20180111-6573773-unknown (-:
+;	      :-) GROMACS - gmx grompp, 2016.5-dev-20180216-c4c9983-unknown (-:
 ;	
-;	Executable:   /mag/software/install/gromacs/v2018/bin/gmx
-;	Data prefix:  /mag/software/install/gromacs/v2018
-;	Working dir:  /mag/doserbd/projects/fda-issues/redmine-1097/alagly_pbc_verlet
+;	Executable:   /mag/software/install/gromacs/v2016.5/bin/gmx
+;	Data prefix:  /mag/software/install/gromacs/v2016.5
+;	Working dir:  /mag/doserbd/projects/fda-issues/redmine-1097/alagly_pbc_verlet/gromacs-2016
 ;	Command line:
 ;	  gmx grompp -f md.mdp -c conf.gro -p topol.top -o topol.tpr
 
@@ -199,6 +200,9 @@ SAoff                    =
 SAsteps                  = 
 ; Scale factor for MM charges
 MMChargeScaleFactor      = 1
+; Optimization of QM subsystem
+bOPT                     = 
+bTS                      = 
 
 ; SIMULATED ANNEALING  
 ; Type of annealing for each temperature group (no/single/periodic)
@@ -252,9 +256,6 @@ wall-ewald-zfac          = 3
 
 ; COM PULLING          
 pull                     = no
-
-; AWH biasing          
-awh                      = no
 
 ; ENFORCED ROTATION    
 ; Enforced rotation: No or Yes
@@ -327,6 +328,19 @@ simulated-tempering-scaling = geometric
 sim-temp-low             = 300
 sim-temp-high            = 300
 
+; Electric fields      
+; Format is number of terms (int) and for all terms an amplitude (real)
+; and a phase angle (real)
+E-x                      = 
+; Time dependent (pulsed) electric field. Format is omega, time for pulse
+; peak, and sigma (width) for pulse. Sigma = 0 removes pulse, leaving
+; the field to be a cosine function.
+E-xt                     = 
+E-y                      = 
+E-yt                     = 
+E-z                      = 
+E-zt                     = 
+
 ; Ion/water position swapping for computational electrophysiology setups
 ; Swap positions along direction: no, X, Y, Z
 swapcoords               = no
@@ -343,11 +357,3 @@ userreal1                = 0
 userreal2                = 0
 userreal3                = 0
 userreal4                = 0
-; Electric fields
-; Format for electric-field-x, etc. is: four real variables:
-; amplitude (V/nm), frequency omega (1/ps), time for the pulse peak (ps),
-; and sigma (ps) width of the pulse. Omega = 0 means static field,
-; sigma = 0 means no pulse, leaving the field to be a cosine function.
-electric-field-x         = 0 0 0 0
-electric-field-y         = 0 0 0 0
-electric-field-z         = 0 0 0 0

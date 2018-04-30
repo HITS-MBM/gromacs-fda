@@ -1,16 +1,16 @@
-Log file opened on Fri Apr 27 13:31:39 2018
-Host: rh02912.villa-bosch.de  pid: 12273  rank ID: 0  number of ranks:  1
-         :-) GROMACS - gmx mdrun, 2018-dev-20180111-6573773-unknown (-:
+Log file opened on Mon Apr 30 16:46:25 2018
+Host: rh02912.villa-bosch.de  pid: 5088  rank ID: 0  number of ranks:  1
+        :-) GROMACS - gmx mdrun, 2016.5-dev-20180216-c4c9983-unknown (-:
 
                             GROMACS is written by:
      Emile Apol      Rossen Apostolov  Herman J.C. Berendsen    Par Bjelkmar   
  Aldert van Buuren   Rudi van Drunen     Anton Feenstra    Gerrit Groenhof  
  Christoph Junghans   Anca Hamuraru    Vincent Hindriksen Dimitrios Karkoulis
     Peter Kasson        Jiri Kraus      Carsten Kutzner      Per Larsson    
-  Justin A. Lemkul    Viveca Lindahl    Magnus Lundborg   Pieter Meulenhoff 
-   Erik Marklund      Teemu Murtola       Szilard Pall       Sander Pronk   
-   Roland Schulz     Alexey Shvetsov     Michael Shirts     Alfons Sijbers  
-   Peter Tieleman    Teemu Virolainen  Christian Wennberg    Maarten Wolf   
+  Justin A. Lemkul   Magnus Lundborg   Pieter Meulenhoff    Erik Marklund   
+   Teemu Murtola       Szilard Pall       Sander Pronk      Roland Schulz   
+  Alexey Shvetsov     Michael Shirts     Alfons Sijbers     Peter Tieleman  
+  Teemu Virolainen  Christian Wennberg    Maarten Wolf   
                            and the project leaders:
         Mark Abraham, Berk Hess, Erik Lindahl, and David van der Spoel
 
@@ -25,20 +25,20 @@ under the terms of the GNU Lesser General Public License
 as published by the Free Software Foundation; either version 2.1
 of the License, or (at your option) any later version.
 
-GROMACS:      gmx mdrun, version 2018-dev-20180111-6573773-unknown
-Executable:   /mag/software/install/gromacs/v2018/bin/gmx
-Data prefix:  /mag/software/install/gromacs/v2018
-Working dir:  /mag/doserbd/projects/fda-issues/redmine-1097/alagly_pbc_verlet
+GROMACS:      gmx mdrun, version 2016.5-dev-20180216-c4c9983-unknown
+Executable:   /mag/software/install/gromacs/v2016.5/bin/gmx
+Data prefix:  /mag/software/install/gromacs/v2016.5
+Working dir:  /mag/doserbd/projects/fda-issues/redmine-1097/alagly_pbc_verlet/gromacs-2016
 Command line:
   gmx mdrun -v
 
-GROMACS version:    2018-dev-20180111-6573773-unknown
-GIT SHA1 hash:      6573773322dcb7fd28dfbb370ab7f7939d4223be
+GROMACS version:    2016.5-dev-20180216-c4c9983-unknown
+GIT SHA1 hash:      c4c9983ed4ad7914454c73d9246e4442c0a872ab
 Branched from:      unknown
 Precision:          single
 Memory model:       64 bit
 MPI library:        thread_mpi
-OpenMP support:     enabled (GMX_OPENMP_MAX_THREADS = 64)
+OpenMP support:     enabled (GMX_OPENMP_MAX_THREADS = 32)
 GPU support:        CUDA
 SIMD instructions:  AVX2_256
 FFT library:        fftw-3.3.5-fma-sse2-avx-avx2-avx2_128-avx512
@@ -46,19 +46,19 @@ RDTSCP usage:       enabled
 TNG support:        enabled
 Hwloc support:      disabled
 Tracing support:    disabled
-Built on:           2018-03-19 15:52:05
+Built on:           Mo 30. Apr 16:17:57 CEST 2018
 Built by:           doserbd@rh02912.villa-bosch.de [CMAKE]
-Build OS/arch:      Linux 4.4.0-116-generic x86_64
+Build OS/arch:      Linux 4.4.0-122-generic x86_64
 Build CPU vendor:   Intel
 Build CPU brand:    Intel(R) Core(TM) i7-4790 CPU @ 3.60GHz
 Build CPU family:   6   Model: 60   Stepping: 3
-Build CPU features: aes apic avx avx2 clfsh cmov cx8 cx16 f16c fma htt intel lahf mmx msr nonstop_tsc pcid pclmuldq pdcm pdpe1gb popcnt pse rdrnd rdtscp sse2 sse3 sse4.1 sse4.2 ssse3 tdt x2apic
+Build CPU features: aes apic avx avx2 clfsh cmov cx8 cx16 f16c fma htt lahf mmx msr nonstop_tsc pcid pclmuldq pdcm pdpe1gb popcnt pse rdrnd rdtscp sse2 sse3 sse4.1 sse4.2 ssse3 tdt x2apic
 C compiler:         /usr/bin/cc GNU 5.4.0
 C compiler flags:    -march=core-avx2    -Wundef -Wextra -Wno-missing-field-initializers -Wno-sign-compare -Wpointer-arith -Wall -Wno-unused -Wunused-value -Wunused-parameter  -O3 -DNDEBUG -funroll-all-loops -fexcess-precision=fast  -Wno-array-bounds 
 C++ compiler:       /usr/bin/c++ GNU 5.4.0
-C++ compiler flags:  -march=core-avx2    -std=c++11  -Wundef -Wextra -Wno-missing-field-initializers -Wpointer-arith -Wmissing-declarations -Wall  -O3 -DNDEBUG -funroll-all-loops -fexcess-precision=fast  -Wno-array-bounds 
+C++ compiler flags:  -march=core-avx2    -std=c++0x  -Wundef -Wextra -Wno-missing-field-initializers -Wpointer-arith -Wall -Wno-unused-function  -O3 -DNDEBUG -funroll-all-loops -fexcess-precision=fast  -Wno-array-bounds 
 CUDA compiler:      /usr/local/cuda-9.1/bin/nvcc nvcc: NVIDIA (R) Cuda compiler driver;Copyright (c) 2005-2017 NVIDIA Corporation;Built on Fri_Nov__3_21:07:56_CDT_2017;Cuda compilation tools, release 9.1, V9.1.85
-CUDA compiler flags:-gencode;arch=compute_30,code=sm_30;-gencode;arch=compute_35,code=sm_35;-gencode;arch=compute_37,code=sm_37;-gencode;arch=compute_50,code=sm_50;-gencode;arch=compute_52,code=sm_52;-gencode;arch=compute_60,code=sm_60;-gencode;arch=compute_61,code=sm_61;-gencode;arch=compute_70,code=sm_70;-gencode;arch=compute_70,code=compute_70;-use_fast_math;-D_FORCE_INLINES;; ;-march=core-avx2;-std=c++11;-Wundef;-Wextra;-Wno-missing-field-initializers;-Wpointer-arith;-Wmissing-declarations;-Wall;-O3;-DNDEBUG;-funroll-all-loops;-fexcess-precision=fast;-Wno-array-bounds;
+CUDA compiler flags:-gencode;arch=compute_30,code=sm_30;-gencode;arch=compute_35,code=sm_35;-gencode;arch=compute_37,code=sm_37;-gencode;arch=compute_50,code=sm_50;-gencode;arch=compute_52,code=sm_52;-gencode;arch=compute_60,code=sm_60;-gencode;arch=compute_61,code=sm_61;-gencode;arch=compute_70,code=sm_70;-gencode;arch=compute_70,code=compute_70;-use_fast_math;-D_FORCE_INLINES;;-Xcompiler;,-march=core-avx2,,,,,,-Wundef,-Wextra,-Wno-missing-field-initializers,-Wpointer-arith,-Wall,-Wno-unused-function,;-Xcompiler;-O3,-DNDEBUG,-funroll-all-loops,-fexcess-precision=fast,,-Wno-array-bounds,; 
 CUDA driver:        9.10
 CUDA runtime:       9.10
 
@@ -69,7 +69,10 @@ Hardware detected:
     Vendor: Intel
     Brand:  Intel(R) Core(TM) i7-4790 CPU @ 3.60GHz
     Family: 6   Model: 60   Stepping: 3
-    Features: aes apic avx avx2 clfsh cmov cx8 cx16 f16c fma htt intel lahf mmx msr nonstop_tsc pcid pclmuldq pdcm pdpe1gb popcnt pse rdrnd rdtscp sse2 sse3 sse4.1 sse4.2 ssse3 tdt x2apic
+    Features: aes apic avx avx2 clfsh cmov cx8 cx16 f16c fma htt lahf mmx msr nonstop_tsc pcid pclmuldq pdcm pdpe1gb popcnt pse rdrnd rdtscp sse2 sse3 sse4.1 sse4.2 ssse3 tdt x2apic
+    SIMD instructions most likely to fit this hardware: AVX2_256
+    SIMD instructions selected at GROMACS compile time: AVX2_256
+
   Hardware topology: Basic
     Sockets, cores, and logical processors:
       Socket  0: [   0   4] [   1   5] [   2   6] [   3   7]
@@ -133,6 +136,12 @@ GROMACS: A message-passing parallel molecular dynamics implementation
 Comp. Phys. Comm. 91 (1995) pp. 43-56
 -------- -------- --- Thank You --- -------- --------
 
+
+For optimal performance with a GPU nstlist (now 5) should be larger.
+The optimum depends on your CPU and GPU resources.
+You might want to try several nstlist values.
+Changing nstlist from 5 to 40, rlist from 1.006 to 1.137
+
 Input Parameters:
    integrator                     = md
    tinit                          = 0
@@ -143,7 +152,7 @@ Input Parameters:
    comm-mode                      = Linear
    nstcomm                        = 100
    bd-fric                        = 0
-   ld-seed                        = 1863239061
+   ld-seed                        = 2081451713
    emtol                          = 10
    emstep                         = 0.01
    niter                          = 20
@@ -160,12 +169,12 @@ Input Parameters:
    nstxout-compressed             = 0
    compressed-x-precision         = 1000
    cutoff-scheme                  = Verlet
-   nstlist                        = 5
+   nstlist                        = 40
    ns-type                        = Simple
    pbc                            = xyz
    periodic-molecules             = false
    verlet-buffer-tolerance        = 0.005
-   rlist                          = 1.006
+   rlist                          = 1.137
    coulombtype                    = Cut-off
    coulomb-modifier               = Potential-shift
    rcoulomb-switch                = 0
@@ -247,7 +256,6 @@ qm-opts:
    wall-density[1]                = 0
    wall-ewald-zfac                = 3
    pull                           = false
-   awh                            = false
    rotation                       = false
    interactiveMD                  = false
    disre                          = No
@@ -266,6 +274,18 @@ qm-opts:
       deform[    1]={ 0.00000e+00,  0.00000e+00,  0.00000e+00}
       deform[    2]={ 0.00000e+00,  0.00000e+00,  0.00000e+00}
    simulated-tempering            = false
+   E-x:
+      n = 0
+   E-xt:
+      n = 0
+   E-y:
+      n = 0
+   E-yt:
+      n = 0
+   E-z:
+      n = 0
+   E-zt:
+      n = 0
    swapcoords                     = no
    userint1                       = 0
    userint2                       = 0
@@ -275,23 +295,6 @@ qm-opts:
    userreal2                      = 0
    userreal3                      = 0
    userreal4                      = 0
-   applied-forces:
-     electric-field:
-       x:
-         E0                       = 0
-         omega                    = 0
-         t0                       = 0
-         sigma                    = 0
-       y:
-         E0                       = 0
-         omega                    = 0
-         t0                       = 0
-         sigma                    = 0
-       z:
-         E0                       = 0
-         omega                    = 0
-         t0                       = 0
-         sigma                    = 0
 grpopts:
    nrdf:          57
    ref-t:         300
@@ -302,37 +305,29 @@ annealing-npoints:           0
    nfreeze:           N           N           N
    energygrp-flags[  0]: 0
 
-Changing nstlist from 5 to 80, rlist from 1.006 to 1.33
-
 Using 1 MPI thread
 Using 8 OpenMP threads 
 
+1 compatible GPU is present, with ID 0
 1 GPU auto-selected for this run.
-Mapping of GPU IDs to the 1 GPU task in the 1 rank on this node:
-  PP:0
-Pinning threads with an auto-selected logical core stride of 1
+Mapping of GPU ID to the 1 PP rank in this node: 0
+
+Cut-off's:   NS: 1.137   Coulomb: 1   LJ: 1
 System total charge: -0.000
+Generated table with 1068 data points for 1-4 COUL.
+Tabscale = 500 points/nm
+Generated table with 1068 data points for 1-4 LJ6.
+Tabscale = 500 points/nm
+Generated table with 1068 data points for 1-4 LJ12.
+Tabscale = 500 points/nm
 Potential shift: LJ r^-12: -1.000e+00 r^-6: -1.000e+00, Coulomb -1e+00
-Generated table with 1165 data points for 1-4 COUL.
-Tabscale = 500 points/nm
-Generated table with 1165 data points for 1-4 LJ6.
-Tabscale = 500 points/nm
-Generated table with 1165 data points for 1-4 LJ12.
-Tabscale = 500 points/nm
 
-Using GPU 8x8 nonbonded short-range kernels
-
-Using a dual 8x4 pair-list setup updated with dynamic, rolling pruning:
-  outer list: updated every 80 steps, buffer 0.330 nm, rlist 1.330 nm
-  inner list: updated every  4 steps, buffer 0.007 nm, rlist 1.007 nm
-At tolerance 0.005 kJ/mol/ps per atom, equivalent classical 1x1 list would be:
-  outer list: updated every 80 steps, buffer 0.407 nm, rlist 1.407 nm
-  inner list: updated every  4 steps, buffer 0.010 nm, rlist 1.010 nm
+Using GPU 8x8 non-bonded kernels
 
 Using geometric Lennard-Jones combination rule
 
 Removing pbc first time
-
+Pinning threads with an auto-selected logical core stride of 1
 Intra-simulation communication will occur every 1 steps.
 Center of mass motion removal mode is Linear
 We have the following groups for center of mass motion removal:
@@ -347,7 +342,7 @@ J. Chem. Phys. 126 (2007) pp. 014101
 There are: 20 Atoms
 Initial temperature: 300.597 K
 
-Started mdrun on rank 0 Fri Apr 27 13:31:39 2018
+Started mdrun on rank 0 Mon Apr 30 16:46:26 2018
            Step           Time
               0        0.00000
 
@@ -366,111 +361,111 @@ Started mdrun on rank 0 Fri Apr 27 13:31:39 2018
            Bond          Angle    Proper Dih. Ryckaert-Bell.          LJ-14
     1.05678e+02    3.16433e+01    7.17230e-02   -8.45060e+00    3.65521e+01
      Coulomb-14        LJ (SR)   Coulomb (SR)      Potential    Kinetic En.
-    4.56281e+02    5.21275e+01   -8.40365e+02   -1.66462e+02    1.25443e+02
+    4.56281e+02    5.21275e+01   -8.40365e+02   -1.66462e+02    1.22100e+02
    Total Energy  Conserved En.    Temperature Pressure (bar)
-   -4.10190e+01   -4.55139e+01    5.29381e+02    1.98689e+02
+   -4.43628e+01   -4.32292e+01    5.15270e+02    1.97318e+02
 
            Step           Time
               2        0.00200
 
    Energies (kJ/mol)
            Bond          Angle    Proper Dih. Ryckaert-Bell.          LJ-14
-    6.72830e+01    3.47747e+01    2.96479e-01   -8.75215e+00    3.09144e+01
+    6.71695e+01    3.46042e+01    2.87703e-01   -8.74487e+00    3.09840e+01
      Coulomb-14        LJ (SR)   Coulomb (SR)      Potential    Kinetic En.
-    4.54264e+02    3.10004e+01   -8.40462e+02   -2.30682e+02    1.85216e+02
+    4.54306e+02    3.12140e+01   -8.40508e+02   -2.30688e+02    1.79038e+02
    Total Energy  Conserved En.    Temperature Pressure (bar)
-   -4.54655e+01   -4.99604e+01    7.81628e+02    1.07917e+00
+   -5.16499e+01   -5.05164e+01    7.55555e+02    2.68482e+00
 
            Step           Time
               3        0.00300
 
    Energies (kJ/mol)
            Bond          Angle    Proper Dih. Ryckaert-Bell.          LJ-14
-    5.49562e+01    4.28470e+01    6.84335e-01   -9.03005e+00    2.64779e+01
+    5.34780e+01    4.23445e+01    6.57935e-01   -9.01878e+00    2.65475e+01
      Coulomb-14        LJ (SR)   Coulomb (SR)      Potential    Kinetic En.
-    4.51981e+02    1.42335e+01   -8.42205e+02   -2.60055e+02    2.13236e+02
+    4.52060e+02    1.44492e+01   -8.42293e+02   -2.61775e+02    2.08553e+02
    Total Energy  Conserved En.    Temperature Pressure (bar)
-   -4.68181e+01   -5.13131e+01    8.99875e+02   -2.22415e+02
+   -5.32215e+01   -5.20879e+01    8.80111e+02   -2.17005e+02
 
            Step           Time
               4        0.00400
 
    Energies (kJ/mol)
            Bond          Angle    Proper Dih. Ryckaert-Bell.          LJ-14
-    7.45940e+01    5.61987e+01    1.23139e+00   -9.28031e+00    2.37265e+01
+    7.18414e+01    5.53061e+01    1.17925e+00   -9.26848e+00    2.37672e+01
      Coulomb-14        LJ (SR)   Coulomb (SR)      Potential    Kinetic En.
-    4.49692e+02    4.49151e+00   -8.45378e+02   -2.44725e+02    2.01537e+02
+    4.49799e+02    4.64042e+00   -8.45503e+02   -2.48237e+02    1.98481e+02
    Total Energy  Conserved En.    Temperature Pressure (bar)
-   -4.31882e+01   -4.76832e+01    8.50501e+02   -4.11199e+02
+   -4.97568e+01   -4.86232e+01    8.37605e+02   -4.03824e+02
 
            Step           Time
               5        0.00500
 
    Energies (kJ/mol)
            Bond          Angle    Proper Dih. Ryckaert-Bell.          LJ-14
-    1.02104e+02    7.31223e+01    1.92049e+00   -9.50199e+00    2.24806e+01
+    9.92224e+01    7.18751e+01    1.83594e+00   -9.49266e+00    2.24802e+01
      Coulomb-14        LJ (SR)   Coulomb (SR)      Potential    Kinetic En.
-    4.47548e+02   -4.17814e-01   -8.49535e+02   -2.12280e+02    1.73658e+02
+    4.47680e+02   -3.28892e-01   -8.49695e+02   -2.16423e+02    1.71253e+02
    Total Energy  Conserved En.    Temperature Pressure (bar)
-   -3.86218e+01   -4.31168e+01    7.32851e+02   -5.01972e+02
+   -4.51699e+01   -4.40364e+01    7.22701e+02   -4.95488e+02
 
            Step           Time
               6        0.00600
 
    Energies (kJ/mol)
            Bond          Angle    Proper Dih. Ryckaert-Bell.          LJ-14
-    1.07548e+02    9.09437e+01    2.71868e+00   -9.69224e+00    2.26319e+01
+    1.05470e+02    8.94352e+01    2.59764e+00   -9.68727e+00    2.25773e+01
      Coulomb-14        LJ (SR)   Coulomb (SR)      Potential    Kinetic En.
-    4.45631e+02   -2.75723e+00   -8.54117e+02   -1.97094e+02    1.57206e+02
+    4.45785e+02   -2.70642e+00   -8.54316e+02   -2.00844e+02    1.57801e+02
    Total Energy  Conserved En.    Temperature Pressure (bar)
-   -3.98873e+01   -3.93092e+01    6.63424e+02   -4.53023e+02
+   -4.30434e+01   -4.40462e+01    6.65932e+02   -4.48498e+02
 
            Step           Time
               7        0.00700
 
    Energies (kJ/mol)
            Bond          Angle    Proper Dih. Ryckaert-Bell.          LJ-14
-    8.63723e+01    1.06207e+02    3.56063e+00   -9.83607e+00    2.40634e+01
+    8.58193e+01    1.05113e+02    3.42532e+00   -9.83638e+00    2.39915e+01
      Coulomb-14        LJ (SR)   Coulomb (SR)      Potential    Kinetic En.
-    4.44043e+02   -3.84918e+00   -8.58530e+02   -2.07969e+02    1.62188e+02
+    4.44174e+02   -3.84405e+00   -8.58883e+02   -2.10040e+02    1.64910e+02
    Total Energy  Conserved En.    Temperature Pressure (bar)
-   -4.57807e+01   -4.52027e+01    6.84448e+02   -2.72731e+02
+   -4.51303e+01   -4.61331e+01    6.95932e+02   -2.70335e+02
 
            Step           Time
               8        0.00800
 
    Energies (kJ/mol)
            Bond          Angle    Proper Dih. Ryckaert-Bell.          LJ-14
-    6.68093e+01    1.16052e+02    4.39554e+00   -9.90981e+00    2.62554e+01
+    6.72080e+01    1.15611e+02    4.25431e+00   -9.90872e+00    2.62400e+01
      Coulomb-14        LJ (SR)   Coulomb (SR)      Potential    Kinetic En.
-    4.42839e+02   -4.37293e+00   -8.62447e+02   -2.20377e+02    1.70934e+02
+    4.42947e+02   -4.38830e+00   -8.62955e+02   -2.20992e+02    1.72281e+02
    Total Energy  Conserved En.    Temperature Pressure (bar)
-   -4.94436e+01   -4.88656e+01    7.21354e+02   -2.28944e+01
+   -4.87105e+01   -4.97134e+01    7.27041e+02   -2.37176e+01
 
            Step           Time
               9        0.00900
 
    Energies (kJ/mol)
            Bond          Angle    Proper Dih. Ryckaert-Bell.          LJ-14
-    7.92832e+01    1.17836e+02    5.15331e+00   -9.88880e+00    2.79235e+01
+    7.95622e+01    1.18148e+02    5.01564e+00   -9.87934e+00    2.80364e+01
      Coulomb-14        LJ (SR)   Coulomb (SR)      Potential    Kinetic En.
-    4.42102e+02   -4.60371e+00   -8.65561e+02   -2.07755e+02    1.59116e+02
+    4.42189e+02   -4.63083e+00   -8.66216e+02   -2.07775e+02    1.59792e+02
    Total Energy  Conserved En.    Temperature Pressure (bar)
-   -4.86395e+01   -4.80615e+01    6.71481e+02    2.09903e+02
+   -4.79827e+01   -4.89855e+01    6.74335e+02    2.07638e+02
 
            Step           Time
              10        0.01000
 
-Writing checkpoint, step 10 at Fri Apr 27 13:31:39 2018
+Writing checkpoint, step 10 at Mon Apr 30 16:46:26 2018
 
 
    Energies (kJ/mol)
            Bond          Angle    Proper Dih. Ryckaert-Bell.          LJ-14
-    1.19695e+02    1.10396e+02    5.76627e+00   -9.77077e+00    2.76338e+01
+    1.19564e+02    1.11396e+02    5.64035e+00   -9.74869e+00    2.78715e+01
      Coulomb-14        LJ (SR)   Coulomb (SR)      Potential    Kinetic En.
-    4.41865e+02   -4.64425e+00   -8.67633e+02   -1.76693e+02    1.33256e+02
+    4.41938e+02   -4.68215e+00   -8.68415e+02   -1.76436e+02    1.33552e+02
    Total Energy  Conserved En.    Temperature Pressure (bar)
-   -4.34371e+01   -4.28590e+01    5.62349e+02    3.64325e+02
+   -4.28839e+01   -4.38867e+01    5.63602e+02    3.62382e+02
 
 	<======  ###############  ==>
 	<====  A V E R A G E S  ====>
@@ -480,21 +475,21 @@ Writing checkpoint, step 10 at Fri Apr 27 13:31:39 2018
 
    Energies (kJ/mol)
            Bond          Angle    Proper Dih. Ryckaert-Bell.          LJ-14
-    9.11589e+01    7.37053e+01    2.34555e+00   -9.29578e+00    2.81265e+01
+    9.03124e+01    7.32922e+01    2.26982e+00   -9.28878e+00    2.81618e+01
      Coulomb-14        LJ (SR)   Coulomb (SR)      Potential    Kinetic En.
-    4.48539e+02    1.31890e+01   -8.51644e+02   -2.03875e+02    1.60266e+02
+    4.48622e+02    1.32474e+01   -8.51909e+02   -2.05292e+02    1.58990e+02
    Total Energy  Conserved En.    Temperature Pressure (bar)
-   -4.36094e+01   -4.53898e+01    6.76335e+02   -7.26950e+01
+   -4.63013e+01   -4.62419e+01    6.70952e+02   -7.07501e+01
 
    Total Virial (kJ/mol)
-    1.94937e+02   -3.36577e+01    1.24002e+02
-   -3.36576e+01    1.83195e+01   -6.60143e+01
-    1.24001e+02   -6.60146e+01    1.24310e+02
+    1.92476e+02   -3.36665e+01    1.24043e+02
+   -3.36666e+01    1.69339e+01   -6.51683e+01
+    1.24042e+02   -6.51686e+01    1.22138e+02
 
    Pressure (bar)
-   -1.50856e+02    5.50063e+01   -1.41830e+02
-    5.50062e+01    3.09564e+01    5.80136e+01
-   -1.41829e+02    5.80139e+01   -9.81854e+01
+   -1.48149e+02    5.53104e+01   -1.42611e+02
+    5.53105e+01    3.20280e+01    5.68485e+01
+   -1.42610e+02    5.68489e+01   -9.61286e+01
 
 
 	M E G A - F L O P S   A C C O U N T I N G
@@ -529,20 +524,35 @@ On 1 MPI rank, each using 8 OpenMP threads
  Computing:          Num   Num      Call    Wall time         Giga-Cycles
                      Ranks Threads  Count      (s)         total sum    %
 -----------------------------------------------------------------------------
- Neighbor search        1    8          1       0.001          0.035   0.9
- Launch GPU ops.        1    8         11       0.001          0.022   0.6
+ Neighbor search        1    8          1       0.001          0.036   1.1
+ Launch GPU ops.        1    8         11       0.001          0.023   0.7
  Force                  1    8         11       0.000          0.004   0.1
- Wait GPU NB local      1    8         11       0.000          0.001   0.0
- NB X/F buffer ops.     1    8         21       0.000          0.001   0.0
- Write traj.            1    8         11       0.132          3.781  97.8
- Update                 1    8         11       0.000          0.003   0.1
- Rest                                           0.001          0.018   0.5
+ Wait GPU local         1    8         11       0.000          0.002   0.1
+ NB X/F buffer ops.     1    8         21       0.000          0.002   0.1
+ Write traj.            1    8         11       0.109          3.136  97.4
+ Update                 1    8         11       0.000          0.002   0.1
+ Rest                                           0.001          0.015   0.5
 -----------------------------------------------------------------------------
- Total                                          0.134          3.864 100.0
+ Total                                          0.112          3.220 100.0
 -----------------------------------------------------------------------------
 
+ GPU timings
+-----------------------------------------------------------------------------
+ Computing:                         Count  Wall t (s)      ms/step       %
+-----------------------------------------------------------------------------
+ Pair list H2D                          1       0.000        0.468    54.6
+ X / q H2D                             11       0.000        0.007     8.8
+ Nonbonded F+ene k.                    10       0.000        0.016    18.5
+ Nonbonded F+ene+prune k.               1       0.000        0.022     2.6
+ F D2H                                 11       0.000        0.012    15.6
+-----------------------------------------------------------------------------
+ Total                                          0.001        0.078   100.0
+-----------------------------------------------------------------------------
+
+Average per-step force GPU/CPU evaluation time ratio: 0.078 ms/0.012 ms = 6.648
+
                Core t (s)   Wall t (s)        (%)
-       Time:        1.075        0.134      800.0
+       Time:        0.896        0.112      800.0
                  (ns/day)    (hour/ns)
-Performance:        7.070        3.395
-Finished mdrun on rank 0 Fri Apr 27 13:31:39 2018
+Performance:        8.485        2.828
+Finished mdrun on rank 0 Mon Apr 30 16:46:26 2018

@@ -2,16 +2,17 @@
 ;	File 'topol.top' was generated
 ;	By user: unknown (15005)
 ;	On host: rh02912.villa-bosch.de
-;	At date: Fri Apr 27 13:30:51 2018
+;	At date: Mon Apr 30 16:46:05 2018
+
 ;
 ;	This is a standalone topology file
 ;
 ;	Created by:
-;	       :-) GROMACS - gmx pdb2gmx, 2018-dev-20180111-6573773-unknown (-:
+;	      :-) GROMACS - gmx pdb2gmx, 2016.5-dev-20180216-c4c9983-unknown (-:
 ;	
-;	Executable:   /mag/software/install/gromacs/v2018/bin/gmx
-;	Data prefix:  /mag/software/install/gromacs/v2018
-;	Working dir:  /mag/doserbd/projects/fda-issues/redmine-1097/alagly_pbc_verlet
+;	Executable:   /mag/software/install/gromacs/v2016.5/bin/gmx
+;	Data prefix:  /mag/software/install/gromacs/v2016.5
+;	Working dir:  /mag/doserbd/projects/fda-issues/redmine-1097/alagly_pbc_verlet/gromacs-2016
 ;	Command line:
 ;	  gmx pdb2gmx -ignh -f conf.gro
 ;	Force field was read from the standard GROMACS share directory.
