@@ -20,10 +20,10 @@ lib*.pc
 .project
 .tox
 .cproject
-build
-_build
 CMakeLists.txt.user
 build*
+_build*
 /VersionInfo*.cmake
 Testing
 .settings
+.pydevproject
