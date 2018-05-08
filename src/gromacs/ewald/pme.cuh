@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2016,2017, by the GROMACS development team, led by
+ * Copyright (c) 2016,2017,2018, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -53,6 +53,8 @@
 #include "gromacs/gpu_utils/cuda_arch_utils.cuh" // for warp_size
 
 #include "pme-gpu-internal.h"                    // for the general PME GPU behaviour defines
+#include "pme-gpu-types.h"
+#include "pme-gpu-types-host.h"
 #include "pme-timings.cuh"
 
 class GpuParallel3dFft;
@@ -78,11 +80,12 @@ class GpuParallel3dFft;
     I have also tried intertwining theta and theta in a single array (they are used in pairs in gathering stage anyway)
     and it didn't seem to make a performance difference.
 
+    The spline indexing is isolated in the 2 inline functions below:
+    getSplineParamIndexBase() return a base shared memory index corresponding to the atom in the block;
+    getSplineParamIndex() consumes its results and adds offsets for dimension and spline value index.
+
     The corresponding defines follow.
  */
-
-/* This is the distance between the neighbour theta elements - would be 2 for the intertwining layout */
-#define PME_SPLINE_THETA_STRIDE 1
 
 /*! \brief
  * The number of GPU threads used for computing spread/gather contributions of a single atom as function of the PME order.
@@ -107,6 +110,51 @@ class GpuParallel3dFft;
  * There are debug asserts for this divisibility.
  */
 #define PME_ATOM_DATA_ALIGNMENT (16 * PME_SPREADGATHER_ATOMS_PER_WARP)
+
+/*! \internal \brief
+ * Gets a base of the unique index to an element in a spline parameter buffer (theta/dtheta),
+ * which is laid out for GPU spread/gather kernels. The base only corresponds to the atom index within the execution block.
+ * Feed the result into getSplineParamIndex() to get a full index.
+ * TODO: it's likely that both parameters can be just replaced with a single atom index, as they are derived from it.
+ * Do that, verifying that the generated code is not bloated, and/or revise the spline indexing scheme.
+ * Removing warp dependency would also be nice (and would probably coincide with removing PME_SPREADGATHER_ATOMS_PER_WARP).
+ *
+ * \tparam    order            PME order
+ * \param[in] warpIndex        Warp index wrt the block.
+ * \param[in] atomWarpIndex    Atom index wrt the warp (from 0 to PME_SPREADGATHER_ATOMS_PER_WARP - 1).
+ *
+ * \returns Index into theta or dtheta array using GPU layout.
+ */
+template <int order>
+int __host__ __device__ __forceinline__ getSplineParamIndexBase(int warpIndex, int atomWarpIndex)
+{
+    assert((atomWarpIndex >= 0) && (atomWarpIndex < PME_SPREADGATHER_ATOMS_PER_WARP));
+    const int dimIndex    = 0;
+    const int splineIndex = 0;
+    // The zeroes are here to preserve the full index formula for reference
+    return (((splineIndex + order * warpIndex) * DIM + dimIndex) * PME_SPREADGATHER_ATOMS_PER_WARP + atomWarpIndex);
+}
+
+/*! \internal \brief
+ * Gets a unique index to an element in a spline parameter buffer (theta/dtheta),
+ * which is laid out for GPU spread/gather kernels. The index is wrt to the execution block,
+ * in range(0, atomsPerBlock * order * DIM).
+ * This function consumes result of getSplineParamIndexBase() and adjusts it for \p dimIndex and \p splineIndex.
+ *
+ * \tparam    order            PME order
+ * \param[in] paramIndexBase   Must be result of getSplineParamIndexBase().
+ * \param[in] dimIndex         Dimension index (from 0 to 2)
+ * \param[in] splineIndex      Spline contribution index (from 0 to \p order - 1)
+ *
+ * \returns Index into theta or dtheta array using GPU layout.
+ */
+template <int order>
+int __host__ __device__ __forceinline__ getSplineParamIndex(int paramIndexBase, int dimIndex, int splineIndex)
+{
+    assert((dimIndex >= XX) && (dimIndex < DIM));
+    assert((splineIndex >= 0) && (splineIndex < order));
+    return (paramIndexBase + (splineIndex * DIM + dimIndex) * PME_SPREADGATHER_ATOMS_PER_WARP);
+}
 
 /*! \brief \internal
  * An inline CUDA function for checking the global atom data indices against the atom data array sizes.
@@ -138,6 +186,22 @@ int __device__ __forceinline__ pme_gpu_check_atom_charge(const float coefficient
 }
 
 /*! \brief \internal
+ * Given possibly large \p blockCount, returns a compact 1D or 2D grid for kernel scheduling,
+ * to minimize number of unused blocks.
+ */
+template <typename PmeGpu>
+dim3 __host__ inline pmeGpuCreateGrid(const PmeGpu *pmeGpu, int blockCount)
+{
+    // How many maximum widths in X do we need (hopefully just one)
+    const int minRowCount = (blockCount + pmeGpu->maxGridWidthX - 1) / pmeGpu->maxGridWidthX;
+    // Trying to make things even
+    const int colCount = (blockCount + minRowCount - 1) / minRowCount;
+    GMX_ASSERT((colCount * minRowCount - blockCount) >= 0, "pmeGpuCreateGrid: totally wrong");
+    GMX_ASSERT((colCount * minRowCount - blockCount) < minRowCount, "pmeGpuCreateGrid: excessive blocks");
+    return dim3(colCount, minRowCount);
+}
+
+/*! \brief \internal
  * The main PME CUDA-specific host data structure, included in the PME GPU structure by the archSpecific pointer.
  */
 struct PmeGpuCuda
@@ -155,8 +219,8 @@ struct PmeGpuCuda
     /*! \brief A boolean which tells whether the complex and real grids for cuFFT are different or same. Currenty true. */
     bool performOutOfPlaceFFT;
     /*! \brief A boolean which tells if the CUDA timing events are enabled.
-     * True by default, disabled by setting the environment variable GMX_DISABLE_CUDA_TIMING.
-     * FIXME: this should also be disabled if any other GPU task is running concurrently on the same device,
+     *  False by default, can be enabled by setting the environment variable GMX_ENABLE_GPU_TIMING.
+     *  Note: will not be reliable when multiple GPU tasks are running concurrently on the same device context,
      * as CUDA events on multiple streams are untrustworthy.
      */
     bool                                             useTiming;
@@ -170,8 +234,8 @@ struct PmeGpuCuda
     /* GPU arrays element counts (not the arrays sizes in bytes!).
      * They might be larger than the actual meaningful data sizes.
      * These are paired: the actual element count + the maximum element count that can fit in the current allocated memory.
-     * These integer pairs are mostly meaningful for the cu_realloc/free_buffered calls.
-     * As such, if cu_realloc/free_buffered is refactored, they can be freely changed, too.
+     * These integer pairs are mostly meaningful for the reallocateDeviceBuffer calls.
+     * As such, if DeviceBuffer is refactored into a class, they can be freely changed, too.
      * The only exceptions are realGridSize and complexGridSize which are also used for grid clearing/copying.
      * TODO: these should live in a clean buffered container type, and be refactored in the NB/cudautils as well.
      */
@@ -223,13 +287,5 @@ struct PmeGpuCudaKernelParams : PmeGpuKernelParamsBase
     /*! \brief CUDA texture object for accessing grid.d_gridlineIndicesTable */
     cudaTextureObject_t gridlineIndicesTableTexture;
 };
-
-/* CUDA texture reference functions which reside in respective kernel files
- * (due to texture references having scope of a translation unit).
- */
-/*! Returns the reference to the gridlineIndices texture. */
-const struct texture<int, 1, cudaReadModeElementType>   &pme_gpu_get_gridline_texref();
-/*! Returns the reference to the fractShifts texture. */
-const struct texture<float, 1, cudaReadModeElementType> &pme_gpu_get_fract_shifts_texref();
 
 #endif

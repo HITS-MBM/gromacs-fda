@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014,2015,2016,2017, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016,2017,2018, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -75,6 +75,7 @@
 #include "gromacs/random/threefry.h"
 #include "gromacs/simd/simd.h"
 #include "gromacs/timing/wallcycle.h"
+#include "gromacs/topology/atoms.h"
 #include "gromacs/utility/exceptions.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/futil.h"
@@ -83,9 +84,6 @@
 #include "gromacs/utility/smalloc.h"
 
 using namespace gmx; // TODO: Remove when this file is moved into gmx namespace
-
-/*For debugging, start at v(-dt/2) for velolcity verlet -- uncomment next line */
-/*#define STARTFROMDT2*/
 
 typedef struct {
     double em;
@@ -549,23 +547,34 @@ static void do_update_md(int                         start,
 
     if (doNoseHoover || doPROffDiagonal || doAcceleration)
     {
+        matrix stepM;
+        if (!doParrinelloRahman)
+        {
+            /* We should not apply PR scaling at this step */
+            clear_mat(stepM);
+        }
+        else
+        {
+            copy_mat(M, stepM);
+        }
+
         if (!doAcceleration)
         {
             updateMDLeapfrogGeneral<AccelerationType::none>
                 (start, nrend, doNoseHoover, dt, dtPressureCouple,
-                ir, md, ekind, box, x, xprime, v, f, nh_vxi, M);
+                ir, md, ekind, box, x, xprime, v, f, nh_vxi, stepM);
         }
         else if (ekind->bNEMD)
         {
             updateMDLeapfrogGeneral<AccelerationType::group>
                 (start, nrend, doNoseHoover, dt, dtPressureCouple,
-                ir, md, ekind, box, x, xprime, v, f, nh_vxi, M);
+                ir, md, ekind, box, x, xprime, v, f, nh_vxi, stepM);
         }
         else
         {
             updateMDLeapfrogGeneral<AccelerationType::cosine>
                 (start, nrend, doNoseHoover, dt, dtPressureCouple,
-                ir, md, ekind, box, x, xprime, v, f, nh_vxi, M);
+                ir, md, ekind, box, x, xprime, v, f, nh_vxi, stepM);
         }
     }
     else
@@ -864,145 +873,107 @@ void update_realloc(gmx_update_t *upd, int natoms)
     upd->xp.resize(gmx::paddedRVecVectorSize(natoms));
 }
 
-static void do_update_sd1(gmx_stochd_t *sd,
-                          int start, int nrend, real dt,
-                          rvec accel[], ivec nFreeze[],
-                          real invmass[], unsigned short ptype[],
-                          unsigned short cFREEZE[], unsigned short cACC[],
-                          unsigned short cTC[],
-                          const rvec x[], rvec xprime[], rvec v[], const rvec f[],
-                          gmx_bool bDoConstr,
-                          gmx_bool bFirstHalfConstr,
-                          gmx_int64_t step, int seed, int* gatindex)
+/*! \brief Sets the SD update type */
+enum class SDUpdate : int
 {
-    gmx_sd_const_t *sdc;
-    gmx_sd_sigma_t *sig;
-    int             gf = 0, ga = 0, gt = 0;
-    real            ism;
-    int             n, d;
+    ForcesOnly, FrictionAndNoiseOnly, Combined
+};
+
+/*! \brief SD integrator update
+ *
+ * Two phases are required in the general case of a constrained
+ * update, the first phase from the contribution of forces, before
+ * applying constraints, and then a second phase applying the friction
+ * and noise, and then further constraining. For details, see
+ * Goga2012.
+ *
+ * Without constraints, the two phases can be combined, for
+ * efficiency.
+ *
+ * Thus three instantiations of this templated function will be made,
+ * two with only one contribution, and one with both contributions. */
+template <SDUpdate updateType>
+static void
+doSDUpdateGeneral(gmx_stochd_t *sd,
+                  int start, int nrend, real dt,
+                  rvec accel[], ivec nFreeze[],
+                  real invmass[], unsigned short ptype[],
+                  unsigned short cFREEZE[], unsigned short cACC[],
+                  unsigned short cTC[],
+                  const rvec x[], rvec xprime[], rvec v[], const rvec f[],
+                  gmx_int64_t step, int seed, int *gatindex)
+{
+    if (updateType != SDUpdate::FrictionAndNoiseOnly)
+    {
+        GMX_ASSERT(f != nullptr, "SD update with forces requires forces");
+        GMX_ASSERT(cACC != nullptr, "SD update with forces requires acceleration groups");
+    }
+    if (updateType != SDUpdate::ForcesOnly)
+    {
+        GMX_ASSERT(cTC != nullptr, "SD update with noise requires temperature groups");
+    }
 
     // Even 0 bits internal counter gives 2x64 ints (more than enough for three table lookups)
     gmx::ThreeFry2x64<0> rng(seed, gmx::RandomDomain::UpdateCoordinates);
     gmx::TabulatedNormalDistribution<real, 14> dist;
 
-    sdc = sd->sdc;
-    sig = sd->sdsig;
+    gmx_sd_const_t *sdc = sd->sdc;
+    gmx_sd_sigma_t *sig = sd->sdsig;
 
-    if (!bDoConstr)
+    for (int n = start; n < nrend; n++)
     {
-        for (n = start; n < nrend; n++)
+        int globalAtomIndex = gatindex ? gatindex[n] : n;
+        rng.restart(step, globalAtomIndex);
+        dist.reset();
+
+        real inverseMass     = invmass[n];
+        real invsqrtMass     = std::sqrt(inverseMass);
+
+        int  freezeGroup       = cFREEZE ? cFREEZE[n] : 0;
+        int  accelerationGroup = cACC ? cACC[n] : 0;
+        int  temperatureGroup  = cTC ? cTC[n] : 0;
+
+        for (int d = 0; d < DIM; d++)
         {
-            int  ng = gatindex ? gatindex[n] : n;
-
-            rng.restart(step, ng);
-            dist.reset();
-
-            ism = std::sqrt(invmass[n]);
-
-            if (cFREEZE)
+            if ((ptype[n] != eptVSite) && (ptype[n] != eptShell) && !nFreeze[freezeGroup][d])
             {
-                gf  = cFREEZE[n];
-            }
-            if (cACC)
-            {
-                ga  = cACC[n];
-            }
-            if (cTC)
-            {
-                gt  = cTC[n];
-            }
-
-            for (d = 0; d < DIM; d++)
-            {
-                if ((ptype[n] != eptVSite) && (ptype[n] != eptShell) && !nFreeze[gf][d])
+                if (updateType == SDUpdate::ForcesOnly)
                 {
-                    real sd_V, vn;
-
-                    sd_V         = ism*sig[gt].V*dist(rng);
-                    vn           = v[n][d] + (invmass[n]*f[n][d] + accel[ga][d])*dt;
-                    v[n][d]      = vn*sdc[gt].em + sd_V;
-                    /* Here we include half of the friction+noise
-                     * update of v into the integration of x.
-                     */
-                    xprime[n][d] = x[n][d] + 0.5*(vn + v[n][d])*dt;
+                    real vn      = v[n][d] + (inverseMass*f[n][d] + accel[accelerationGroup][d])*dt;
+                    v[n][d]      = vn;
+                    // Simple position update.
+                    xprime[n][d] = x[n][d] + v[n][d]*dt;
+                }
+                else if (updateType == SDUpdate::FrictionAndNoiseOnly)
+                {
+                    real vn      = v[n][d];
+                    v[n][d]      = (vn*sdc[temperatureGroup].em +
+                                    invsqrtMass*sig[temperatureGroup].V*dist(rng));
+                    // The previous phase already updated the
+                    // positions with a full v*dt term that must
+                    // now be half removed.
+                    xprime[n][d] = xprime[n][d] + 0.5*(v[n][d] - vn)*dt;
                 }
                 else
                 {
+                    real vn      = v[n][d] + (inverseMass*f[n][d] + accel[accelerationGroup][d])*dt;
+                    v[n][d]      = (vn*sdc[temperatureGroup].em +
+                                    invsqrtMass*sig[temperatureGroup].V*dist(rng));
+                    // Here we include half of the friction+noise
+                    // update of v into the position update.
+                    xprime[n][d] = x[n][d] + 0.5*(vn + v[n][d])*dt;
+                }
+            }
+            else
+            {
+                // When using constraints, the update is split into
+                // two phases, but we only need to zero the update of
+                // virtual, shell or frozen particles in at most one
+                // of the phases.
+                if (updateType != SDUpdate::FrictionAndNoiseOnly)
+                {
                     v[n][d]      = 0.0;
                     xprime[n][d] = x[n][d];
-                }
-            }
-        }
-    }
-    else
-    {
-        /* We do have constraints */
-        if (bFirstHalfConstr)
-        {
-            /* First update without friction and noise */
-            real im;
-
-            for (n = start; n < nrend; n++)
-            {
-                im = invmass[n];
-
-                if (cFREEZE)
-                {
-                    gf  = cFREEZE[n];
-                }
-                if (cACC)
-                {
-                    ga  = cACC[n];
-                }
-
-                for (d = 0; d < DIM; d++)
-                {
-                    if ((ptype[n] != eptVSite) && (ptype[n] != eptShell) && !nFreeze[gf][d])
-                    {
-                        v[n][d]      = v[n][d] + (im*f[n][d] + accel[ga][d])*dt;
-                        xprime[n][d] = x[n][d] +  v[n][d]*dt;
-                    }
-                    else
-                    {
-                        v[n][d]      = 0.0;
-                        xprime[n][d] = x[n][d];
-                    }
-                }
-            }
-        }
-        else
-        {
-            /* Update friction and noise only */
-            for (n = start; n < nrend; n++)
-            {
-                int  ng = gatindex ? gatindex[n] : n;
-
-                rng.restart(step, ng);
-                dist.reset();
-
-                ism = std::sqrt(invmass[n]);
-
-                if (cFREEZE)
-                {
-                    gf  = cFREEZE[n];
-                }
-                if (cTC)
-                {
-                    gt  = cTC[n];
-                }
-
-                for (d = 0; d < DIM; d++)
-                {
-                    if ((ptype[n] != eptVSite) && (ptype[n] != eptShell) && !nFreeze[gf][d])
-                    {
-                        real sd_V, vn;
-
-                        sd_V         = ism*sig[gt].V*dist(rng);
-                        vn           = v[n][d];
-                        v[n][d]      = vn*sdc[gt].em + sd_V;
-                        /* Add the friction and noise contribution only */
-                        xprime[n][d] = xprime[n][d] + 0.5*(v[n][d] - vn)*dt;
-                    }
                 }
             }
         }
@@ -1073,28 +1044,6 @@ static void do_update_bd(int start, int nrend, real dt,
             }
         }
     }
-}
-
-static void dump_it_all(FILE gmx_unused *fp, const char gmx_unused *title,
-                        int gmx_unused natoms,
-                        gmx::PaddedArrayRef<gmx::RVec> gmx_unused x,
-                        gmx::PaddedArrayRef<gmx::RVec> gmx_unused xp,
-                        gmx::PaddedArrayRef<gmx::RVec> gmx_unused v,
-                        gmx::PaddedArrayRef<gmx::RVec> gmx_unused f)
-{
-#ifdef DEBUG
-    if (fp)
-    {
-        fprintf(fp, "%s\n", title);
-        pr_rvecs(fp, 0, "x", as_rvec_array(x->data()), natoms);
-        pr_rvecs(fp, 0, "xp", as_rvec_array(xp->data()), natoms);
-        pr_rvecs(fp, 0, "v", as_rvec_array(v->data()), natoms);
-        if (f != NULL)
-        {
-            pr_rvecs(fp, 0, "f", as_rvec_array(f->data()), natoms);
-        }
-    }
-#endif
 }
 
 static void calc_ke_part_normal(rvec v[], t_grpopts *opts, t_mdatoms *md,
@@ -1332,7 +1281,7 @@ void update_ekinstate(ekinstate_t *ekinstate, gmx_ekindata_t *ekind)
 
 }
 
-void restore_ekinstate_from_state(t_commrec *cr,
+void restore_ekinstate_from_state(const t_commrec *cr,
                                   gmx_ekindata_t *ekind, const ekinstate_t *ekinstate)
 {
     int i, n;
@@ -1541,86 +1490,93 @@ void update_pcouple_before_coordinates(FILE             *fplog,
     }
 }
 
-void update_constraints(FILE                          *fplog,
-                        gmx_int64_t                    step,
-                        real                          *dvdlambda, /* the contribution to be added to the bonded interactions */
-                        t_inputrec                    *inputrec,  /* input record and box stuff	*/
-                        t_mdatoms                     *md,
-                        t_state                       *state,
-                        gmx_bool                       bMolPBC,
-                        t_graph                       *graph,
-                        gmx::PaddedArrayRef<gmx::RVec> force,     /* forces on home particles */
-                        t_idef                        *idef,
-                        tensor                         vir_part,
-                        t_commrec                     *cr,
-                        t_nrnb                        *nrnb,
-                        gmx_wallcycle_t                wcycle,
-                        gmx_update_t                  *upd,
-                        gmx_constr_t                   constr,
-                        gmx_bool                       bFirstHalf,
-                        gmx_bool                       bCalcVir)
+void constrain_velocities(gmx_int64_t                    step,
+                          real                          *dvdlambda, /* the contribution to be added to the bonded interactions */
+                          const t_inputrec              *inputrec,  /* input record and box stuff	*/
+                          t_mdatoms                     *md,
+                          t_state                       *state,
+                          gmx_bool                       bMolPBC,
+                          t_idef                        *idef,
+                          tensor                         vir_part,
+                          const t_commrec               *cr,
+                          const gmx_multisim_t          *ms,
+                          t_nrnb                        *nrnb,
+                          gmx_wallcycle_t                wcycle,
+                          gmx::Constraints              *constr,
+                          gmx_bool                       bCalcVir,
+                          bool                           do_log,
+                          bool                           do_ene)
 {
-    gmx_bool             bLastStep, bLog = FALSE, bEner = FALSE, bDoConstr = FALSE;
-    tensor               vir_con;
-    int                  nth, th;
-
-    if (constr)
+    if (!constr)
     {
-        bDoConstr = TRUE;
+        return;
     }
-    if (bFirstHalf && !EI_VV(inputrec->eI))
-    {
-        bDoConstr = FALSE;
-    }
-
-    /* for now, SD update is here -- though it really seems like it
-       should be reformulated as a velocity verlet method, since it has two parts */
-
-    int  homenr = md->homenr;
-
-    /* Cast delta_t from double to real to make the integrators faster.
-     * The only reason for having delta_t double is to get accurate values
-     * for t=delta_t*step when step is larger than float precision.
-     * For integration dt the accuracy of real suffices, since with
-     * integral += dt*integrand the increment is nearly always (much) smaller
-     * than the integral (and the integrand has real precision).
-     */
-    real dt     = inputrec->delta_t;
 
     /*
      *  Steps (7C, 8C)
      *  APPLY CONSTRAINTS:
      *  BLOCK SHAKE
-
-     * When doing PR pressure coupling we have to constrain the
-     * bonds in each iteration. If we are only using Nose-Hoover tcoupling
-     * it is enough to do this once though, since the relative velocities
-     * after this will be normal to the bond vector
      */
 
-    if (bDoConstr)
     {
+        tensor vir_con;
+
         /* clear out constraints before applying */
         clear_mat(vir_part);
 
-        bLastStep = (step == inputrec->init_step+inputrec->nsteps);
-        bLog      = (do_per_step(step, inputrec->nstlog) || bLastStep || (step < 0));
-        bEner     = (do_per_step(step, inputrec->nstenergy) || bLastStep);
         /* Constrain the coordinates upd->xp */
         wallcycle_start(wcycle, ewcCONSTR);
-        if (EI_VV(inputrec->eI) && bFirstHalf)
         {
-            constrain(nullptr, bLog, bEner, constr, idef,
-                      inputrec, cr, step, 1, 1.0, md,
+            constrain(nullptr, do_log, do_ene, constr, idef,
+                      inputrec, cr, ms, step, 1, 1.0, md,
                       as_rvec_array(state->x.data()), as_rvec_array(state->v.data()), as_rvec_array(state->v.data()),
                       bMolPBC, state->box,
                       state->lambda[efptBONDED], dvdlambda,
                       nullptr, bCalcVir ? &vir_con : nullptr, nrnb, econqVeloc);
         }
-        else
+        wallcycle_stop(wcycle, ewcCONSTR);
+
+        if (bCalcVir)
         {
-            constrain(nullptr, bLog, bEner, constr, idef,
-                      inputrec, cr, step, 1, 1.0, md,
+            m_add(vir_part, vir_con, vir_part);
+        }
+    }
+}
+
+void constrain_coordinates(gmx_int64_t                    step,
+                           real                          *dvdlambda, /* the contribution to be added to the bonded interactions */
+                           const t_inputrec              *inputrec,  /* input record and box stuff	*/
+                           t_mdatoms                     *md,
+                           t_state                       *state,
+                           gmx_bool                       bMolPBC,
+                           t_idef                        *idef,
+                           tensor                         vir_part,
+                           const t_commrec               *cr,
+                           const gmx_multisim_t          *ms,
+                           t_nrnb                        *nrnb,
+                           gmx_wallcycle_t                wcycle,
+                           gmx_update_t                  *upd,
+                           gmx::Constraints              *constr,
+                           gmx_bool                       bCalcVir,
+                           bool                           do_log,
+                           bool                           do_ene)
+{
+    if (!constr)
+    {
+        return;
+    }
+
+    {
+        tensor vir_con;
+
+        /* clear out constraints before applying */
+        clear_mat(vir_part);
+
+        /* Constrain the coordinates upd->xp */
+        wallcycle_start(wcycle, ewcCONSTR);
+        {
+            constrain(nullptr, do_log, do_ene, constr, idef,
+                      inputrec, cr, ms, step, 1, 1.0, md,
                       as_rvec_array(state->x.data()), as_rvec_array(upd->xp.data()), nullptr,
                       bMolPBC, state->box,
                       state->lambda[efptBONDED], dvdlambda,
@@ -1628,25 +1584,48 @@ void update_constraints(FILE                          *fplog,
         }
         wallcycle_stop(wcycle, ewcCONSTR);
 
-        where();
-
-        dump_it_all(fplog, "After Shake",
-                    state->natoms, state->x, upd->xp, state->v, force);
-
         if (bCalcVir)
         {
             m_add(vir_part, vir_con, vir_part);
-            if (debug)
-            {
-                pr_rvecs(debug, 0, "constraint virial", vir_part, DIM);
-            }
         }
     }
+}
 
-    where();
-
-    if (inputrec->eI == eiSD1 && bDoConstr && !bFirstHalf)
+void
+update_sd_second_half(gmx_int64_t                    step,
+                      real                          *dvdlambda,   /* the contribution to be added to the bonded interactions */
+                      const t_inputrec              *inputrec,    /* input record and box stuff	*/
+                      t_mdatoms                     *md,
+                      t_state                       *state,
+                      gmx_bool                       bMolPBC,
+                      t_idef                        *idef,
+                      const t_commrec               *cr,
+                      const gmx_multisim_t          *ms,
+                      t_nrnb                        *nrnb,
+                      gmx_wallcycle_t                wcycle,
+                      gmx_update_t                  *upd,
+                      gmx::Constraints              *constr,
+                      bool                           do_log,
+                      bool                           do_ene)
+{
+    if (!constr)
     {
+        return;
+    }
+    if (inputrec->eI == eiSD1)
+    {
+        int nth, th;
+        int homenr = md->homenr;
+
+        /* Cast delta_t from double to real to make the integrators faster.
+         * The only reason for having delta_t double is to get accurate values
+         * for t=delta_t*step when step is larger than float precision.
+         * For integration dt the accuracy of real suffices, since with
+         * integral += dt*integrand the increment is nearly always (much) smaller
+         * than the integral (and the integrand has real precision).
+         */
+        real dt     = inputrec->delta_t;
+
         wallcycle_start(wcycle, ewcUPDATE);
 
         nth = gmx_omp_nthreads_get(emntUpdate);
@@ -1659,29 +1638,27 @@ void update_constraints(FILE                          *fplog,
                 int start_th, end_th;
                 getThreadAtomRange(nth, th, homenr, &start_th, &end_th);
 
-                /* The second part of the SD integration */
-                do_update_sd1(upd->sd,
-                              start_th, end_th, dt,
-                              inputrec->opts.acc, inputrec->opts.nFreeze,
-                              md->invmass, md->ptype,
-                              md->cFREEZE, md->cACC, md->cTC,
-                              as_rvec_array(state->x.data()), as_rvec_array(upd->xp.data()), as_rvec_array(state->v.data()), as_rvec_array(force.data()),
-                              bDoConstr, FALSE,
-                              step, inputrec->ld_seed,
-                              DOMAINDECOMP(cr) ? cr->dd->gatindex : nullptr);
+                doSDUpdateGeneral<SDUpdate::FrictionAndNoiseOnly>
+                    (upd->sd,
+                    start_th, end_th, dt,
+                    inputrec->opts.acc, inputrec->opts.nFreeze,
+                    md->invmass, md->ptype,
+                    md->cFREEZE, nullptr, md->cTC,
+                    as_rvec_array(state->x.data()), as_rvec_array(upd->xp.data()),
+                    as_rvec_array(state->v.data()), nullptr,
+                    step, inputrec->ld_seed,
+                    DOMAINDECOMP(cr) ? cr->dd->gatindex : nullptr);
             }
             GMX_CATCH_ALL_AND_EXIT_WITH_FATAL_ERROR;
         }
         inc_nrnb(nrnb, eNR_UPDATE, homenr);
         wallcycle_stop(wcycle, ewcUPDATE);
 
-        if (bDoConstr)
         {
             /* Constrain the coordinates upd->xp for half a time step */
             wallcycle_start(wcycle, ewcCONSTR);
-
-            constrain(nullptr, bLog, bEner, constr, idef,
-                      inputrec, cr, step, 1, 0.5, md,
+            constrain(nullptr, do_log, do_ene, constr, idef,
+                      inputrec, cr, ms, step, 1, 0.5, md,
                       as_rvec_array(state->x.data()), as_rvec_array(upd->xp.data()), nullptr,
                       bMolPBC, state->box,
                       state->lambda[efptBONDED], dvdlambda,
@@ -1690,23 +1667,31 @@ void update_constraints(FILE                          *fplog,
             wallcycle_stop(wcycle, ewcCONSTR);
         }
     }
+}
+
+void finish_update(const t_inputrec              *inputrec,  /* input record and box stuff	*/
+                   t_mdatoms                     *md,
+                   t_state                       *state,
+                   t_graph                       *graph,
+                   t_nrnb                        *nrnb,
+                   gmx_wallcycle_t                wcycle,
+                   gmx_update_t                  *upd,
+                   gmx::Constraints              *constr)
+{
+    int homenr = md->homenr;
 
     /* We must always unshift after updating coordinates; if we did not shake
        x was shifted in do_force */
 
-    if (!(bFirstHalf)) /* in the first half of vv, no shift. */
+    /* NOTE Currently we always integrate to a temporary buffer and
+     * then copy the results back. */
     {
-        /* NOTE This part of the update actually does not belong with
-         * the constraints, since we also call it without constraints.
-         * But currently we always integrate to a temporary buffer and
-         * then copy the results back here.
-         */
         wallcycle_start_nocount(wcycle, ewcUPDATE);
 
         if (md->cFREEZE != nullptr && constr != nullptr)
         {
             /* If we have atoms that are frozen along some, but not all
-             * dimensions, the constraints will have moved them also along
+             * dimensions, then any constraints will have moved them also along
              * the frozen dimensions. To freeze such degrees of freedom
              * we copy them back here to later copy them forward. It would
              * be more elegant and slightly more efficient to copies zero
@@ -1757,7 +1742,7 @@ void update_constraints(FILE                          *fplog,
             rvec *xp = as_rvec_array(upd->xp.data());
 #ifndef __clang_analyzer__
             // cppcheck-suppress unreadVariable
-            nth = gmx_omp_nthreads_get(emntUpdate);
+            int gmx_unused nth = gmx_omp_nthreads_get(emntUpdate);
 #endif
 #pragma omp parallel for num_threads(nth) schedule(static)
             for (int i = 0; i < homenr; i++)
@@ -1767,11 +1752,8 @@ void update_constraints(FILE                          *fplog,
             }
         }
         wallcycle_stop(wcycle, ewcUPDATE);
-
-        dump_it_all(fplog, "After unshift",
-                    state->natoms, state->x, upd->xp, state->v, force);
     }
-/* ############# END the update of velocities and positions ######### */
+    /* ############# END the update of velocities and positions ######### */
 }
 
 void update_pcouple_after_coordinates(FILE             *fplog,
@@ -1792,7 +1774,6 @@ void update_pcouple_after_coordinates(FILE             *fplog,
     /* Cast to real for faster code, no loss in precision (see comment above) */
     real dt     = inputrec->delta_t;
 
-    where();
 
     /* now update boxes */
     switch (inputrec->epc)
@@ -1870,13 +1851,9 @@ void update_pcouple_after_coordinates(FILE             *fplog,
     {
         deform(upd, start, homenr, as_rvec_array(state->x.data()), state->box, inputrec, step);
     }
-    where();
-    dump_it_all(fplog, "After update",
-                state->natoms, state->x, upd->xp, state->v, gmx::EmptyArrayRef());
 }
 
-void update_coords(FILE                          *fplog,
-                   gmx_int64_t                    step,
+void update_coords(gmx_int64_t                    step,
                    t_inputrec                    *inputrec, /* input record and box stuff	*/
                    t_mdatoms                     *md,
                    t_state                       *state,
@@ -1886,8 +1863,8 @@ void update_coords(FILE                          *fplog,
                    matrix                         M,
                    gmx_update_t                  *upd,
                    int                            UpdatePart,
-                   t_commrec                     *cr, /* these shouldn't be here -- need to think about it */
-                   gmx_constr_t                   constr)
+                   const t_commrec               *cr, /* these shouldn't be here -- need to think about it */
+                   gmx::Constraints              *constr)
 {
     gmx_bool bDoConstr = (nullptr != constr);
 
@@ -1914,10 +1891,6 @@ void update_coords(FILE                          *fplog,
     }
 
     /* ############# START The update of velocities and positions ######### */
-    where();
-    dump_it_all(fplog, "Before update",
-                state->natoms, state->x, upd->xp, state->v, f);
-
     int nth = gmx_omp_nthreads_get(emntUpdate);
 
 #pragma omp parallel for num_threads(nth) schedule(static)
@@ -1928,17 +1901,16 @@ void update_coords(FILE                          *fplog,
             int start_th, end_th;
             getThreadAtomRange(nth, th, homenr, &start_th, &end_th);
 
-#ifndef NDEBUG
             /* Strictly speaking, we would only need this check with SIMD
              * and for the actual SIMD width. But since the code currently
              * always adds padding for GMX_REAL_MAX_SIMD_WIDTH, we check that.
              */
-            size_t homenrSimdPadded = ((homenr + GMX_REAL_MAX_SIMD_WIDTH - 1)/GMX_REAL_MAX_SIMD_WIDTH)*GMX_REAL_MAX_SIMD_WIDTH;
+            size_t gmx_used_in_debug homenrSimdPadded;
+            homenrSimdPadded = ((homenr + GMX_REAL_MAX_SIMD_WIDTH - 1)/GMX_REAL_MAX_SIMD_WIDTH)*GMX_REAL_MAX_SIMD_WIDTH;
             GMX_ASSERT(state->x.size() >= homenrSimdPadded, "state->x needs to be padded for SIMD access");
             GMX_ASSERT(upd->xp.size()  >= homenrSimdPadded, "upd->xp needs to be padded for SIMD access");
             GMX_ASSERT(state->v.size() >= homenrSimdPadded, "state->v needs to be padded for SIMD access");
             GMX_ASSERT(f.size()        >= homenrSimdPadded, "f needs to be padded for SIMD access");
-#endif
 
             const rvec *x_rvec  = as_rvec_array(state->x.data());
             rvec       *xp_rvec = as_rvec_array(upd->xp.data());
@@ -1954,15 +1926,30 @@ void update_coords(FILE                          *fplog,
                                  state->nosehoover_vxi.data(), M);
                     break;
                 case (eiSD1):
-                    /* With constraints, the SD1 update is done in 2 parts */
-                    do_update_sd1(upd->sd,
-                                  start_th, end_th, dt,
-                                  inputrec->opts.acc, inputrec->opts.nFreeze,
-                                  md->invmass, md->ptype,
-                                  md->cFREEZE, md->cACC, md->cTC,
-                                  x_rvec, xp_rvec, v_rvec, f_rvec,
-                                  bDoConstr, TRUE,
-                                  step, inputrec->ld_seed, DOMAINDECOMP(cr) ? cr->dd->gatindex : nullptr);
+                    if (bDoConstr)
+                    {
+                        // With constraints, the SD update is done in 2 parts
+                        doSDUpdateGeneral<SDUpdate::ForcesOnly>
+                            (upd->sd,
+                            start_th, end_th, dt,
+                            inputrec->opts.acc, inputrec->opts.nFreeze,
+                            md->invmass, md->ptype,
+                            md->cFREEZE, md->cACC, nullptr,
+                            x_rvec, xp_rvec, v_rvec, f_rvec,
+                            step, inputrec->ld_seed, nullptr);
+                    }
+                    else
+                    {
+                        doSDUpdateGeneral<SDUpdate::Combined>
+                            (upd->sd,
+                            start_th, end_th, dt,
+                            inputrec->opts.acc, inputrec->opts.nFreeze,
+                            md->invmass, md->ptype,
+                            md->cFREEZE, md->cACC, md->cTC,
+                            x_rvec, xp_rvec, v_rvec, f_rvec,
+                            step, inputrec->ld_seed,
+                            DOMAINDECOMP(cr) ? cr->dd->gatindex : nullptr);
+                    }
                     break;
                 case (eiBD):
                     do_update_bd(start_th, end_th, dt,
@@ -2013,63 +2000,8 @@ void update_coords(FILE                          *fplog,
 
 }
 
-
-void correct_ekin(FILE *log, int start, int end, rvec v[], rvec vcm, real mass[],
-                  real tmass, tensor ekin)
-{
-    /*
-     * This is a debugging routine. It should not be called for production code
-     *
-     * The kinetic energy should calculated according to:
-     *   Ekin = 1/2 m (v-vcm)^2
-     * However the correction is not always applied, since vcm may not be
-     * known in time and we compute
-     *   Ekin' = 1/2 m v^2 instead
-     * This can be corrected afterwards by computing
-     *   Ekin = Ekin' + 1/2 m ( -2 v vcm + vcm^2)
-     * or in hsorthand:
-     *   Ekin = Ekin' - m v vcm + 1/2 m vcm^2
-     */
-    int    i, j, k;
-    real   m, tm;
-    rvec   hvcm, mv;
-    tensor dekin;
-
-    /* Local particles */
-    clear_rvec(mv);
-
-    /* Processor dependent part. */
-    tm = 0;
-    for (i = start; (i < end); i++)
-    {
-        m      = mass[i];
-        tm    += m;
-        for (j = 0; (j < DIM); j++)
-        {
-            mv[j] += m*v[i][j];
-        }
-    }
-    /* Shortcut */
-    svmul(1/tmass, vcm, vcm);
-    svmul(0.5, vcm, hvcm);
-    clear_mat(dekin);
-    for (j = 0; (j < DIM); j++)
-    {
-        for (k = 0; (k < DIM); k++)
-        {
-            dekin[j][k] += vcm[k]*(tm*hvcm[j]-mv[j]);
-        }
-    }
-    pr_rvecs(log, 0, "dekin", dekin, DIM);
-    pr_rvecs(log, 0, " ekin", ekin, DIM);
-    fprintf(log, "dekin = %g, ekin = %g  vcm = (%8.4f %8.4f %8.4f)\n",
-            trace(dekin), trace(ekin), vcm[XX], vcm[YY], vcm[ZZ]);
-    fprintf(log, "mv = (%8.4f %8.4f %8.4f)\n",
-            mv[XX], mv[YY], mv[ZZ]);
-}
-
 extern gmx_bool update_randomize_velocities(t_inputrec *ir, gmx_int64_t step, const t_commrec *cr,
-                                            t_mdatoms *md, t_state *state, gmx_update_t *upd, gmx_constr_t constr)
+                                            t_mdatoms *md, t_state *state, gmx_update_t *upd, gmx::Constraints *constr)
 {
 
     real rate = (ir->delta_t)/ir->opts.tau_t[0];

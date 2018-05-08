@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2010,2014,2015, by the GROMACS development team, led by
+ * Copyright (c) 2010,2014,2015,2018, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -128,7 +128,7 @@ int add_bind(t_bin *b, int nr, double r[])
     return index;
 }
 
-void sum_bin(t_bin *b, t_commrec *cr)
+void sum_bin(t_bin *b, const t_commrec *cr)
 {
     int i;
 
@@ -162,59 +162,3 @@ void extract_bind(t_bin *b, int index, int nr, double r[])
         r[i] = rbuf[i];
     }
 }
-
-#ifdef DEBUGRBIN
-int main(int argc, char *argv[])
-{
-    t_commrec *cr;
-    t_bin     *rb;
-    double    *r;
-    rvec      *v;
-    int        k, i, ni, mi, n, m;
-
-    cr = init_par(&argc, argv);
-    n  = std::strtol(argv[1], NULL, 10);
-    m  = std::strtol(argv[2], NULL, 10);
-    fprintf(stdlog, "n=%d\n", n);
-    rb = mk_bin();
-    snew(r, n);
-    snew(v, m);
-
-    for (k = 0; (k < 3); k++)
-    {
-        fprintf(stdlog, "\nk=%d\n", k);
-        reset_bin(rb);
-
-        for (i = 0; (i < n); i++)
-        {
-            r[i] = i+k;
-        }
-        for (i = 0; (i < m); i++)
-        {
-            v[i][XX] = 4*i+k;
-            v[i][YY] = 4*i+k+1;
-            v[i][ZZ] = 4*i+k+2;
-        }
-
-        ni = add_bind(stdlog, rb, n, r);
-        mi = add_binr(stdlog, rb, DIM*m, v[0]);
-
-        sum_bin(rb, cr);
-
-        extract_bind(rb, ni, n, r);
-        extract_binr(rb, mi, DIM*m, v[0]);
-
-        for (i = 0; (i < n); i++)
-        {
-            fprintf(stdlog, "r[%d] = %e\n", i, r[i]);
-        }
-        for (i = 0; (i < m); i++)
-        {
-            fprintf(stdlog, "v[%d] = (%e,%e,%e)\n", i, v[i][XX], v[i][YY], v[i][ZZ]);
-        }
-    }
-    fflush(stdlog);
-
-    return 0;
-}
-#endif

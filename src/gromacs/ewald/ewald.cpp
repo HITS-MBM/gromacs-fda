@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014,2015,2017, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2017,2018, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -64,6 +64,7 @@
 #include "gromacs/math/vec.h"
 #include "gromacs/math/vectypes.h"
 #include "gromacs/mdtypes/commrec.h"
+#include "gromacs/mdtypes/forcerec.h"
 #include "gromacs/mdtypes/inputrec.h"
 #include "gromacs/mdtypes/md_enums.h"
 #include "gromacs/utility/fatalerror.h"
@@ -102,7 +103,7 @@ static void calc_lll(const rvec box, rvec lll)
 }
 
 //! Make tables for the structure factor parts
-static void tabulateStructureFactors(int natom, rvec x[], int kmax, cvec **eir, rvec lll)
+static void tabulateStructureFactors(int natom, const rvec x[], int kmax, cvec **eir, rvec lll)
 {
     int  i, j, m;
 
@@ -135,21 +136,27 @@ static void tabulateStructureFactors(int natom, rvec x[], int kmax, cvec **eir, 
     }
 }
 
-real do_ewald(t_inputrec *ir,
-              rvec x[],        rvec f[],
-              real chargeA[],  real chargeB[],
-              matrix box,
-              t_commrec *cr,   int natoms,
-              matrix lrvir,    real ewaldcoeff,
-              real lambda,     real *dvdlambda,
-              struct gmx_ewald_tab_t *et)
+real do_ewald(const t_inputrec *ir,
+              const rvec        x[],
+              rvec              f[],
+              const real        chargeA[],
+              const real        chargeB[],
+              matrix            box,
+              const t_commrec  *cr,
+              int               natoms,
+              matrix            lrvir,
+              real              ewaldcoeff,
+              real              lambda,
+              real             *dvdlambda,
+              gmx_ewald_tab_t  *et)
 {
-    real     factor     = -1.0/(4*ewaldcoeff*ewaldcoeff);
-    real    *charge, energy_AB[2], energy;
-    rvec     lll;
-    int      lowiy, lowiz, ix, iy, iz, n, q;
-    real     tmp, cs, ss, ak, akv, mx, my, mz, m2, scale;
-    gmx_bool bFreeEnergy;
+    real        factor     = -1.0/(4*ewaldcoeff*ewaldcoeff);
+    const real *charge;
+    real        energy_AB[2], energy;
+    rvec        lll;
+    int         lowiy, lowiz, ix, iy, iz, n, q;
+    real        tmp, cs, ss, ak, akv, mx, my, mz, m2, scale;
+    gmx_bool    bFreeEnergy;
 
     if (cr != nullptr)
     {
@@ -314,7 +321,7 @@ real do_ewald(t_inputrec *ir,
     return energy;
 }
 
-real ewald_charge_correction(t_commrec *cr, t_forcerec *fr, real lambda,
+real ewald_charge_correction(const t_commrec *cr, t_forcerec *fr, real lambda,
                              matrix box,
                              real *dvdlambda, tensor vir)
 

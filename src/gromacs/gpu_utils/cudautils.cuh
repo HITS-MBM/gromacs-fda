@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2012,2014,2015,2016,2017, by the GROMACS development team, led by
+ * Copyright (c) 2012,2014,2015,2016,2017,2018, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -202,21 +202,9 @@ int cu_copy_H2D_sync(void * /*d_dest*/, void * /*h_src*/, size_t /*bytes*/);
 /*! Launches asynchronous host to device memory copy in stream s. */
 int cu_copy_H2D_async(void * /*d_dest*/, void * /*h_src*/, size_t /*bytes*/, cudaStream_t /*s = 0*/);
 
-/*! Frees device memory and resets the size and allocation size to -1. */
-void cu_free_buffered(void *d_ptr, int *n = NULL, int *nalloc = NULL);
-
-/*! Reallocates the device memory and copies data from the host. */
-void cu_realloc_buffered(void **d_dest, void *h_src,
-                         size_t type_size,
-                         int *curr_size, int *curr_alloc_size,
-                         int req_size,
-                         cudaStream_t s,
-                         bool bAsync);
-
 // TODO: the 2 functions below are pretty much a constructor/destructor of a simple
 // GPU table object. There is also almost self-contained fetchFromParamLookupTable()
-// in cuda_kernel_utils.cuh. They could all live in a separate class/struct file,
-// granted storing static texture references in there does not pose problems.
+// in cuda_kernel_utils.cuh. They could all live in a separate class/struct file.
 
 /*! \brief Initialize parameter lookup table.
  *
@@ -226,34 +214,30 @@ void cu_realloc_buffered(void **d_dest, void *h_src,
  * \tparam[in] T         Raw data type
  * \param[out] d_ptr     device pointer to the memory to be allocated
  * \param[out] texObj    texture object to be initialized
- * \param[out] texRef    texture reference to be initialized
  * \param[in]  h_ptr     pointer to the host memory to be uploaded to the device
  * \param[in]  numElem   number of elements in the h_ptr
  * \param[in]  devInfo   pointer to the info struct of the device in use
  */
 template <typename T>
 void initParamLookupTable(T                        * &d_ptr,
-                          cudaTextureObject_t       &texObj,
-                          const struct texture<T, 1, cudaReadModeElementType> *texRef,
-                          const T                   *h_ptr,
-                          int                        numElem,
-                          const gmx_device_info_t   *devInfo);
+                          cudaTextureObject_t        &texObj,
+                          const T                    *h_ptr,
+                          int                         numElem,
+                          const gmx_device_info_t    *devInfo);
 
 /*! \brief Destroy parameter lookup table.
  *
- * Unbinds texture reference/object, deallocates device memory.
+ * Unbinds texture object, deallocates device memory.
  *
  * \tparam[in] T         Raw data type
  * \param[in]  d_ptr     Device pointer to the memory to be deallocated
  * \param[in]  texObj    Texture object to be deinitialized
- * \param[in]  texRef    Texture reference to be deinitialized
  * \param[in]  devInfo   Pointer to the info struct of the device in use
  */
 template <typename T>
-void destroyParamLookupTable(T                         *d_ptr,
-                             cudaTextureObject_t        texObj,
-                             const struct texture<T, 1, cudaReadModeElementType> *texRef,
-                             const gmx_device_info_t   *devInfo);
+void destroyParamLookupTable(T                       *d_ptr,
+                             cudaTextureObject_t      texObj,
+                             const gmx_device_info_t *devInfo);
 
 /*! \brief Add a triplets stored in a float3 to an rvec variable.
  *

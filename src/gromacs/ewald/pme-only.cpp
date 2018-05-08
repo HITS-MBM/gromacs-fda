@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014,2015,2016,2017, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016,2017,2018, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -129,7 +129,7 @@ struct gmx_pme_pp {
 };
 
 /*! \brief Initialize the PME-only side of the PME <-> PP communication */
-static std::unique_ptr<gmx_pme_pp> gmx_pme_pp_init(t_commrec *cr)
+static std::unique_ptr<gmx_pme_pp> gmx_pme_pp_init(const t_commrec *cr)
 {
     auto pme_pp = gmx::compat::make_unique<gmx_pme_pp>();
 
@@ -158,7 +158,8 @@ static std::unique_ptr<gmx_pme_pp> gmx_pme_pp_init(t_commrec *cr)
 static void reset_pmeonly_counters(gmx_wallcycle_t wcycle,
                                    gmx_walltime_accounting_t walltime_accounting,
                                    t_nrnb *nrnb, t_inputrec *ir,
-                                   gmx_int64_t step)
+                                   gmx_int64_t step,
+                                   bool useGpuForPme)
 {
     /* Reset all the counters related to performance over the run */
     wallcycle_stop(wcycle, ewcRUN);
@@ -172,12 +173,17 @@ static void reset_pmeonly_counters(gmx_wallcycle_t wcycle,
     ir->init_step = step;
     wallcycle_start(wcycle, ewcRUN);
     walltime_accounting_start(walltime_accounting);
+
+    if (useGpuForPme)
+    {
+        resetGpuProfiler();
+    }
 }
 
 static gmx_pme_t *gmx_pmeonly_switch(std::vector<gmx_pme_t *> *pmedata,
                                      const ivec grid_size,
                                      real ewaldcoeff_q, real ewaldcoeff_lj,
-                                     t_commrec *cr, const t_inputrec *ir)
+                                     const t_commrec *cr, const t_inputrec *ir)
 {
     GMX_ASSERT(pmedata, "Bad PME tuning list pointer");
     for (auto &pme : *pmedata)
@@ -527,8 +533,8 @@ static void gmx_pme_send_force_vir_ener(gmx_pme_pp *pme_pp,
 }
 
 int gmx_pmeonly(struct gmx_pme_t *pme,
-                t_commrec *cr,    t_nrnb *mynrnb,
-                gmx_wallcycle_t wcycle,
+                const t_commrec *cr, t_nrnb *mynrnb,
+                gmx_wallcycle  *wcycle,
                 gmx_walltime_accounting_t walltime_accounting,
                 t_inputrec *ir, PmeRunMode runMode)
 {
@@ -596,7 +602,7 @@ int gmx_pmeonly(struct gmx_pme_t *pme,
             if (ret == pmerecvqxRESETCOUNTERS)
             {
                 /* Reset the cycle and flop counters */
-                reset_pmeonly_counters(wcycle, walltime_accounting, mynrnb, ir, step);
+                reset_pmeonly_counters(wcycle, walltime_accounting, mynrnb, ir, step, useGpuForPme);
             }
         }
         while (ret == pmerecvqxSWITCHGRID || ret == pmerecvqxRESETCOUNTERS);
@@ -638,6 +644,7 @@ int gmx_pmeonly(struct gmx_pme_t *pme,
             pme_gpu_launch_complex_transforms(pme, wcycle);
             pme_gpu_launch_gather(pme, wcycle, PmeForceOutputHandling::Set);
             pme_gpu_wait_finish_task(pme, wcycle, &forces, vir_q, &energy_q);
+            pme_gpu_reinit_computation(pme, wcycle);
         }
         else
         {

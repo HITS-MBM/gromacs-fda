@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2009,2010,2014,2015,2017, by the GROMACS development team, led by
+ * Copyright (c) 2009,2010,2014,2015,2017,2018, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -54,12 +54,13 @@
 #include "gromacs/mdtypes/commrec.h"
 #include "gromacs/mdtypes/inputrec.h"
 #include "gromacs/pbcutil/pbc.h"
+#include "gromacs/topology/block.h"
 #include "gromacs/utility/fatalerror.h"
 
 /*! \brief Calculates the average and standard deviation in 3D of n charge groups */
 static void calc_cgcm_av_stddev(const t_block *cgs, int n, const rvec *x,
                                 rvec av, rvec stddev,
-                                t_commrec *cr_sum)
+                                const t_commrec *cr_sum)
 {
     int   *cgindex;
     dvec   s1, s2;
@@ -155,8 +156,11 @@ static void set_tric_dir(const ivec *dd_nc, gmx_ddbox_t *ddbox, const matrix box
             }
         }
 
-        /* Convert box vectors to orthogonal vectors for this dimension,
-         * for use in distance calculations.
+        /* Construct vectors v for dimension d that are perpendicular
+         * to the triclinic plane of dimension d. Each vector v[i] has
+         * v[i][i]=1 and v[i][d]!=0 for triclinic dimensions, while the third
+         * component is zero. These are used for computing the distance
+         * to a triclinic plane given the distance along dimension d.
          * Set the trilinic skewing factor that translates
          * the thickness of a slab perpendicular to this dimension
          * into the real thickness of the slab.
@@ -178,14 +182,8 @@ static void set_tric_dir(const ivec *dd_nc, gmx_ddbox_t *ddbox, const matrix box
                 {
                     /* Normalize such that the "diagonal" is 1 */
                     svmul(1/box[d+2][d+2], box[d+2], v[d+2]);
-                    for (i = 0; i < d; i++)
-                    {
-                        v[d+2][i] = 0;
-                    }
-                    /* Make vector [d+2] perpendicular to vector [d+1],
-                     * this does not affect the normalization.
-                     */
-                    dep = iprod(v[d+1], v[d+2])/norm2(v[d+1]);
+                    /* Set v[d+2][d+1] to zero by shifting along v[d+1] */
+                    dep = v[d+2][d+1]/v[d+1][d+1];
                     for (i = 0; i < DIM; i++)
                     {
                         v[d+2][i] -= dep*v[d+1][i];
@@ -242,7 +240,7 @@ static void set_tric_dir(const ivec *dd_nc, gmx_ddbox_t *ddbox, const matrix box
 /*! \brief This function calculates bounding box and pbc info and populates ddbox */
 static void low_set_ddbox(const t_inputrec *ir, const ivec *dd_nc, const matrix box,
                           gmx_bool bCalcUnboundedSize, int ncg, const t_block *cgs, const rvec *x,
-                          t_commrec *cr_sum,
+                          const t_commrec *cr_sum,
                           gmx_ddbox_t *ddbox)
 {
     rvec av, stddev;
@@ -283,7 +281,7 @@ static void low_set_ddbox(const t_inputrec *ir, const ivec *dd_nc, const matrix 
     set_tric_dir(dd_nc, ddbox, box);
 }
 
-void set_ddbox(gmx_domdec_t *dd, gmx_bool bMasterState, t_commrec *cr_sum,
+void set_ddbox(gmx_domdec_t *dd, gmx_bool bMasterState, const t_commrec *cr_sum,
                const t_inputrec *ir, const matrix box,
                gmx_bool bCalcUnboundedSize, const t_block *cgs, const rvec *x,
                gmx_ddbox_t *ddbox)
@@ -302,7 +300,7 @@ void set_ddbox(gmx_domdec_t *dd, gmx_bool bMasterState, t_commrec *cr_sum,
     }
 }
 
-void set_ddbox_cr(t_commrec *cr, const ivec *dd_nc,
+void set_ddbox_cr(const t_commrec *cr, const ivec *dd_nc,
                   const t_inputrec *ir, const matrix box,
                   const t_block *cgs, const rvec *x,
                   gmx_ddbox_t *ddbox)

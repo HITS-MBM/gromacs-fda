@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2012,2013,2014,2015,2016,2017, by the GROMACS development team, led by
+ * Copyright (c) 2012,2013,2014,2015,2016,2017,2018, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -69,6 +69,7 @@
 
 #include "thread_mpi/atomic.h"
 
+#include "gromacs/gpu_utils/gputraits_ocl.h"
 #include "gromacs/gpu_utils/oclutils.h"
 #include "gromacs/hardware/hw_info.h"
 #include "gromacs/mdlib/force_flags.h"
@@ -88,9 +89,6 @@
 #include "nbnxn_ocl_internal.h"
 #include "nbnxn_ocl_types.h"
 
-#if defined TEXOBJ_SUPPORTED && __CUDA_ARCH__ >= 300
-#define USE_TEXOBJ
-#endif
 
 /*! \brief Convenience constants */
 //@{
@@ -98,12 +96,6 @@ static const int c_numClPerSupercl = c_nbnxnGpuNumClusterPerSupercluster;
 static const int c_clSize          = c_nbnxnGpuClusterSize;
 //@}
 
-
-/* Uncomment this define to enable kernel debugging */
-//#define DEBUG_OCL
-
-/*! \brief Specifies which kernel run to debug */
-#define DEBUG_RUN_STEP 2
 
 /*! \brief Validates the input global work size parameter.
  */
@@ -287,7 +279,9 @@ static inline int calc_shmem_required_nonbonded(int  vdwType,
     /* NOTE: with the default kernel on sm3.0 we need shmem only for pre-loading */
     /* i-atom x+q in shared memory */
     shmem  = c_numClPerSupercl * c_clSize * sizeof(float) * 4; /* xqib */
-    /* cj in shared memory, for both warps separately */
+    /* cj in shared memory, for both warps separately
+     * TODO: in the "nowarp kernels we load cj only once  so the factor 2 is not needed.
+     */
     shmem += 2 * c_nbnxnGpuJgroupSize * sizeof(int);           /* cjs  */
     if (bPrefetchLjParam)
     {
@@ -350,12 +344,7 @@ static void sync_ocl_event(cl_command_queue stream, cl_event *ocl_event)
     cl_int gmx_unused cl_error;
 
     /* Enqueue wait */
-#ifdef CL_VERSION_1_2
     cl_error = clEnqueueBarrierWithWaitList(stream, 1, ocl_event, NULL);
-#else
-    cl_error = clEnqueueWaitForEvents(stream, 1, ocl_event);
-#endif
-
     GMX_RELEASE_ASSERT(CL_SUCCESS == cl_error, ocl_get_error_string(cl_error).c_str());
 
     /* Release event and reset it to 0. It is ok to release it as enqueuewaitforevents performs implicit retain for events. */
@@ -406,10 +395,6 @@ void nbnxn_gpu_launch_kernel(gmx_nbnxn_ocl_t               *nb,
     cl_uint              arg_no;
 
     cl_nbparam_params_t  nbparams_params;
-#ifdef DEBUG_OCL
-    float              * debug_buffer_h;
-    size_t               debug_buffer_size;
-#endif
 
     /* Don't launch the non-local kernel if there is no work to do.
        Doing the same for the local kernel is more complicated, since the
@@ -461,11 +446,7 @@ void nbnxn_gpu_launch_kernel(gmx_nbnxn_ocl_t               *nb,
     {
         if (iloc == eintLocal)
         {
-#ifdef CL_VERSION_1_2
             cl_error = clEnqueueMarkerWithWaitList(stream, 0, NULL, &(nb->misc_ops_and_local_H2D_done));
-#else
-            cl_error = clEnqueueMarker(stream, &(nb->misc_ops_and_local_H2D_done));
-#endif
             assert(CL_SUCCESS == cl_error);
 
             /* Based on the v1.2 section 5.13 of the OpenCL spec, a flush is needed
@@ -524,28 +505,6 @@ void nbnxn_gpu_launch_kernel(gmx_nbnxn_ocl_t               *nb,
 
     shmem     = calc_shmem_required_nonbonded(nbp->vdwtype, nb->bPrefetchLjParam);
 
-#ifdef DEBUG_OCL
-    {
-        static int run_step = 1;
-
-        if (DEBUG_RUN_STEP == run_step)
-        {
-            debug_buffer_size = global_work_size[0] * global_work_size[1] * global_work_size[2] * sizeof(float);
-            debug_buffer_h    = (float*)calloc(1, debug_buffer_size);
-            assert(NULL != debug_buffer_h);
-
-            if (NULL == nb->debug_buffer)
-            {
-                nb->debug_buffer = clCreateBuffer(nb->dev_rundata->context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR,
-                                                  debug_buffer_size, debug_buffer_h, &cl_error);
-
-                assert(CL_SUCCESS == cl_error);
-            }
-        }
-
-        run_step++;
-    }
-#endif
     if (debug)
     {
         fprintf(debug, "Non-bonded GPU launch configuration:\n\tLocal work size: %dx%dx%d\n\t"
@@ -586,7 +545,6 @@ void nbnxn_gpu_launch_kernel(gmx_nbnxn_ocl_t               *nb,
     cl_error |= clSetKernelArg(nb_kernel, arg_no++, sizeof(cl_mem), &(plist->excl));
     cl_error |= clSetKernelArg(nb_kernel, arg_no++, sizeof(int), &bCalcFshift);
     cl_error |= clSetKernelArg(nb_kernel, arg_no++, shmem, NULL);
-    cl_error |= clSetKernelArg(nb_kernel, arg_no++, sizeof(cl_mem), &(nb->debug_buffer));
 
     assert(cl_error == CL_SUCCESS);
 
@@ -601,62 +559,6 @@ void nbnxn_gpu_launch_kernel(gmx_nbnxn_ocl_t               *nb,
     {
         t->nb_k[iloc].closeTimingRegion(stream);
     }
-
-#ifdef DEBUG_OCL
-    {
-        static int run_step = 1;
-
-        if (DEBUG_RUN_STEP == run_step)
-        {
-            FILE *pf;
-            char  file_name[256] = {0};
-
-            ocl_copy_D2H_async(debug_buffer_h, nb->debug_buffer, 0,
-                               debug_buffer_size, stream, NULL);
-
-            // Make sure all data has been transfered back from device
-            clFinish(stream);
-
-            printf("\nWriting debug_buffer to debug_buffer_ocl.txt...");
-
-            sprintf(file_name, "debug_buffer_ocl_%d.txt", DEBUG_RUN_STEP);
-            pf = fopen(file_name, "wt");
-            assert(pf != NULL);
-
-            fprintf(pf, "%20s", "");
-            for (int j = 0; j < global_work_size[0]; j++)
-            {
-                char label[20];
-                sprintf(label, "(wIdx=%2d thIdx=%2d)", j / local_work_size[0], j % local_work_size[0]);
-                fprintf(pf, "%20s", label);
-            }
-
-            for (int i = 0; i < global_work_size[1]; i++)
-            {
-                char label[20];
-                sprintf(label, "(wIdy=%2d thIdy=%2d)", i / local_work_size[1], i % local_work_size[1]);
-                fprintf(pf, "\n%20s", label);
-
-                for (int j = 0; j < global_work_size[0]; j++)
-                {
-                    fprintf(pf, "%20.5f", debug_buffer_h[i * global_work_size[0] + j]);
-                }
-
-                //fprintf(pf, "\n");
-            }
-
-            fclose(pf);
-
-            printf(" done.\n");
-
-
-            free(debug_buffer_h);
-            debug_buffer_h = NULL;
-        }
-
-        run_step++;
-    }
-#endif
 }
 
 
@@ -674,7 +576,10 @@ static inline int calc_shmem_required_prune(const int num_threads_z)
 
     /* i-atom x in shared memory (for convenience we load all 4 components including q) */
     shmem  = c_numClPerSupercl * c_clSize * sizeof(float)*4;
-    /* cj in shared memory, for each warp separately */
+    /* cj in shared memory, for each warp separately
+     * Note: only need to load once per wavefront, but to keep the code simple,
+     * for now we load twice on AMD.
+     */
     shmem += num_threads_z * c_nbnxnGpuClusterpairSplit * c_nbnxnGpuJgroupSize * sizeof(int);
     /* Warp vote, requires one uint per warp/32 threads per block. */
     shmem += sizeof(cl_uint) * 2*num_threads_z;
@@ -889,11 +794,7 @@ void nbnxn_gpu_launch_cpyback(gmx_nbnxn_ocl_t               *nb,
        data back first. */
     if (iloc == eintNonlocal)
     {
-#ifdef CL_VERSION_1_2
         cl_error = clEnqueueMarkerWithWaitList(stream, 0, NULL, &(nb->nonlocal_done));
-#else
-        cl_error = clEnqueueMarker(stream, &(nb->nonlocal_done));
-#endif
         assert(CL_SUCCESS == cl_error);
         nb->bNonLocalStreamActive = true;
     }

@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2012,2013,2014,2015,2016,2017, by the GROMACS development team, led by
+ * Copyright (c) 2012,2013,2014,2015,2016,2017,2018, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -66,25 +66,6 @@
 
 #include "nbnxn_cuda_types.h"
 
-/*
- * Texture references are created at compile-time and need to be declared
- * at file scope as global variables (see http://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#texture-reference-api).
- * The texture references below are used in two translation units;
- * we declare them here along the kernels that use them (when compiling legacy Fermi kernels),
- * and provide getters (see below) used by the data_mgmt module where the
- * textures are bound/unbound.
- * (In principle we could do it the other way arond, but that would likely require
- * device linking and we'd rather avoid technical hurdles.)
- */
-/*! Texture reference for LJ C6/C12 parameters; bound to cu_nbparam_t.nbfp */
-texture<float, 1, cudaReadModeElementType> nbfp_texref;
-
-/*! Texture reference for LJ-PME parameters; bound to cu_nbparam_t.nbfp_comb */
-texture<float, 1, cudaReadModeElementType> nbfp_comb_texref;
-
-/*! Texture reference for Ewald coulomb force table; bound to cu_nbparam_t.coulomb_tab */
-texture<float, 1, cudaReadModeElementType> coulomb_tab_texref;
-
 
 /***** The kernel declarations/definitions come here *****/
 
@@ -124,14 +105,6 @@ texture<float, 1, cudaReadModeElementType> coulomb_tab_texref;
 #include "gromacs/mdlib/nbnxn_cuda/nbnxn_cuda_kernel_VF_noprune.cu"
 #include "gromacs/mdlib/nbnxn_cuda/nbnxn_cuda_kernel_VF_prune.cu"
 #include "gromacs/mdlib/nbnxn_cuda/nbnxn_cuda_kernel_pruneonly.cu"
-#else
-/* Prevent compilation in multiple compilation unit mode for CC 2.x. Although we have
- * build-time checks to prevent this, the user could manually tweaks nvcc flags
- * which would lead to buggy kernels getting compiled.
- */
-#if GMX_PTX_ARCH > 0 && GMX_PTX_ARCH <= 210 && !defined(__clang__)
-#error Due to an CUDA nvcc compiler bug, the CUDA non-bonded module can not be compiled with multiple compilation units for CC 2.x devices. If you have changed the nvcc flags manually, either use the GMX_CUDA_TARGET_* variables instead or set GMX_CUDA_NB_SINGLE_COMPILATION_UNIT=ON CMake option.
-#endif
 #endif /* GMX_CUDA_NB_SINGLE_COMPILATION_UNIT */
 
 
@@ -142,11 +115,6 @@ typedef void (*nbnxn_cu_kfunc_ptr_t)(const cu_atomdata_t,
                                      bool);
 
 /*********************************/
-
-/* XXX switch between chevron and cudaLaunch (supported only in CUDA >=7.0)
-   -- only for benchmarking purposes */
-static const bool bUseCudaLaunchKernel =
-    (GMX_CUDA_VERSION >= 7000) && (getenv("GMX_DISABLE_CUDALAUNCH") == NULL);
 
 /*! Returns the number of blocks to be used for the nonbonded GPU kernel. */
 static inline int calc_nb_kernel_nblock(int nwork_units, const gmx_device_info_t *dinfo)
@@ -459,22 +427,13 @@ void nbnxn_gpu_launch_kernel(gmx_nbnxn_cuda_t       *nb,
                 shmem);
     }
 
-    if (bUseCudaLaunchKernel)
-    {
-        gmx_unused void* kernel_args[4];
-        kernel_args[0] = adat;
-        kernel_args[1] = nbp;
-        kernel_args[2] = plist;
-        kernel_args[3] = &bCalcFshift;
+    void* kernel_args[4];
+    kernel_args[0] = adat;
+    kernel_args[1] = nbp;
+    kernel_args[2] = plist;
+    kernel_args[3] = &bCalcFshift;
 
-#if GMX_CUDA_VERSION >= 7000
-        cudaLaunchKernel((void *)nb_kernel, dim_grid, dim_block, kernel_args, shmem, stream);
-#endif
-    }
-    else
-    {
-        nb_kernel<<< dim_grid, dim_block, shmem, stream>>> (*adat, *nbp, *plist, bCalcFshift);
-    }
+    cudaLaunchKernel((void *)nb_kernel, dim_grid, dim_block, kernel_args, shmem, stream);
     CU_LAUNCH_ERR("k_calc_nb");
 
     if (bDoTime)
@@ -589,36 +548,20 @@ void nbnxn_gpu_launch_kernel_pruneonly(gmx_nbnxn_cuda_t       *nb,
                 shmem);
     }
 
-    if (bUseCudaLaunchKernel)
-    {
-        gmx_unused void* kernel_args[5];
-        kernel_args[0] = adat;
-        kernel_args[1] = nbp;
-        kernel_args[2] = plist;
-        kernel_args[3] = &numParts;
-        kernel_args[4] = &part;
+    void* kernel_args[5];
+    kernel_args[0] = adat;
+    kernel_args[1] = nbp;
+    kernel_args[2] = plist;
+    kernel_args[3] = &numParts;
+    kernel_args[4] = &part;
 
-#if GMX_CUDA_VERSION >= 7000
-        if (plist->haveFreshList)
-        {
-            cudaLaunchKernel((void *)nbnxn_kernel_prune_cuda<true>, dim_grid, dim_block, kernel_args, shmem, stream);
-        }
-        else
-        {
-            cudaLaunchKernel((void *)nbnxn_kernel_prune_cuda<false>, dim_grid, dim_block, kernel_args, shmem, stream);
-        }
-#endif
+    if (plist->haveFreshList)
+    {
+        cudaLaunchKernel((void *)nbnxn_kernel_prune_cuda<true>, dim_grid, dim_block, kernel_args, shmem, stream);
     }
     else
     {
-        if (plist->haveFreshList)
-        {
-            nbnxn_kernel_prune_cuda<true><<< dim_grid, dim_block, shmem, stream>>> (*adat, *nbp, *plist, numParts, part);
-        }
-        else
-        {
-            nbnxn_kernel_prune_cuda<false><<< dim_grid, dim_block, shmem, stream>>> (*adat, *nbp, *plist, numParts, part);
-        }
+        cudaLaunchKernel((void *)nbnxn_kernel_prune_cuda<false>, dim_grid, dim_block, kernel_args, shmem, stream);
     }
     CU_LAUNCH_ERR("k_pruneonly");
 
@@ -726,21 +669,6 @@ void nbnxn_gpu_launch_cpyback(gmx_nbnxn_cuda_t       *nb,
     {
         t->nb_d2h[iloc].closeTimingRegion(stream);
     }
-}
-
-const struct texture<float, 1, cudaReadModeElementType> &nbnxn_cuda_get_nbfp_texref()
-{
-    return nbfp_texref;
-}
-
-const struct texture<float, 1, cudaReadModeElementType> &nbnxn_cuda_get_nbfp_comb_texref()
-{
-    return nbfp_comb_texref;
-}
-
-const struct texture<float, 1, cudaReadModeElementType> &nbnxn_cuda_get_coulomb_tab_texref()
-{
-    return coulomb_tab_texref;
 }
 
 void nbnxn_cuda_set_cacheconfig(const gmx_device_info_t *devinfo)

@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2016,2017, by the GROMACS development team, led by
+ * Copyright (c) 2016,2017,2018, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -43,6 +43,7 @@
 #include "gromacs/hardware/hw_info.h"
 #include "gromacs/mdrunutility/threadaffinity.h"
 #include "gromacs/utility/logger.h"
+#include "gromacs/utility/physicalnodecommunicator.h"
 #include "gromacs/utility/stringutil.h"
 
 #include "testutils/loggertest.h"
@@ -64,15 +65,12 @@ class MockThreadAffinityAccess : public IThreadAffinityAccess
         ~MockThreadAffinityAccess();
 
         void setSupported(bool supported) { supported_ = supported; }
-        void setPhysicalNodeId(int nodeId) { physicalNodeId_ = nodeId; }
 
         virtual bool isThreadAffinitySupported() const { return supported_; }
-        virtual int physicalNodeId() const { return physicalNodeId_; }
         MOCK_METHOD1(setCurrentThreadAffinityToCore, bool(int core));
 
     private:
         bool supported_;
-        int  physicalNodeId_;
 };
 
 class ThreadAffinityTestHelper
@@ -97,7 +95,7 @@ class ThreadAffinityTestHelper
 
         void setPhysicalNodeId(int nodeId)
         {
-            affinityAccess_.setPhysicalNodeId(nodeId);
+            physicalNodeId_ = nodeId;
         }
 
         void setLogicalProcessorCount(int logicalProcessorCount);
@@ -165,14 +163,21 @@ class ThreadAffinityTestHelper
             }
         }
 
-        void setAffinity(int nthread_local)
+        void setAffinity(int numThreadsOnThisRank)
         {
             if (hwTop_ == nullptr)
             {
                 setLogicalProcessorCount(1);
             }
+            gmx::PhysicalNodeCommunicator comm(MPI_COMM_WORLD, physicalNodeId_);
+            int numThreadsOnThisNode, indexWithinNodeOfFirstThreadOnThisRank;
+            analyzeThreadsOnThisNode(comm,
+                                     numThreadsOnThisRank,
+                                     &numThreadsOnThisNode,
+                                     &indexWithinNodeOfFirstThreadOnThisRank);
             gmx_set_thread_affinity(logHelper_.logger(), cr_, &hwOpt_, *hwTop_,
-                                    nthread_local, &affinityAccess_);
+                                    numThreadsOnThisRank, numThreadsOnThisNode,
+                                    indexWithinNodeOfFirstThreadOnThisRank, &affinityAccess_);
         }
 
     private:
@@ -181,6 +186,7 @@ class ThreadAffinityTestHelper
         std::unique_ptr<HardwareTopology>  hwTop_;
         MockThreadAffinityAccess           affinityAccess_;
         LoggerTestHelper                   logHelper_;
+        int                                physicalNodeId_;
 };
 
 } // namespace test

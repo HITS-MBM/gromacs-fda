@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2016,2017, by the GROMACS development team, led by
+ * Copyright (c) 2016,2017,2018, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -46,8 +46,6 @@
 
 #include "pme-gpu-internal.h"
 
-#include "config.h"
-
 #include <list>
 #include <string>
 
@@ -61,6 +59,8 @@
 #include "gromacs/utility/logger.h"
 #include "gromacs/utility/stringutil.h"
 
+#include "pme-gpu-types.h"
+#include "pme-gpu-types-host.h"
 #include "pme-grid.h"
 #include "pme-internal.h"
 
@@ -129,17 +129,6 @@ void pme_gpu_update_input_box(PmeGpu gmx_unused       *pmeGpu,
 }
 
 /*! \brief \libinternal
- * The PME GPU reinitialization function that is called both at the end of any PME computation and on any load balancing.
- *
- * \param[in] pmeGpu            The PME GPU structure.
- */
-void pme_gpu_reinit_computation(const PmeGpu *pmeGpu)
-{
-    pme_gpu_clear_grids(pmeGpu);
-    pme_gpu_clear_energy_virial(pmeGpu);
-}
-
-/*! \brief \libinternal
  * (Re-)initializes all the PME GPU data related to the grid size and cut-off.
  *
  * \param[in] pmeGpu            The PME GPU structure.
@@ -201,9 +190,6 @@ static void pme_gpu_copy_common_data_from(const gmx_pme_t *pme)
     pmeGpu->common->nk[XX]        = pme->nkx;
     pmeGpu->common->nk[YY]        = pme->nky;
     pmeGpu->common->nk[ZZ]        = pme->nkz;
-    pmeGpu->common->pmegrid_n[XX] = pme->pmegrid_nx;
-    pmeGpu->common->pmegrid_n[YY] = pme->pmegrid_ny;
-    pmeGpu->common->pmegrid_n[ZZ] = pme->pmegrid_nz;
     pmeGpu->common->pme_order     = pme->pme_order;
     for (int i = 0; i < DIM; i++)
     {
@@ -222,53 +208,6 @@ static void pme_gpu_copy_common_data_from(const gmx_pme_t *pme)
     pmeGpu->common->boxScaler = pme->boxScaler;
 }
 
-/*! \brief \libinternal
- * Finds out if PME with given inputs is possible to run on GPU.
- *
- * \param[in]  pme          The PME structure.
- * \param[out] error        The error message if the input is not supported on GPU.
- * \returns                 True if this PME input is possible to run on GPU, false otherwise.
- */
-static bool pme_gpu_check_restrictions(const gmx_pme_t *pme, std::string *error)
-{
-    std::list<std::string> errorReasons;
-    if (pme->nnodes != 1)
-    {
-        errorReasons.push_back("PME decomposition");
-    }
-    if (pme->pme_order != 4)
-    {
-        errorReasons.push_back("interpolation orders other than 4");
-    }
-    if (pme->bFEP)
-    {
-        errorReasons.push_back("free energy calculations (multiple grids)");
-    }
-    if (pme->doLJ)
-    {
-        errorReasons.push_back("Lennard-Jones PME");
-    }
-#if GMX_DOUBLE
-    {
-        errorReasons.push_back("double precision");
-    }
-#endif
-#if GMX_GPU != GMX_GPU_CUDA
-    {
-        errorReasons.push_back("non-CUDA build of GROMACS");
-    }
-#endif
-
-    bool inputSupported = errorReasons.empty();
-    if (!inputSupported && error)
-    {
-        std::string regressionTestMarker = "PME GPU does not support";
-        // this prefix is tested for in the regression tests script gmxtest.pl
-        *error = regressionTestMarker + ": " + gmx::joinStrings(errorReasons, "; ") + ".";
-    }
-    return inputSupported;
-}
-
 /*! \libinternal \brief
  * Initializes the PME GPU data at the beginning of the run.
  *
@@ -277,13 +216,6 @@ static bool pme_gpu_check_restrictions(const gmx_pme_t *pme, std::string *error)
  */
 static void pme_gpu_init(gmx_pme_t *pme, gmx_device_info_t *gpuInfo)
 {
-    std::string errorString;
-    bool        canRunOnGpu = pme_gpu_check_restrictions(pme, &errorString);
-    if (!canRunOnGpu)
-    {
-        GMX_THROW(gmx::NotImplementedError(errorString));
-    }
-
     pme->gpu          = new PmeGpu();
     PmeGpu *pmeGpu = pme->gpu;
     changePinningPolicy(&pmeGpu->staging.h_forces, gmx::PinningPolicy::CanBePinned);
@@ -349,7 +281,7 @@ void pme_gpu_transform_spline_atom_data(const PmeGpu *pmeGpu, const pme_atomcomm
         auto warpIndex     = atomIndex / atomsPerWarp;
         for (auto orderIndex = 0; orderIndex < pmeOrder; orderIndex++)
         {
-            const auto gpuValueIndex = ((pmeOrder * warpIndex + orderIndex) * DIM + dimIndex) * atomsPerWarp + atomWarpIndex;
+            const auto gpuValueIndex = getSplineParamFullIndex(pmeOrder, orderIndex, dimIndex, warpIndex, atomWarpIndex);
             const auto cpuValueIndex = atomIndex * pmeOrder + orderIndex;
             GMX_ASSERT(cpuValueIndex < atomCount * pmeOrder, "Atom spline data index out of bounds (while transforming GPU data layout for host)");
             switch (transform)
@@ -407,7 +339,9 @@ void pme_gpu_reinit(gmx_pme_t *pme, gmx_device_info_t *gpuInfo)
     pme_gpu_reinit_timings(pme->gpu);
 
     pme_gpu_reinit_grids(pme->gpu);
-    pme_gpu_reinit_computation(pme->gpu);
+    // Note: if timing the reinit launch overhead becomes more relevant
+    // (e.g. with regulat PP-PME re-balancing), we should pass wcycle here.
+    pme_gpu_reinit_computation(pme, nullptr);
     /* Clear the previous box - doesn't hurt, and forces the PME CPU recipbox
      * update for mixed mode on grid switch. TODO: use shared recipbox field.
      */

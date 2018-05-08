@@ -1,3 +1,7 @@
+.. Note that this must be a single rst file in order for Sphinx
+   to build into into a single plain-text file to place in the
+   installation tarball.
+
 .. _install guide:
 
 ******************
@@ -7,13 +11,13 @@ Installation guide
 .. highlight:: bash
 
 Introduction to building |Gromacs|
-==================================
+----------------------------------
 
 These instructions pertain to building |Gromacs|
 |version|. You might also want to check the `up-to-date installation instructions`_.
 
 Quick and dirty installation
-----------------------------
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 1. Get the latest version of your C and C++ compilers.
 2. Check that you have CMake version |CMAKE_MINIMUM_REQUIRED_VERSION| or later.
 3. Get and unpack the latest version of the |Gromacs| tarball.
@@ -47,16 +51,20 @@ hardware, libraries, and compilers are only going to continue to get
 more complex.
 
 Quick and dirty cluster installation
-------------------------------------
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 On a cluster where users are expected to be running across multiple
 nodes using MPI, make one installation similar to the above, and
 another using an MPI wrapper compiler and which is `building only
 mdrun`_, because that is the only component of |Gromacs| that uses
-MPI.
+MPI. The latter will install a single simulation engine binary,
+i.e. ``mdrun_mpi`` when the default suffix is used. Hence it is safe
+and common practice to install this into the same location where
+the non-MPI build is installed.
 
 Typical installation
---------------------
+^^^^^^^^^^^^^^^^^^^^
+
 As above, and with further details below, but you should consider
 using the following `CMake options`_ with the
 appropriate value instead of ``xxx`` :
@@ -76,22 +84,25 @@ appropriate value instead of ``xxx`` :
 * ``-DCMAKE_BUILD_TYPE=Debug`` to build |Gromacs| in debug mode
 
 Building older versions
------------------------
+^^^^^^^^^^^^^^^^^^^^^^^
+
 Installation instructions for old |Gromacs| versions can be found at
 the |Gromacs| `documentation page
 <http://manual.gromacs.org/documentation>`_.
 
 Prerequisites
-=============
+-------------
+
 Platform
---------
+^^^^^^^^
+
 |Gromacs| can be compiled for many operating systems and
 architectures.  These include any distribution of Linux, Mac OS X or
 Windows, and architectures including x86, AMD64/x86-64, several
 PowerPC including POWER8, ARM v7, ARM v8, and SPARC VIII.
 
 Compiler
---------
+^^^^^^^^
 
 |Gromacs| can be compiled on any platform with ANSI C99 and C++11
 compilers, and their respective standard C/C++ libraries. Good
@@ -162,7 +173,7 @@ For updated versions of gcc to add to your Linux OS, see
 * RHEL/CentOS: `EPEL page`_ or the RedHat Developer Toolset
 
 Compiling with parallelization options
---------------------------------------
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 For maximum performance you will need to examine how you will use
 |Gromacs| and what hardware you plan to run on. Often OpenMP_
@@ -170,44 +181,40 @@ parallelism is an advantage for |Gromacs|, but support for this is
 generally built into your compiler and detected automatically.
 
 GPU support
-^^^^^^^^^^^
+~~~~~~~~~~~
+
 |Gromacs| has excellent support for NVIDIA GPUs supported via CUDA.
-On Linux with gcc, NVIDIA's CUDA_ version |REQUIRED_CUDA_VERSION|
-software development kit is required, and the latest
-version is strongly encouraged. Using Intel or Microsoft compilers
-requires version 7.0 and 8.0, respectively. NVIDIA GPUs with at
+On Linux, NVIDIA CUDA_ toolkit with minimum version |REQUIRED_CUDA_VERSION|
+is required, and the latest version is strongly encouraged. Using
+Microsoft MSVC compiler requires version 8.0. NVIDIA GPUs with at
 least NVIDIA compute capability |REQUIRED_CUDA_COMPUTE_CAPABILITY| are
-required, e.g. Fermi, Kepler, Maxwell or Pascal cards. You are strongly recommended to
-get the latest CUDA version and driver supported by your hardware, but
+required. You are strongly recommended to
+get the latest CUDA version and driver that supports your hardware, but
 beware of possible performance regressions in newer CUDA versions on
-older hardware. Note that while some CUDA compilers (nvcc) might not
+older hardware. Note that compute capability 2.0 (Fermi)
+devices are no longer supported from CUDA 9.0 and later.
+While some CUDA compilers (nvcc) might not
 officially support recent versions of gcc as the back-end compiler, we
 still recommend that you at least use a gcc version recent enough to
 get the best SIMD support for your CPU, since |Gromacs| always runs some
 code on the CPU. It is most reliable to use the same C++ compiler
-version for |Gromacs| code as used as the back-end compiler for nvcc,
-but it could be faster to mix compiler versions to suit particular
-contexts.
+version for |Gromacs| code as used as the host compiler for nvcc.
 
 To make it possible to use other accelerators, |Gromacs| also includes
 OpenCL_ support. The minimum OpenCL version required is
-|REQUIRED_OPENCL_MIN_VERSION|. The current version is recommended for
-use with GCN-based AMD GPUs. It does work with NVIDIA GPUs, but using
+|REQUIRED_OPENCL_MIN_VERSION|. The current OpenCL implementation is recommended for
+use with GCN-based AMD GPUs, on Linux we recommend the ROCm runtime.
+It is also supported with NVIDIA GPUs, but using
 the latest NVIDIA driver (which includes the NVIDIA OpenCL runtime) is
-recommended. Additionally, there are known limitations when using
-recent versions of the AMD APPSDK (details are found in the |Gromacs|
-user guide). It is not possible to configure both CUDA and OpenCL
+recommended. Also note that there are performance limitations (inherent
+to the NVIDIA OpenCL runtime).
+It is not possible to configure both CUDA and OpenCL
 support in the same version of |Gromacs|.
-
-Please note that MSVC 2015 is the earliest version of MSVC supported
-by |Gromacs|, but that requires at least CUDA 8 for an officially
-supported CUDA build. This will likely not occur before |Gromacs| 2016
-is released.
 
 .. _mpi-support:
 
 MPI support
-^^^^^^^^^^^
+~~~~~~~~~~~
 
 |Gromacs| can run in parallel on multiple cores of a single
 workstation using its built-in thread-MPI. No user action is required
@@ -229,7 +236,7 @@ library. LAM-MPI_ might work, but since it has
 been deprecated for years, it is not supported.
 
 CMake
------
+^^^^^
 
 |Gromacs| builds with the CMake build system, requiring at least
 version |CMAKE_MINIMUM_REQUIRED_VERSION|. You can check whether
@@ -243,7 +250,7 @@ recommends you install the most recent version of CMake you can.
 .. _FFT support:
 
 Fast Fourier Transform library
-------------------------------
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Many simulations in |Gromacs| make extensive use of fast Fourier
 transforms, and a software library to perform these is always
@@ -255,9 +262,14 @@ fallback, and is acceptable if simulation performance is not a
 priority. When choosing MKL, |Gromacs| will also use MKL for BLAS and
 LAPACK (see `linear algebra libraries`_). Generally, there is no
 advantage in using MKL with |Gromacs|, and FFTW is often faster.
+With PME GPU offload support using CUDA, a GPU-based FFT library
+is required. The CUDA-based GPU FFT library cuFFT is part of the
+CUDA toolkit (required for all CUDA builds) and therefore no additional
+software component is needed when building with CUDA GPU acceleration.
 
 Using FFTW
-^^^^^^^^^^
+~~~~~~~~~~
+
 FFTW_ is likely to be available for your platform via its package
 management system, but there can be compatibility and significant
 performance issues associated with these packages. In particular,
@@ -280,17 +292,20 @@ use mixed or double precision for |Gromacs|. There is no need to
 compile FFTW with threading or MPI support, but it does no harm. On
 x86 hardware, compile with *both* ``--enable-sse2`` and
 ``--enable-avx`` for FFTW-3.3.4 and earlier. From FFTW-3.3.5, you
-should also add ``--enable-avx2`` also. On Intel chipsets supporting
-512-wide AVX, including KNL, add ``--enable-avx512`` also. FFTW will
-create a fat library with codelets for all different instruction sets,
-and pick the fastest supported one at runtime. On IBM Power8, you
-definitely want FFTW-3.3.5 and to compile it with ``--enable-vsx`` for
+should also add ``--enable-avx2`` also. On Intel processors supporting
+512-wide AVX, including KNL, add ``--enable-avx512`` also.
+FFTW will create a fat library with codelets for all different instruction sets,
+and pick the fastest supported one at runtime.
+On ARM architectures with NEON SIMD support and IBM Power8 and later, you
+definitely want version 3.3.5 or later,
+and to compile it with ``--enable-neon`` and ``--enable-vsx``, respectively, for
 SIMD support. If you are using a Cray, there is a special modified
 (commercial) version of FFTs using the FFTW interface which can be
 slightly faster.
 
 Using MKL
-^^^^^^^^^
+~~~~~~~~~
+
 Use MKL bundled with Intel compilers by setting up the compiler
 environment, e.g., through ``source /path/to/compilervars.sh intel64``
 or similar before running CMake including setting
@@ -307,7 +322,8 @@ If you need to customize this further, use
 The full list and order(!) of libraries you require are found in Intel's MKL documentation for your system.
 
 Other optional build components
--------------------------------
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
 * Run-time detection of hardware capabilities can be improved by
   linking with hwloc, which is automatically enabled if detected.
 * Hardware-optimized BLAS and LAPACK libraries are useful
@@ -335,7 +351,8 @@ Other optional build components
   use these files in other plotting programs, too.
   
 Doing a build of |Gromacs|
-==========================
+--------------------------
+
 This section will cover a general build of |Gromacs| with CMake_, but it
 is not an exhaustive discussion of how to use CMake. There are many
 resources available on the web, which we suggest you search for when
@@ -346,7 +363,8 @@ OS X. For other platforms, see the specialist instructions below.
 .. _configure-cmake:
 
 Configuring with CMake
-----------------------
+^^^^^^^^^^^^^^^^^^^^^^
+
 CMake will run many tests on your system and do its best to work out
 how to build |Gromacs| for you. If your build machine is the same as
 your target machine, then you can be sure that the defaults and
@@ -423,7 +441,7 @@ You cannot attempt to change compilers after the initial run of
 .. _non-standard location:
 
 Where to install |Gromacs|
-^^^^^^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 |Gromacs| is installed in the directory to which
 ``CMAKE_INSTALL_PREFIX`` points. It may not be the source directory or
@@ -437,7 +455,8 @@ running |Gromacs|!
 .. _cmake options:
 
 Using CMake command-line options
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 Once you become comfortable with setting and changing options, you may
 know in advance how you will configure |Gromacs|. If so, you can speed
 things up by invoking ``cmake`` and passing the various options at once
@@ -459,7 +478,8 @@ but you should avoid this, because the options set with ``-D`` will not
 be able to be changed interactively in that run of ``ccmake``.
 
 SIMD support
-^^^^^^^^^^^^
+~~~~~~~~~~~~
+
 |Gromacs| has extensive support for detecting and using the SIMD
 capabilities of many modern HPC CPU architectures. If you are building
 |Gromacs| on the same hardware you will run it on, then you don't need
@@ -475,7 +495,9 @@ do not.
 Valid values are listed below, and the applicable value with the
 largest number in the list is generally the one you should choose.
 In most cases, choosing an inappropriate higher number will lead
-to compiling a binary that will not run.
+to compiling a binary that will not run. However, on a number of
+processor architectures choosing the highest supported value can
+lead to performance loss, e.g. on Intel Skylake-X/SP and AMD Zen.
 
 1. ``None`` For use only on an architecture either lacking SIMD,
    or to which |Gromacs| has not yet been ported and none of the
@@ -489,19 +511,33 @@ to compiling a binary that will not run.
    processors support this, so this can also be considered a good
    baseline if you are content with slow simulations and prefer
    portability between reasonably modern processors.
-4. ``AVX_128_FMA`` AMD bulldozer processors (2011) have this.
+4. ``AVX_128_FMA`` AMD Bulldozer, Piledriver (and later Family 15h) processors have this.
 5. ``AVX_256`` Intel processors since Sandy Bridge (2011). While this
-   code will work on recent AMD processors, it is significantly less
+   code will work on the  AMD Bulldozer and Piledriver processors, it is significantly less
    efficient than the ``AVX_128_FMA`` choice above - do not be fooled
    to assume that 256 is better than 128 in this case.
-6. ``AVX2_256`` Present on Intel Haswell (and later) processors (2013),
+6. ``AVX2_128`` AMD Zen microarchitecture processors (2017);
+   it will enable AVX2 with 3-way fused multiply-add instructions.
+   While the Zen microarchitecture does support 256-bit AVX2 instructions,
+   hence ``AVX2_256`` is also supported, 128-bit will generally be faster,
+   in particular when the non-bonded tasks run on the CPU -- hence
+   the default ``AVX2_128``. With GPU offload however ``AVX2_256``
+   can be faster on Zen processors.
+7. ``AVX2_256`` Present on Intel Haswell (and later) processors (2013),
    and it will also enable Intel 3-way fused multiply-add instructions.
-7. ``AVX_512`` Skylake-EP Xeon processors (2017)
-8. ``AVX_512_KNL`` Knights Landing Xeon Phi processors
-9. ``IBM_QPX`` BlueGene/Q A2 cores have this.
+8. ``AVX_512`` Skylake-X desktop and Skylake-SP Xeon processors (2017);
+   it will generally be fastest on the higher-end desktop and server
+   processors with two 512-bit fused multiply-add units (e.g. Core i9
+   and Xeon Gold). However, certain desktop and server models
+   (e.g. Xeon Bronze and Silver) come with only one AVX512 FMA unit
+   and therefore on these processors ``AVX2_256`` is faster
+   (compile- and runtime checks try to inform about such cases).
+   Additionally, with GPU accelerated runs ``AVX2_256`` can also be
+   faster on high-end Skylake CPUs with both 512-bit FMA units enabled.
+9. ``AVX_512_KNL`` Knights Landing Xeon Phi processors
 10. ``Sparc64_HPC_ACE`` Fujitsu machines like the K computer have this.
 11. ``IBM_VMX`` Power6 and similar Altivec processors have this.
-12. ``IBM_VSX`` Power7 and Power8 have this.
+12. ``IBM_VSX`` Power7, Power8 and later have this.
 13. ``ARM_NEON`` 32-bit ARMv7 with NEON support.
 14. ``ARM_NEON_ASIMD`` 64-bit ARMv8 and later.
 
@@ -524,7 +560,8 @@ auto-vectorization in your compiler does a good job. And post on the
 SIMD architectures in a few days.
 
 CMake advanced options
-^^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~~
+
 The options that are displayed in the default view of ``ccmake`` are
 ones that we think a reasonable number of users might want to consider
 changing. There are a lot more options available, which you can see by
@@ -536,7 +573,8 @@ visible or not according to whether their preconditions are satisfied.
 .. _search for libraries, headers or programs:
 
 Helping CMake find the right libraries, headers, or programs
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 If libraries are installed in non-default locations their location can
 be specified using the following variables:
 
@@ -571,7 +609,8 @@ See also the page on `CMake environment variables`_.
 .. _CUDA GPU acceleration:
 
 CUDA GPU acceleration
-^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~
+
 If you have the CUDA_ Toolkit installed, you can use ``cmake`` with:
 
 ::
@@ -640,7 +679,7 @@ could be considered in non performance-critical use-cases.
 
 
 OpenCL GPU acceleration
-^^^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~~~
 
 The primary target of the |Gromacs| OpenCL support is accelerating simulations
 on AMD hardware, both discrete GPUs and APUs (integrated CPU+GPU chips).
@@ -674,14 +713,15 @@ On Mac OS, an AMD GPU can be used only with OS version 10.10.4 and
 higher; earlier OS versions are known to run incorrectly.
 
 Static linking
-^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~
+
 Dynamic linking of the |Gromacs| executables will lead to a
 smaller disk footprint when installed, and so is the default on
 platforms where we believe it has been tested repeatedly and found to work.
 In general, this includes Linux, Windows, Mac OS X and BSD systems.
 Static binaries take more space, but on some hardware and/or under
 some conditions they are necessary, most commonly when you are running a parallel
-simulation using MPI libraries (e.g. BlueGene, Cray).
+simulation using MPI libraries (e.g. Cray).
 
 * To link |Gromacs| binaries statically against the internal |Gromacs|
   libraries, set ``-DBUILD_SHARED_LIBS=OFF``.
@@ -705,7 +745,8 @@ simulation using MPI libraries (e.g. BlueGene, Cray).
   Linux, this is usually ``CFLAGS=-static CXXFLAGS=-static``.
 
 Portability aspects
-^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~
+
 A |Gromacs| build will normally not be portable, not even across
 hardware with the same base instruction set, like x86. Non-portable
 hardware-specific optimizations are selected at configure-time, such
@@ -738,7 +779,8 @@ same location as the "generic" tools installation.
 ``-DGMX_BUILD_MDRUN_ONLY=ON`` option.
 
 Linear algebra libraries
-^^^^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~~~~
+
 As mentioned above, sometimes vendor BLAS and LAPACK libraries
 can provide performance enhancements for |Gromacs| when doing
 normal-mode analysis or covariance analysis. For simplicity, the text
@@ -749,7 +791,7 @@ is found, and otherwise fall back on a version of BLAS internal to
 accordingly. The internal versions are fine for normal use. If you
 need to specify a non-standard path to search, use
 ``-DCMAKE_PREFIX_PATH=/path/to/search``. If you need to specify a
-library with a non-standard name (e.g. ESSL on AIX or BlueGene), then
+library with a non-standard name (e.g. ESSL on Power machines), then
 set ``-DGMX_BLAS_USER=/path/to/reach/lib/libwhatever.a``.
 
 If you are using Intel MKL_ for FFT, then the BLAS and
@@ -761,7 +803,8 @@ will be automatically used for BLAS and LAPACK. This could be
 over-ridden with ``GMX_BLAS_USER``, etc.
 
 Changing the names of |Gromacs| binaries and libraries
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 It is sometimes convenient to have different versions of the same
 |Gromacs| programs installed. The most common use cases have been single
 and double precision, and with and without MPI. This mechanism can
@@ -783,7 +826,8 @@ Thus the names of all programs and libraries will be appended with
 ``_mod``.
 
 Changing installation tree structure
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 By default, a few different directories under ``CMAKE_INSTALL_PREFIX`` are used
 when when |Gromacs| is installed. Some of these can be changed, which is mainly
 useful for packaging |Gromacs| for various distributions. The directories are
@@ -820,7 +864,8 @@ CMakeLists.txt.
     Installed man pages go here.
 
 Compiling and linking
----------------------
+^^^^^^^^^^^^^^^^^^^^^
+
 Once you have configured with ``cmake``, you can build |Gromacs| with ``make``.
 It is expected that this will always complete successfully, and
 give few or no warnings. The CMake-time tests |Gromacs| makes on the settings
@@ -845,7 +890,7 @@ supported by ``cmake`` (e.g. ``ninja``) also work well.
 .. _building just the mdrun binary:
 
 Building only mdrun
-^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~
 
 This is now supported with the ``cmake`` option
 ``-DGMX_BUILD_MDRUN_ONLY=ON``, which will build a different version of
@@ -856,7 +901,8 @@ against |Gromacs| libraries, because this is generally a good idea for
 the targets for which an mdrun-only build is desirable.
 
 Installing |Gromacs|
---------------------
+^^^^^^^^^^^^^^^^^^^^
+
 Finally, ``make install`` will install |Gromacs| in the
 directory given in ``CMAKE_INSTALL_PREFIX``. If this is a system
 directory, then you will need permission to write there, and you
@@ -866,7 +912,8 @@ not the whole procedure.
 .. _getting access to |Gromacs|:
 
 Getting access to |Gromacs| after installation
-----------------------------------------------
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
 |Gromacs| installs the script ``GMXRC`` in the ``bin``
 subdirectory of the installation directory
 (e.g. ``/usr/local/gromacs/bin/GMXRC``), which you should source
@@ -891,7 +938,8 @@ need to do that, you might want to recompile with the new install
 location properly set, or edit the ``GMXRC`` script.
 
 Testing |Gromacs| for correctness
----------------------------------
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
 Since 2011, the |Gromacs| development uses an automated system where
 every new code change is subject to regression testing on a number of
 platforms and software combinations. While this improves
@@ -984,14 +1032,16 @@ A typical example for SLURM is
 
 
 Testing |Gromacs| for performance
----------------------------------
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
 We are still working on a set of benchmark systems for testing
 the performance of |Gromacs|. Until that is ready, we recommend that
 you try a few different parallelization options, and experiment with
 tools such as ``gmx tune_pme``.
 
 Having difficulty?
-------------------
+^^^^^^^^^^^^^^^^^^
+
 You are not alone - this can be a complex task! If you encounter a
 problem with installing |Gromacs|, then there are a number of
 locations where you can find assistance. It is recommended that you
@@ -1023,10 +1073,11 @@ follow these steps to find the solution:
 .. _gmx-special-build:
 
 Special instructions for some platforms
-=======================================
+---------------------------------------
 
 Building on Windows
--------------------
+^^^^^^^^^^^^^^^^^^^
+
 Building on Windows using native compilers is rather similar to
 building on Unix, so please start by reading the above. Then, download
 and unpack the |Gromacs| source archive. Make a folder in which to do
@@ -1058,14 +1109,18 @@ e.g. Visual Studio, or use the command line with ``cmake --build`` so
 the right tools get used.
 
 Building on Cray
-----------------
+^^^^^^^^^^^^^^^^
+
 |Gromacs| builds mostly out of the box on modern Cray machines, but
 you may need to specify the use of static binaries with
 ``-DGMX_BUILD_SHARED_EXE=off``, and you may need to set the F77
 environmental variable to ``ftn`` when compiling FFTW.
+The ARM ThunderX2 Cray XC50 machines differ only in that the recommended
+compiler is the ARM HPC Compiler (``armclang``).
+
 
 Building on Solaris
--------------------
+^^^^^^^^^^^^^^^^^^^
 
 The built-in |Gromacs| processor detection does not work on Solaris,
 so it is strongly recommended that you build |Gromacs| with
@@ -1077,74 +1132,9 @@ Oracle Developer Studio is not a currently supported compiler (and
 does not currently compile |Gromacs| correctly, perhaps because the
 thread-MPI atomics are incorrectly implemented in |Gromacs|).
 
-Building on BlueGene
---------------------
-
-BlueGene/Q
-^^^^^^^^^^
-There is currently native acceleration on this platform for the Verlet
-cut-off scheme. There are no plans to provide accelerated kernels for
-the group cut-off scheme, but the default plain C kernels will work
-(slowly).
-
-Only the bgclang compiler is supported, because it is the only
-availble C++11 compiler. Only static linking is supported.
-
-Computation on BlueGene floating-point units is always done in
-double-precision. However, mixed-precision builds of |Gromacs| are still
-normal and encouraged since they use cache more efficiently.
-
-You need to arrange for FFTW to be installed correctly, following the
-above instructions. You may prefer to configure FFTW with
-``--disable-fortran`` to avoid complications.
-
-MPI wrapper compilers should be used for compiling and linking. The
-MPI wrapper compilers can make it awkward to
-attempt to use IBM's optimized BLAS/LAPACK called ESSL (see the
-section on `linear algebra libraries`_. Since mdrun is the only part
-of |Gromacs| that should normally run on the compute nodes, and there is
-nearly no need for linear algebra support for mdrun, it is recommended
-to use the |Gromacs| built-in linear algebra routines - this is never
-a problem for normal simulations.
-
-The recommended configuration is to use
-
-::
-
-    cmake .. -DCMAKE_C_COMPILER=mpicc \
-             -DCMAKE_CXX_COMPILER=mpicxx \
-             -DCMAKE_TOOLCHAIN_FILE=Platform/BlueGeneQ-static-bgclang-CXX.cmake \
-             -DCMAKE_PREFIX_PATH=/your/fftw/installation/prefix \
-             -DGMX_MPI=ON \
-             -DGMX_BUILD_MDRUN_ONLY=ON
-    make
-    make install
-
-which will build a statically-linked MPI-enabled mdrun for the compute
-nodes. Otherwise, |Gromacs| default configuration
-behaviour applies.
-
-It is possible to configure and make the remaining |Gromacs| tools with
-the compute-node toolchain, but as none of those tools are MPI-aware,
-this would not normally
-be useful. Instead, users should plan to run these on the login node,
-and perform a separate |Gromacs| installation for that, using the login
-node's toolchain - not the above platform file, or any other
-compute-node toolchain. This may require requesting an up-to-date
-gcc or clang toolchain for the front end.
-
-Note that only the MPI build is available for the compute-node
-toolchains. The |Gromacs| thread-MPI or no-MPI builds are not useful at
-all on BlueGene/Q.
-
-BlueGene/P
-^^^^^^^^^^
-There is currently no SIMD support on this platform and no plans to
-add it. The default plain C kernels will work if there is a C++11
-compiler for this platform.
-
 Fujitsu PRIMEHPC
 ^^^^^^^^^^^^^^^^
+
 This is the architecture of the K computer, which uses Fujitsu
 Sparc64VIIIfx chips. On this platform, |Gromacs| has
 accelerated group kernels using the HPC-ACE instructions, no
@@ -1171,13 +1161,12 @@ The recommended configuration is to use
 
 Intel Xeon Phi
 ^^^^^^^^^^^^^^
-|Gromacs| has preliminary support for Intel Xeon Phi. Only symmetric
-(aka native) mode is supported on Knights Corner, and it has so far
-not been optimized to the same level as other architectures. The
+
+Xeon Phi processors, hosted or self-hosted, are supported.
+Only symmetric (aka native) mode is supported on Knights Corner. The
 performance depends among other factors on the system size, and for
-now the performance might not be faster than CPUs. Building for Xeon
-Phi works almost as any other Unix. See the instructions above for
-details. The recommended configuration is
+now the performance might not be faster than CPUs. When building for it,
+the recommended configuration is
 
 ::
 
@@ -1185,22 +1174,40 @@ details. The recommended configuration is
     make
     make install
 
+
+The Knights Landing-based Xeon Phi processors behave like standard x86 nodes,
+but support a special SIMD instruction set. When cross-compiling for such nodes,
+use the ``AVX_512_KNL`` SIMD flavor.
+Knights Landing processors support so-called "clustering modes" which
+allow reconfiguring the memory subsystem for lower latency. |Gromacs| can
+benefit from the quadrant or SNC clustering modes.
+Care needs to be taken to correctly pin threads. In particular, threads of
+an MPI rank should not cross cluster and NUMA boundaries.
+In addition to the main DRAM memory, Knights Landing has a high-bandwidth
+stacked memory called MCDRAM. Using it offers performance benefits if
+it is ensured that ``mdrun`` runs entirely from this memory; to do so
+it is recommended that MCDRAM is configured in "Flat mode" and ``mdrun`` is
+bound to the appropriate NUMA node (use e.g. ``numactl --membind 1`` with
+quadrant clustering mode).
+
+
 Tested platforms
-================
+----------------
+
 While it is our best belief that |Gromacs| will build and run pretty
 much everywhere, it is important that we tell you where we really know
 it works because we have tested it. We do test on Linux, Windows, and
 Mac with a range of compilers and libraries for a range of our
 configuration options. Every commit in our git source code repository
 is currently tested on x86 with a number of gcc versions ranging from 4.8.1
-through 6.1, versions 16 of the Intel compiler, and Clang
-versions 3.4 through 3.8. For this, we use a variety of GNU/Linux
+through 7, versions 16 and 18 of the Intel compiler, and Clang
+versions 3.4 through 5. For this, we use a variety of GNU/Linux
 flavors and versions as well as recent versions of Windows. Under
 Windows, we test both MSVC 2015 and version 16 of the Intel compiler.
 For details, you can
 have a look at the `continuous integration server used by GROMACS`_,
 which runs Jenkins_.
 
-We test irregularly on ARM v7, ARM v8, BlueGene/Q, Cray, Fujitsu
+We test irregularly on ARM v7, ARM v8, Cray, Fujitsu
 PRIMEHPC, Power8, Google Native Client and other environments, and
 with other compilers and compiler versions, too.

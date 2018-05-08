@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014,2015,2016,2017, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016,2017,2018, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -135,7 +135,6 @@ t_mdebin *init_mdebin(ener_file_t       fp_ene,
         "Barostat"
     };
 
-    char              **grpnms;
     const gmx_groups_t *groups;
     char              **gnm;
     char                buf[256];
@@ -240,18 +239,6 @@ t_mdebin *init_mdebin(ener_file_t       fp_ene,
         else if ((i == F_COUL_SR) || (i == F_EPOT) || (i == F_PRES)  || (i == F_EQM))
         {
             md->bEner[i] = TRUE;
-        }
-        else if ((i == F_GBPOL) && ir->implicit_solvent == eisGBSA)
-        {
-            md->bEner[i] = TRUE;
-        }
-        else if ((i == F_NPSOLVATION) && ir->implicit_solvent == eisGBSA && (ir->sa_algorithm != esaNO))
-        {
-            md->bEner[i] = TRUE;
-        }
-        else if ((i == F_GB12) || (i == F_GB13) || (i == F_GB14))
-        {
-            md->bEner[i] = FALSE;
         }
         else if ((i == F_ETOT) || (i == F_EKIN) || (i == F_TEMP))
         {
@@ -465,8 +452,8 @@ t_mdebin *init_mdebin(ener_file_t       fp_ene,
 
     snew(md->tmp_r, md->mde_n);
     snew(md->tmp_v, md->mde_n);
-    snew(md->grpnms, md->mde_n);
-    grpnms = md->grpnms;
+    char **grpnms;
+    snew(grpnms, md->mde_n);
 
     for (i = 0; (i < md->nTC); i++)
     {
@@ -542,8 +529,11 @@ t_mdebin *init_mdebin(ener_file_t       fp_ene,
         md->itc = get_ebin_space(md->ebin, md->mde_n, (const char **)grpnms, "");
     }
 
+    for (i = 0; i < md->mde_n; i++)
+    {
+        sfree(grpnms[i]);
+    }
     sfree(grpnms);
-
 
     md->nU = groups->grps[egcACC].nr;
     if (md->nU > 1)
@@ -599,6 +589,18 @@ t_mdebin *init_mdebin(ener_file_t       fp_ene,
         }
     }
     return md;
+}
+
+void done_mdebin(t_mdebin *mdebin)
+{
+    sfree(mdebin->igrp);
+    sfree(mdebin->tmp_r);
+    sfree(mdebin->tmp_v);
+    done_ebin(mdebin->ebin);
+    done_mde_delta_h_coll(mdebin->dhc);
+    sfree(mdebin->dE);
+    sfree(mdebin->temperatures);
+    sfree(mdebin);
 }
 
 /* print a lambda vector to a string
@@ -897,23 +899,23 @@ static void copy_energy(t_mdebin *md, real e[], real ecpy[])
     }
 }
 
-void upd_mdebin(t_mdebin       *md,
-                gmx_bool        bDoDHDL,
-                gmx_bool        bSum,
-                double          time,
-                real            tmass,
-                gmx_enerdata_t *enerd,
-                t_state        *state,
-                t_lambda       *fep,
-                t_expanded     *expand,
-                matrix          box,
-                tensor          svir,
-                tensor          fvir,
-                tensor          vir,
-                tensor          pres,
-                gmx_ekindata_t *ekind,
-                rvec            mu_tot,
-                gmx_constr_t    constr)
+void upd_mdebin(t_mdebin               *md,
+                gmx_bool                bDoDHDL,
+                gmx_bool                bSum,
+                double                  time,
+                real                    tmass,
+                gmx_enerdata_t         *enerd,
+                t_state                *state,
+                t_lambda               *fep,
+                t_expanded             *expand,
+                matrix                  box,
+                tensor                  svir,
+                tensor                  fvir,
+                tensor                  vir,
+                tensor                  pres,
+                gmx_ekindata_t         *ekind,
+                rvec                    mu_tot,
+                const gmx::Constraints *constr)
 {
     int    i, j, k, kk, n, gid;
     real   crmsd[2], tmp6[6];
@@ -932,7 +934,7 @@ void upd_mdebin(t_mdebin       *md,
     add_ebin(md->ebin, md->ie, md->f_nre, ecopy, bSum);
     if (md->nCrmsd)
     {
-        crmsd[0] = constr_rmsd(constr);
+        crmsd[0] = gmx::constr_rmsd(constr);
         add_ebin(md->ebin, md->iconrmsd, md->nCrmsd, crmsd, FALSE);
     }
     if (md->bDynBox)
@@ -1241,6 +1243,8 @@ void print_ebin_header(FILE *log, gmx_int64_t steps, double time)
             "Step", "Time", gmx_step_str(steps, buf), time);
 }
 
+// TODO It is too many responsibilities for this function to handle
+// both .edr and .log output for both per-time and time-average data.
 void print_ebin(ener_file_t fp_ene, gmx_bool bEne, gmx_bool bDR, gmx_bool bOR,
                 FILE *log,
                 gmx_int64_t step, double time,
@@ -1262,6 +1266,15 @@ void print_ebin(ener_file_t fp_ene, gmx_bool bEne, gmx_bool bDR, gmx_bool bOR,
     real        *block[enxNR];
 
     t_enxframe   fr;
+
+    if (mode == eprAVER && md->ebin->nsum_sim <= 0)
+    {
+        if (log)
+        {
+            fprintf(log, "Not enough data recorded to report energy averages\n");
+        }
+        return;
+    }
 
     switch (mode)
     {

@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014,2015,2016,2017, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016,2017,2018, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -389,43 +389,6 @@ static real calc_radius(t_eigvec *vec)
 
 
 /* Debug helper */
-#ifdef DEBUGHELPERS
-static void dump_xcoll(t_edpar *edi, struct t_do_edsam *buf, t_commrec *cr,
-                       int step)
-{
-    int   i;
-    FILE *fp;
-    char  fn[STRLEN];
-    rvec *xcoll;
-    ivec *shifts, *eshifts;
-
-
-    if (!MASTER(cr))
-    {
-        return;
-    }
-
-    xcoll   = buf->xcoll;
-    shifts  = buf->shifts_xcoll;
-    eshifts = buf->extra_shifts_xcoll;
-
-    sprintf(fn, "xcolldump_step%d.txt", step);
-    fp = fopen(fn, "w");
-
-    for (i = 0; i < edi->sav.nr; i++)
-    {
-        fprintf(fp, "%d %9.5f %9.5f %9.5f   %d %d %d   %d %d %d\n",
-                edi->sav.anrs[i]+1,
-                xcoll[i][XX], xcoll[i][YY], xcoll[i][ZZ],
-                shifts[i][XX], shifts[i][YY], shifts[i][ZZ],
-                eshifts[i][XX], eshifts[i][YY], eshifts[i][ZZ]);
-    }
-
-    fclose(fp);
-}
-
-
-/* Debug helper */
 static void dump_edi_positions(FILE *out, struct gmx_edx *s, const char name[])
 {
     int i;
@@ -476,7 +439,7 @@ static void dump_edi_eigenvecs(FILE *out, t_eigvec *ev,
 
 
 /* Debug helper */
-static void dump_edi(t_edpar *edpars, t_commrec *cr, int nr_edi)
+static void dump_edi(t_edpar *edpars, const t_commrec *cr, int nr_edi)
 {
     FILE  *out;
     char   fn[STRLEN];
@@ -517,47 +480,6 @@ static void dump_edi(t_edpar *edpars, t_commrec *cr, int nr_edi)
 
     gmx_ffclose(out);
 }
-
-
-/* Debug helper */
-static void dump_rotmat(FILE* out, matrix rotmat)
-{
-    fprintf(out, "ROTMAT: %12.8f %12.8f %12.8f\n", rotmat[XX][XX], rotmat[XX][YY], rotmat[XX][ZZ]);
-    fprintf(out, "ROTMAT: %12.8f %12.8f %12.8f\n", rotmat[YY][XX], rotmat[YY][YY], rotmat[YY][ZZ]);
-    fprintf(out, "ROTMAT: %12.8f %12.8f %12.8f\n", rotmat[ZZ][XX], rotmat[ZZ][YY], rotmat[ZZ][ZZ]);
-}
-
-
-/* Debug helper */
-static void dump_rvec(FILE *out, int dim, rvec *x)
-{
-    int i;
-
-
-    for (i = 0; i < dim; i++)
-    {
-        fprintf(out, "%4d   %f %f %f\n", i, x[i][XX], x[i][YY], x[i][ZZ]);
-    }
-}
-
-
-/* Debug helper */
-static void dump_mat(FILE* out, int dim, double** mat)
-{
-    int i, j;
-
-
-    fprintf(out, "MATRIX:\n");
-    for (i = 0; i < dim; i++)
-    {
-        for (j = 0; j < dim; j++)
-        {
-            fprintf(out, "%f ", mat[i][j]);
-        }
-        fprintf(out, "\n");
-    }
-}
-#endif
 
 
 struct t_do_edfit {
@@ -644,16 +566,6 @@ static void do_edfit(int natoms, rvec *xp, rvec *x, matrix R, t_edpar *edi)
     }
 
     /* determine h and k */
-#ifdef DEBUG
-    {
-        int i;
-        dump_mat(stderr, 2*DIM, loc->omega);
-        for (i = 0; i < 6; i++)
-        {
-            fprintf(stderr, "d[%d] = %f\n", i, d[i]);
-        }
-    }
-#endif
     jacobi(loc->omega, 6, d, loc->om, &irot);
 
     if (irot == 0)
@@ -962,14 +874,14 @@ static void update_adaption(t_edpar *edi)
 
 
 static void do_single_flood(
-        FILE           *edo,
-        rvec            x[],
-        rvec            force[],
-        t_edpar        *edi,
-        gmx_int64_t     step,
-        matrix          box,
-        t_commrec      *cr,
-        gmx_bool        bNS) /* Are we in a neighbor searching step? */
+        FILE            *edo,
+        const rvec       x[],
+        rvec             force[],
+        t_edpar         *edi,
+        gmx_int64_t      step,
+        matrix           box,
+        const t_commrec *cr,
+        gmx_bool         bNS) /* Are we in a neighbor searching step? */
 {
     int                i;
     matrix             rotmat;   /* rotation matrix */
@@ -1066,11 +978,11 @@ static void do_single_flood(
 
 
 /* Main flooding routine, called from do_force */
-extern void do_flood(t_commrec        *cr,
+extern void do_flood(const t_commrec  *cr,
                      const t_inputrec *ir,
-                     rvec              x[],
+                     const rvec        x[],
                      rvec              force[],
-                     gmx_edsam_t       ed,
+                     const gmx_edsam  *ed,
                      matrix            box,
                      gmx_int64_t       step,
                      gmx_bool          bNS)
@@ -1196,7 +1108,7 @@ static gmx_edsam_t ed_open(
         const char             *edoFileName,
         gmx_bool                bAppend,
         const gmx_output_env_t *oenv,
-        t_commrec              *cr)
+        const t_commrec        *cr)
 {
     gmx_edsam_t ed;
     int         nED;
@@ -1253,7 +1165,7 @@ static gmx_edsam_t ed_open(
 
 
 /* Broadcasts the structure data */
-static void bc_ed_positions(t_commrec *cr, struct gmx_edx *s, int stype)
+static void bc_ed_positions(const t_commrec *cr, struct gmx_edx *s, int stype)
 {
     snew_bc(cr, s->anrs, s->nr   );    /* Index numbers     */
     snew_bc(cr, s->x, s->nr   );       /* Positions         */
@@ -1292,7 +1204,7 @@ static void bc_ed_positions(t_commrec *cr, struct gmx_edx *s, int stype)
 
 
 /* Broadcasts the eigenvector data */
-static void bc_ed_vecs(t_commrec *cr, t_eigvec *ev, int length, gmx_bool bHarmonic)
+static void bc_ed_vecs(const t_commrec *cr, t_eigvec *ev, int length, gmx_bool bHarmonic)
 {
     int i;
 
@@ -1328,7 +1240,7 @@ static void bc_ed_vecs(t_commrec *cr, t_eigvec *ev, int length, gmx_bool bHarmon
 
 /* Broadcasts the ED / flooding data to other nodes
  * and allocates memory where needed */
-static void broadcast_ed_data(t_commrec *cr, gmx_edsam_t ed, int numedis)
+static void broadcast_ed_data(const t_commrec *cr, gmx_edsam_t ed, int numedis)
 {
     int      nr;
     t_edpar *edi;
@@ -1950,7 +1862,7 @@ void dd_make_local_ed_indices(gmx_domdec_t *dd, struct gmx_edsam *ed)
 }
 
 
-static gmx_inline void ed_unshift_single_coord(matrix box, const rvec x, const ivec is, rvec xu)
+static inline void ed_unshift_single_coord(matrix box, const rvec x, const ivec is, rvec xu)
 {
     int tx, ty, tz;
 
@@ -2664,8 +2576,8 @@ gmx_edsam_t init_edsam(
         const char             *edoFileName,
         const gmx_mtop_t       *mtop,
         const t_inputrec       *ir,
-        t_commrec              *cr,
-        gmx_constr             *constr,
+        const t_commrec        *cr,
+        gmx::Constraints       *constr,
         const t_state          *globalState,
         ObservablesHistory     *oh,
         const gmx_output_env_t *oenv,
@@ -3003,10 +2915,11 @@ gmx_edsam_t init_edsam(
         /* Get memory for flooding forces */
         snew(edi->flood.forces_cartesian, edi->sav.nr);
 
-#ifdef DUMPEDI
-        /* Dump it all into one file per process */
-        dump_edi(edi, cr, nr_edi);
-#endif
+        if (gmx_debug_at)
+        {
+            /* Dump it all into one file per process */
+            dump_edi(edi, cr, nr_edi);
+        }
 
         /* Next ED group */
         edi = edi->next_edi;
@@ -3025,7 +2938,7 @@ gmx_edsam_t init_edsam(
 
 void do_edsam(const t_inputrec *ir,
               gmx_int64_t       step,
-              t_commrec        *cr,
+              const t_commrec  *cr,
               rvec              xs[],
               rvec              v[],
               matrix            box,

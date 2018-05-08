@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2012,2013,2014,2015,2016,2017, by the GROMACS development team, led by
+ * Copyright (c) 2012,2013,2014,2015,2016,2017,2018, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -65,6 +65,39 @@ MDAtoms::MDAtoms()
 {
 }
 
+MDAtoms::~MDAtoms()
+{
+    if (mdatoms_ == nullptr)
+    {
+        return;
+    }
+    sfree(mdatoms_->massA);
+    sfree(mdatoms_->massB);
+    sfree(mdatoms_->massT);
+    gmx::AlignedAllocationPolicy::free(mdatoms_->invmass);
+    sfree(mdatoms_->invMassPerDim);
+    sfree(mdatoms_->typeA);
+    sfree(mdatoms_->chargeB);
+    sfree(mdatoms_->typeB);
+    sfree(mdatoms_->sqrt_c6A);
+    sfree(mdatoms_->sigmaA);
+    sfree(mdatoms_->sigma3A);
+    sfree(mdatoms_->sqrt_c6B);
+    sfree(mdatoms_->sigmaB);
+    sfree(mdatoms_->sigma3B);
+    sfree(mdatoms_->ptype);
+    sfree(mdatoms_->cTC);
+    sfree(mdatoms_->cENER);
+    sfree(mdatoms_->cACC);
+    sfree(mdatoms_->cFREEZE);
+    sfree(mdatoms_->cVCM);
+    sfree(mdatoms_->cORF);
+    sfree(mdatoms_->bPerturbed);
+    sfree(mdatoms_->cU1);
+    sfree(mdatoms_->cU2);
+    sfree(mdatoms_->bQM);
+}
+
 void MDAtoms::resize(int newSize)
 {
     chargeA_.resize(newSize);
@@ -89,7 +122,14 @@ makeMDAtoms(FILE *fp, const gmx_mtop_t &mtop, const t_inputrec &ir,
     mdAtoms->mdatoms_.reset(md);
 
     md->nenergrp = mtop.groups.grps[egcENER].nr;
-    md->bVCMgrps = (mtop.groups.grps[egcVCM].nr > 1);
+    md->bVCMgrps = FALSE;
+    for (int i = 0; i < mtop.natoms; i++)
+    {
+        if (ggrpnr(&mtop.groups, egcVCM, i) > 0)
+        {
+            md->bVCMgrps = TRUE;
+        }
+    }
 
     /* Determine the total system mass and perturbed atom counts */
     double                     totalMassA = 0.0;
@@ -142,7 +182,7 @@ makeMDAtoms(FILE *fp, const gmx_mtop_t &mtop, const t_inputrec &ir,
     {
         for (int d = YY; d < DIM; d++)
         {
-            if (ir.opts.nFreeze[d] != ir.opts.nFreeze[XX])
+            if (ir.opts.nFreeze[g][d] != ir.opts.nFreeze[g][XX])
             {
                 md->havePartiallyFrozenAtoms = TRUE;
             }

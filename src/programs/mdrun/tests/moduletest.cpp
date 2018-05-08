@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2013,2014,2015,2016,2017, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016,2017,2018, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -96,7 +96,6 @@ SimulationRunner::SimulationRunner(TestFileManager *fileManager) :
     groFileName_(),
     fullPrecisionTrajectoryFileName_(),
     ndxFileName_(),
-    mdpInputFileName_(fileManager->getTemporaryFilePath("input.mdp")),
     mdpOutputFileName_(fileManager->getTemporaryFilePath("output.mdp")),
     tprFileName_(fileManager->getTemporaryFilePath(".tpr")),
     logFileName_(fileManager->getTemporaryFilePath(".log")),
@@ -132,7 +131,7 @@ SimulationRunner::useStringAsMdpFile(const char *mdpString)
 void
 SimulationRunner::useStringAsMdpFile(const std::string &mdpString)
 {
-    gmx::TextWriter::writeFileFromString(mdpInputFileName_, mdpString);
+    mdpInputContents_ = mdpString;
 }
 
 void
@@ -158,11 +157,17 @@ SimulationRunner::useGroFromDatabase(const char *name)
 int
 SimulationRunner::callGromppOnThisRank(const CommandLine &callerRef)
 {
+    const std::string mdpInputFileName(fileManager_.getTemporaryFilePath("input.mdp"));
+    gmx::TextWriter::writeFileFromString(mdpInputFileName, mdpInputContents_);
+
     CommandLine caller;
     caller.append("grompp");
     caller.merge(callerRef);
-    caller.addOption("-f", mdpInputFileName_);
-    caller.addOption("-n", ndxFileName_);
+    caller.addOption("-f", mdpInputFileName);
+    if (!ndxFileName_.empty())
+    {
+        caller.addOption("-n", ndxFileName_);
+    }
     caller.addOption("-p", topFileName_);
     caller.addOption("-c", groFileName_);
     caller.addOption("-r", groFileName_);
@@ -270,6 +275,10 @@ MdrunTestFixture::MdrunTestFixture() : runner_(&fileManager_)
 
 MdrunTestFixture::~MdrunTestFixture()
 {
+#if GMX_LIB_MPI
+    // fileManager_ should only clean up after all the ranks are done.
+    MPI_Barrier(MPI_COMM_WORLD);
+#endif
 }
 
 } // namespace test

@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014,2015,2016,2017, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016,2017,2018, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -95,6 +95,7 @@
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/gmxassert.h"
 #include "gromacs/utility/logger.h"
+#include "gromacs/utility/physicalnodecommunicator.h"
 #include "gromacs/utility/pleasecite.h"
 #include "gromacs/utility/smalloc.h"
 #include "gromacs/utility/strconvert.h"
@@ -114,31 +115,6 @@ t_forcerec *mk_forcerec(void)
 
     return fr;
 }
-
-#ifdef DEBUG
-static void pr_nbfp(FILE *fp, real *nbfp, gmx_bool bBHAM, int atnr)
-{
-    int i, j;
-
-    for (i = 0; (i < atnr); i++)
-    {
-        for (j = 0; (j < atnr); j++)
-        {
-            fprintf(fp, "%2d - %2d", i, j);
-            if (bBHAM)
-            {
-                fprintf(fp, "  a=%10g, b=%10g, c=%10g\n", BHAMA(nbfp, atnr, i, j),
-                        BHAMB(nbfp, atnr, i, j), BHAMC(nbfp, atnr, i, j)/6.0);
-            }
-            else
-            {
-                fprintf(fp, "  c6=%10g, c12=%10g\n", C6(nbfp, atnr, i, j)/6.0,
-                        C12(nbfp, atnr, i, j)/12.0);
-            }
-        }
-    }
-}
-#endif
 
 static real *mk_nbfp(const gmx_ffparams_t *idef, gmx_bool bBHAM)
 {
@@ -533,7 +509,7 @@ check_solvent(FILE  *                fp,
 {
     const t_block     *   cgs;
     const gmx_moltype_t  *molt;
-    int                   mb, mol, cg_mol, at_offset, am, cgm, i, nmol_ch, nmol;
+    int                   mol, cg_mol, at_offset, am, cgm, i, nmol_ch, nmol;
     int                   n_solvent_parameters;
     solvent_parameters_t *solvent_parameters;
     int                 **cg_sp;
@@ -547,10 +523,10 @@ check_solvent(FILE  *                fp,
     n_solvent_parameters = 0;
     solvent_parameters   = nullptr;
     /* Allocate temporary array for solvent type */
-    snew(cg_sp, mtop->nmolblock);
+    snew(cg_sp, mtop->molblock.size());
 
     at_offset = 0;
-    for (mb = 0; mb < mtop->nmolblock; mb++)
+    for (size_t mb = 0; mb < mtop->molblock.size(); mb++)
     {
         molt = &mtop->moltype[mtop->molblock[mb].type];
         cgs  = &molt->cgs;
@@ -604,7 +580,7 @@ check_solvent(FILE  *                fp,
     }
 
     fr->nWatMol = 0;
-    for (mb = 0; mb < mtop->nmolblock; mb++)
+    for (size_t mb = 0; mb < mtop->molblock.size(); mb++)
     {
         cgs  = &mtop->moltype[mtop->molblock[mb].type].cgs;
         nmol = (mtop->molblock[mb].nmol*cgs->nr)/cginfo_mb[mb].cg_mod;
@@ -652,13 +628,13 @@ static cginfo_mb_t *init_cginfo_mb(FILE *fplog, const gmx_mtop_t *mtop,
     gmx_bool             *type_VDW;
     int                  *cginfo;
     int                   cg_offset, a_offset;
-    int                   mb, m, cg, a0, a1, gid, ai, j, aj, excl_nalloc;
+    int                   m, cg, a0, a1, gid, ai, j, aj, excl_nalloc;
     int                  *a_con;
     int                   ftype;
     int                   ia;
     gmx_bool              bId, *bExcl, bExclIntraAll, bExclInter, bHaveVDW, bHaveQ, bHavePerturbedAtoms;
 
-    snew(cginfo_mb, mtop->nmolblock);
+    snew(cginfo_mb, mtop->molblock.size());
 
     snew(type_VDW, fr->ntype);
     for (ai = 0; ai < fr->ntype; ai++)
@@ -680,7 +656,7 @@ static cginfo_mb_t *init_cginfo_mb(FILE *fplog, const gmx_mtop_t *mtop,
     snew(bExcl, excl_nalloc);
     cg_offset = 0;
     a_offset  = 0;
-    for (mb = 0; mb < mtop->nmolblock; mb++)
+    for (size_t mb = 0; mb < mtop->molblock.size(); mb++)
     {
         molb = &mtop->molblock[mb];
         molt = &mtop->moltype[molb->type];
@@ -863,6 +839,7 @@ static cginfo_mb_t *init_cginfo_mb(FILE *fplog, const gmx_mtop_t *mtop,
         cg_offset += molb->nmol*cgs->nr;
         a_offset  += molb->nmol*cgs->index[cgs->nr];
     }
+    sfree(type_VDW);
     sfree(bExcl);
 
     /* the solvent optimizer is called after the QM is initialized,
@@ -887,7 +864,7 @@ static cginfo_mb_t *init_cginfo_mb(FILE *fplog, const gmx_mtop_t *mtop,
     }
     if (!fr->solvent_opt)
     {
-        for (mb = 0; mb < mtop->nmolblock; mb++)
+        for (size_t mb = 0; mb < mtop->molblock.size(); mb++)
         {
             for (cg = 0; cg < cginfo_mb[mb].cg_mod; cg++)
             {
@@ -920,6 +897,19 @@ static int *cginfo_expand(int nmb, cginfo_mb_t *cgi_mb)
     return cginfo;
 }
 
+static void done_cginfo_mb(cginfo_mb_t *cginfo_mb, int numMolBlocks)
+{
+    if (cginfo_mb == nullptr)
+    {
+        return;
+    }
+    for (int mb = 0; mb < numMolBlocks; ++mb)
+    {
+        sfree(cginfo_mb[mb].cginfo);
+    }
+    sfree(cginfo_mb);
+}
+
 /* Sets the sum of charges (squared) and C6 in the system in fr.
  * Returns whether the system has a net charge.
  */
@@ -927,17 +917,15 @@ static bool set_chargesum(FILE *log, t_forcerec *fr, const gmx_mtop_t *mtop)
 {
     /*This now calculates sum for q and c6*/
     double         qsum, q2sum, q, c6sum, c6;
-    int            mb, nmol, i;
-    const t_atoms *atoms;
 
     qsum   = 0;
     q2sum  = 0;
     c6sum  = 0;
-    for (mb = 0; mb < mtop->nmolblock; mb++)
+    for (const gmx_molblock_t &molb : mtop->molblock)
     {
-        nmol  = mtop->molblock[mb].nmol;
-        atoms = &mtop->moltype[mtop->molblock[mb].type].atoms;
-        for (i = 0; i < atoms->nr; i++)
+        int            nmol  = molb.nmol;
+        const t_atoms *atoms = &mtop->moltype[molb.type].atoms;
+        for (int i = 0; i < atoms->nr; i++)
         {
             q       = atoms->atom[i].q;
             qsum   += nmol*q;
@@ -955,11 +943,11 @@ static bool set_chargesum(FILE *log, t_forcerec *fr, const gmx_mtop_t *mtop)
         qsum   = 0;
         q2sum  = 0;
         c6sum  = 0;
-        for (mb = 0; mb < mtop->nmolblock; mb++)
+        for (const gmx_molblock_t &molb : mtop->molblock)
         {
-            nmol  = mtop->molblock[mb].nmol;
-            atoms = &mtop->moltype[mtop->molblock[mb].type].atoms;
-            for (i = 0; i < atoms->nr; i++)
+            int            nmol  = molb.nmol;
+            const t_atoms *atoms = &mtop->moltype[molb.type].atoms;
+            for (int i = 0; i < atoms->nr; i++)
             {
                 q       = atoms->atom[i].qB;
                 qsum   += nmol*q;
@@ -1010,7 +998,7 @@ void set_avcsixtwelve(FILE *fplog, t_forcerec *fr, const gmx_mtop_t *mtop)
 {
     const t_atoms  *atoms, *atoms_tpi;
     const t_blocka *excl;
-    int             mb, nmol, nmolc, i, j, tpi, tpj, j1, j2, k, nexcl, q;
+    int             nmolc, i, j, tpi, tpj, j1, j2, k, nexcl, q;
     gmx_int64_t     npair, npair_ij, tmpi, tmpj;
     double          csix, ctwelve;
     int             ntp, *typecount;
@@ -1088,12 +1076,12 @@ void set_avcsixtwelve(FILE *fplog, t_forcerec *fr, const gmx_mtop_t *mtop)
              * any value. These unused values should not influence the dispersion
              * correction.
              */
-            for (mb = 0; mb < mtop->nmolblock; mb++)
+            for (const gmx_molblock_t &molb : mtop->molblock)
             {
-                nmol  = mtop->molblock[mb].nmol;
-                atoms = &mtop->moltype[mtop->molblock[mb].type].atoms;
-                excl  = &mtop->moltype[mtop->molblock[mb].type].excls;
-                for (i = 0; (i < atoms->nr); i++)
+                int nmol = molb.nmol;
+                atoms    = &mtop->moltype[molb.type].atoms;
+                excl     = &mtop->moltype[molb.type].excls;
+                for (int i = 0; (i < atoms->nr); i++)
                 {
                     if (q == 0)
                     {
@@ -1129,7 +1117,7 @@ void set_avcsixtwelve(FILE *fplog, t_forcerec *fr, const gmx_mtop_t *mtop)
                                 csix    -= nmol*C6 (nbfp, ntp, tpi, tpj)/6.0;
                                 ctwelve -= nmol*C12(nbfp, ntp, tpi, tpj)/12.0;
                             }
-                            nexcl += nmol;
+                            nexcl += molb.nmol;
                         }
                     }
                 }
@@ -1141,24 +1129,24 @@ void set_avcsixtwelve(FILE *fplog, t_forcerec *fr, const gmx_mtop_t *mtop)
              * with the rest of the system.
              */
             atoms_tpi =
-                &mtop->moltype[mtop->molblock[mtop->nmolblock-1].type].atoms;
+                &mtop->moltype[mtop->molblock.back().type].atoms;
 
             npair = 0;
-            for (mb = 0; mb < mtop->nmolblock; mb++)
+            for (size_t mb = 0; mb < mtop->molblock.size(); mb++)
             {
-                nmol  = mtop->molblock[mb].nmol;
-                atoms = &mtop->moltype[mtop->molblock[mb].type].atoms;
+                const gmx_molblock_t &molb = mtop->molblock[mb];
+                atoms                      = &mtop->moltype[molb.type].atoms;
                 for (j = 0; j < atoms->nr; j++)
                 {
-                    nmolc = nmol;
+                    nmolc = molb.nmol;
                     /* Remove the interaction of the test charge group
                      * with itself.
                      */
-                    if (mb == mtop->nmolblock-1)
+                    if (mb == mtop->molblock.size() - 1)
                     {
                         nmolc--;
 
-                        if (mb == 0 && nmol == 1)
+                        if (mb == 0 && molb.nmol == 1)
                         {
                             gmx_fatal(FARGS, "Old format tpr with TPI, please generate a new tpr file");
                         }
@@ -1242,7 +1230,7 @@ void set_avcsixtwelve(FILE *fplog, t_forcerec *fr, const gmx_mtop_t *mtop)
 static real calcBuckinghamBMax(FILE *fplog, const gmx_mtop_t *mtop)
 {
     const t_atoms *at1, *at2;
-    int            mt1, mt2, i, j, tpi, tpj, ntypes;
+    int            i, j, tpi, tpj, ntypes;
     real           b, bmin;
 
     if (fplog)
@@ -1253,7 +1241,7 @@ static real calcBuckinghamBMax(FILE *fplog, const gmx_mtop_t *mtop)
 
     bmin            = -1;
     real bham_b_max = 0;
-    for (mt1 = 0; mt1 < mtop->nmoltype; mt1++)
+    for (size_t mt1 = 0; mt1 < mtop->moltype.size(); mt1++)
     {
         at1 = &mtop->moltype[mt1].atoms;
         for (i = 0; (i < at1->nr); i++)
@@ -1264,7 +1252,7 @@ static real calcBuckinghamBMax(FILE *fplog, const gmx_mtop_t *mtop)
                 gmx_fatal(FARGS, "Atomtype[%d] = %d, maximum = %d", i, tpi, ntypes);
             }
 
-            for (mt2 = mt1; mt2 < mtop->nmoltype; mt2++)
+            for (size_t mt2 = mt1; mt2 < mtop->moltype.size(); mt2++)
             {
                 at2 = &mtop->moltype[mt2].atoms;
                 for (j = 0; (j < at2->nr); j++)
@@ -1350,12 +1338,18 @@ static void make_nbf_tables(FILE *fp,
     nbl->table_vdw->stride        = nbl->table_vdw->formatsize * nbl->table_vdw->ninteractions;
     snew_aligned(nbl->table_vdw->data, nbl->table_vdw->stride*(nbl->table_vdw->n+1), 32);
 
+    /* NOTE: Using a single i-loop here leads to mix-up of data in table_vdw
+     *       with (at least) gcc 6.2, 6.3 and 6.4 when compiled with -O3 and AVX
+     */
     for (i = 0; i <= nbl->table_elec_vdw->n; i++)
     {
         for (j = 0; j < 4; j++)
         {
             nbl->table_elec->data[4*i+j] = nbl->table_elec_vdw->data[12*i+j];
         }
+    }
+    for (i = 0; i <= nbl->table_elec_vdw->n; i++)
+    {
         for (j = 0; j < 8; j++)
         {
             nbl->table_vdw->data[8*i+j] = nbl->table_elec_vdw->data[12*i+4+j];
@@ -1379,21 +1373,19 @@ static void make_nbf_tables(FILE *fp,
 static void count_tables(int ftype1, int ftype2, const gmx_mtop_t *mtop,
                          int *ncount, int **count)
 {
-    const gmx_moltype_t *molt;
     const t_ilist       *il;
-    int                  mt, ftype, stride, i, j, tabnr;
+    int                  ftype, stride, i, j, tabnr;
 
     // Loop over all moleculetypes
-    for (mt = 0; mt < mtop->nmoltype; mt++)
+    for (const gmx_moltype_t &molt : mtop->moltype)
     {
-        molt = &mtop->moltype[mt];
         // Loop over all interaction types
         for (ftype = 0; ftype < F_NRE; ftype++)
         {
             // If the current interaction type is one of the types whose tables we're trying to count...
             if (ftype == ftype1 || ftype == ftype2)
             {
-                il     = &molt->ilist[ftype];
+                il     = &molt.ilist[ftype];
                 stride = 1 + NRAL(ftype);
                 // ... and there are actually some interactions for this type
                 for (i = 0; i < il->nr; i += stride)
@@ -1435,7 +1427,7 @@ static void count_tables(int ftype1, int ftype2, const gmx_mtop_t *mtop,
 static bondedtable_t *make_bonded_tables(FILE *fplog,
                                          int ftype1, int ftype2,
                                          const gmx_mtop_t *mtop,
-                                         const t_filenm *tabbfnm,
+                                         gmx::ArrayRef<const std::string> tabbfnm,
                                          const char *tabext)
 {
     int            ncount, *count;
@@ -1462,13 +1454,12 @@ static bondedtable_t *make_bonded_tables(FILE *fplog,
                 // being recognized and used for table 1.
                 std::string patternToFind = gmx::formatString("_%s%d.%s", tabext, i, ftp2ext(efXVG));
                 bool        madeTable     = false;
-                for (int j = 0; j < tabbfnm->nfiles && !madeTable; ++j)
+                for (size_t j = 0; j < tabbfnm.size() && !madeTable; ++j)
                 {
-                    std::string filename(tabbfnm->fns[j]);
-                    if (gmx::endsWith(filename, patternToFind))
+                    if (gmx::endsWith(tabbfnm[j].c_str(), patternToFind))
                     {
                         // Finally read the table from the file found
-                        tab[i]    = make_bonded_table(fplog, tabbfnm->fns[j], NRAL(ftype1)-2);
+                        tab[i]    = make_bonded_table(fplog, tabbfnm[j].c_str(), NRAL(ftype1)-2);
                         madeTable = true;
                     }
                 }
@@ -1526,7 +1517,7 @@ static real cutoff_inf(real cutoff)
     return cutoff;
 }
 
-gmx_bool can_use_allvsall(const t_inputrec *ir, gmx_bool bPrintNote, t_commrec *cr, FILE *fp)
+gmx_bool can_use_allvsall(const t_inputrec *ir, gmx_bool bPrintNote, const t_commrec *cr, FILE *fp)
 {
     gmx_bool bAllvsAll;
 
@@ -1539,10 +1530,6 @@ gmx_bool can_use_allvsall(const t_inputrec *ir, gmx_bool bPrintNote, t_commrec *
             ir->vdwtype == evdwCUT    &&
             ir->coulombtype == eelCUT &&
             ir->efep == efepNO        &&
-            (ir->implicit_solvent == eisNO ||
-             (ir->implicit_solvent == eisGBSA && (ir->gb_algorithm == egbSTILL ||
-                                                  ir->gb_algorithm == egbHCT   ||
-                                                  ir->gb_algorithm == egbOBC))) &&
             getenv("GMX_NO_ALLVSALL") == nullptr
         );
 
@@ -1661,11 +1648,10 @@ static void pick_nbnxn_kernel_cpu(const t_inputrec gmx_unused    *ir,
          * Since table lookup's don't parallelize with SIMD, analytical
          * will probably always be faster for a SIMD width of 8 or more.
          * With FMA analytical is sometimes faster for a width if 4 as well.
-         * On BlueGene/Q, this is faster regardless of precision.
          * In single precision, this is faster on Bulldozer.
          */
 #if GMX_SIMD_REAL_WIDTH >= 8 || \
-        (GMX_SIMD_REAL_WIDTH >= 4 && GMX_SIMD_HAVE_FMA && !GMX_DOUBLE) || GMX_SIMD_IBM_QPX
+        (GMX_SIMD_REAL_WIDTH >= 4 && GMX_SIMD_HAVE_FMA && !GMX_DOUBLE)
         /* On AMD Zen, tabulated Ewald kernels are faster on all 4 combinations
          * of single or double precision and 128 or 256-bit AVX2.
          */
@@ -2146,6 +2132,15 @@ init_interaction_const(FILE                       *fp,
     *interaction_const = ic;
 }
 
+static void
+done_interaction_const(interaction_const_t *interaction_const)
+{
+    sfree_aligned(interaction_const->tabq_coul_FDV0);
+    sfree_aligned(interaction_const->tabq_coul_F);
+    sfree_aligned(interaction_const->tabq_coul_V);
+    sfree(interaction_const);
+}
+
 static void init_nb_verlet(const gmx::MDLogger     &mdlog,
                            nonbonded_verlet_t     **nb_verlet,
                            gmx_bool                 bFEP_NonBonded,
@@ -2245,13 +2240,22 @@ static void init_nb_verlet(const gmx::MDLogger     &mdlog,
     }
 
     snew(nbv->nbat, 1);
+    int mimimumNumEnergyGroupNonbonded = ir->opts.ngener;
+    if (ir->opts.ngener - ir->nwall == 1)
+    {
+        /* We have only one non-wall energy group, we do not need energy group
+         * support in the non-bondeds kernels, since all non-bonded energy
+         * contributions go to the first element of the energy group matrix.
+         */
+        mimimumNumEnergyGroupNonbonded = 1;
+    }
     bool bSimpleList = nbnxn_kernel_pairlist_simple(nbv->grp[0].kernel_type);
     nbnxn_atomdata_init(mdlog,
                         nbv->nbat,
                         nbv->grp[0].kernel_type,
                         enbnxninitcombrule,
                         fr->ntype, fr->nbfp,
-                        ir->opts.ngener,
+                        mimimumNumEnergyGroupNonbonded,
                         bSimpleList ? gmx_omp_nthreads_get(emntNonbonded) : 1,
                         nb_alloc, nb_free);
 
@@ -2266,25 +2270,6 @@ static void init_nb_verlet(const gmx::MDLogger     &mdlog,
                        nbv->nbat,
                        cr->nodeid,
                        (nbv->ngrp > 1));
-
-        /* With tMPI + GPUs some ranks may be sharing GPU(s) and therefore
-         * also sharing texture references. To keep the code simple, we don't
-         * treat texture references as shared resources, but this means that
-         * the coulomb_tab and nbfp texture refs will get updated by multiple threads.
-         * Hence, to ensure that the non-bonded kernels don't start before all
-         * texture binding operations are finished, we need to wait for all ranks
-         * to arrive here before continuing.
-         *
-         * Note that we could omit this barrier if GPUs are not shared (or
-         * texture objects are used), but as this is initialization code, there
-         * is no point in complicating things.
-         */
-#if GMX_THREAD_MPI
-        if (PAR(cr))
-        {
-            gmx_barrier(cr);
-        }
-#endif  /* GMX_THREAD_MPI */
 
         if ((env = getenv("GMX_NB_MIN_CI")) != nullptr)
         {
@@ -2322,23 +2307,23 @@ gmx_bool usingGpu(nonbonded_verlet_t *nbv)
     return nbv != nullptr && nbv->bUseGPU;
 }
 
-void init_forcerec(FILE                    *fp,
-                   const gmx::MDLogger     &mdlog,
-                   t_forcerec              *fr,
-                   t_fcdata                *fcd,
-                   const t_inputrec        *ir,
-                   const gmx_mtop_t        *mtop,
-                   const t_commrec         *cr,
-                   matrix                   box,
-                   const char              *tabfn,
-                   const char              *tabpfn,
-                   const t_filenm          *tabbfnm,
-                   const gmx_hw_info_t     &hardwareInfo,
-                   const gmx_device_info_t *deviceInfo,
-                   gmx_bool                 bNoSolvOpt,
-                   real                     print_force)
+void init_forcerec(FILE                             *fp,
+                   const gmx::MDLogger              &mdlog,
+                   t_forcerec                       *fr,
+                   t_fcdata                         *fcd,
+                   const t_inputrec                 *ir,
+                   const gmx_mtop_t                 *mtop,
+                   const t_commrec                  *cr,
+                   matrix                            box,
+                   const char                       *tabfn,
+                   const char                       *tabpfn,
+                   gmx::ArrayRef<const std::string>  tabbfnm,
+                   const gmx_hw_info_t              &hardwareInfo,
+                   const gmx_device_info_t          *deviceInfo,
+                   gmx_bool                          bNoSolvOpt,
+                   real                              print_force)
 {
-    int            i, m, negp_pp, negptable, egi, egj;
+    int            m, negp_pp, negptable, egi, egj;
     real           rtab;
     char          *env;
     double         dbl;
@@ -2365,9 +2350,10 @@ void init_forcerec(FILE                    *fp,
         /* Because of old style topologies, we have to use the last cg
          * instead of the last molecule type.
          */
-        cgs       = &mtop->moltype[mtop->molblock[mtop->nmolblock-1].type].cgs;
+        cgs       = &mtop->moltype[mtop->molblock.back().type].cgs;
         fr->n_tpi = cgs->index[cgs->nr] - cgs->index[cgs->nr-1];
-        if (fr->n_tpi != mtop->mols.index[mtop->mols.nr] - mtop->mols.index[mtop->mols.nr-1])
+        gmx::BlockRanges molecules = gmx_mtop_molecules(*mtop);
+        if (fr->n_tpi != molecules.index[molecules.numBlocks()] - molecules.index[molecules.numBlocks() - 1])
         {
             gmx_fatal(FARGS, "The molecule to insert can not consist of multiple charge groups.\nMake it a single charge group.");
         }
@@ -2483,7 +2469,6 @@ void init_forcerec(FILE                    *fp,
     /* Check if we can/should do all-vs-all kernels */
     fr->bAllvsAll       = can_use_allvsall(ir, FALSE, nullptr, nullptr);
     fr->AllvsAll_work   = nullptr;
-    fr->AllvsAll_workgb = nullptr;
 
     /* All-vs-all kernels have not been implemented in 4.6 and later.
      * See Redmine #1249. */
@@ -2517,14 +2502,6 @@ void init_forcerec(FILE                    *fp,
         if (fp != nullptr)
         {
             fprintf(fp, "\n%s\n", note);
-        }
-
-        if (GMX_TARGET_BGQ)
-        {
-            GMX_LOG(mdlog.warning).asParagraph()
-                .appendText("There is no SIMD implementation of the group scheme kernels on "
-                            "BlueGene/Q. You will observe better performance from using the "
-                            "Verlet cut-off scheme.");
         }
     }
 
@@ -2592,7 +2569,6 @@ void init_forcerec(FILE                    *fp,
             fr->bMolPBC = dd_bonded_molpbc(cr->dd, fr->ePBC);
         }
     }
-    fr->bGB = (ir->implicit_solvent == eisGBSA);
 
     fr->rc_scaling = ir->refcoord_scaling;
     copy_rvec(ir->posres_com, fr->posres_com);
@@ -2619,7 +2595,7 @@ void init_forcerec(FILE                    *fp,
     switch (ic->eeltype)
     {
         case eelCUT:
-            fr->nbkernel_elec_interaction = (fr->bGB) ? GMX_NBKERNEL_ELEC_GENERALIZEDBORN : GMX_NBKERNEL_ELEC_COULOMB;
+            fr->nbkernel_elec_interaction = GMX_NBKERNEL_ELEC_COULOMB;
             break;
 
         case eelRF:
@@ -2652,6 +2628,7 @@ void init_forcerec(FILE                    *fp,
             gmx_fatal(FARGS, "Unsupported electrostatic interaction: %s", eel_names[ic->eeltype]);
             break;
     }
+    fr->nbkernel_elec_modifier = ic->coulomb_modifier;
 
     /* Vdw: Translate from mdp settings to kernel format */
     switch (ic->vdwtype)
@@ -2681,6 +2658,7 @@ void init_forcerec(FILE                    *fp,
             gmx_fatal(FARGS, "Unsupported vdw interaction: %s", evdw_names[ic->vdwtype]);
             break;
     }
+    fr->nbkernel_vdw_modifier = ic->vdw_modifier;
 
     /* These start out identical to ir, but might be altered if we e.g. tabulate the interaction in the kernel */
     fr->nbkernel_elec_modifier    = ic->coulomb_modifier;
@@ -2879,60 +2857,9 @@ void init_forcerec(FILE                    *fp,
         set_avcsixtwelve(fp, fr, mtop);
     }
 
-    fr->gb_epsilon_solvent = ir->gb_epsilon_solvent;
-
-    /* Copy the GBSA data (radius, volume and surftens for each
-     * atomtype) from the topology atomtype section to forcerec.
-     */
-    snew(fr->atype_radius, fr->ntype);
-    snew(fr->atype_vol, fr->ntype);
-    snew(fr->atype_surftens, fr->ntype);
-    snew(fr->atype_gb_radius, fr->ntype);
-    snew(fr->atype_S_hct, fr->ntype);
-
-    if (mtop->atomtypes.nr > 0)
+    if (ir->implicit_solvent)
     {
-        for (i = 0; i < fr->ntype; i++)
-        {
-            fr->atype_radius[i] = mtop->atomtypes.radius[i];
-        }
-        for (i = 0; i < fr->ntype; i++)
-        {
-            fr->atype_vol[i] = mtop->atomtypes.vol[i];
-        }
-        for (i = 0; i < fr->ntype; i++)
-        {
-            fr->atype_surftens[i] = mtop->atomtypes.surftens[i];
-        }
-        for (i = 0; i < fr->ntype; i++)
-        {
-            fr->atype_gb_radius[i] = mtop->atomtypes.gb_radius[i];
-        }
-        for (i = 0; i < fr->ntype; i++)
-        {
-            fr->atype_S_hct[i] = mtop->atomtypes.S_hct[i];
-        }
-    }
-
-    /* Generate the GB table if needed */
-    if (fr->bGB)
-    {
-#if GMX_DOUBLE
-        fr->gbtabscale = 2000;
-#else
-        fr->gbtabscale = 500;
-#endif
-
-        fr->gbtabr = 100;
-        fr->gbtab  = make_gb_table(fr);
-
-        init_gb(&fr->born, fr, ir, mtop, ir->gb_algorithm);
-
-        /* Copy local gb data (for dd, this is done in dd_partition_system) */
-        if (!DOMAINDECOMP(cr))
-        {
-            make_local_gb(cr, fr->born, ir->gb_algorithm);
-        }
+        gmx_fatal(FARGS, "Implict solvation is no longer supported.");
     }
 
     /* Construct tables for the group scheme. A little unnecessary to
@@ -3061,7 +2988,7 @@ void init_forcerec(FILE                    *fp,
         make_wall_tables(fp, ir, tabfn, &mtop->groups, fr);
     }
 
-    if (fcd && tabbfnm)
+    if (fcd && !tabbfnm.empty())
     {
         // Need to catch std::bad_alloc
         // TODO Don't need to catch this here, when merging with master branch
@@ -3107,7 +3034,7 @@ void init_forcerec(FILE                    *fp,
     }
     else
     {
-        fr->cginfo = cginfo_expand(mtop->nmolblock, fr->cginfo_mb);
+        fr->cginfo = cginfo_expand(mtop->molblock.size(), fr->cginfo_mb);
     }
 
     if (!DOMAINDECOMP(cr))
@@ -3181,8 +3108,8 @@ void init_forcerec(FILE                    *fp,
  * \todo Remove physical node barrier from this function after making sure
  * that it's not needed anymore (with a shared GPU run).
  */
-void free_gpu_resources(const t_forcerec        *fr,
-                        const t_commrec         *cr)
+void free_gpu_resources(const t_forcerec                    *fr,
+                        const gmx::PhysicalNodeCommunicator &physicalNodeCommunicator)
 {
     bool isPPrankUsingGPU = fr && fr->nbv && fr->nbv->bUseGPU;
 
@@ -3205,8 +3132,26 @@ void free_gpu_resources(const t_forcerec        *fr,
      * Note: it is safe to not call the barrier on the ranks which do not use GPU,
      * but it is easier and more futureproof to call it on the whole node.
      */
-    if (GMX_THREAD_MPI && (PAR(cr) || MULTISIM(cr)))
+    if (GMX_THREAD_MPI)
     {
-        gmx_barrier_physical_node(cr);
+        physicalNodeCommunicator.barrier();
     }
+}
+
+void done_forcerec(t_forcerec *fr, int numMolBlocks, int numEnergyGroups)
+{
+    if (fr == nullptr)
+    {
+        // PME-only ranks don't have a forcerec
+        return;
+    }
+    done_cginfo_mb(fr->cginfo_mb, numMolBlocks);
+    sfree(fr->nbfp);
+    done_interaction_const(fr->ic);
+    sfree(fr->shift_vec);
+    sfree(fr->fshift);
+    sfree(fr->nblists);
+    done_ns(fr->ns, numEnergyGroups);
+    sfree(fr->ewc_t);
+    sfree(fr);
 }

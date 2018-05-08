@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2007, The GROMACS development team.
- * Copyright (c) 2013,2014,2015,2016,2017, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016,2017,2018, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -54,6 +54,7 @@
 #include "gromacs/pbcutil/pbc.h"
 #include "gromacs/topology/index.h"
 #include "gromacs/topology/mtop_lookup.h"
+#include "gromacs/topology/mtop_util.h"
 #include "gromacs/topology/topology.h"
 #include "gromacs/trajectory/trajectoryframe.h"
 #include "gromacs/utility/arraysize.h"
@@ -83,7 +84,6 @@ static void clust_size(const char *ndx, const char *trx, const char *xpm,
     t_tpxheader           tpxh;
     gmx_mtop_t           *mtop = nullptr;
     int                   ePBC = -1;
-    t_block              *mols = nullptr;
     int                   ii, jj;
     real                  temp, tfac;
     /* Cluster size distribution (matrix) */
@@ -91,7 +91,9 @@ static void clust_size(const char *ndx, const char *trx, const char *xpm,
     real                  tf, dx2, cut2, *t_x = nullptr, *t_y, cmid, cmax, cav, ekin;
     int                   i, j, k, ai, aj, ci, cj, nframe, nclust, n_x, max_size = 0;
     int                  *clust_index, *clust_size, max_clust_size, max_clust_ind, nav, nhisto;
-    t_rgb                 rlo = { 1.0, 1.0, 1.0 };
+    t_rgb                 rlo          = { 1.0, 1.0, 1.0 };
+    int                   frameCounter = 0;
+    real                  frameTime;
 
     clear_trxframe(&fr, TRUE);
     auto timeLabel = output_env_get_time_label(oenv);
@@ -112,7 +114,7 @@ static void clust_size(const char *ndx, const char *trx, const char *xpm,
 
     if (tpr)
     {
-        snew(mtop, 1);
+        mtop = new gmx_mtop_t;
         read_tpxheader(tpr, &tpxh, TRUE);
         if (tpxh.natoms != natoms)
         {
@@ -130,6 +132,7 @@ static void clust_size(const char *ndx, const char *trx, const char *xpm,
         tfac = ndf/(3.0*natoms);
     }
 
+    gmx::BlockRanges mols;
     if (bMol)
     {
         if (ndx)
@@ -138,10 +141,10 @@ static void clust_size(const char *ndx, const char *trx, const char *xpm,
                    ndx);
         }
         GMX_RELEASE_ASSERT(mtop != nullptr, "Trying to access mtop->mols from NULL mtop pointer");
-        mols = &(mtop->mols);
+        mols = gmx_mtop_molecules(*mtop);
 
         /* Make dummy index */
-        nindex = mols->nr;
+        nindex = mols.numBlocks();
         snew(index, nindex);
         for (i = 0; (i < nindex); i++)
         {
@@ -207,11 +210,11 @@ static void clust_size(const char *ndx, const char *trx, const char *xpm,
                         /* Compute distance */
                         if (bMol)
                         {
-                            GMX_RELEASE_ASSERT(mols != nullptr, "Cannot access index[] from NULL mols pointer");
+                            GMX_RELEASE_ASSERT(mols.numBlocks() > 0, "Cannot access index[] from empty mols");
                             bSame = FALSE;
-                            for (ii = mols->index[ai]; !bSame && (ii < mols->index[ai+1]); ii++)
+                            for (ii = mols.index[ai]; !bSame && (ii < mols.index[ai+1]); ii++)
                             {
-                                for (jj = mols->index[aj]; !bSame && (jj < mols->index[aj+1]); jj++)
+                                for (jj = mols.index[aj]; !bSame && (jj < mols.index[aj+1]); jj++)
                                 {
                                     if (bPBC)
                                     {
@@ -265,7 +268,19 @@ static void clust_size(const char *ndx, const char *trx, const char *xpm,
             }
             n_x++;
             srenew(t_x, n_x);
-            t_x[n_x-1] = fr.time*tf;
+            if (fr.bTime)
+            {
+                frameTime = fr.time;
+            }
+            else if (fr.bStep)
+            {
+                frameTime = fr.step;
+            }
+            else
+            {
+                frameTime = ++frameCounter;
+            }
+            t_x[n_x-1] = frameTime*tf;
             srenew(cs_dist, n_x);
             snew(cs_dist[n_x-1], nindex);
             nclust = 0;
@@ -291,12 +306,12 @@ static void clust_size(const char *ndx, const char *trx, const char *xpm,
                     }
                 }
             }
-            fprintf(fp, "%14.6e  %10d\n", fr.time, nclust);
+            fprintf(fp, "%14.6e  %10d\n", frameTime, nclust);
             if (nav > 0)
             {
-                fprintf(gp, "%14.6e  %10.3f\n", fr.time, cav/nav);
+                fprintf(gp, "%14.6e  %10.3f\n", frameTime, cav/nav);
             }
-            fprintf(hp, "%14.6e  %10d\n", fr.time, max_clust_size);
+            fprintf(hp, "%14.6e  %10d\n", frameTime, max_clust_size);
         }
         /* Analyse velocities, if present */
         if (fr.bV)
@@ -326,7 +341,7 @@ static void clust_size(const char *ndx, const char *trx, const char *xpm,
                         }
                     }
                     temp = (ekin*2.0)/(3.0*tfac*max_clust_size*BOLTZ);
-                    fprintf(tp, "%10.3f  %10.3f\n", fr.time, temp);
+                    fprintf(tp, "%10.3f  %10.3f\n", frameTime, temp);
                 }
             }
         }
@@ -350,8 +365,8 @@ static void clust_size(const char *ndx, const char *trx, const char *xpm,
             {
                 if (bMol)
                 {
-                    GMX_RELEASE_ASSERT(mols != nullptr, "Cannot access index[] from NULL mols pointer");
-                    for (j = mols->index[i]; (j < mols->index[i+1]); j++)
+                    GMX_RELEASE_ASSERT(mols.numBlocks() > 0, "Cannot access index[] from empty mols");
+                    for (j = mols.index[i]; (j < mols.index[i+1]); j++)
                     {
                         fprintf(fp, "%d\n", j+1);
                     }
@@ -429,8 +444,7 @@ static void clust_size(const char *ndx, const char *trx, const char *xpm,
     gmx_ffclose(fp);
     if (mtop)
     {
-        done_mtop(mtop);
-        sfree(mtop);
+        delete mtop;
     }
     sfree(t_x);
     sfree(t_y);
@@ -538,7 +552,6 @@ int gmx_clustsize(int argc, char *argv[])
                bMol, bPBC, fnTPR,
                cutoff, nskip, nlevels, rgblo, rgbhi, ndf, oenv);
 
-    done_filenms(NFILE, fnm);
     output_env_done(oenv);
 
     return 0;

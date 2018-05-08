@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2012,2013,2014,2015,2016,2017, by the GROMACS development team, led by
+ * Copyright (c) 2012,2013,2014,2015,2016,2017,2018, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -94,110 +94,6 @@ bool useLjCombRule(int vdwType)
             vdwType == evdwOclCUTCOMBLB);
 }
 
-/*! \brief Free device buffers
- *
- * If the pointers to the size variables are NULL no resetting happens.
- */
-static void ocl_free_buffered(cl_mem d_ptr, int *n, int *nalloc)
-{
-    cl_int gmx_unused cl_error;
-
-    if (d_ptr)
-    {
-        cl_error = clReleaseMemObject(d_ptr);
-        assert(cl_error == CL_SUCCESS);
-        // TODO: handle errors
-    }
-
-    if (n)
-    {
-        *n = -1;
-    }
-
-    if (nalloc)
-    {
-        *nalloc = -1;
-    }
-}
-
-/*! \brief Reallocation device buffers
- *
- *  Reallocation of the memory pointed by d_ptr and copying of the data from
- *  the location pointed by h_src host-side pointer is done. Allocation is
- *  buffered and therefore freeing is only needed if the previously allocated
- *  space is not enough.
- *  The H2D copy is launched in command queue s and can be done synchronously or
- *  asynchronously (the default is the latter).
- *  If copy_event is not NULL, on return it will contain an event object
- *  identifying the H2D copy. The event can further be used to queue a wait
- *  for this operation or to query profiling information.
- *  OpenCL equivalent of cu_realloc_buffered.
- */
-static void ocl_realloc_buffered(cl_mem *d_dest, void *h_src,
-                                 size_t type_size,
-                                 int *curr_size, int *curr_alloc_size,
-                                 int req_size,
-                                 cl_context context,
-                                 cl_command_queue s,
-                                 bool bAsync = true,
-                                 cl_event *copy_event = NULL)
-{
-    if (d_dest == NULL || req_size < 0)
-    {
-        return;
-    }
-
-    /* reallocate only if the data does not fit = allocation size is smaller
-       than the current requested size */
-    if (req_size > *curr_alloc_size)
-    {
-        cl_int gmx_unused cl_error;
-
-        /* only free if the array has already been initialized */
-        if (*curr_alloc_size >= 0)
-        {
-            ocl_free_buffered(*d_dest, curr_size, curr_alloc_size);
-        }
-
-        *curr_alloc_size = over_alloc_large(req_size);
-
-        *d_dest = clCreateBuffer(context, CL_MEM_READ_WRITE, *curr_alloc_size * type_size, NULL, &cl_error);
-        assert(cl_error == CL_SUCCESS);
-        // TODO: handle errors, check clCreateBuffer flags
-    }
-
-    /* size could have changed without actual reallocation */
-    *curr_size = req_size;
-
-    /* upload to device */
-    if (h_src)
-    {
-        if (bAsync)
-        {
-            ocl_copy_H2D_async(*d_dest, h_src, 0, *curr_size * type_size, s, copy_event);
-        }
-        else
-        {
-            ocl_copy_H2D_sync(*d_dest, h_src,  0, *curr_size * type_size, s);
-        }
-    }
-}
-
-/*! \brief Releases the input OpenCL buffer */
-static void free_ocl_buffer(cl_mem *buffer)
-{
-    cl_int gmx_unused cl_error;
-
-    assert(NULL != buffer);
-
-    if (*buffer)
-    {
-        cl_error = clReleaseMemObject(*buffer);
-        assert(CL_SUCCESS == cl_error);
-        *buffer = NULL;
-    }
-}
-
 /*! \brief Tabulates the Ewald Coulomb force and initializes the size/scale
  * and the table GPU array.
  *
@@ -214,7 +110,7 @@ static void init_ewald_coulomb_force_table(const interaction_const_t       *ic,
 
     if (nbp->coulomb_tab_climg2d != NULL)
     {
-        free_ocl_buffer(&(nbp->coulomb_tab_climg2d));
+        freeDeviceBuffer(&(nbp->coulomb_tab_climg2d));
     }
 
     /* Switched from using textures to using buffers */
@@ -754,13 +650,10 @@ void nbnxn_gpu_init(gmx_nbnxn_ocl_t          **p_nb,
     nb->dev_info = deviceInfo;
     snew(nb->dev_rundata, 1);
 
-    /* init to NULL the debug buffer */
-    nb->debug_buffer = NULL;
-
     /* init nbst */
-    ocl_pmalloc((void**)&nb->nbst.e_lj, sizeof(*nb->nbst.e_lj));
-    ocl_pmalloc((void**)&nb->nbst.e_el, sizeof(*nb->nbst.e_el));
-    ocl_pmalloc((void**)&nb->nbst.fshift, SHIFTS * sizeof(*nb->nbst.fshift));
+    pmalloc((void**)&nb->nbst.e_lj, sizeof(*nb->nbst.e_lj));
+    pmalloc((void**)&nb->nbst.e_el, sizeof(*nb->nbst.e_el));
+    pmalloc((void**)&nb->nbst.fshift, SHIFTS * sizeof(*nb->nbst.fshift));
 
     init_plist(nb->plist[eintLocal]);
 
@@ -847,7 +740,6 @@ static void nbnxn_ocl_clear_f(gmx_nbnxn_ocl_t *nb, int natoms_clear)
         return;
     }
 
-    cl_int               cl_error;
     cl_atomdata_t *      adat     = nb->atdat;
     cl_command_queue     ls       = nb->stream[eintLocal];
     cl_float             value    = 0.0f;
@@ -866,6 +758,7 @@ static void nbnxn_ocl_clear_f(gmx_nbnxn_ocl_t *nb, int natoms_clear)
     global_work_size[0] = ((natoms_flat + local_work_size[0] - 1)/local_work_size[0])*local_work_size[0];
 
 
+    cl_int gmx_used_in_debug cl_error;
     arg_no    = 0;
     cl_error  = clSetKernelArg(memset_f, arg_no++, sizeof(cl_mem), &(adat->f));
     cl_error |= clSetKernelArg(memset_f, arg_no++, sizeof(cl_float), &value);
@@ -930,30 +823,29 @@ void nbnxn_gpu_init_pairlist(gmx_nbnxn_ocl_t        *nb,
         nb->timers->didPairlistH2D[iloc] = true;
     }
 
-    ocl_realloc_buffered(&d_plist->sci, h_plist->sci, sizeof(nbnxn_sci_t),
-                         &d_plist->nsci, &d_plist->sci_nalloc,
-                         h_plist->nsci,
-                         nb->dev_rundata->context,
-                         stream, true, bDoTime ? nb->timers->pl_h2d[iloc].fetchNextEvent() : nullptr);
+    // TODO most of this function is same in CUDA and OpenCL, move into the header
+    Context context = nb->dev_rundata->context;
 
-    ocl_realloc_buffered(&d_plist->cj4, h_plist->cj4, sizeof(nbnxn_cj4_t),
-                         &d_plist->ncj4, &d_plist->cj4_nalloc,
-                         h_plist->ncj4,
-                         nb->dev_rundata->context,
-                         stream, true, bDoTime ? nb->timers->pl_h2d[iloc].fetchNextEvent() : nullptr);
+    reallocateDeviceBuffer(&d_plist->sci, h_plist->nsci,
+                           &d_plist->nsci, &d_plist->sci_nalloc, context);
+    copyToDeviceBuffer(&d_plist->sci, h_plist->sci, 0, h_plist->nsci,
+                       stream, GpuApiCallBehavior::Async,
+                       bDoTime ? nb->timers->pl_h2d[iloc].fetchNextEvent() : nullptr);
 
-    /* this call only allocates space on the device (no data is transferred) - no timing as well! */
-    ocl_realloc_buffered(&d_plist->imask, NULL, sizeof(unsigned int),
-                         &d_plist->nimask, &d_plist->imask_nalloc,
-                         h_plist->ncj4*c_nbnxnGpuClusterpairSplit,
-                         nb->dev_rundata->context,
-                         stream, true);
+    reallocateDeviceBuffer(&d_plist->cj4, h_plist->ncj4,
+                           &d_plist->ncj4, &d_plist->cj4_nalloc, context);
+    copyToDeviceBuffer(&d_plist->cj4, h_plist->cj4, 0, h_plist->ncj4,
+                       stream, GpuApiCallBehavior::Async,
+                       bDoTime ? nb->timers->pl_h2d[iloc].fetchNextEvent() : nullptr);
 
-    ocl_realloc_buffered(&d_plist->excl, h_plist->excl, sizeof(nbnxn_excl_t),
-                         &d_plist->nexcl, &d_plist->excl_nalloc,
-                         h_plist->nexcl,
-                         nb->dev_rundata->context,
-                         stream, true, bDoTime ? nb->timers->pl_h2d[iloc].fetchNextEvent() : nullptr);
+    reallocateDeviceBuffer(&d_plist->imask, h_plist->ncj4*c_nbnxnGpuClusterpairSplit,
+                           &d_plist->nimask, &d_plist->imask_nalloc, context);
+
+    reallocateDeviceBuffer(&d_plist->excl, h_plist->nexcl,
+                           &d_plist->nexcl, &d_plist->excl_nalloc, context);
+    copyToDeviceBuffer(&d_plist->excl, h_plist->excl, 0, h_plist->nexcl,
+                       stream, GpuApiCallBehavior::Async,
+                       bDoTime ? nb->timers->pl_h2d[iloc].fetchNextEvent() : nullptr);
 
     if (bDoTime)
     {
@@ -1010,10 +902,10 @@ void nbnxn_gpu_init_atomdata(gmx_nbnxn_ocl_t               *nb,
         /* free up first if the arrays have already been initialized */
         if (d_atdat->nalloc != -1)
         {
-            ocl_free_buffered(d_atdat->f, &d_atdat->natoms, &d_atdat->nalloc);
-            ocl_free_buffered(d_atdat->xq, NULL, NULL);
-            ocl_free_buffered(d_atdat->lj_comb, NULL, NULL);
-            ocl_free_buffered(d_atdat->atom_types, NULL, NULL);
+            freeDeviceBuffer(&d_atdat->f);
+            freeDeviceBuffer(&d_atdat->xq);
+            freeDeviceBuffer(&d_atdat->lj_comb);
+            freeDeviceBuffer(&d_atdat->atom_types);
         }
 
         d_atdat->f_elem_size = sizeof(rvec);
@@ -1163,49 +1055,48 @@ void nbnxn_gpu_free(gmx_nbnxn_ocl_t *nb)
     free_kernel(&(nb->kernel_zero_e_fshift));
 
     /* Free atdat */
-    free_ocl_buffer(&(nb->atdat->xq));
-    free_ocl_buffer(&(nb->atdat->f));
-    free_ocl_buffer(&(nb->atdat->e_lj));
-    free_ocl_buffer(&(nb->atdat->e_el));
-    free_ocl_buffer(&(nb->atdat->fshift));
-    free_ocl_buffer(&(nb->atdat->lj_comb));
-    free_ocl_buffer(&(nb->atdat->atom_types));
-    free_ocl_buffer(&(nb->atdat->shift_vec));
+    freeDeviceBuffer(&(nb->atdat->xq));
+    freeDeviceBuffer(&(nb->atdat->f));
+    freeDeviceBuffer(&(nb->atdat->e_lj));
+    freeDeviceBuffer(&(nb->atdat->e_el));
+    freeDeviceBuffer(&(nb->atdat->fshift));
+    freeDeviceBuffer(&(nb->atdat->lj_comb));
+    freeDeviceBuffer(&(nb->atdat->atom_types));
+    freeDeviceBuffer(&(nb->atdat->shift_vec));
     sfree(nb->atdat);
 
     /* Free nbparam */
-    free_ocl_buffer(&(nb->nbparam->nbfp_climg2d));
-    free_ocl_buffer(&(nb->nbparam->nbfp_comb_climg2d));
-    free_ocl_buffer(&(nb->nbparam->coulomb_tab_climg2d));
+    freeDeviceBuffer(&(nb->nbparam->nbfp_climg2d));
+    freeDeviceBuffer(&(nb->nbparam->nbfp_comb_climg2d));
+    freeDeviceBuffer(&(nb->nbparam->coulomb_tab_climg2d));
     sfree(nb->nbparam);
 
     /* Free plist */
-    free_ocl_buffer(&(nb->plist[eintLocal]->sci));
-    free_ocl_buffer(&(nb->plist[eintLocal]->cj4));
-    free_ocl_buffer(&(nb->plist[eintLocal]->imask));
-    free_ocl_buffer(&(nb->plist[eintLocal]->excl));
-    sfree(nb->plist[eintLocal]);
+    auto *plist = nb->plist[eintLocal];
+    freeDeviceBuffer(&plist->sci);
+    freeDeviceBuffer(&plist->cj4);
+    freeDeviceBuffer(&plist->imask);
+    freeDeviceBuffer(&plist->excl);
+    sfree(plist);
     if (nb->bUseTwoStreams)
     {
-        free_ocl_buffer(&(nb->plist[eintNonlocal]->sci));
-        free_ocl_buffer(&(nb->plist[eintNonlocal]->cj4));
-        free_ocl_buffer(&(nb->plist[eintNonlocal]->imask));
-        free_ocl_buffer(&(nb->plist[eintNonlocal]->excl));
-        sfree(nb->plist[eintNonlocal]);
+        auto *plist_nl = nb->plist[eintNonlocal];
+        freeDeviceBuffer(&plist_nl->sci);
+        freeDeviceBuffer(&plist_nl->cj4);
+        freeDeviceBuffer(&plist_nl->imask);
+        freeDeviceBuffer(&plist_nl->excl);
+        sfree(plist_nl);
     }
 
     /* Free nbst */
-    ocl_pfree(nb->nbst.e_lj);
+    pfree(nb->nbst.e_lj);
     nb->nbst.e_lj = NULL;
 
-    ocl_pfree(nb->nbst.e_el);
+    pfree(nb->nbst.e_el);
     nb->nbst.e_el = NULL;
 
-    ocl_pfree(nb->nbst.fshift);
+    pfree(nb->nbst.fshift);
     nb->nbst.fshift = NULL;
-
-    /* Free debug buffer */
-    free_ocl_buffer(&nb->debug_buffer);
 
     /* Free command queues */
     clReleaseCommandQueue(nb->stream[eintLocal]);

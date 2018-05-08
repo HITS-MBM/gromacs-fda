@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2014,2015,2017, by the GROMACS development team, led by
+ * Copyright (c) 2014,2015,2017,2018, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -34,6 +34,8 @@
  */
 #include "gmxpre.h"
 
+#include "gromacs/mdlib/shake.h"
+
 #include <assert.h>
 
 #include <cmath>
@@ -43,11 +45,11 @@
 
 #include <gtest/gtest.h>
 
-#include "gromacs/mdlib/constr.h"
-
 #include "testutils/refdata.h"
 #include "testutils/testasserts.h"
 
+namespace gmx
+{
 namespace
 {
 
@@ -227,8 +229,8 @@ class ShakeTest : public ::testing::Test
             {
                 // We need to allow for the requested tolerance plus rounding
                 // errors due to the absolute size of the coordinate values
-                gmx::test::FloatingPointTolerance constraintTolerance =
-                    gmx::test::absoluteTolerance(std::sqrt(constrainedDistancesSquared[i])*ShakeTest::tolerance_ + coordMax*GMX_REAL_EPS);
+                test::FloatingPointTolerance constraintTolerance =
+                    test::absoluteTolerance(std::sqrt(constrainedDistancesSquared[i])*ShakeTest::tolerance_ + coordMax*GMX_REAL_EPS);
                 // Assert that the constrained distances are within the required tolerance
                 EXPECT_FLOAT_EQ_TOL(std::sqrt(constrainedDistancesSquared[i]),
                                     std::sqrt(finalDistancesSquared[i]),
@@ -356,4 +358,5 @@ TEST_F(ShakeTest, ConstrainsThreeBondsWithCommonAtoms)
     runTest(numAtoms, numConstraints, iatom, constrainedDistances, inverseMasses, positions);
 }
 
+} // namespace
 } // namespace

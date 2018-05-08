@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014,2015,2016,2017, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016,2017,2018, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -368,11 +368,6 @@ void check_ir(const char *mdparin, t_inputrec *ir, t_gromppopts *opts,
         {
             sprintf(warn_buf, "coulomb_modifier=%s is not supported with the Verlet cut-off scheme", eintmod_names[ir->coulomb_modifier]);
             warning_error(wi, warn_buf);
-        }
-
-        if (ir->implicit_solvent != eisNO)
-        {
-            warning_error(wi, "Implicit solvent is not (yet) supported with the with Verlet lists.");
         }
 
         if (EEL_USER(ir->coulombtype))
@@ -818,7 +813,11 @@ void check_ir(const char *mdparin, t_inputrec *ir, t_gromppopts *opts,
         CHECK((expand->wl_scale <= 0) || (expand->wl_scale >= 1));
 
         /* if there is no temperature control, we need to specify an MC temperature */
-        sprintf(err_buf, "If there is no temperature control, and lmc-mcmove!= 'no',mc_temperature must be set to a positive number");
+        if (!integratorHasReferenceTemperature(ir) && (expand->elmcmove != elmcmoveNO) && (expand->mc_temp <= 0.0))
+        {
+            sprintf(err_buf, "If there is no temperature control, and lmc-mcmove!='no', mc_temp must be set to a positive number");
+            warning_error(wi, err_buf);
+        }
         if (expand->nstTij > 0)
         {
             sprintf(err_buf, "nstlog must be non-zero");
@@ -905,9 +904,10 @@ void check_ir(const char *mdparin, t_inputrec *ir, t_gromppopts *opts,
         }
     }
 
-    if (EI_STATE_VELOCITY(ir->eI) && ir->ePBC == epbcNONE && ir->comm_mode != ecmANGULAR)
+    if (EI_STATE_VELOCITY(ir->eI) && !EI_SD(ir->eI) && ir->ePBC == epbcNONE && ir->comm_mode != ecmANGULAR)
     {
-        warning_note(wi, "Tumbling and or flying ice-cubes: We are not removing rotation around center of mass in a non-periodic system. You should probably set comm_mode = ANGULAR.");
+        sprintf(warn_buf, "Tumbling and flying ice-cubes: We are not removing rotation around center of mass in a non-periodic system. You should probably set comm_mode = ANGULAR or use integrator = %s.", ei_names[eiSD1]);
+        warning_note(wi, warn_buf);
     }
 
     /* TEMPERATURE COUPLING */
@@ -1049,12 +1049,6 @@ void check_ir(const char *mdparin, t_inputrec *ir, t_gromppopts *opts,
         warning(wi, warn_buf);
     }
 
-    if (ir->epsilon_r != 1 && ir->implicit_solvent == eisGBSA)
-    {
-        sprintf(warn_buf, "epsilon-r = %g with GB implicit solvent, will use this value for inner dielectric", ir->epsilon_r);
-        warning_note(wi, warn_buf);
-    }
-
     if (EEL_RF(ir->coulombtype) && ir->epsilon_rf == 1 && ir->epsilon_r != 1)
     {
         sprintf(warn_buf, "epsilon-r = %g and epsilon-rf = 1 with reaction field, proceeding assuming old format and exchanging epsilon-r and epsilon-rf", ir->epsilon_r);
@@ -1066,9 +1060,9 @@ void check_ir(const char *mdparin, t_inputrec *ir, t_gromppopts *opts,
     if (ir->epsilon_r == 0)
     {
         sprintf(err_buf,
-                "It is pointless to use long-range or Generalized Born electrostatics with infinite relative permittivity."
+                "It is pointless to use long-range electrostatics with infinite relative permittivity."
                 "Since you are effectively turning of electrostatics, a plain cutoff will be much faster.");
-        CHECK(EEL_FULL(ir->coulombtype) || ir->implicit_solvent == eisGBSA);
+        CHECK(EEL_FULL(ir->coulombtype));
     }
 
     if (getenv("GMX_DO_GALACTIC_DYNAMICS") == nullptr)
@@ -1330,60 +1324,6 @@ void check_ir(const char *mdparin, t_inputrec *ir, t_gromppopts *opts,
         sprintf(warn_buf, "Invalid option %s for coulombtype",
                 eel_names[ir->coulombtype]);
         warning_error(wi, warn_buf);
-    }
-
-    if (ir->sa_algorithm == esaSTILL)
-    {
-        sprintf(err_buf, "Still SA algorithm not available yet, use %s or %s instead\n", esa_names[esaAPPROX], esa_names[esaNO]);
-        CHECK(ir->sa_algorithm == esaSTILL);
-    }
-
-    if (ir->implicit_solvent == eisGBSA)
-    {
-        sprintf(err_buf, "With GBSA implicit solvent, rgbradii must be equal to rlist.");
-        CHECK(ir->rgbradii != ir->rlist);
-
-        if (ir->coulombtype != eelCUT)
-        {
-            sprintf(err_buf, "With GBSA, coulombtype must be equal to %s\n", eel_names[eelCUT]);
-            CHECK(ir->coulombtype != eelCUT);
-        }
-        if (ir->vdwtype != evdwCUT)
-        {
-            sprintf(err_buf, "With GBSA, vdw-type must be equal to %s\n", evdw_names[evdwCUT]);
-            CHECK(ir->vdwtype != evdwCUT);
-        }
-        if (ir->nstgbradii < 1)
-        {
-            sprintf(warn_buf, "Using GBSA with nstgbradii<1, setting nstgbradii=1");
-            warning_note(wi, warn_buf);
-            ir->nstgbradii = 1;
-        }
-        if (ir->sa_algorithm == esaNO)
-        {
-            sprintf(warn_buf, "No SA (non-polar) calculation requested together with GB. Are you sure this is what you want?\n");
-            warning_note(wi, warn_buf);
-        }
-        if (ir->sa_surface_tension < 0 && ir->sa_algorithm != esaNO)
-        {
-            sprintf(warn_buf, "Value of sa_surface_tension is < 0. Changing it to 2.05016 or 2.25936 kJ/nm^2/mol for Still and HCT/OBC respectively\n");
-            warning_note(wi, warn_buf);
-
-            if (ir->gb_algorithm == egbSTILL)
-            {
-                ir->sa_surface_tension = 0.0049 * CAL2JOULE * 100;
-            }
-            else
-            {
-                ir->sa_surface_tension = 0.0054 * CAL2JOULE * 100;
-            }
-        }
-        if (ir->sa_surface_tension == 0 && ir->sa_algorithm != esaNO)
-        {
-            sprintf(err_buf, "Surface tension set to 0 while SA-calculation requested\n");
-            CHECK(ir->sa_surface_tension == 0 && ir->sa_algorithm != esaNO);
-        }
-
     }
 
     if (ir->bQMMM)
@@ -1789,6 +1729,8 @@ void get_ir(const char *mdparin, const char *mdparout,
     t_lambda   *fep    = ir->fepvals;
     t_expanded *expand = ir->expandedvals;
 
+    const char *no_names[] = { "no", nullptr };
+
     init_inputrec_strings();
     gmx::TextInputFile stream(mdparin);
     inp = read_inpfile(&stream, mdparin, &ninp, wi);
@@ -1833,6 +1775,17 @@ void get_ir(const char *mdparin, const char *mdparout,
     REM_TYPE("rlistlong");
     REM_TYPE("nstcalclr");
     REM_TYPE("pull-print-com2");
+    REM_TYPE("gb-algorithm");
+    REM_TYPE("nstgbradii");
+    REM_TYPE("rgbradii");
+    REM_TYPE("gb-epsilon-solvent");
+    REM_TYPE("gb-saltconc");
+    REM_TYPE("gb-obc-alpha");
+    REM_TYPE("gb-obc-beta");
+    REM_TYPE("gb-obc-gamma");
+    REM_TYPE("gb-dielectric-offset");
+    REM_TYPE("sa-algorithm");
+    REM_TYPE("sa-surface-tension");
 
     /* replace the following commands with the clearer new versions*/
     REPL_TYPE("unconstrained-start", "continuation");
@@ -1963,30 +1916,10 @@ void get_ir(const char *mdparin, const char *mdparout,
     EETYPE("ewald-geometry", ir->ewald_geometry, eewg_names);
     RTYPE ("epsilon-surface", ir->epsilon_surface, 0.0);
 
-    CCTYPE("IMPLICIT SOLVENT ALGORITHM");
-    EETYPE("implicit-solvent", ir->implicit_solvent, eis_names);
-
-    CCTYPE ("GENERALIZED BORN ELECTROSTATICS");
-    CTYPE ("Algorithm for calculating Born radii");
-    EETYPE("gb-algorithm", ir->gb_algorithm, egb_names);
-    CTYPE ("Frequency of calculating the Born radii inside rlist");
-    ITYPE ("nstgbradii", ir->nstgbradii, 1);
-    CTYPE ("Cutoff for Born radii calculation; the contribution from atoms");
-    CTYPE ("between rlist and rgbradii is updated every nstlist steps");
-    RTYPE ("rgbradii",  ir->rgbradii, 1.0);
-    CTYPE ("Dielectric coefficient of the implicit solvent");
-    RTYPE ("gb-epsilon-solvent", ir->gb_epsilon_solvent, 80.0);
-    CTYPE ("Salt concentration in M for Generalized Born models");
-    RTYPE ("gb-saltconc",  ir->gb_saltconc, 0.0);
-    CTYPE ("Scaling factors used in the OBC GB model. Default values are OBC(II)");
-    RTYPE ("gb-obc-alpha", ir->gb_obc_alpha, 1.0);
-    RTYPE ("gb-obc-beta", ir->gb_obc_beta, 0.8);
-    RTYPE ("gb-obc-gamma", ir->gb_obc_gamma, 4.85);
-    RTYPE ("gb-dielectric-offset", ir->gb_dielectric_offset, 0.009);
-    EETYPE("sa-algorithm", ir->sa_algorithm, esa_names);
-    CTYPE ("Surface tension (kJ/mol/nm^2) for the SA (nonpolar surface) part of GBSA");
-    CTYPE ("The value -1 will set default value for Still/HCT/OBC GB-models.");
-    RTYPE ("sa-surface-tension", ir->sa_surface_tension, -1);
+    /* Implicit solvation is no longer supported, but we need grompp
+       to be able to refuse old .mdp files that would have built a tpr
+       to run it. Thus, only "no" is accepted. */
+    EETYPE("implicit-solvent", ir->implicit_solvent, no_names);
 
     /* Coupling stuff */
     CCTYPE ("OPTIONS FOR WEAK COUPLING ALGORITHMS");
@@ -2317,8 +2250,9 @@ void get_ir(const char *mdparin, const char *mdparout,
         RTYPE("threshold", ir->swap->threshold, 1.0);
     }
 
-    /* AdResS is no longer supported, but we need mdrun to be able to refuse to run old AdResS .tpr files */
-    EETYPE("adress", ir->bAdress, yesno_names);
+    /* AdResS is no longer supported, but we need grompp to be able to
+       refuse to process old .mdp files that used it. */
+    EETYPE("adress", ir->bAdress, no_names);
 
     /* User defined thingies */
     CCTYPE ("User defined thingies");
@@ -2788,10 +2722,10 @@ static gmx_bool do_numbering(int natoms, gmx_groups_t *groups, int ng, char *ptr
     return (bRest && grptp == egrptpPART);
 }
 
-static void calc_nrdf(gmx_mtop_t *mtop, t_inputrec *ir, char **gnames)
+static void calc_nrdf(const gmx_mtop_t *mtop, t_inputrec *ir, char **gnames)
 {
     t_grpopts              *opts;
-    gmx_groups_t           *groups;
+    const gmx_groups_t     *groups;
     pull_params_t          *pull;
     int                     natoms, ai, aj, i, j, d, g, imin, jmin;
     t_iatom                *ia;
@@ -2799,9 +2733,7 @@ static void calc_nrdf(gmx_mtop_t *mtop, t_inputrec *ir, char **gnames)
     double                 *nrdf_tc, *nrdf_vcm, nrdf_uc, *nrdf_vcm_sub;
     ivec                   *dof_vcm;
     gmx_mtop_atomloop_all_t aloop;
-    int                     mb, mol, ftype, as;
-    gmx_molblock_t         *molb;
-    gmx_moltype_t          *molt;
+    int                     mol, ftype, as;
 
     /* Calculate nrdf.
      * First calc 3xnr-atoms for each group
@@ -2862,17 +2794,16 @@ static void calc_nrdf(gmx_mtop_t *mtop, t_inputrec *ir, char **gnames)
     }
 
     as = 0;
-    for (mb = 0; mb < mtop->nmolblock; mb++)
+    for (const gmx_molblock_t &molb : mtop->molblock)
     {
-        molb = &mtop->molblock[mb];
-        molt = &mtop->moltype[molb->type];
-        atom = molt->atoms.atom;
-        for (mol = 0; mol < molb->nmol; mol++)
+        const gmx_moltype_t &molt = mtop->moltype[molb.type];
+        atom = molt.atoms.atom;
+        for (mol = 0; mol < molb.nmol; mol++)
         {
             for (ftype = F_CONSTR; ftype <= F_CONSTRNC; ftype++)
             {
-                ia = molt->ilist[ftype].iatoms;
-                for (i = 0; i < molt->ilist[ftype].nr; )
+                ia = molt.ilist[ftype].iatoms;
+                for (i = 0; i < molt.ilist[ftype].nr; )
                 {
                     /* Subtract degrees of freedom for the constraints,
                      * if the particles still have degrees of freedom left.
@@ -2917,8 +2848,8 @@ static void calc_nrdf(gmx_mtop_t *mtop, t_inputrec *ir, char **gnames)
                     i  += interaction_function[ftype].nratoms+1;
                 }
             }
-            ia = molt->ilist[F_SETTLE].iatoms;
-            for (i = 0; i < molt->ilist[F_SETTLE].nr; )
+            ia = molt.ilist[F_SETTLE].iatoms;
+            for (i = 0; i < molt.ilist[F_SETTLE].nr; )
             {
                 /* Subtract 1 dof from every atom in the SETTLE */
                 for (j = 0; j < 3; j++)
@@ -2932,7 +2863,7 @@ static void calc_nrdf(gmx_mtop_t *mtop, t_inputrec *ir, char **gnames)
                 ia += 4;
                 i  += 4;
             }
-            as += molt->atoms.nr;
+            as += molt.atoms.nr;
         }
     }
 
@@ -3213,7 +3144,7 @@ void do_index(const char* mdparin, const char *ndx,
     int           nacg, nfreeze, nfrdim, nenergy, nvcm, nuser;
     char         *ptr1[MAXPTR], *ptr2[MAXPTR], *ptr3[MAXPTR];
     int           i, j, k, restnm;
-    gmx_bool      bExcl, bTable, bSetTCpar, bAnneal, bRest;
+    gmx_bool      bExcl, bTable, bAnneal, bRest;
     int           nQMmethod, nQMbasis, nQMg;
     char          warn_buf[STRLEN];
     char*         endptr;
@@ -3263,9 +3194,9 @@ void do_index(const char* mdparin, const char *ndx,
                   "%d tau-t values", ntcg, nref_t, ntau_t);
     }
 
-    bSetTCpar = (ir->etc || EI_SD(ir->eI) || ir->eI == eiBD || EI_TPI(ir->eI));
+    const bool useReferenceTemperature = integratorHasReferenceTemperature(ir);
     do_numbering(natoms, groups, ntcg, ptr3, grps, gnames, egcTC,
-                 restnm, bSetTCpar ? egrptpALL : egrptpALL_GENREST, bVerbose, wi);
+                 restnm, useReferenceTemperature ? egrptpALL : egrptpALL_GENREST, bVerbose, wi);
     nr            = groups->grps[egcTC].nr;
     ir->opts.ngtc = nr;
     snew(ir->opts.nrdf, nr);
@@ -3276,7 +3207,7 @@ void do_index(const char* mdparin, const char *ndx,
         fprintf(stderr, "bd-fric=0, so tau-t will be used as the inverse friction constant(s)\n");
     }
 
-    if (bSetTCpar)
+    if (useReferenceTemperature)
     {
         if (nr != nref_t)
         {
@@ -3839,7 +3770,7 @@ static gmx_bool absolute_reference(t_inputrec *ir, gmx_mtop_t *sys,
 {
     int                  d, g, i;
     gmx_mtop_ilistloop_t iloop;
-    t_ilist             *ilist;
+    const t_ilist       *ilist;
     int                  nmol;
     t_iparams           *pr;
 
@@ -4183,7 +4114,7 @@ void triple_check(const char *mdparin, t_inputrec *ir, gmx_mtop_t *sys,
     }
     else
     {
-        if (ir->coulombtype == eelCUT && ir->rcoulomb > 0 && !ir->implicit_solvent)
+        if (ir->coulombtype == eelCUT && ir->rcoulomb > 0)
         {
             sprintf(err_buf,
                     "You are using a plain Coulomb cut-off, which might produce artifacts.\n"

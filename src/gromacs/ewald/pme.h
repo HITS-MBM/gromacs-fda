@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014,2015,2016,2017, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016,2017,2018, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -50,8 +50,8 @@
 
 #include <string>
 
+#include "gromacs/gpu_utils/gpu_macros.h"
 #include "gromacs/math/vectypes.h"
-#include "gromacs/timing/wallcycle.h"
 #include "gromacs/timing/walltime_accounting.h"
 #include "gromacs/utility/arrayref.h"
 #include "gromacs/utility/basedefinitions.h"
@@ -65,6 +65,7 @@ struct PmeGpu;
 struct gmx_wallclock_gpu_pme_t;
 struct gmx_device_info_t;
 struct gmx_pme_t;
+struct gmx_wallcycle;
 
 enum class GpuTaskCompletion;
 
@@ -165,9 +166,9 @@ int gmx_pme_do(struct gmx_pme_t *pme,
                real chargeA[],  real chargeB[],
                real c6A[],      real c6B[],
                real sigmaA[],   real sigmaB[],
-               matrix box,      t_commrec *cr,
+               matrix box,      const t_commrec *cr,
                int  maxshift_x, int maxshift_y,
-               t_nrnb *nrnb,    gmx_wallcycle_t wcycle,
+               t_nrnb *nrnb,    gmx_wallcycle *wcycle,
                matrix vir_q,    matrix vir_lj,
                real *energy_q,  real *energy_lj,
                real lambda_q,   real lambda_lj,
@@ -176,8 +177,8 @@ int gmx_pme_do(struct gmx_pme_t *pme,
 
 /*! \brief Called on the nodes that do PME exclusively (as slaves) */
 int gmx_pmeonly(struct gmx_pme_t *pme,
-                struct t_commrec *cr,     t_nrnb *mynrnb,
-                gmx_wallcycle_t wcycle,
+                const t_commrec *cr,     t_nrnb *mynrnb,
+                gmx_wallcycle  *wcycle,
                 gmx_walltime_accounting_t walltime_accounting,
                 t_inputrec *ir, PmeRunMode runMode);
 
@@ -192,7 +193,7 @@ int gmx_pmeonly(struct gmx_pme_t *pme,
 void gmx_pme_calc_energy(struct gmx_pme_t *pme, int n, rvec *x, real *q, real *V);
 
 /*! \brief Send the charges and maxshift to out PME-only node. */
-void gmx_pme_send_parameters(struct t_commrec *cr,
+void gmx_pme_send_parameters(const t_commrec *cr,
                              const interaction_const_t *ic,
                              gmx_bool bFreeEnergy_q, gmx_bool bFreeEnergy_lj,
                              real *chargeA, real *chargeB,
@@ -201,19 +202,19 @@ void gmx_pme_send_parameters(struct t_commrec *cr,
                              int maxshift_x, int maxshift_y);
 
 /*! \brief Send the coordinates to our PME-only node and request a PME calculation */
-void gmx_pme_send_coordinates(struct t_commrec *cr, matrix box, rvec *x,
+void gmx_pme_send_coordinates(const t_commrec *cr, matrix box, rvec *x,
                               real lambda_q, real lambda_lj,
                               gmx_bool bEnerVir,
-                              gmx_int64_t step);
+                              gmx_int64_t step, gmx_wallcycle *wcycle);
 
 /*! \brief Tell our PME-only node to finish */
-void gmx_pme_send_finish(struct t_commrec *cr);
+void gmx_pme_send_finish(const t_commrec *cr);
 
 /*! \brief Tell our PME-only node to reset all cycle and flop counters */
-void gmx_pme_send_resetcounters(struct t_commrec *cr, gmx_int64_t step);
+void gmx_pme_send_resetcounters(const t_commrec *cr, gmx_int64_t step);
 
 /*! \brief PP nodes receive the long range forces from the PME nodes */
-void gmx_pme_receive_f(struct t_commrec *cr,
+void gmx_pme_receive_f(const t_commrec *cr,
                        gmx::ForceWithVirial *forceWithVirial,
                        real *energy_q, real *energy_lj,
                        real *dvdlambda_q, real *dvdlambda_lj,
@@ -266,12 +267,15 @@ inline bool pme_gpu_task_enabled(const gmx_pme_t *pme)
     return (pme != nullptr) && (pme_run_mode(pme) != PmeRunMode::CPU);
 }
 
+// The following functions are all the PME GPU entry points,
+// currently inlining to nothing on non-CUDA builds.
+
 /*! \brief
  * Resets the PME GPU timings. To be called at the reset step.
  *
  * \param[in] pme            The PME structure.
  */
-void pme_gpu_reset_timings(const gmx_pme_t *pme);
+CUDA_FUNC_QUALIFIER void pme_gpu_reset_timings(const gmx_pme_t *CUDA_FUNC_ARGUMENT(pme)) CUDA_FUNC_TERM
 
 /*! \brief
  * Copies the PME GPU timings to the gmx_wallclock_gpu_pme_t structure (for log output). To be called at the run end.
@@ -279,8 +283,8 @@ void pme_gpu_reset_timings(const gmx_pme_t *pme);
  * \param[in] pme               The PME structure.
  * \param[in] timings           The gmx_wallclock_gpu_pme_t structure.
  */
-void pme_gpu_get_timings(const gmx_pme_t         *pme,
-                         gmx_wallclock_gpu_pme_t *timings);
+CUDA_FUNC_QUALIFIER void pme_gpu_get_timings(const gmx_pme_t         *CUDA_FUNC_ARGUMENT(pme),
+                                             gmx_wallclock_gpu_pme_t *CUDA_FUNC_ARGUMENT(timings)) CUDA_FUNC_TERM
 
 /* The main PME GPU functions */
 
@@ -293,11 +297,11 @@ void pme_gpu_get_timings(const gmx_pme_t         *pme,
  * \param[in] flags             The combination of flags to affect this PME computation.
  *                              The flags are the GMX_PME_ flags from pme.h.
  */
-void pme_gpu_prepare_computation(gmx_pme_t      *pme,
-                                 bool            needToUpdateBox,
-                                 const matrix    box,
-                                 gmx_wallcycle_t wcycle,
-                                 int             flags);
+CUDA_FUNC_QUALIFIER void pme_gpu_prepare_computation(gmx_pme_t      *CUDA_FUNC_ARGUMENT(pme),
+                                                     bool            CUDA_FUNC_ARGUMENT(needToUpdateBox),
+                                                     const matrix    CUDA_FUNC_ARGUMENT(box),
+                                                     gmx_wallcycle  *CUDA_FUNC_ARGUMENT(wcycle),
+                                                     int             CUDA_FUNC_ARGUMENT(flags)) CUDA_FUNC_TERM
 
 /*! \brief
  * Launches first stage of PME on GPU - H2D input transfers, spreading kernel, and D2H grid transfer if needed.
@@ -306,9 +310,9 @@ void pme_gpu_prepare_computation(gmx_pme_t      *pme,
  * \param[in] x                 The array of local atoms' coordinates.
  * \param[in] wcycle            The wallclock counter.
  */
-void pme_gpu_launch_spread(gmx_pme_t      *pme,
-                           const rvec     *x,
-                           gmx_wallcycle_t wcycle);
+CUDA_FUNC_QUALIFIER void pme_gpu_launch_spread(gmx_pme_t      *CUDA_FUNC_ARGUMENT(pme),
+                                               const rvec     *CUDA_FUNC_ARGUMENT(x),
+                                               gmx_wallcycle  *CUDA_FUNC_ARGUMENT(wcycle)) CUDA_FUNC_TERM
 
 /*! \brief
  * Launches middle stages of PME (FFT R2C, solving, FFT C2R) either on GPU or on CPU, depending on the run mode.
@@ -316,8 +320,8 @@ void pme_gpu_launch_spread(gmx_pme_t      *pme,
  * \param[in] pme               The PME data structure.
  * \param[in] wcycle            The wallclock counter.
  */
-void pme_gpu_launch_complex_transforms(gmx_pme_t       *pme,
-                                       gmx_wallcycle_t  wcycle);
+CUDA_FUNC_QUALIFIER void pme_gpu_launch_complex_transforms(gmx_pme_t       *CUDA_FUNC_ARGUMENT(pme),
+                                                           gmx_wallcycle   *CUDA_FUNC_ARGUMENT(wcycle)) CUDA_FUNC_TERM
 
 /*! \brief
  * Launches last stage of PME on GPU - force gathering and D2H force transfer.
@@ -328,9 +332,9 @@ void pme_gpu_launch_complex_transforms(gmx_pme_t       *pme,
  *                               the output reciprocal forces into the host array, or copies its contents to the GPU first
  *                               and accumulates. The reduction is non-atomic.
  */
-void pme_gpu_launch_gather(const gmx_pme_t        *pme,
-                           gmx_wallcycle_t         wcycle,
-                           PmeForceOutputHandling  forceTreatment);
+CUDA_FUNC_QUALIFIER void pme_gpu_launch_gather(const gmx_pme_t        *CUDA_FUNC_ARGUMENT(pme),
+                                               gmx_wallcycle          *CUDA_FUNC_ARGUMENT(wcycle),
+                                               PmeForceOutputHandling  CUDA_FUNC_ARGUMENT(forceTreatment)) CUDA_FUNC_TERM
 
 /*! \brief
  * Blocks until PME GPU tasks are completed, and gets the output forces and virial/energy
@@ -342,11 +346,11 @@ void pme_gpu_launch_gather(const gmx_pme_t        *pme,
  * \param[out] virial         The output virial matrix.
  * \param[out] energy         The output energy.
  */
-void pme_gpu_wait_finish_task(const gmx_pme_t                *pme,
-                              gmx_wallcycle_t                 wcycle,
-                              gmx::ArrayRef<const gmx::RVec> *forces,
-                              matrix                          virial,
-                              real                           *energy);
+CUDA_FUNC_QUALIFIER void pme_gpu_wait_finish_task(const gmx_pme_t                *CUDA_FUNC_ARGUMENT(pme),
+                                                  gmx_wallcycle                  *CUDA_FUNC_ARGUMENT(wcycle),
+                                                  gmx::ArrayRef<const gmx::RVec> *CUDA_FUNC_ARGUMENT(forces),
+                                                  matrix                          CUDA_FUNC_ARGUMENT(virial),
+                                                  real                           *CUDA_FUNC_ARGUMENT(energy)) CUDA_FUNC_TERM
 /*! \brief
  * Attempts to complete PME GPU tasks.
  *
@@ -368,12 +372,27 @@ void pme_gpu_wait_finish_task(const gmx_pme_t                *pme,
  * \param[in]  completionKind  Indicates whether PME task completion should only be checked rather than waited for
  * \returns                   True if the PME GPU tasks have completed
  */
-bool pme_gpu_try_finish_task(const gmx_pme_t                *pme,
-                             gmx_wallcycle_t                 wcycle,
-                             gmx::ArrayRef<const gmx::RVec> *forces,
-                             matrix                          virial,
-                             real                           *energy,
-                             GpuTaskCompletion               completionKind);
+CUDA_FUNC_QUALIFIER bool pme_gpu_try_finish_task(const gmx_pme_t                *CUDA_FUNC_ARGUMENT(pme),
+                                                 gmx_wallcycle                  *CUDA_FUNC_ARGUMENT(wcycle),
+                                                 gmx::ArrayRef<const gmx::RVec> *CUDA_FUNC_ARGUMENT(forces),
+                                                 matrix                          CUDA_FUNC_ARGUMENT(virial),
+                                                 real                           *CUDA_FUNC_ARGUMENT(energy),
+                                                 GpuTaskCompletion               CUDA_FUNC_ARGUMENT(completionKind)) CUDA_FUNC_TERM_WITH_RETURN(false)
 
+/*! \brief
+ * The PME GPU reinitialization function that is called both at the end of any PME computation and on any load balancing.
+ *
+ * Clears the internal grid and energy/virial buffers; it is not safe to start
+ * the PME computation without calling this.
+ * Note that unlike in the nbnxn module, the force buffer does not need clearing.
+ *
+ * \todo Rename this function to *clear* -- it clearly only does output resetting
+ * and we should be clear about what the function does..
+ *
+ * \param[in] pme            The PME data structure.
+ * \param[in] wcycle         The wallclock counter.
+ */
+CUDA_FUNC_QUALIFIER void pme_gpu_reinit_computation(const gmx_pme_t *CUDA_FUNC_ARGUMENT(pme),
+                                                    gmx_wallcycle   *CUDA_FUNC_ARGUMENT(wcycle)) CUDA_FUNC_TERM
 
 #endif

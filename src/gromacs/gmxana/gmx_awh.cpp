@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2013,2014,2015,2016,2017, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016,2017,2018, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -177,44 +177,40 @@ class OutputFile
 };
 
 /*! \brief All meta-data that is shared for all output files for one bias */
-class BiasReader
+struct BiasOutputSetup
 {
-    public:
-        //! Constructor.
-        BiasReader(int                         subblockStart,
-                   int                         numSubBlocks,
-                   std::unique_ptr<OutputFile> awhOutputFile,
-                   std::unique_ptr<OutputFile> frictionOutputFile) :
-            subblockStart_(subblockStart),
-            numSubBlocks_(numSubBlocks),
-            awhOutputFile_(std::move(awhOutputFile)),
-            frictionOutputFile_(std::move(frictionOutputFile))
-        {
-        }
+    //! Constructor.
+    BiasOutputSetup(int                         subblockStart,
+                    std::unique_ptr<OutputFile> awhOutputFile,
+                    std::unique_ptr<OutputFile> frictionOutputFile) :
+        subblockStart_(subblockStart),
+        awhOutputFile_(std::move(awhOutputFile)),
+        frictionOutputFile_(std::move(frictionOutputFile))
+    {
+    }
 
-        //! Return the AWH output file data.
-        const OutputFile &awhOutputFile() const
-        {
-            GMX_RELEASE_ASSERT(awhOutputFile_ != nullptr, "awhOutputFile() called without initialized AWH output file");
+    //! Return the AWH output file data.
+    const OutputFile &awhOutputFile() const
+    {
+        GMX_RELEASE_ASSERT(awhOutputFile_ != nullptr, "awhOutputFile() called without initialized AWH output file");
 
-            return *awhOutputFile_.get();
-        }
+        return *awhOutputFile_.get();
+    }
 
-        //! Return the a pointer to the friction output file data, can return nullptr
-        const OutputFile *frictionOutputFile() const
-        {
-            return frictionOutputFile_.get();
-        }
+    //! Return the a pointer to the friction output file data, can return nullptr
+    const OutputFile *frictionOutputFile() const
+    {
+        return frictionOutputFile_.get();
+    }
 
-        //! Return the starting subblock.
-        int subblockStart() const
-        {
-            return subblockStart_;
-        }
+    //! Return the starting subblock.
+    int subblockStart() const
+    {
+        return subblockStart_;
+    }
 
     private:
         const int                   subblockStart_;      /**< The start index of the subblocks to read. */
-        const int                   numSubBlocks_;       /**< Number of subblocks to read. */
         std::unique_ptr<OutputFile> awhOutputFile_;      /**< The standard AWH output file data. */
         std::unique_ptr<OutputFile> frictionOutputFile_; /**< The friction/metric tensor output file data */
 };
@@ -238,9 +234,9 @@ class AwhReader
                              const gmx_output_env_t *oenv) const;
 
     private:
-        std::vector<BiasReader> biasReader_; /**< The readers, one for each AWH bias. */
+        std::vector<BiasOutputSetup> biasOutputSetups_; /**< The output setups, one for each AWH bias. */
     public:
-        const real              kT_;         /**< kB*T in kJ/mol. */
+        const real                   kT_;               /**< kB*T in kJ/mol. */
 };
 
 namespace
@@ -452,9 +448,9 @@ AwhReader::AwhReader(const AwhParams  *awhParams,
             frictionOutputFile->initializeFrictionOutputFile(subblockStart, numSubBlocks, awhBiasParams, energyUnit, kT);
         }
 
-        biasReader_.emplace_back(BiasReader(subblockStart, numSubBlocks,
-                                            std::move(awhOutputFile),
-                                            std::move(frictionOutputFile)));
+        biasOutputSetups_.emplace_back(BiasOutputSetup(subblockStart,
+                                                       std::move(awhOutputFile),
+                                                       std::move(frictionOutputFile)));
 
         subblockStart += numSubBlocks;
     }
@@ -501,13 +497,13 @@ void AwhReader::processAwhFrame(const t_enxblock       &block,
 {
     /* We look for AWH data every energy frame and count the no of AWH frames found. We only extract every 'skip' AWH frame. */
 
-    for (auto &biasReader : biasReader_)
+    for (const auto &setup : biasOutputSetups_)
     {
-        const int subStart = biasReader.subblockStart();
+        const int subStart = setup.subblockStart();
 
         /* Each frame and AWH instance extracted generates one xvg file. */
         {
-            const OutputFile &awhOutputFile = biasReader.awhOutputFile();
+            const OutputFile &awhOutputFile = setup.awhOutputFile();
 
             FILE             *fpAwh = awhOutputFile.openBiasOutputFile(time, oenv);
 
@@ -524,7 +520,7 @@ void AwhReader::processAwhFrame(const t_enxblock       &block,
             gmx_ffclose(fpAwh);
         }
 
-        const OutputFile *frictionOutputFile = biasReader.frictionOutputFile();
+        const OutputFile *frictionOutputFile = setup.frictionOutputFile();
         if (frictionOutputFile != nullptr)
         {
             FILE *fpFriction = frictionOutputFile->openBiasOutputFile(time, oenv);

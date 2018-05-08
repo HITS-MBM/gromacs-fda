@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2008, The GROMACS development team.
- * Copyright (c) 2013,2014,2015,2016,2017, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016,2017,2018, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -60,6 +60,7 @@
 #include "gromacs/mdlib/groupcoord.h"
 #include "gromacs/mdlib/mdrun.h"
 #include "gromacs/mdlib/sim_util.h"
+#include "gromacs/mdtypes/commrec.h"
 #include "gromacs/mdtypes/inputrec.h"
 #include "gromacs/mdtypes/md_enums.h"
 #include "gromacs/mdtypes/state.h"
@@ -319,19 +320,19 @@ static real get_fitangle(t_rotgrp *rotg, gmx_enfrotgrp_t erg)
 
 
 /* Reduce potential angle fit data for this group at this time step? */
-static gmx_inline gmx_bool bPotAngle(t_rot *rot, t_rotgrp *rotg, gmx_int64_t step)
+static inline gmx_bool bPotAngle(t_rot *rot, t_rotgrp *rotg, gmx_int64_t step)
 {
     return ( (erotgFitPOT == rotg->eFittype) && (do_per_step(step, rot->nstsout) || do_per_step(step, rot->nstrout)) );
 }
 
 /* Reduce slab torqe data for this group at this time step? */
-static gmx_inline gmx_bool bSlabTau(t_rot *rot, t_rotgrp *rotg, gmx_int64_t step)
+static inline gmx_bool bSlabTau(t_rot *rot, t_rotgrp *rotg, gmx_int64_t step)
 {
     return ( (ISFLEX(rotg)) && do_per_step(step, rot->nstsout) );
 }
 
 /* Output rotation energy, torques, etc. for each rotation group */
-static void reduce_output(t_commrec *cr, t_rot *rot, real t, gmx_int64_t step)
+static void reduce_output(const t_commrec *cr, t_rot *rot, real t, gmx_int64_t step)
 {
     int             g, i, islab, nslabs = 0;
     int             count; /* MPI element counter                               */
@@ -490,7 +491,7 @@ static void reduce_output(t_commrec *cr, t_rot *rot, real t, gmx_int64_t step)
 
 /* Add the forces from enforced rotation potential to the local forces.
  * Should be called after the SR forces have been evaluated */
-extern real add_rot_forces(t_rot *rot, rvec f[], t_commrec *cr, gmx_int64_t step, real t)
+extern real add_rot_forces(t_rot *rot, rvec f[], const t_commrec *cr, gmx_int64_t step, real t)
 {
     int             g, l, ii;
     t_rotgrp       *rotg;
@@ -572,13 +573,13 @@ static double calc_beta_max(real min_gaussian, real slab_dist)
 }
 
 
-static gmx_inline real calc_beta(rvec curr_x, t_rotgrp *rotg, int n)
+static inline real calc_beta(rvec curr_x, t_rotgrp *rotg, int n)
 {
     return iprod(curr_x, rotg->vec) - rotg->slab_dist * n;
 }
 
 
-static gmx_inline real gaussian_weight(rvec curr_x, t_rotgrp *rotg, int n)
+static inline real gaussian_weight(rvec curr_x, t_rotgrp *rotg, int n)
 {
     const real norm = GAUSS_NORM;
     real       sigma;
@@ -735,7 +736,7 @@ static void calc_rotmat(
 
 
 /* Calculates torque on the rotation axis tau = position x force */
-static gmx_inline real torque(
+static inline real torque(
         rvec rotvec,  /* rotation vector; MUST be normalized!                 */
         rvec force,   /* force                                                */
         rvec x,       /* position of atom on which the force acts             */
@@ -1612,7 +1613,7 @@ static void flex_fit_angle_perslab(
 
 
 /* Shift x with is */
-static gmx_inline void shift_single_coord(const matrix box, rvec x, const ivec is)
+static inline void shift_single_coord(const matrix box, rvec x, const ivec is)
 {
     int tx, ty, tz;
 
@@ -1639,7 +1640,7 @@ static gmx_inline void shift_single_coord(const matrix box, rvec x, const ivec i
 /* Determine the 'home' slab of this atom which is the
  * slab with the highest Gaussian weight of all */
 #define round(a) (int)(a+0.5)
-static gmx_inline int get_homeslab(
+static inline int get_homeslab(
         rvec curr_x,   /* The position for which the home slab shall be determined */
         rvec rotvec,   /* The rotation vector */
         real slabdist) /* The slab distance */
@@ -2464,7 +2465,7 @@ static void get_firstlast_atom_per_slab(t_rotgrp *rotg)
  * x_last * v - n*Delta_x >= -beta_max
  *
  */
-static gmx_inline int get_first_slab(
+static inline int get_first_slab(
         t_rotgrp *rotg,      /* The rotation group (inputrec data) */
         real      max_beta,  /* The max_beta value, instead of min_gaussian */
         rvec      firstatom) /* First atom after sorting along the rotation vector v */
@@ -2474,7 +2475,7 @@ static gmx_inline int get_first_slab(
 }
 
 
-static gmx_inline int get_last_slab(
+static inline int get_last_slab(
         t_rotgrp *rotg,     /* The rotation group (inputrec data) */
         real      max_beta, /* The max_beta value, instead of min_gaussian */
         rvec      lastatom) /* Last atom along v */
@@ -2637,7 +2638,7 @@ static void angle(t_rotgrp *rotg,
  * dr = dr - (dr.v)v
  * Note that v must be of unit length.
  */
-static gmx_inline void project_onto_plane(rvec dr, const rvec v)
+static inline void project_onto_plane(rvec dr, const rvec v)
 {
     rvec tmp;
 
@@ -3342,7 +3343,7 @@ static void get_firstlast_slab_ref(t_rotgrp *rotg, real mc[], int ref_firstindex
 /* Special version of copy_rvec:
  * During the copy procedure of xcurr to b, the correct PBC image is chosen
  * such that the copied vector ends up near its reference position xref */
-static gmx_inline void copy_correct_pbc_image(
+static inline void copy_correct_pbc_image(
         const rvec   xcurr,  /* copy vector xcurr ...                */
         rvec         b,      /* ... to b ...                         */
         const rvec   xref,   /* choosing the PBC image such that b ends up near xref */
@@ -3385,7 +3386,7 @@ static gmx_inline void copy_correct_pbc_image(
 }
 
 
-static void init_rot_group(FILE *fplog, t_commrec *cr, int g, t_rotgrp *rotg,
+static void init_rot_group(FILE *fplog, const t_commrec *cr, int g, t_rotgrp *rotg,
                            rvec *x, gmx_mtop_t *mtop, gmx_bool bVerbose, FILE *out_slabs, const matrix box,
                            t_inputrec *ir, gmx_bool bOutputCenters)
 {
@@ -3658,7 +3659,7 @@ static int calc_mpi_bufsize(t_rot *rot)
 
 
 extern void init_rot(FILE *fplog, t_inputrec *ir, int nfile, const t_filenm fnm[],
-                     t_commrec *cr, const t_state *globalState, gmx_mtop_t *mtop, const gmx_output_env_t *oenv,
+                     const t_commrec *cr, const t_state *globalState, gmx_mtop_t *mtop, const gmx_output_env_t *oenv,
                      const MdrunOptions &mdrunOptions)
 {
     t_rot          *rot;
@@ -3884,13 +3885,13 @@ static void choose_pbc_image(rvec x[], t_rotgrp *rotg, matrix box, int npbcdim)
 
 
 extern void do_rotation(
-        t_commrec      *cr,
-        t_inputrec     *ir,
-        matrix          box,
-        rvec            x[],
-        real            t,
-        gmx_int64_t     step,
-        gmx_bool        bNS)
+        const t_commrec       *cr,
+        const t_inputrec      *ir,
+        matrix                 box,
+        rvec                   x[],
+        real                   t,
+        gmx_int64_t            step,
+        gmx_bool               bNS)
 {
     int             g, i, ii;
     t_rot          *rot;

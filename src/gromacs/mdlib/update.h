@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014,2015,2016,2017, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016,2017,2018, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -45,9 +45,9 @@
 #include "gromacs/utility/real.h"
 
 class ekinstate_t;
-struct gmx_constr;
 struct gmx_ekindata_t;
 struct gmx_enerdata_t;
+struct gmx_multisim_t;
 struct t_extmass;
 struct t_fcdata;
 struct t_graph;
@@ -60,6 +60,11 @@ class t_state;
 
 /* Abstract type for update */
 struct gmx_update_t;
+
+namespace gmx
+{
+class Constraints;
+}
 
 /* Initialize the stochastic dynamics struct */
 gmx_update_t *init_update(const t_inputrec *ir);
@@ -114,8 +119,7 @@ void update_pcouple_after_coordinates(FILE             *fplog,
                                       t_nrnb           *nrnb,
                                       gmx_update_t     *upd);
 
-void update_coords(FILE                          *fplog,
-                   gmx_int64_t                    step,
+void update_coords(gmx_int64_t                    step,
                    t_inputrec                    *inputrec, /* input record and box stuff	*/
                    t_mdatoms                     *md,
                    t_state                       *state,
@@ -125,31 +129,72 @@ void update_coords(FILE                          *fplog,
                    matrix                         M,
                    gmx_update_t                  *upd,
                    int                            bUpdatePart,
-                   t_commrec                     *cr, /* these shouldn't be here -- need to think about it */
-                   gmx_constr                    *constr);
+                   const t_commrec               *cr, /* these shouldn't be here -- need to think about it */
+                   gmx::Constraints              *constr);
 
 /* Return TRUE if OK, FALSE in case of Shake Error */
 
-extern gmx_bool update_randomize_velocities(t_inputrec *ir, gmx_int64_t step, const t_commrec *cr, t_mdatoms *md, t_state *state, gmx_update_t *upd, gmx_constr *constr);
+extern gmx_bool update_randomize_velocities(t_inputrec *ir, gmx_int64_t step, const t_commrec *cr, t_mdatoms *md, t_state *state, gmx_update_t *upd, gmx::Constraints *constr);
 
-void update_constraints(FILE                    *fplog,
-                        gmx_int64_t              step,
-                        real                    *dvdlambda, /* FEP stuff */
-                        t_inputrec              *inputrec,  /* input record and box stuff	*/
-                        t_mdatoms               *md,
-                        t_state                 *state,
-                        gmx_bool                 bMolPBC,
-                        t_graph                 *graph,
-                        gmx::ArrayRef<gmx::RVec> force, /* forces on home particles */
-                        t_idef                  *idef,
-                        tensor                   vir_part,
-                        t_commrec               *cr,
-                        t_nrnb                  *nrnb,
-                        gmx_wallcycle_t          wcycle,
-                        gmx_update_t            *upd,
-                        gmx_constr              *constr,
-                        gmx_bool                 bFirstHalf,
-                        gmx_bool                 bCalcVir);
+void constrain_velocities(gmx_int64_t                    step,
+                          real                          *dvdlambda, /* the contribution to be added to the bonded interactions */
+                          const t_inputrec              *inputrec,  /* input record and box stuff */
+                          t_mdatoms                     *md,
+                          t_state                       *state,
+                          gmx_bool                       bMolPBC,
+                          t_idef                        *idef,
+                          tensor                         vir_part,
+                          const t_commrec               *cr,
+                          const gmx_multisim_t          *ms,
+                          t_nrnb                        *nrnb,
+                          gmx_wallcycle_t                wcycle,
+                          gmx::Constraints              *constr,
+                          gmx_bool                       bCalcVir,
+                          bool                           do_log,
+                          bool                           do_ene);
+
+void constrain_coordinates(gmx_int64_t                    step,
+                           real                          *dvdlambda, /* the contribution to be added to the bonded interactions */
+                           const t_inputrec              *inputrec,  /* input record and box stuff */
+                           t_mdatoms                     *md,
+                           t_state                       *state,
+                           gmx_bool                       bMolPBC,
+                           t_idef                        *idef,
+                           tensor                         vir_part,
+                           const t_commrec               *cr,
+                           const gmx_multisim_t          *ms,
+                           t_nrnb                        *nrnb,
+                           gmx_wallcycle_t                wcycle,
+                           gmx_update_t                  *upd,
+                           gmx::Constraints              *constr,
+                           gmx_bool                       bCalcVir,
+                           bool                           do_log,
+                           bool                           do_ene);
+
+void update_sd_second_half(gmx_int64_t                    step,
+                           real                          *dvdlambda, /* the contribution to be added to the bonded interactions */
+                           const t_inputrec              *inputrec,  /* input record and box stuff */
+                           t_mdatoms                     *md,
+                           t_state                       *state,
+                           gmx_bool                       bMolPBC,
+                           t_idef                        *idef,
+                           const t_commrec               *cr,
+                           const gmx_multisim_t          *ms,
+                           t_nrnb                        *nrnb,
+                           gmx_wallcycle_t                wcycle,
+                           gmx_update_t                  *upd,
+                           gmx::Constraints              *constr,
+                           bool                           do_log,
+                           bool                           do_ene);
+
+void finish_update(const t_inputrec              *inputrec,
+                   t_mdatoms                     *md,
+                   t_state                       *state,
+                   t_graph                       *graph,
+                   t_nrnb                        *nrnb,
+                   gmx_wallcycle_t                wcycle,
+                   gmx_update_t                  *upd,
+                   gmx::Constraints              *constr);
 
 /* Return TRUE if OK, FALSE in case of Shake Error */
 
@@ -181,7 +226,7 @@ update_ekinstate(ekinstate_t *ekinstate, gmx_ekindata_t *ekind);
 /*! \brief Restores data from \p ekinstate to \p ekind, then broadcasts it
    to the rest of the simulation */
 void
-restore_ekinstate_from_state(t_commrec *cr,
+restore_ekinstate_from_state(const t_commrec *cr,
                              gmx_ekindata_t *ekind, const ekinstate_t *ekinstate);
 
 void berendsen_tcoupl(const t_inputrec *ir, const gmx_ekindata_t *ekind, real dt,

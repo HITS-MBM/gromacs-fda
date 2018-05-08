@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014,2015,2016,2017, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016,2017,2018, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -55,6 +55,7 @@
 #include "gromacs/utility/exceptions.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/futil.h"
+#include "gromacs/utility/gmxassert.h"
 #include "gromacs/utility/gmxmpi.h"
 #include "gromacs/utility/path.h"
 #include "gromacs/utility/programcontext.h"
@@ -238,50 +239,61 @@ void gmx_log_close(FILE *fp)
 }
 
 // TODO move this to multi-sim module
-void init_multisystem(t_commrec *cr, int nsim, char **multidirs,
-                      int nfile, const t_filenm fnm[])
+gmx_multisim_t *init_multisystem(MPI_Comm                         comm,
+                                 gmx::ArrayRef<const std::string> multidirs)
 {
     gmx_multisim_t *ms;
-    int             nnodes, nnodpersim, sim, i;
 #if GMX_MPI
     MPI_Group       mpi_group_world;
     int            *rank;
 #endif
 
-#if !GMX_MPI
-    if (nsim > 1)
+    if (multidirs.empty())
     {
-        gmx_fatal(FARGS, "This binary is compiled without MPI support, can not do multiple simulations.");
-    }
-#endif
-
-    nnodes  = cr->nnodes;
-    if (nnodes % nsim != 0)
-    {
-        gmx_fatal(FARGS, "The number of ranks (%d) is not a multiple of the number of simulations (%d)", nnodes, nsim);
+        return nullptr;
     }
 
-    nnodpersim = nnodes/nsim;
-    sim        = cr->nodeid/nnodpersim;
+    if (!GMX_LIB_MPI && multidirs.size() >= 1)
+    {
+        gmx_fatal(FARGS, "mdrun -multidir is only supported when GROMACS has been "
+                  "configured with a proper external MPI library.");
+    }
+
+    if (multidirs.size() == 1)
+    {
+        /* NOTE: It would be nice if this special case worked, but this requires checks/tests. */
+        gmx_fatal(FARGS, "To run mdrun in multiple simulation mode, more then one "
+                  "actual simulation is required. The single simulation case is not supported.");
+    }
+
+#if GMX_MPI
+    int numRanks;
+    MPI_Comm_size(comm, &numRanks);
+    if (numRanks % multidirs.size() != 0)
+    {
+        gmx_fatal(FARGS, "The number of ranks (%d) is not a multiple of the number of simulations (%zu)", numRanks, multidirs.size());
+    }
+
+    int numRanksPerSim = numRanks/multidirs.size();
+    int rankWithinComm;
+    MPI_Comm_rank(comm, &rankWithinComm);
 
     if (debug)
     {
-        fprintf(debug, "We have %d simulations, %d ranks per simulation, local simulation is %d\n", nsim, nnodpersim, sim);
+        fprintf(debug, "We have %zu simulations, %d ranks per simulation, local simulation is %d\n", multidirs.size(), numRanksPerSim, rankWithinComm/numRanksPerSim);
     }
 
-    snew(ms, 1);
-    cr->ms   = ms;
-    ms->nsim = nsim;
-    ms->sim  = sim;
-#if GMX_MPI
+    ms       = new gmx_multisim_t;
+    ms->nsim = multidirs.size();
+    ms->sim  = rankWithinComm/numRanksPerSim;
     /* Create a communicator for the master nodes */
     snew(rank, ms->nsim);
-    for (i = 0; i < ms->nsim; i++)
+    for (int i = 0; i < ms->nsim; i++)
     {
-        rank[i] = i*nnodpersim;
+        rank[i] = i*numRanksPerSim;
     }
-    MPI_Comm_group(MPI_COMM_WORLD, &mpi_group_world);
-    MPI_Group_incl(mpi_group_world, nsim, rank, &ms->mpi_group_masters);
+    MPI_Comm_group(comm, &mpi_group_world);
+    MPI_Group_incl(mpi_group_world, ms->nsim, rank, &ms->mpi_group_masters);
     sfree(rank);
     MPI_Comm_create(MPI_COMM_WORLD, ms->mpi_group_masters,
                     &ms->mpi_comm_masters);
@@ -299,60 +311,21 @@ void init_multisystem(t_commrec *cr, int nsim, char **multidirs,
     ms->mpb->dbuf_alloc  = 0;
 #endif
 
+    // TODO This should throw upon error
+    gmx_chdir(multidirs[ms->sim].c_str());
+#else
+    GMX_UNUSED_VALUE(comm);
+    ms = nullptr;
 #endif
 
-    /* Reduce the intra-simulation communication */
-    cr->sim_nodeid = cr->nodeid % nnodpersim;
-    cr->nnodes     = nnodpersim;
-#if GMX_MPI
-    MPI_Comm_split(MPI_COMM_WORLD, sim, cr->sim_nodeid, &cr->mpi_comm_mysim);
-    cr->mpi_comm_mygroup = cr->mpi_comm_mysim;
-    cr->nodeid           = cr->sim_nodeid;
-#endif
+    return ms;
+}
 
-    if (debug)
+void done_multisim(gmx_multisim_t *ms)
+{
+    if (nullptr != ms)
     {
-        fprintf(debug, "This is simulation %d", cr->ms->sim);
-        if (PAR(cr))
-        {
-            fprintf(debug, ", local number of ranks %d, local rank ID %d",
-                    cr->nnodes, cr->sim_nodeid);
-        }
-        fprintf(debug, "\n\n");
-    }
-
-    if (multidirs)
-    {
-        if (debug)
-        {
-            fprintf(debug, "Changing to directory %s\n", multidirs[cr->ms->sim]);
-        }
-        gmx_chdir(multidirs[cr->ms->sim]);
-    }
-    else
-    {
-        try
-        {
-            std::string rankString = gmx::formatString("%d", cr->ms->sim);
-            /* Patch output and tpx, cpt and rerun input file names */
-            for (i = 0; (i < nfile); i++)
-            {
-                /* Because of possible multiple extensions per type we must look
-                 * at the actual file name for rerun. */
-                if (is_output(&fnm[i]) ||
-                    fnm[i].ftp == efTPR || fnm[i].ftp == efCPT ||
-                    strcmp(fnm[i].opt, "-rerun") == 0)
-                {
-                    std::string newFileName = gmx::Path::concatenateBeforeExtension(fnm[i].fns[0], rankString);
-                    sfree(fnm[i].fns[0]);
-                    fnm[i].fns[0] = gmx_strdup(newFileName.c_str());
-                }
-            }
-        }
-        catch (gmx::GromacsException &e)
-        {
-            e.prependContext(gmx::formatString("Failed to modify mdrun -multi filename to add per-simulation suffix. You could perhaps reorganize your files and try mdrun -multidir.\n"));
-            throw;
-        }
+        done_mpi_in_place_buf(ms->mpb);
+        delete ms;
     }
 }

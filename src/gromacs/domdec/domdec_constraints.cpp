@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2006,2007,2008,2009,2010,2012,2013,2014,2015,2016,2017, by the GROMACS development team, led by
+ * Copyright (c) 2006,2007,2008,2009,2010,2012,2013,2014,2015,2016,2017,2018, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -58,7 +58,9 @@
 #include "gromacs/mdlib/constr.h"
 #include "gromacs/mdlib/gmx_omp_nthreads.h"
 #include "gromacs/mdtypes/commrec.h"
+#include "gromacs/mdtypes/forcerec.h" // only for GET_CGINFO_*
 #include "gromacs/pbcutil/ishift.h"
+#include "gromacs/topology/ifunc.h"
 #include "gromacs/topology/mtop_lookup.h"
 #include "gromacs/utility/exceptions.h"
 #include "gromacs/utility/fatalerror.h"
@@ -438,7 +440,7 @@ static void atoms_to_constraints(gmx_domdec_t *dd,
 int dd_make_local_constraints(gmx_domdec_t *dd, int at_start,
                               const struct gmx_mtop_t *mtop,
                               const int *cginfo,
-                              gmx_constr_t constr, int nrec,
+                              gmx::Constraints *constr, int nrec,
                               t_ilist *il_local)
 {
     gmx_domdec_constraints_t   *dc;
@@ -649,7 +651,6 @@ void init_domdec_constraints(gmx_domdec_t     *dd,
 {
     gmx_domdec_constraints_t *dc;
     const gmx_molblock_t     *molb;
-    int mb, ncon, c;
 
     if (debug)
     {
@@ -659,11 +660,11 @@ void init_domdec_constraints(gmx_domdec_t     *dd,
     snew(dd->constraints, 1);
     dc = dd->constraints;
 
-    snew(dc->molb_con_offset, mtop->nmolblock);
-    snew(dc->molb_ncon_mol, mtop->nmolblock);
+    snew(dc->molb_con_offset, mtop->molblock.size());
+    snew(dc->molb_ncon_mol, mtop->molblock.size());
 
-    ncon = 0;
-    for (mb = 0; mb < mtop->nmolblock; mb++)
+    int ncon = 0;
+    for (size_t mb = 0; mb < mtop->molblock.size(); mb++)
     {
         molb                    = &mtop->molblock[mb];
         dc->molb_con_offset[mb] = ncon;
@@ -676,7 +677,7 @@ void init_domdec_constraints(gmx_domdec_t     *dd,
     if (ncon > 0)
     {
         snew(dc->gc_req, ncon);
-        for (c = 0; c < ncon; c++)
+        for (int c = 0; c < ncon; c++)
         {
             dc->gc_req[c] = 0;
         }

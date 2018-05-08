@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2005,2006,2007,2008,2009,2010,2012,2013,2014,2015,2016,2017, by the GROMACS development team, led by
+ * Copyright (c) 2005,2006,2007,2008,2009,2010,2012,2013,2014,2015,2016,2017,2018, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -58,33 +58,35 @@
 #ifndef GMX_DOMDEC_DOMDEC_H
 #define GMX_DOMDEC_DOMDEC_H
 
-#include <stdio.h>
-
 #include <vector>
 
-#include "gromacs/gmxlib/nrnb.h"
+#include "gromacs/math/paddedvector.h"
 #include "gromacs/math/vectypes.h"
-#include "gromacs/mdlib/vsite.h"
-#include "gromacs/mdtypes/forcerec.h"
-#include "gromacs/mdtypes/mdatom.h"
-#include "gromacs/timing/wallcycle.h"
-#include "gromacs/topology/block.h"
-#include "gromacs/topology/idef.h"
-#include "gromacs/topology/topology.h"
 #include "gromacs/utility/arrayref.h"
 #include "gromacs/utility/basedefinitions.h"
 #include "gromacs/utility/real.h"
 
+struct cginfo_mb_t;
 struct gmx_domdec_t;
 struct gmx_ddbox_t;
 struct gmx_domdec_zones_t;
+struct gmx_localtop_t;
+struct gmx_mtop_t;
+struct gmx_vsite_t;
 struct MdrunOptions;
+struct t_block;
+struct t_blocka;
 struct t_commrec;
+struct t_forcerec;
 struct t_inputrec;
+struct t_mdatoms;
+struct t_nrnb;
+struct gmx_wallcycle;
 class t_state;
 
 namespace gmx
 {
+class Constraints;
 class MDAtoms;
 } // namespace
 
@@ -127,7 +129,7 @@ void get_pme_nnodes(const struct gmx_domdec_t *dd,
                     int *npmenodes_x, int *npmenodes_y);
 
 /*! \brief Returns the set of DD ranks that communicate with pme node cr->nodeid */
-std::vector<int> get_pme_ddranks(t_commrec *cr, int pmenodeid);
+std::vector<int> get_pme_ddranks(const t_commrec *cr, int pmenodeid);
 
 /*! \brief Returns the maximum shift for coordinate communication in PME, dim x */
 int dd_pme_maxshift_x(const gmx_domdec_t *dd);
@@ -287,14 +289,14 @@ void dd_force_flop_stop(struct gmx_domdec_t *dd, t_nrnb *nrnb);
 float dd_pme_f_ratio(struct gmx_domdec_t *dd);
 
 /*! \brief Communicate the coordinates to the neighboring cells and do pbc. */
-void dd_move_x(struct gmx_domdec_t *dd, matrix box, rvec x[]);
+void dd_move_x(struct gmx_domdec_t *dd, matrix box, rvec x[], gmx_wallcycle *wcycle);
 
 /*! \brief Sum the forces over the neighboring cells.
  *
  * When fshift!=NULL the shift forces are updated to obtain
  * the correct virial from the single sum including f.
  */
-void dd_move_f(struct gmx_domdec_t *dd, rvec f[], rvec *fshift);
+void dd_move_f(struct gmx_domdec_t *dd, rvec f[], rvec *fshift, gmx_wallcycle *wcycle);
 
 /*! \brief Communicate a real for each atom to the neighboring cells. */
 void dd_atom_spread_real(struct gmx_domdec_t *dd, real v[]);
@@ -311,7 +313,7 @@ void dd_atom_sum_real(struct gmx_domdec_t *dd, real v[]);
  */
 void dd_partition_system(FILE                *fplog,
                          gmx_int64_t          step,
-                         t_commrec           *cr,
+                         const t_commrec     *cr,
                          gmx_bool             bMasterState,
                          int                  nstglobalcomm,
                          t_state             *state_global,
@@ -323,16 +325,37 @@ void dd_partition_system(FILE                *fplog,
                          gmx_localtop_t      *top_local,
                          t_forcerec          *fr,
                          gmx_vsite_t         *vsite,
-                         struct gmx_constr   *constr,
+                         gmx::Constraints    *constr,
                          t_nrnb              *nrnb,
-                         gmx_wallcycle_t      wcycle,
+                         gmx_wallcycle       *wcycle,
                          gmx_bool             bVerbose);
 
 /*! \brief Reset all the statistics and counters for total run counting */
 void reset_dd_statistics_counters(struct gmx_domdec_t *dd);
 
 /*! \brief Print statistics for domain decomposition communication */
-void print_dd_statistics(struct t_commrec *cr, const t_inputrec *ir, FILE *fplog);
+void print_dd_statistics(const t_commrec *cr, const t_inputrec *ir, FILE *fplog);
+
+/*! \brief Check whether bonded interactions are missing, if appropriate
+ *
+ * \param[in]    fplog                                  Log file pointer
+ * \param[in]    cr                                     Communication object
+ * \param[in]    totalNumberOfBondedInteractions        Result of the global reduction over the number of bonds treated in each domain
+ * \param[in]    top_global                             Global topology for the error message
+ * \param[in]    top_local                              Local topology for the error message
+ * \param[in]    state                                  Global state for the error message
+ * \param[inout] shouldCheckNumberOfBondedInteractions  Whether we should do the check.
+ *
+ * \return Nothing, except that shouldCheckNumberOfBondedInteractions
+ * is always set to false after exit.
+ */
+void checkNumberOfBondedInteractions(FILE                 *fplog,
+                                     t_commrec            *cr,
+                                     int                   totalNumberOfBondedInteractions,
+                                     const gmx_mtop_t     *top_global,
+                                     const gmx_localtop_t *top_local,
+                                     const t_state        *state,
+                                     bool                 *shouldCheckNumberOfBondedInteractions);
 
 /* In domdec_con.c */
 
@@ -364,7 +387,7 @@ void dd_print_missing_interactions(FILE *fplog, struct t_commrec *cr,
                                    int local_count,
                                    const gmx_mtop_t *top_global,
                                    const gmx_localtop_t *top_local,
-                                   t_state *state_local);
+                                   const t_state *state_local);
 
 /*! \brief Generate and store the reverse topology */
 void dd_make_reverse_top(FILE *fplog,
@@ -412,8 +435,8 @@ void dd_bonded_cg_distance(FILE *fplog, const gmx_mtop_t *mtop,
  */
 void write_dd_pdb(const char *fn, gmx_int64_t step, const char *title,
                   const gmx_mtop_t *mtop,
-                  t_commrec *cr,
-                  int natoms, rvec x[], matrix box);
+                  const t_commrec *cr,
+                  int natoms, const rvec x[], const matrix box);
 
 
 /* In domdec_setup.c */
@@ -440,13 +463,13 @@ real dd_choose_grid(FILE *fplog,
 /* In domdec_box.c */
 
 /*! \brief Set the box and PBC data in \p ddbox */
-void set_ddbox(gmx_domdec_t *dd, gmx_bool bMasterState, t_commrec *cr_sum,
+void set_ddbox(gmx_domdec_t *dd, gmx_bool bMasterState, const t_commrec *cr_sum,
                const t_inputrec *ir, const matrix box,
                gmx_bool bCalcUnboundedSize, const t_block *cgs, const rvec *x,
                gmx_ddbox_t *ddbox);
 
 /*! \brief Set the box and PBC data in \p ddbox */
-void set_ddbox_cr(t_commrec *cr, const ivec *dd_nc,
+void set_ddbox_cr(const t_commrec *cr, const ivec *dd_nc,
                   const t_inputrec *ir, const matrix box,
                   const t_block *cgs, const rvec *x,
                   gmx_ddbox_t *ddbox);

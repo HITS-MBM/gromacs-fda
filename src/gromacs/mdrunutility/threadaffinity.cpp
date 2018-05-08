@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2012,2013,2014,2015,2016,2017, by the GROMACS development team, led by
+ * Copyright (c) 2012,2013,2014,2015,2016,2017,2018, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -59,6 +59,7 @@
 #include "gromacs/utility/gmxassert.h"
 #include "gromacs/utility/gmxomp.h"
 #include "gromacs/utility/logger.h"
+#include "gromacs/utility/physicalnodecommunicator.h"
 #include "gromacs/utility/programcontext.h"
 #include "gromacs/utility/smalloc.h"
 #include "gromacs/utility/unique_cptr.h"
@@ -72,10 +73,6 @@ class DefaultThreadAffinityAccess : public gmx::IThreadAffinityAccess
         virtual bool isThreadAffinitySupported() const
         {
             return tMPI_Thread_setaffinity_support() == TMPI_SETAFFINITY_SUPPORT_YES;
-        }
-        virtual int physicalNodeId() const
-        {
-            return gmx_physicalnode_id_hash();
         }
         virtual bool setCurrentThreadAffinityToCore(int core)
         {
@@ -265,7 +262,7 @@ get_thread_affinity_layout(const gmx::MDLogger &mdlog,
     return validLayout;
 }
 
-static bool set_affinity(const t_commrec *cr, int nthread_local, int thread0_id_node,
+static bool set_affinity(const t_commrec *cr, int nthread_local, int intraNodeThreadOffset,
                          int offset, int core_pinning_stride, int *localityOrder,
                          gmx::IThreadAffinityAccess *affinityAccess)
 {
@@ -287,7 +284,7 @@ static bool set_affinity(const t_commrec *cr, int nthread_local, int thread0_id_
             int      index, core;
 
             thread_id      = gmx_omp_get_thread_num();
-            thread_id_node = thread0_id_node + thread_id;
+            thread_id_node = intraNodeThreadOffset + thread_id;
             index          = offset + thread_id_node*core_pinning_stride;
             if (localityOrder != nullptr)
             {
@@ -354,6 +351,30 @@ static bool set_affinity(const t_commrec *cr, int nthread_local, int thread0_id_
     return allAffinitiesSet;
 }
 
+void analyzeThreadsOnThisNode(const gmx::PhysicalNodeCommunicator &physicalNodeComm,
+                              int                                  numThreadsOnThisRank,
+                              int                                 *numThreadsOnThisNode,
+                              int                                 *intraNodeThreadOffset)
+{
+    *intraNodeThreadOffset                  = 0;
+    *numThreadsOnThisNode                   = numThreadsOnThisRank;
+#if GMX_MPI
+    if (physicalNodeComm.size_ > 1)
+    {
+        /* We need to determine a scan of the thread counts in this
+         * compute node. */
+        MPI_Scan(&numThreadsOnThisRank, intraNodeThreadOffset, 1, MPI_INT, MPI_SUM, physicalNodeComm.comm_);
+        /* MPI_Scan is inclusive, but here we need exclusive */
+        *intraNodeThreadOffset -= numThreadsOnThisRank;
+        /* Get the total number of threads on this physical node */
+        MPI_Allreduce(&numThreadsOnThisRank, numThreadsOnThisNode, 1, MPI_INT, MPI_SUM, physicalNodeComm.comm_);
+    }
+#else
+    GMX_UNUSED_VALUE(physicalNodeComm);
+#endif
+
+}
+
 /* Set CPU affinity. Can be important for performance.
    On some systems (e.g. Cray) CPU Affinity is set by default.
    But default assigning doesn't work (well) with only some ranks
@@ -368,11 +389,12 @@ gmx_set_thread_affinity(const gmx::MDLogger         &mdlog,
                         const t_commrec             *cr,
                         const gmx_hw_opt_t          *hw_opt,
                         const gmx::HardwareTopology &hwTop,
-                        int                          nthread_local,
+                        int                          numThreadsOnThisRank,
+                        int                          numThreadsOnThisNode,
+                        int                          intraNodeThreadOffset,
                         gmx::IThreadAffinityAccess  *affinityAccess)
 {
-    int        thread0_id_node, nthread_node;
-    int *      localityOrder = nullptr;
+    int *localityOrder = nullptr;
 
     if (hw_opt->thread_affinity == threadaffOFF)
     {
@@ -390,38 +412,15 @@ gmx_set_thread_affinity(const gmx::MDLogger         &mdlog,
      * want to support. */
     if (!affinityAccess->isThreadAffinitySupported())
     {
-        /* we know Mac OS & BlueGene do not support setting thread affinity, so there's
+        /* we know Mac OS does not support setting thread affinity, so there's
            no point in warning the user in that case. In any other case
            the user might be able to do something about it. */
-#if !defined(__APPLE__) && !defined(__bg__)
+#if !defined(__APPLE__)
         GMX_LOG(mdlog.warning).asParagraph().appendText(
                 "NOTE: Cannot set thread affinities on the current platform.");
 #endif  /* __APPLE__ */
         return;
     }
-
-    /* map the current process to cores */
-    thread0_id_node = 0;
-    nthread_node    = nthread_local;
-#if GMX_MPI
-    if (PAR(cr) || MULTISIM(cr))
-    {
-        /* We need to determine a scan of the thread counts in this
-         * compute node.
-         */
-        MPI_Comm comm_intra;
-
-        MPI_Comm_split(MPI_COMM_WORLD,
-                       affinityAccess->physicalNodeId(), cr->rank_intranode,
-                       &comm_intra);
-        MPI_Scan(&nthread_local, &thread0_id_node, 1, MPI_INT, MPI_SUM, comm_intra);
-        /* MPI_Scan is inclusive, but here we need exclusive */
-        thread0_id_node -= nthread_local;
-        /* Get the total number of threads on this physical node */
-        MPI_Allreduce(&nthread_local, &nthread_node, 1, MPI_INT, MPI_SUM, comm_intra);
-        MPI_Comm_free(&comm_intra);
-    }
-#endif
 
     int  offset              = hw_opt->core_pinning_offset;
     int  core_pinning_stride = hw_opt->core_pinning_stride;
@@ -435,7 +434,7 @@ gmx_set_thread_affinity(const gmx::MDLogger         &mdlog,
          !hw_opt->totNumThreadsIsAuto);
     bool issuedWarning;
     bool validLayout
-        = get_thread_affinity_layout(mdlog, cr, hwTop, nthread_node,
+        = get_thread_affinity_layout(mdlog, cr, hwTop, numThreadsOnThisNode,
                                      affinityIsAutoAndNumThreadsIsNotAuto,
                                      offset, &core_pinning_stride, &localityOrder,
                                      &issuedWarning);
@@ -444,7 +443,7 @@ gmx_set_thread_affinity(const gmx::MDLogger         &mdlog,
     bool                    allAffinitiesSet;
     if (validLayout)
     {
-        allAffinitiesSet = set_affinity(cr, nthread_local, thread0_id_node,
+        allAffinitiesSet = set_affinity(cr, numThreadsOnThisRank, intraNodeThreadOffset,
                                         offset, core_pinning_stride, localityOrder,
                                         affinityAccess);
     }

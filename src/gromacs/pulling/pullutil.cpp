@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014,2015,2016,2017, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016,2017,2018, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -60,30 +60,61 @@
 #include "gromacs/utility/real.h"
 #include "gromacs/utility/smalloc.h"
 
-static void pull_reduce_real(t_commrec   *cr,
-                             pull_comm_t *comm,
-                             int          n,
-                             real        *data)
+#if GMX_MPI
+
+// Helper function to deduce MPI datatype from the type of data
+gmx_unused static MPI_Datatype mpiDatatype(const float gmx_unused *data)
+{
+    return MPI_FLOAT;
+}
+
+// Helper function to deduce MPI datatype from the type of data
+gmx_unused static MPI_Datatype mpiDatatype(const double gmx_unused *data)
+{
+    return MPI_DOUBLE;
+}
+
+#endif // GMX_MPI
+
+#if !GMX_DOUBLE
+// Helper function; note that gmx_sum(d) should actually be templated
+gmx_unused static void gmxAllReduce(int n, real *data, const t_commrec *cr)
+{
+    gmx_sum(n, data, cr);
+}
+#endif
+
+// Helper function; note that gmx_sum(d) should actually be templated
+gmx_unused static void gmxAllReduce(int n, double *data, const t_commrec *cr)
+{
+    gmx_sumd(n, data, cr);
+}
+
+// Reduce data of n elements over all ranks currently participating in pull
+template <typename T>
+static void pullAllReduce(const t_commrec *cr,
+                          pull_comm_t     *comm,
+                          int              n,
+                          T               *data)
 {
     if (cr != nullptr && PAR(cr))
     {
         if (comm->bParticipateAll)
         {
             /* Sum the contributions over all DD ranks */
-            gmx_sum(n, data, cr);
+            gmxAllReduce(n, data, cr);
         }
         else
         {
+            /* Separate branch because gmx_sum uses cr->mpi_comm_mygroup */
 #if GMX_MPI
 #if MPI_IN_PLACE_EXISTS
-            MPI_Allreduce(MPI_IN_PLACE, data, n, GMX_MPI_REAL, MPI_SUM,
+            MPI_Allreduce(MPI_IN_PLACE, data, n, mpiDatatype(data), MPI_SUM,
                           comm->mpi_comm_com);
 #else
-            real *buf;
+            std::vector<T> buf(n);
 
-            snew(buf, n);
-
-            MPI_Allreduce(data, buf, n, GMX_MPI_REAL, MPI_SUM,
+            MPI_Allreduce(data, buf, n, mpiDatatype(data), MPI_SUM,
                           comm->mpi_comm_com);
 
             /* Copy the result from the buffer to the input/output data */
@@ -91,7 +122,6 @@ static void pull_reduce_real(t_commrec   *cr,
             {
                 data[i] = buf[i];
             }
-            sfree(buf);
 #endif
 #else
             gmx_incons("comm->bParticipateAll=FALSE without GMX_MPI");
@@ -100,48 +130,8 @@ static void pull_reduce_real(t_commrec   *cr,
     }
 }
 
-static void pull_reduce_double(t_commrec   *cr,
-                               pull_comm_t *comm,
-                               int          n,
-                               double      *data)
-{
-    if (cr != nullptr && PAR(cr))
-    {
-        if (comm->bParticipateAll)
-        {
-            /* Sum the contributions over all DD ranks */
-            gmx_sumd(n, data, cr);
-        }
-        else
-        {
-#if GMX_MPI
-#if MPI_IN_PLACE_EXISTS
-            MPI_Allreduce(MPI_IN_PLACE, data, n, MPI_DOUBLE, MPI_SUM,
-                          comm->mpi_comm_com);
-#else
-            double *buf;
-
-            snew(buf, n);
-
-            MPI_Allreduce(data, buf, n, MPI_DOUBLE, MPI_SUM,
-                          comm->mpi_comm_com);
-
-            /* Copy the result from the buffer to the input/output data */
-            for (int i = 0; i < n; i++)
-            {
-                data[i] = buf[i];
-            }
-            sfree(buf);
-#endif
-#else
-            gmx_incons("comm->bParticipateAll=FALSE without GMX_MPI");
-#endif
-        }
-    }
-}
-
-static void pull_set_pbcatom(t_commrec *cr, pull_group_work_t *pgrp,
-                             rvec *x,
+static void pull_set_pbcatom(const t_commrec *cr, pull_group_work_t *pgrp,
+                             const rvec *x,
                              rvec x_pbc)
 {
     int a;
@@ -163,8 +153,8 @@ static void pull_set_pbcatom(t_commrec *cr, pull_group_work_t *pgrp,
     }
 }
 
-static void pull_set_pbcatoms(t_commrec *cr, struct pull_t *pull,
-                              rvec *x,
+static void pull_set_pbcatoms(const t_commrec *cr, struct pull_t *pull,
+                              const rvec *x,
                               rvec *x_pbc)
 {
     int g, n;
@@ -189,16 +179,20 @@ static void pull_set_pbcatoms(t_commrec *cr, struct pull_t *pull,
          * This can be very expensive at high parallelization, so we only
          * do this after each DD repartitioning.
          */
-        pull_reduce_real(cr, &pull->comm, pull->ngroup*DIM, x_pbc[0]);
+        pullAllReduce(cr, &pull->comm, pull->ngroup*DIM, x_pbc[0]);
     }
 }
 
-static void make_cyl_refgrps(t_commrec *cr, struct pull_t *pull, t_mdatoms *md,
-                             t_pbc *pbc, double t, rvec *x)
+static void make_cyl_refgrps(const t_commrec *cr,
+                             pull_t          *pull,
+                             const t_mdatoms *md,
+                             t_pbc           *pbc,
+                             double           t,
+                             const rvec      *x)
 {
     /* The size and stride per coord for the reduction buffer */
     const int       stride = 9;
-    int             c, i, ii, m, start, end;
+    int             i, ii, m, start, end;
     rvec            g_x, dx, dir;
     double          inv_cyl_r2;
     pull_comm_t    *comm;
@@ -208,7 +202,7 @@ static void make_cyl_refgrps(t_commrec *cr, struct pull_t *pull, t_mdatoms *md,
 
     if (comm->dbuf_cyl == nullptr)
     {
-        snew(comm->dbuf_cyl, pull->ncoord*stride);
+        snew(comm->dbuf_cyl, pull->coord.size()*stride);
     }
 
     if (cr && DOMAINDECOMP(cr))
@@ -222,7 +216,7 @@ static void make_cyl_refgrps(t_commrec *cr, struct pull_t *pull, t_mdatoms *md,
     inv_cyl_r2 = 1.0/gmx::square(pull->params.cylinder_r);
 
     /* loop over all groups to make a reference group for each*/
-    for (c = 0; c < pull->ncoord; c++)
+    for (size_t c = 0; c < pull->coord.size(); c++)
     {
         pull_coord_work_t *pcrd;
         double             sum_a, wmass, wwmass;
@@ -244,7 +238,7 @@ static void make_cyl_refgrps(t_commrec *cr, struct pull_t *pull, t_mdatoms *md,
             pref  = &pull->group[pcrd->params.group[0]];
             pgrp  = &pull->group[pcrd->params.group[1]];
             pdyna = &pull->dyna[c];
-            copy_dvec_to_rvec(pcrd->vec, dir);
+            copy_dvec_to_rvec(pcrd->spatialData.vec, dir);
             pdyna->nat_loc = 0;
 
             /* We calculate distances with respect to the reference location
@@ -259,7 +253,7 @@ static void make_cyl_refgrps(t_commrec *cr, struct pull_t *pull, t_mdatoms *md,
             }
             for (m = 0; m < DIM; m++)
             {
-                g_x[m] = pgrp->x[m] - pcrd->vec[m]*pcrd->value_ref;
+                g_x[m] = pgrp->x[m] - pcrd->spatialData.vec[m]*pcrd->value_ref;
             }
 
             /* loop over all atoms in the main ref group */
@@ -349,10 +343,10 @@ static void make_cyl_refgrps(t_commrec *cr, struct pull_t *pull, t_mdatoms *md,
     if (cr != nullptr && PAR(cr))
     {
         /* Sum the contributions over the ranks */
-        pull_reduce_double(cr, comm, pull->ncoord*stride, comm->dbuf_cyl);
+        pullAllReduce(cr, comm, pull->coord.size()*stride, comm->dbuf_cyl);
     }
 
-    for (c = 0; c < pull->ncoord; c++)
+    for (size_t c = 0; c < pull->coord.size(); c++)
     {
         pull_coord_work_t *pcrd;
 
@@ -360,15 +354,13 @@ static void make_cyl_refgrps(t_commrec *cr, struct pull_t *pull, t_mdatoms *md,
 
         if (pcrd->params.eGeom == epullgCYL)
         {
-            pull_group_work_t *pdyna, *pgrp;
-            double             wmass, wwmass, dist;
+            pull_group_work_t    *pdyna       = &pull->dyna[c];
+            pull_group_work_t    *pgrp        = &pull->group[pcrd->params.group[1]];
+            PullCoordSpatialData &spatialData = pcrd->spatialData;
 
-            pdyna = &pull->dyna[c];
-            pgrp  = &pull->group[pcrd->params.group[1]];
-
-            wmass          = comm->dbuf_cyl[c*stride+0];
-            wwmass         = comm->dbuf_cyl[c*stride+1];
-            pdyna->mwscale = 1.0/wmass;
+            double                wmass       = comm->dbuf_cyl[c*stride+0];
+            double                wwmass      = comm->dbuf_cyl[c*stride+1];
+            pdyna->mwscale                    = 1.0/wmass;
             /* Cylinder pulling can't be used with constraints, but we set
              * wscale and invtm anyhow, in case someone would like to use them.
              */
@@ -379,13 +371,13 @@ static void make_cyl_refgrps(t_commrec *cr, struct pull_t *pull, t_mdatoms *md,
              * used above, since we need it when we apply the radial forces
              * to the atoms in the cylinder group.
              */
-            pcrd->cyl_dev  = 0;
+            spatialData.cyl_dev = 0;
             for (m = 0; m < DIM; m++)
             {
-                g_x[m]         = pgrp->x[m] - pcrd->vec[m]*pcrd->value_ref;
-                dist           = -pcrd->vec[m]*comm->dbuf_cyl[c*stride+2]*pdyna->mwscale;
-                pdyna->x[m]    = g_x[m] - dist;
-                pcrd->cyl_dev += dist;
+                g_x[m]               = pgrp->x[m] - spatialData.vec[m]*pcrd->value_ref;
+                double dist          = -spatialData.vec[m]*comm->dbuf_cyl[c*stride+2]*pdyna->mwscale;
+                pdyna->x[m]          = g_x[m] - dist;
+                spatialData.cyl_dev += dist;
             }
             /* Now we know the exact COM of the cylinder reference group,
              * we can determine the radial force factor (ffrad) that when
@@ -394,17 +386,17 @@ static void make_cyl_refgrps(t_commrec *cr, struct pull_t *pull, t_mdatoms *md,
              */
             for (m = 0; m < DIM; m++)
             {
-                pcrd->ffrad[m] = (comm->dbuf_cyl[c*stride+6+m] +
-                                  comm->dbuf_cyl[c*stride+3+m]*pcrd->cyl_dev)/wmass;
+                spatialData.ffrad[m] = (comm->dbuf_cyl[c*stride+6+m] +
+                                        comm->dbuf_cyl[c*stride+3+m]*spatialData.cyl_dev)/wmass;
             }
 
             if (debug)
             {
-                fprintf(debug, "Pull cylinder group %d:%8.3f%8.3f%8.3f m:%8.3f\n",
+                fprintf(debug, "Pull cylinder group %zu:%8.3f%8.3f%8.3f m:%8.3f\n",
                         c, pdyna->x[0], pdyna->x[1],
                         pdyna->x[2], 1.0/pdyna->invtm);
                 fprintf(debug, "ffrad %8.3f %8.3f %8.3f\n",
-                        pcrd->ffrad[XX], pcrd->ffrad[YY], pcrd->ffrad[ZZ]);
+                        spatialData.ffrad[XX], spatialData.ffrad[YY], spatialData.ffrad[ZZ]);
             }
         }
     }
@@ -549,9 +541,12 @@ static void sum_com_part_cosweight(const pull_group_work_t *pgrp,
 }
 
 /* calculates center of mass of selection index from all coordinates x */
-void pull_calc_coms(t_commrec *cr,
-                    struct pull_t *pull, t_mdatoms *md, t_pbc *pbc, double t,
-                    rvec x[], rvec *xp)
+void pull_calc_coms(const t_commrec *cr,
+                    pull_t *pull,
+                    const t_mdatoms *md,
+                    t_pbc *pbc,
+                    double t,
+                    const rvec x[], rvec *xp)
 {
     int          g;
     real         twopi_box = 0;
@@ -728,15 +723,17 @@ void pull_calc_coms(t_commrec *cr,
         }
     }
 
-    pull_reduce_double(cr, comm, pull->ngroup*3*DIM, comm->dbuf[0]);
+    pullAllReduce(cr, comm, pull->ngroup*3*DIM, comm->dbuf[0]);
 
     for (g = 0; g < pull->ngroup; g++)
     {
         pull_group_work_t *pgrp;
 
         pgrp = &pull->group[g];
-        if (pgrp->params.nat > 0 && pgrp->bCalcCOM)
+        if (pgrp->bCalcCOM)
         {
+            GMX_ASSERT(pgrp->params.nat > 0, "Normal pull groups should have atoms, only group 0, which should have bCalcCom=FALSE has nat=0");
+
             if (pgrp->epgrppbc != epgrppbcCOS)
             {
                 double wmass, wwmass;

@@ -161,7 +161,7 @@ makeDefinesForKernelTypes(bool bFastGen,
 
 /*! \brief Compiles nbnxn kernels for OpenCL GPU given by \p mygpu
  *
- * With OpenCL, a call to this function must precede nbnxn_gpu_init().
+ * With OpenCL, a call to this function must not precede nbnxn_gpu_init() (which also calls it).
  *
  * Doing bFastGen means only the requested kernels are compiled,
  * significantly reducing the total compilation time. If false, all
@@ -218,6 +218,7 @@ nbnxn_gpu_compile_kernels(gmx_nbnxn_ocl_t *nb)
             /* TODO when we have a proper MPI-aware logging module,
                the log output here should be written there */
             program = gmx::ocl::compileProgram(stderr,
+                                               "src/gromacs/mdlib/nbnxn_ocl",
                                                "nbnxn_ocl_kernels.cl",
                                                extraDefines,
                                                nb->dev_rundata->context,

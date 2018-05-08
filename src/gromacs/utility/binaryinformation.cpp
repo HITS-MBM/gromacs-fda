@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014,2015,2016,2017, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016,2017,2018, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -59,7 +59,7 @@
 #include <extrae_user_events.h>
 #endif
 
-#if GMX_HWLOC
+#if GMX_USE_HWLOC
 #include <hwloc.h>
 #endif
 
@@ -107,12 +107,14 @@ void printCopyright(gmx::TextWriter *writer)
     static const char * const Contributors[] = {
         "Emile Apol",
         "Rossen Apostolov",
+        "Paul Bauer",
         "Herman J.C. Berendsen",
         "Par Bjelkmar",
         "Aldert van Buuren",
         "Rudi van Drunen",
         "Anton Feenstra",
         "Gerrit Groenhof",
+        "Aleksei Iupinov",
         "Christoph Junghans",
         "Anca Hamuraru",
         "Vincent Hindriksen",
@@ -260,7 +262,7 @@ void gmx_print_version_info(gmx::TextWriter *writer)
 #else
     writer->writeLine("TNG support:        disabled");
 #endif
-#if GMX_HWLOC
+#if GMX_USE_HWLOC
     writer->writeLine(formatString("Hwloc support:      hwloc-%d.%d.%d",
                                    HWLOC_API_VERSION>>16,
                                    (HWLOC_API_VERSION>>8) & 0xFF,
@@ -303,12 +305,10 @@ void gmx_print_version_info(gmx::TextWriter *writer)
     writer->writeLine(formatString("OpenCL version:     %s", OPENCL_VERSION_STRING));
 #endif
 #if GMX_GPU == GMX_GPU_CUDA
-    writer->writeLine(formatString("CUDA compiler:      %s\n", CUDA_COMPILER_INFO));
-    writer->writeLine(formatString("CUDA compiler flags:%s\n", CUDA_COMPILER_FLAGS));
-    auto driverVersion = gmx::getCudaDriverVersion();
-    writer->writeLine(formatString("CUDA driver:        %d.%d\n", driverVersion.first, driverVersion.second));
-    auto runtimeVersion = gmx::getCudaRuntimeVersion();
-    writer->writeLine(formatString("CUDA runtime:       %d.%d\n", runtimeVersion.first, runtimeVersion.second));
+    writer->writeLine(formatString("CUDA compiler:      %s", CUDA_COMPILER_INFO));
+    writer->writeLine(formatString("CUDA compiler flags:%s", CUDA_COMPILER_FLAGS));
+    writer->writeLine("CUDA driver:        " + gmx::getCudaDriverVersionString());
+    writer->writeLine("CUDA runtime:       " + gmx::getCudaRuntimeVersionString());
 #endif
 }
 

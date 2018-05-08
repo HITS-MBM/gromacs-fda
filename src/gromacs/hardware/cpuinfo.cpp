@@ -492,6 +492,81 @@ renumberIndex(std::vector<unsigned int> * v)
     }
 }
 
+/*! \brief The layout of the bits in the APIC ID */
+struct ApicIdLayout
+{
+    unsigned int hwThreadBits; //!< The number of least significant bits for hw-threads
+    unsigned int coreBits;     //!< The number of core bits following the  hw-thread bits
+};
+
+/*! \brief Detect the APIC ID layout for x2APIC
+ */
+ApicIdLayout
+detectX2ApicIdLayout()
+{
+    ApicIdLayout    layout;
+
+    unsigned int    eax;
+    unsigned int    ebx;
+    unsigned int    ecx;
+    unsigned int    edx;
+    executeX86CpuID(0xb, 0, &eax, &ebx, &ecx, &edx);
+    layout.hwThreadBits = eax & 0x1f;
+    executeX86CpuID(0xb, 1, &eax, &ebx, &ecx, &edx);
+    layout.coreBits     = (eax & 0x1f) - layout.hwThreadBits;
+
+    return layout;
+}
+
+/*! \brief Detect the APIC ID layout for standard APIC or xAPIC on AMD
+ *
+ * \param[in] maxExtLevel  The largest CPUID extended function input value supported by the processor implementation
+ */
+ApicIdLayout
+detectAmdApicIdLayout(unsigned int maxExtLevel)
+{
+    ApicIdLayout layout;
+
+    unsigned int eax;
+    unsigned int ebx;
+    unsigned int ecx;
+    unsigned int edx;
+    executeX86CpuID(0x1, 0, &eax, &ebx, &ecx, &edx);
+    int          family = ((eax & 0x0ff00000) >> 20) + ((eax & 0x00000f00) >> 8);
+    executeX86CpuID(0x80000001, 0, &eax, &ebx, &ecx, &edx);
+    bool         haveExtendedTopology = (ecx & (1 << 22));
+
+    // NOTE: Here we assume 1 thread per core, unless we have family >= 17h
+    layout.hwThreadBits = 0;
+    if (family >= 0x17 &&
+        haveExtendedTopology &&
+        maxExtLevel >= 0x8000001e)
+    {
+        executeX86CpuID(0x8000001e, 1, &eax, &ebx, &ecx, &edx);
+        int numThreadsPerCore = ((ebx >> 8) & 0xff) + 1;
+        // NOTE: The AMD documentation only specifies the layout of apicid
+        //       when we have 1 or 2 threads per core.
+        while (numThreadsPerCore > (1 << layout.hwThreadBits))
+        {
+            layout.hwThreadBits++;
+        }
+    }
+
+    // Get number of core bits in apic ID - try modern extended method first
+    executeX86CpuID(0x80000008, 0, &eax, &ebx, &ecx, &edx);
+    layout.coreBits = (ecx >> 12) & 0xf;
+    if (layout.coreBits == 0)
+    {
+        // Legacy method for old single/dual core AMD CPUs
+        int i = ecx & 0xf;
+        while (i >> layout.coreBits)
+        {
+            layout.coreBits++;
+        }
+    }
+
+    return layout;
+}
 
 /*! \brief Try to detect basic CPU topology information using x86 cpuid
  *
@@ -535,31 +610,29 @@ detectX86LogicalProcessors()
 
     if (haveX2Apic || haveApic)
     {
-        unsigned int   hwThreadBits;
-        unsigned int   coreBits;
+        ApicIdLayout layout;
         // Get bits for cores and hardware threads
         if (haveX2Apic)
         {
-            executeX86CpuID(0xb, 0, &eax, &ebx, &ecx, &edx);
-            hwThreadBits    = eax & 0x1f;
-            executeX86CpuID(0xb, 1, &eax, &ebx, &ecx, &edx);
-            coreBits        = (eax & 0x1f) - hwThreadBits;
+            layout = detectX2ApicIdLayout();
         }
         else    // haveApic
         {
-            // AMD without x2APIC does not support SMT - there are no hwthread bits in apic ID
-            hwThreadBits = 0;
-            // Get number of core bits in apic ID - try modern extended method first
-            executeX86CpuID(0x80000008, 0, &eax, &ebx, &ecx, &edx);
-            coreBits = (ecx >> 12) & 0xf;
-            if (coreBits == 0)
+            if (detectX86Vendor() == CpuInfo::Vendor::Amd)
             {
-                // Legacy method for old single/dual core AMD CPUs
-                int i = ecx & 0xf;
-                while (i >> coreBits)
+                layout = detectAmdApicIdLayout(maxExtLevel);
+
+                if (layout.hwThreadBits > 1)
                 {
-                    coreBits++;
+                    // At the time of writing this code we do not know what
+                    // to do with more than 2 threads, so return empty.
+                    return logicalProcessors;
                 }
+            }
+            else
+            {
+                // We do not know the APIC ID layout, return empty.
+                return logicalProcessors;
             }
         }
 
@@ -570,8 +643,8 @@ detectX86LogicalProcessors()
             // APIC IDs can be buggy, and it is always a mess. Typically more bits are
             // reserved than needed, and the numbers might not increment by 1 even in
             // a single socket or core. Extract, renumber, and check that things make sense.
-            unsigned int               hwThreadMask  = (1 << hwThreadBits) - 1;
-            unsigned int               coreMask      = (1 << coreBits) - 1;
+            unsigned int               hwThreadMask  = (1 << layout.hwThreadBits) - 1;
+            unsigned int               coreMask      = (1 << layout.coreBits) - 1;
             std::vector<unsigned int>  hwThreadRanks;
             std::vector<unsigned int>  coreRanks;
             std::vector<unsigned int>  socketRanks;
@@ -579,8 +652,8 @@ detectX86LogicalProcessors()
             for (auto a : apicID)
             {
                 hwThreadRanks.push_back( static_cast<int>( a & hwThreadMask ) );
-                coreRanks.push_back( static_cast<int>( ( a >> hwThreadBits ) & coreMask ) );
-                socketRanks.push_back( static_cast<int>( a >> ( coreBits + hwThreadBits ) ) );
+                coreRanks.push_back( static_cast<int>( ( a >> layout.hwThreadBits ) & coreMask ) );
+                socketRanks.push_back( static_cast<int>( a >> ( layout.coreBits + layout.hwThreadBits ) ) );
             }
 
             renumberIndex(&hwThreadRanks);
@@ -945,82 +1018,87 @@ CpuInfo CpuInfo::detect()
     return result;
 }
 
-
 CpuInfo::CpuInfo()
     : vendor_(CpuInfo::Vendor::Unknown), brandString_("Unknown CPU brand"),
       family_(0), model_(0), stepping_(0)
 {
 }
 
-
-const std::map<CpuInfo::Vendor, std::string>
-CpuInfo::s_vendorStrings_ =
+const std::string &CpuInfo::vendorString() const
 {
-    { CpuInfo::Vendor::Unknown, "Unknown vendor"                  },
-    { CpuInfo::Vendor::Intel, "Intel"                             },
-    { CpuInfo::Vendor::Amd, "AMD"                                 },
-    { CpuInfo::Vendor::Fujitsu, "Fujitsu"                         },
-    { CpuInfo::Vendor::Ibm, "IBM"                                 },
-    { CpuInfo::Vendor::Arm, "ARM"                                 },
-    { CpuInfo::Vendor::Oracle, "Oracle"                           },
-};
+    static const std::map<Vendor, std::string> vendorStrings =
+    {
+        { Vendor::Unknown, "Unknown vendor"                  },
+        { Vendor::Intel, "Intel"                             },
+        { Vendor::Amd, "AMD"                                 },
+        { Vendor::Fujitsu, "Fujitsu"                         },
+        { Vendor::Ibm, "IBM"                                 },
+        { Vendor::Arm, "ARM"                                 },
+        { Vendor::Oracle, "Oracle"                           },
+    };
+
+    return vendorStrings.at(vendor_);
+}
 
 
-const std::map<CpuInfo::Feature, std::string>
-CpuInfo::s_featureStrings_ =
+const std::string &CpuInfo::featureString(Feature f)
 {
-    { CpuInfo::Feature::X86_Aes, "aes"                            },
-    { CpuInfo::Feature::X86_Amd, "amd"                            },
-    { CpuInfo::Feature::X86_Apic, "apic"                          },
-    { CpuInfo::Feature::X86_Avx, "avx"                            },
-    { CpuInfo::Feature::X86_Avx2, "avx2"                          },
-    { CpuInfo::Feature::X86_Avx512F, "avx512f"                    },
-    { CpuInfo::Feature::X86_Avx512PF, "avx512pf"                  },
-    { CpuInfo::Feature::X86_Avx512ER, "avx512er"                  },
-    { CpuInfo::Feature::X86_Avx512CD, "avx512cd"                  },
-    { CpuInfo::Feature::X86_Avx512BW, "avx512bw"                  },
-    { CpuInfo::Feature::X86_Avx512VL, "avx512vl"                  },
-    { CpuInfo::Feature::X86_Clfsh, "clfsh"                        },
-    { CpuInfo::Feature::X86_Cmov, "cmov"                          },
-    { CpuInfo::Feature::X86_Cx8, "cx8"                            },
-    { CpuInfo::Feature::X86_Cx16, "cx16"                          },
-    { CpuInfo::Feature::X86_F16C, "f16c"                          },
-    { CpuInfo::Feature::X86_Fma, "fma"                            },
-    { CpuInfo::Feature::X86_Fma4, "fma4"                          },
-    { CpuInfo::Feature::X86_Hle, "hle"                            },
-    { CpuInfo::Feature::X86_Htt, "htt"                            },
-    { CpuInfo::Feature::X86_Intel, "intel"                        },
-    { CpuInfo::Feature::X86_Lahf, "lahf"                          },
-    { CpuInfo::Feature::X86_MisalignSse, "misalignsse"            },
-    { CpuInfo::Feature::X86_Mmx, "mmx"                            },
-    { CpuInfo::Feature::X86_Msr, "msr"                            },
-    { CpuInfo::Feature::X86_NonstopTsc, "nonstop_tsc"             },
-    { CpuInfo::Feature::X86_Pcid, "pcid"                          },
-    { CpuInfo::Feature::X86_Pclmuldq, "pclmuldq"                  },
-    { CpuInfo::Feature::X86_Pdcm, "pdcm"                          },
-    { CpuInfo::Feature::X86_PDPE1GB, "pdpe1gb"                    },
-    { CpuInfo::Feature::X86_Popcnt, "popcnt"                      },
-    { CpuInfo::Feature::X86_Pse, "pse"                            },
-    { CpuInfo::Feature::X86_Rdrnd, "rdrnd"                        },
-    { CpuInfo::Feature::X86_Rdtscp, "rdtscp"                      },
-    { CpuInfo::Feature::X86_Rtm, "rtm"                            },
-    { CpuInfo::Feature::X86_Sha, "sha"                            },
-    { CpuInfo::Feature::X86_Sse2, "sse2"                          },
-    { CpuInfo::Feature::X86_Sse3, "sse3"                          },
-    { CpuInfo::Feature::X86_Sse4A, "sse4a"                        },
-    { CpuInfo::Feature::X86_Sse4_1, "sse4.1"                      },
-    { CpuInfo::Feature::X86_Sse4_2, "sse4.2"                      },
-    { CpuInfo::Feature::X86_Ssse3, "ssse3"                        },
-    { CpuInfo::Feature::X86_Tdt, "tdt"                            },
-    { CpuInfo::Feature::X86_X2Apic, "x2apic"                      },
-    { CpuInfo::Feature::X86_Xop, "xop"                            },
-    { CpuInfo::Feature::Arm_Neon, "neon"                          },
-    { CpuInfo::Feature::Arm_NeonAsimd, "neon_asimd"               },
-    { CpuInfo::Feature::Ibm_Qpx, "qpx"                            },
-    { CpuInfo::Feature::Ibm_Vmx, "vmx"                            },
-    { CpuInfo::Feature::Ibm_Vsx, "vsx"                            },
-    { CpuInfo::Feature::Fujitsu_HpcAce, "hpc-ace"                 }
-};
+    static const std::map<Feature, std::string> featureStrings =
+    {
+        { Feature::X86_Aes, "aes"                            },
+        { Feature::X86_Amd, "amd"                            },
+        { Feature::X86_Apic, "apic"                          },
+        { Feature::X86_Avx, "avx"                            },
+        { Feature::X86_Avx2, "avx2"                          },
+        { Feature::X86_Avx512F, "avx512f"                    },
+        { Feature::X86_Avx512PF, "avx512pf"                  },
+        { Feature::X86_Avx512ER, "avx512er"                  },
+        { Feature::X86_Avx512CD, "avx512cd"                  },
+        { Feature::X86_Avx512BW, "avx512bw"                  },
+        { Feature::X86_Avx512VL, "avx512vl"                  },
+        { Feature::X86_Clfsh, "clfsh"                        },
+        { Feature::X86_Cmov, "cmov"                          },
+        { Feature::X86_Cx8, "cx8"                            },
+        { Feature::X86_Cx16, "cx16"                          },
+        { Feature::X86_F16C, "f16c"                          },
+        { Feature::X86_Fma, "fma"                            },
+        { Feature::X86_Fma4, "fma4"                          },
+        { Feature::X86_Hle, "hle"                            },
+        { Feature::X86_Htt, "htt"                            },
+        { Feature::X86_Intel, "intel"                        },
+        { Feature::X86_Lahf, "lahf"                          },
+        { Feature::X86_MisalignSse, "misalignsse"            },
+        { Feature::X86_Mmx, "mmx"                            },
+        { Feature::X86_Msr, "msr"                            },
+        { Feature::X86_NonstopTsc, "nonstop_tsc"             },
+        { Feature::X86_Pcid, "pcid"                          },
+        { Feature::X86_Pclmuldq, "pclmuldq"                  },
+        { Feature::X86_Pdcm, "pdcm"                          },
+        { Feature::X86_PDPE1GB, "pdpe1gb"                    },
+        { Feature::X86_Popcnt, "popcnt"                      },
+        { Feature::X86_Pse, "pse"                            },
+        { Feature::X86_Rdrnd, "rdrnd"                        },
+        { Feature::X86_Rdtscp, "rdtscp"                      },
+        { Feature::X86_Rtm, "rtm"                            },
+        { Feature::X86_Sha, "sha"                            },
+        { Feature::X86_Sse2, "sse2"                          },
+        { Feature::X86_Sse3, "sse3"                          },
+        { Feature::X86_Sse4A, "sse4a"                        },
+        { Feature::X86_Sse4_1, "sse4.1"                      },
+        { Feature::X86_Sse4_2, "sse4.2"                      },
+        { Feature::X86_Ssse3, "ssse3"                        },
+        { Feature::X86_Tdt, "tdt"                            },
+        { Feature::X86_X2Apic, "x2apic"                      },
+        { Feature::X86_Xop, "xop"                            },
+        { Feature::Arm_Neon, "neon"                          },
+        { Feature::Arm_NeonAsimd, "neon_asimd"               },
+        { Feature::Ibm_Qpx, "qpx"                            },
+        { Feature::Ibm_Vmx, "vmx"                            },
+        { Feature::Ibm_Vsx, "vsx"                            },
+        { Feature::Fujitsu_HpcAce, "hpc-ace"                 }
+    };
+    return featureStrings.at(f);
+}
 
 
 bool

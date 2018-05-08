@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2008,2009,2010,2011,2012,2013,2014,2015,2016,2017, by the GROMACS development team, led by
+ * Copyright (c) 2008,2009,2010,2011,2012,2013,2014,2015,2016,2017,2018, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -50,6 +50,8 @@
 #include <io.h>
 #include <sys/locking.h>
 #endif
+
+#include <array>
 
 #include "buildinfo.h"
 #include "gromacs/fileio/filetypes.h"
@@ -181,7 +183,7 @@ const char *eawhh_names[eawhhNR] =
     "awh_coordpoint", "awh_umbrellaGridpoint",
     "awh_updatelist",
     "awh_logScaledSampleWeight",
-    "awh_numupdates"
+    "awh_numupdates",
     "awh_forceCorrelationGrid"
 };
 
@@ -229,20 +231,16 @@ static void cp_error()
     gmx_fatal(FARGS, "Checkpoint file corrupted/truncated, or maybe you are out of disk space?");
 }
 
-static void do_cpt_string_err(XDR *xd, gmx_bool bRead, const char *desc, char **s, FILE *list)
+static void do_cpt_string_err(XDR *xd, const char *desc, gmx::ArrayRef<char> s, FILE *list)
 {
-    if (bRead)
-    {
-        snew(*s, CPTSTRLEN);
-    }
-    if (xdr_string(xd, s, CPTSTRLEN) == 0)
+    char *data = s.data();
+    if (xdr_string(xd, &data, s.size()) == 0)
     {
         cp_error();
     }
     if (list)
     {
-        fprintf(list, "%s = %s\n", desc, *s);
-        sfree(*s);
+        fprintf(list, "%s = %s\n", desc, data);
     }
 }
 
@@ -598,7 +596,6 @@ static int doVectorLow(XDR *xd, StatePart part, int ecpt, int sflags,
             {
                 gmx_fatal(FARGS, "Type %s: incompatible checkpoint formats or corrupted checkpoint file.", buf);
             }
-            fprintf(stderr, "Precision %s\n", buf);
         }
 
         T *vp;
@@ -876,23 +873,49 @@ static int do_cpte_matrices(XDR *xd, StatePart part, int ecpt, int sflags,
     return ret;
 }
 
-static void do_cpt_header(XDR *xd, gmx_bool bRead, int *file_version,
-                          char **version, char **btime, char **buser, char **bhost,
-                          int *double_prec,
-                          char **fprog, char **ftime,
-                          int *eIntegrator, int *simulation_part,
-                          gmx_int64_t *step, double *t,
-                          int *nnodes, int *dd_nc, int *npme,
-                          int *natoms, int *ngtc, int *nnhpres, int *nhchainlength,
-                          int *nlambda, int *flags_state,
-                          int *flags_eks, int *flags_enh, int *flags_dfh, int *flags_awhh,
-                          int *nED, int *eSwapCoords,
-                          FILE *list)
+// TODO Expand this into being a container of all data for
+// serialization of a checkpoint, which can be stored by the caller
+// (e.g. so that mdrun doesn't have to open the checkpoint twice).
+// This will separate issues of allocation from those of
+// serialization, help separate comparison from reading, and have
+// better defined transformation functions to/from trajectory frame
+// data structures.
+struct CheckpointHeaderContents
+{
+    int         file_version;
+    char        version[CPTSTRLEN];
+    char        btime[CPTSTRLEN];
+    char        buser[CPTSTRLEN];
+    char        bhost[CPTSTRLEN];
+    int         double_prec;
+    char        fprog[CPTSTRLEN];
+    char        ftime[CPTSTRLEN];
+    int         eIntegrator;
+    int         simulation_part;
+    gmx_int64_t step;
+    double      t;
+    int         nnodes;
+    ivec        dd_nc;
+    int         npme;
+    int         natoms;
+    int         ngtc;
+    int         nnhpres;
+    int         nhchainlength;
+    int         nlambda;
+    int         flags_state;
+    int         flags_eks;
+    int         flags_enh;
+    int         flags_dfh;
+    int         flags_awhh;
+    int         nED;
+    int         eSwapCoords;
+};
+
+static void do_cpt_header(XDR *xd, gmx_bool bRead, FILE *list,
+                          CheckpointHeaderContents *contents)
 {
     bool_t res = 0;
     int    magic;
-    int    idum = 0;
-    char  *fhost;
 
     if (bRead)
     {
@@ -913,138 +936,134 @@ static void do_cpt_header(XDR *xd, gmx_bool bRead, int *file_version,
                   "The checkpoint file is corrupted or not a checkpoint file",
                   magic, CPT_MAGIC1);
     }
+    char fhost[255];
     if (!bRead)
     {
-        snew(fhost, 255);
         gmx_gethostname(fhost, 255);
     }
-    do_cpt_string_err(xd, bRead, "GROMACS version", version, list);
-    do_cpt_string_err(xd, bRead, "GROMACS build time", btime, list);
-    do_cpt_string_err(xd, bRead, "GROMACS build user", buser, list);
-    do_cpt_string_err(xd, bRead, "GROMACS build host", bhost, list);
-    do_cpt_string_err(xd, bRead, "generating program", fprog, list);
-    do_cpt_string_err(xd, bRead, "generation time", ftime, list);
-    *file_version = cpt_version;
-    do_cpt_int_err(xd, "checkpoint file version", file_version, list);
-    if (*file_version > cpt_version)
+    do_cpt_string_err(xd, "GROMACS version", contents->version, list);
+    do_cpt_string_err(xd, "GROMACS build time", contents->btime, list);
+    do_cpt_string_err(xd, "GROMACS build user", contents->buser, list);
+    do_cpt_string_err(xd, "GROMACS build host", contents->bhost, list);
+    do_cpt_string_err(xd, "generating program", contents->fprog, list);
+    do_cpt_string_err(xd, "generation time", contents->ftime, list);
+    contents->file_version = cpt_version;
+    do_cpt_int_err(xd, "checkpoint file version", &contents->file_version, list);
+    if (contents->file_version > cpt_version)
     {
-        gmx_fatal(FARGS, "Attempting to read a checkpoint file of version %d with code of version %d\n", *file_version, cpt_version);
+        gmx_fatal(FARGS, "Attempting to read a checkpoint file of version %d with code of version %d\n", contents->file_version, cpt_version);
     }
-    if (*file_version >= 13)
+    if (contents->file_version >= 13)
     {
-        do_cpt_int_err(xd, "GROMACS double precision", double_prec, list);
-    }
-    else
-    {
-        *double_prec = -1;
-    }
-    if (*file_version >= 12)
-    {
-        do_cpt_string_err(xd, bRead, "generating host", &fhost, list);
-        if (list == nullptr)
-        {
-            sfree(fhost);
-        }
-    }
-    do_cpt_int_err(xd, "#atoms", natoms, list);
-    do_cpt_int_err(xd, "#T-coupling groups", ngtc, list);
-    if (*file_version >= 10)
-    {
-        do_cpt_int_err(xd, "#Nose-Hoover T-chains", nhchainlength, list);
+        do_cpt_int_err(xd, "GROMACS double precision", &contents->double_prec, list);
     }
     else
     {
-        *nhchainlength = 1;
+        contents->double_prec = -1;
     }
-    if (*file_version >= 11)
+    if (contents->file_version >= 12)
     {
-        do_cpt_int_err(xd, "#Nose-Hoover T-chains for barostat ", nnhpres, list);
+        do_cpt_string_err(xd, "generating host", fhost, list);
     }
-    else
+    do_cpt_int_err(xd, "#atoms", &contents->natoms, list);
+    do_cpt_int_err(xd, "#T-coupling groups", &contents->ngtc, list);
+    if (contents->file_version >= 10)
     {
-        *nnhpres = 0;
-    }
-    if (*file_version >= 14)
-    {
-        do_cpt_int_err(xd, "# of total lambda states ", nlambda, list);
+        do_cpt_int_err(xd, "#Nose-Hoover T-chains", &contents->nhchainlength, list);
     }
     else
     {
-        *nlambda = 0;
+        contents->nhchainlength = 1;
     }
-    do_cpt_int_err(xd, "integrator", eIntegrator, list);
-    if (*file_version >= 3)
+    if (contents->file_version >= 11)
     {
-        do_cpt_int_err(xd, "simulation part #", simulation_part, list);
-    }
-    else
-    {
-        *simulation_part = 1;
-    }
-    if (*file_version >= 5)
-    {
-        do_cpt_step_err(xd, "step", step, list);
+        do_cpt_int_err(xd, "#Nose-Hoover T-chains for barostat ", &contents->nnhpres, list);
     }
     else
     {
+        contents->nnhpres = 0;
+    }
+    if (contents->file_version >= 14)
+    {
+        do_cpt_int_err(xd, "# of total lambda states ", &contents->nlambda, list);
+    }
+    else
+    {
+        contents->nlambda = 0;
+    }
+    do_cpt_int_err(xd, "integrator", &contents->eIntegrator, list);
+    if (contents->file_version >= 3)
+    {
+        do_cpt_int_err(xd, "simulation part #", &contents->simulation_part, list);
+    }
+    else
+    {
+        contents->simulation_part = 1;
+    }
+    if (contents->file_version >= 5)
+    {
+        do_cpt_step_err(xd, "step", &contents->step, list);
+    }
+    else
+    {
+        int idum = 0;
         do_cpt_int_err(xd, "step", &idum, list);
-        *step = idum;
+        contents->step = static_cast<gmx_int64_t>(idum);
     }
-    do_cpt_double_err(xd, "t", t, list);
-    do_cpt_int_err(xd, "#PP-ranks", nnodes, list);
-    idum = 1;
-    do_cpt_int_err(xd, "dd_nc[x]", dd_nc ? &(dd_nc[0]) : &idum, list);
-    do_cpt_int_err(xd, "dd_nc[y]", dd_nc ? &(dd_nc[1]) : &idum, list);
-    do_cpt_int_err(xd, "dd_nc[z]", dd_nc ? &(dd_nc[2]) : &idum, list);
-    do_cpt_int_err(xd, "#PME-only ranks", npme, list);
-    do_cpt_int_err(xd, "state flags", flags_state, list);
-    if (*file_version >= 4)
+    do_cpt_double_err(xd, "t", &contents->t, list);
+    do_cpt_int_err(xd, "#PP-ranks", &contents->nnodes, list);
+    do_cpt_int_err(xd, "dd_nc[x]", &contents->dd_nc[XX], list);
+    do_cpt_int_err(xd, "dd_nc[y]", &contents->dd_nc[YY], list);
+    do_cpt_int_err(xd, "dd_nc[z]", &contents->dd_nc[ZZ], list);
+    do_cpt_int_err(xd, "#PME-only ranks", &contents->npme, list);
+    do_cpt_int_err(xd, "state flags", &contents->flags_state, list);
+    if (contents->file_version >= 4)
     {
-        do_cpt_int_err(xd, "ekin data flags", flags_eks, list);
-        do_cpt_int_err(xd, "energy history flags", flags_enh, list);
-    }
-    else
-    {
-        *flags_eks   = 0;
-        *flags_enh   = (*flags_state >> (estORIRE_DTAV+1));
-        *flags_state = (*flags_state & ~((1<<(estORIRE_DTAV+1)) |
-                                         (1<<(estORIRE_DTAV+2)) |
-                                         (1<<(estORIRE_DTAV+3))));
-    }
-    if (*file_version >= 14)
-    {
-        do_cpt_int_err(xd, "df history flags", flags_dfh, list);
+        do_cpt_int_err(xd, "ekin data flags", &contents->flags_eks, list);
+        do_cpt_int_err(xd, "energy history flags", &contents->flags_enh, list);
     }
     else
     {
-        *flags_dfh = 0;
+        contents->flags_eks   = 0;
+        contents->flags_enh   = (contents->flags_state >> (estORIRE_DTAV+1));
+        contents->flags_state = (contents->flags_state & ~((1<<(estORIRE_DTAV+1)) |
+                                                           (1<<(estORIRE_DTAV+2)) |
+                                                           (1<<(estORIRE_DTAV+3))));
+    }
+    if (contents->file_version >= 14)
+    {
+        do_cpt_int_err(xd, "df history flags", &contents->flags_dfh, list);
+    }
+    else
+    {
+        contents->flags_dfh = 0;
     }
 
-    if (*file_version >= 15)
+    if (contents->file_version >= 15)
     {
-        do_cpt_int_err(xd, "ED data sets", nED, list);
+        do_cpt_int_err(xd, "ED data sets", &contents->nED, list);
     }
     else
     {
-        *nED = 0;
+        contents->nED = 0;
     }
 
-    if (*file_version >= 16)
+    if (contents->file_version >= 16)
     {
-        do_cpt_int_err(xd, "swap", eSwapCoords, list);
+        do_cpt_int_err(xd, "swap", &contents->eSwapCoords, list);
     }
     else
     {
-        *eSwapCoords = eswapNO;
+        contents->eSwapCoords = eswapNO;
     }
 
-    if (*file_version >= 17)
+    if (contents->file_version >= 17)
     {
-        do_cpt_int_err(xd, "AWH history flags", flags_awhh, list);
+        do_cpt_int_err(xd, "AWH history flags", &contents->flags_awhh, list);
     }
     else
     {
-        *flags_awhh = 0;
+        contents->flags_awhh = 0;
     }
 }
 
@@ -1672,39 +1691,34 @@ static int do_cpt_awh(XDR *xd, gmx_bool bRead,
 }
 
 static int do_cpt_files(XDR *xd, gmx_bool bRead,
-                        gmx_file_position_t **p_outputfiles, int *nfiles,
+                        std::vector<gmx_file_position_t> *outputfiles,
                         FILE *list, int file_version)
 {
-    int                  i;
-    gmx_off_t            offset;
-    gmx_off_t            mask = 0xFFFFFFFFL;
-    int                  offset_high, offset_low;
-    char                *buf;
-    gmx_file_position_t *outputfiles;
+    gmx_off_t                   offset;
+    gmx_off_t                   mask = 0xFFFFFFFFL;
+    int                         offset_high, offset_low;
+    std::array<char, CPTSTRLEN> buf;
+    GMX_RELEASE_ASSERT(outputfiles, "Must have valid outputfiles");
 
-    if (do_cpt_int(xd, "number of output files", nfiles, list) != 0)
+    // Ensure that reading pre-allocates outputfiles, while writing
+    // writes what is already there.
+    int nfiles = outputfiles->size();
+    if (do_cpt_int(xd, "number of output files", &nfiles, list) != 0)
     {
         return -1;
     }
-
     if (bRead)
     {
-        snew(*p_outputfiles, *nfiles);
+        outputfiles->resize(nfiles);
     }
 
-    outputfiles = *p_outputfiles;
-
-    for (i = 0; i < *nfiles; i++)
+    for (auto &outputfile : *outputfiles)
     {
         /* 64-bit XDR numbers are not portable, so it is stored as separate high/low fractions */
         if (bRead)
         {
-            do_cpt_string_err(xd, bRead, "output filename", &buf, list);
-            std::strncpy(outputfiles[i].filename, buf, CPTSTRLEN-1);
-            if (list == nullptr)
-            {
-                sfree(buf);
-            }
+            do_cpt_string_err(xd, "output filename", buf, list);
+            std::strncpy(outputfile.filename, buf.data(), buf.size()-1);
 
             if (do_cpt_int(xd, "file_offset_high", &offset_high, list) != 0)
             {
@@ -1714,14 +1728,13 @@ static int do_cpt_files(XDR *xd, gmx_bool bRead,
             {
                 return -1;
             }
-            outputfiles[i].offset = (static_cast<gmx_off_t>(offset_high) << 32 ) | ( static_cast<gmx_off_t>(offset_low) & mask );
+            outputfile.offset = (static_cast<gmx_off_t>(offset_high) << 32 ) | ( static_cast<gmx_off_t>(offset_low) & mask );
         }
         else
         {
-            buf = outputfiles[i].filename;
-            do_cpt_string_err(xd, bRead, "output filename", &buf, list);
+            do_cpt_string_err(xd, "output filename", outputfile.filename, list);
             /* writing */
-            offset      = outputfiles[i].offset;
+            offset      = outputfile.offset;
             if (offset == -1)
             {
                 offset_low  = -1;
@@ -1743,19 +1756,19 @@ static int do_cpt_files(XDR *xd, gmx_bool bRead,
         }
         if (file_version >= 8)
         {
-            if (do_cpt_int(xd, "file_checksum_size", &(outputfiles[i].chksum_size),
+            if (do_cpt_int(xd, "file_checksum_size", &outputfile.chksum_size,
                            list) != 0)
             {
                 return -1;
             }
-            if (do_cpt_u_chars(xd, "file_checksum", 16, outputfiles[i].chksum, list) != 0)
+            if (do_cpt_u_chars(xd, "file_checksum", 16, outputfile.chksum, list) != 0)
             {
                 return -1;
             }
         }
         else
         {
-            outputfiles[i].chksum_size = -1;
+            outputfile.chksum_size = -1;
         }
     }
     return 0;
@@ -1763,7 +1776,7 @@ static int do_cpt_files(XDR *xd, gmx_bool bRead,
 
 
 void write_checkpoint(const char *fn, gmx_bool bNumberAndKeep,
-                      FILE *fplog, t_commrec *cr,
+                      FILE *fplog, const t_commrec *cr,
                       ivec domdecCells, int nppnodes,
                       int eIntegrator, int simulation_part,
                       gmx_bool bExpanded, int elamstats,
@@ -1771,20 +1784,9 @@ void write_checkpoint(const char *fn, gmx_bool bNumberAndKeep,
                       t_state *state, ObservablesHistory *observablesHistory)
 {
     t_fileio            *fp;
-    int                  file_version;
-    char                *version;
-    char                *btime;
-    char                *buser;
-    char                *bhost;
-    int                  double_prec;
-    char                *fprog;
     char                *fntemp; /* the temporary checkpoint file name */
-    char                 timebuf[STRLEN];
     int                  npmenodes;
     char                 buf[1024], suffix[5+STEPSTRSIZE], sbuf[STEPSTRSIZE];
-    gmx_file_position_t *outputfiles;
-    int                  noutputfiles;
-    char                *ftime;
     t_fileio            *ret;
 
     if (DOMAINDECOMP(cr))
@@ -1811,6 +1813,7 @@ void write_checkpoint(const char *fn, gmx_bool bNumberAndKeep,
     snew(fntemp, std::strlen(fn));
     std::strcpy(fntemp, fn);
 #endif
+    char timebuf[STRLEN];
     gmx_format_current_time(timebuf, STRLEN);
 
     if (fplog)
@@ -1820,7 +1823,7 @@ void write_checkpoint(const char *fn, gmx_bool bNumberAndKeep,
     }
 
     /* Get offsets for open files */
-    gmx_fio_get_output_file_positions(&outputfiles, &noutputfiles);
+    auto outputfiles = gmx_fio_get_output_file_positions();
 
     fp = gmx_fio_open(fntemp, "w");
 
@@ -1900,38 +1903,35 @@ void write_checkpoint(const char *fn, gmx_bool bNumberAndKeep,
      * the same version, user, time, and build host!
      */
 
-    version = gmx_strdup(gmx_version());
-    btime   = gmx_strdup(BUILD_TIME);
-    buser   = gmx_strdup(BUILD_USER);
-    bhost   = gmx_strdup(BUILD_HOST);
+    int                      nlambda     = (state->dfhist ? state->dfhist->nlambda : 0);
 
-    double_prec = GMX_DOUBLE;
-    fprog       = gmx_strdup(gmx::getProgramContext().fullBinaryPath());
+    edsamhistory_t          *edsamhist   = observablesHistory->edsamHistory.get();
+    int                      nED         = (edsamhist ? edsamhist->nED : 0);
 
-    ftime   = &(timebuf[0]);
+    swaphistory_t           *swaphist    = observablesHistory->swapHistory.get();
+    int                      eSwapCoords = (swaphist ? swaphist->eSwapCoords : eswapNO);
 
-    int             nlambda     = (state->dfhist ? state->dfhist->nlambda : 0);
+    CheckpointHeaderContents headerContents =
+    {
+        0, {0}, {0}, {0}, {0}, GMX_DOUBLE, {0}, {0},
+        eIntegrator, simulation_part, step, t, nppnodes,
+        {0}, npmenodes,
+        state->natoms, state->ngtc, state->nnhpres,
+        state->nhchainlength, nlambda, state->flags, flags_eks, flags_enh, flags_dfh, flags_awhh,
+        nED, eSwapCoords
+    };
+    std::strcpy(headerContents.version, gmx_version());
+    std::strcpy(headerContents.btime, BUILD_TIME);
+    std::strcpy(headerContents.buser, BUILD_USER);
+    std::strcpy(headerContents.bhost, BUILD_HOST);
+    std::strcpy(headerContents.fprog, gmx::getProgramContext().fullBinaryPath());
+    std::strcpy(headerContents.ftime, timebuf);
+    if (DOMAINDECOMP(cr))
+    {
+        copy_ivec(domdecCells, headerContents.dd_nc);
+    }
 
-    edsamhistory_t *edsamhist   = observablesHistory->edsamHistory.get();
-    int             nED         = (edsamhist ? edsamhist->nED : 0);
-
-    swaphistory_t  *swaphist    = observablesHistory->swapHistory.get();
-    int             eSwapCoords = (swaphist ? swaphist->eSwapCoords : eswapNO);
-
-    do_cpt_header(gmx_fio_getxdr(fp), FALSE, &file_version,
-                  &version, &btime, &buser, &bhost, &double_prec, &fprog, &ftime,
-                  &eIntegrator, &simulation_part, &step, &t, &nppnodes,
-                  DOMAINDECOMP(cr) ? domdecCells : nullptr, &npmenodes,
-                  &state->natoms, &state->ngtc, &state->nnhpres,
-                  &state->nhchainlength, &nlambda, &state->flags, &flags_eks, &flags_enh, &flags_dfh, &flags_awhh,
-                  &nED, &eSwapCoords,
-                  nullptr);
-
-    sfree(version);
-    sfree(btime);
-    sfree(buser);
-    sfree(bhost);
-    sfree(fprog);
+    do_cpt_header(gmx_fio_getxdr(fp), FALSE, nullptr, &headerContents);
 
     if ((do_cpt_state(gmx_fio_getxdr(fp), state->flags, state, nullptr) < 0)        ||
         (do_cpt_ekinstate(gmx_fio_getxdr(fp), flags_eks, &state->ekinstate, nullptr) < 0) ||
@@ -1940,13 +1940,13 @@ void write_checkpoint(const char *fn, gmx_bool bNumberAndKeep,
         (do_cpt_EDstate(gmx_fio_getxdr(fp), FALSE, nED, edsamhist, nullptr) < 0)      ||
         (do_cpt_awh(gmx_fio_getxdr(fp), FALSE, flags_awhh, state->awhHistory.get(), NULL) < 0) ||
         (do_cpt_swapstate(gmx_fio_getxdr(fp), FALSE, eSwapCoords, swaphist, nullptr) < 0) ||
-        (do_cpt_files(gmx_fio_getxdr(fp), FALSE, &outputfiles, &noutputfiles, nullptr,
-                      file_version) < 0))
+        (do_cpt_files(gmx_fio_getxdr(fp), FALSE, &outputfiles, nullptr,
+                      headerContents.file_version) < 0))
     {
         gmx_file("Cannot read/write checkpoint; corrupt file, or maybe you are out of disk space?");
     }
 
-    do_cpt_footer(gmx_fio_getxdr(fp), file_version);
+    do_cpt_footer(gmx_fio_getxdr(fp), headerContents.file_version);
 
     /* we really, REALLY, want to make sure to physically write the checkpoint,
        and all the files it depends on, out to disk. Because we've
@@ -2009,7 +2009,6 @@ void write_checkpoint(const char *fn, gmx_bool bNumberAndKeep,
     }
 #endif  /* GMX_NO_RENAME */
 
-    sfree(outputfiles);
     sfree(fntemp);
 
 #ifdef GMX_FAHCORE
@@ -2023,60 +2022,43 @@ void write_checkpoint(const char *fn, gmx_bool bNumberAndKeep,
 #endif /* end GMX_FAHCORE block */
 }
 
-static void print_flag_mismatch(FILE *fplog, int sflags, int fflags)
-{
-    int i;
-
-    fprintf(fplog, "\nState entry mismatch between the simulation and the checkpoint file\n");
-    fprintf(fplog, "Entries which are not present in the checkpoint file will not be updated\n");
-    fprintf(fplog, "  %24s    %11s    %11s\n", "", "simulation", "checkpoint");
-    for (i = 0; i < estNR; i++)
-    {
-        if ((sflags & (1<<i)) || (fflags & (1<<i)))
-        {
-            fprintf(fplog, "  %24s    %11s    %11s\n",
-                    est_names[i],
-                    (sflags & (1<<i)) ? "  present  " : "not present",
-                    (fflags & (1<<i)) ? "  present  " : "not present");
-        }
-    }
-}
-
 static void check_int(FILE *fplog, const char *type, int p, int f, gmx_bool *mm)
 {
-    FILE *fp = fplog ? fplog : stderr;
-
-    if (p != f)
+    bool foundMismatch = (p != f);
+    if (!foundMismatch)
     {
-        fprintf(fp, "  %s mismatch,\n", type);
-        fprintf(fp, "    current program: %d\n", p);
-        fprintf(fp, "    checkpoint file: %d\n", f);
-        fprintf(fp, "\n");
-        *mm = TRUE;
+        return;
+    }
+    *mm = TRUE;
+    if (fplog)
+    {
+        fprintf(fplog, "  %s mismatch,\n", type);
+        fprintf(fplog, "    current program: %d\n", p);
+        fprintf(fplog, "    checkpoint file: %d\n", f);
+        fprintf(fplog, "\n");
     }
 }
 
 static void check_string(FILE *fplog, const char *type, const char *p,
                          const char *f, gmx_bool *mm)
 {
-    FILE *fp = fplog ? fplog : stderr;
-
-    if (std::strcmp(p, f) != 0)
+    bool foundMismatch = (std::strcmp(p, f) != 0);
+    if (!foundMismatch)
     {
-        fprintf(fp, "  %s mismatch,\n", type);
-        fprintf(fp, "    current program: %s\n", p);
-        fprintf(fp, "    checkpoint file: %s\n", f);
-        fprintf(fp, "\n");
-        *mm = TRUE;
+        return;
+    }
+    *mm = TRUE;
+    if (fplog)
+    {
+        fprintf(fplog, "  %s mismatch,\n", type);
+        fprintf(fplog, "    current program: %s\n", p);
+        fprintf(fplog, "    checkpoint file: %s\n", f);
+        fprintf(fplog, "\n");
     }
 }
 
-static void check_match(FILE *fplog,
-                        char *version,
-                        char *btime, char *buser, char *bhost, int double_prec,
-                        char *fprog,
-                        const t_commrec *cr, int npp_f, int npme_f,
-                        const ivec dd_nc, const ivec dd_nc_f,
+static void check_match(FILE *fplog, const t_commrec *cr, const ivec dd_nc,
+                        const CheckpointHeaderContents &headerContents,
                         gmx_bool reproducibilityRequested)
 {
     /* Note that this check_string on the version will also print a message
@@ -2084,16 +2066,15 @@ static void check_match(FILE *fplog,
      * message further down with reproducibilityRequested=TRUE.
      */
     gmx_bool versionDiffers = FALSE;
-    check_string(fplog, "Version", gmx_version(), version, &versionDiffers);
+    check_string(fplog, "Version", gmx_version(), headerContents.version, &versionDiffers);
 
     gmx_bool precisionDiffers = FALSE;
-    check_int   (fplog, "Double prec.", GMX_DOUBLE, double_prec, &precisionDiffers);
+    check_int   (fplog, "Double prec.", GMX_DOUBLE, headerContents.double_prec, &precisionDiffers);
     if (precisionDiffers)
     {
         const char msg_precision_difference[] =
             "You are continuing a simulation with a different precision. Not matching\n"
             "single/double precision will lead to precision or performance loss.\n";
-        fprintf(stderr, "%s\n", msg_precision_difference);
         if (fplog)
         {
             fprintf(fplog, "%s\n", msg_precision_difference);
@@ -2104,28 +2085,33 @@ static void check_match(FILE *fplog,
 
     if (reproducibilityRequested)
     {
-        check_string(fplog, "Build time", BUILD_TIME, btime, &mm);
-        check_string(fplog, "Build user", BUILD_USER, buser, &mm);
-        check_string(fplog, "Build host", BUILD_HOST, bhost, &mm);
-        check_string(fplog, "Program name", gmx::getProgramContext().fullBinaryPath(), fprog, &mm);
+        check_string(fplog, "Build time", BUILD_TIME, headerContents.btime, &mm);
+        check_string(fplog, "Build user", BUILD_USER, headerContents.buser, &mm);
+        check_string(fplog, "Build host", BUILD_HOST, headerContents.bhost, &mm);
+        check_string(fplog, "Program name", gmx::getProgramContext().fullBinaryPath(), headerContents.fprog, &mm);
 
-        check_int   (fplog, "#ranks", cr->nnodes, npp_f+npme_f, &mm);
+        check_int   (fplog, "#ranks", cr->nnodes, headerContents.nnodes, &mm);
     }
 
     if (cr->nnodes > 1 && reproducibilityRequested)
     {
-        check_int (fplog, "#PME-ranks", cr->npmenodes, npme_f, &mm);
+        check_int (fplog, "#PME-ranks", cr->npmenodes, headerContents.npme, &mm);
 
         int npp = cr->nnodes;
         if (cr->npmenodes >= 0)
         {
             npp -= cr->npmenodes;
         }
+        int npp_f = headerContents.nnodes;
+        if (headerContents.npme >= 0)
+        {
+            npp_f -= headerContents.npme;
+        }
         if (npp == npp_f)
         {
-            check_int (fplog, "#DD-cells[x]", dd_nc[XX], dd_nc_f[XX], &mm);
-            check_int (fplog, "#DD-cells[y]", dd_nc[YY], dd_nc_f[YY], &mm);
-            check_int (fplog, "#DD-cells[z]", dd_nc[ZZ], dd_nc_f[ZZ], &mm);
+            check_int (fplog, "#DD-cells[x]", dd_nc[XX], headerContents.dd_nc[XX], &mm);
+            check_int (fplog, "#DD-cells[y]", dd_nc[YY], headerContents.dd_nc[YY], &mm);
+            check_int (fplog, "#DD-cells[z]", dd_nc[ZZ], headerContents.dd_nc[ZZ], &mm);
         }
     }
 
@@ -2138,7 +2124,7 @@ static void check_match(FILE *fplog,
         int        gmx_major;
         int        cpt_major;
         sscanf(gmx_version(), "%5d", &gmx_major);
-        int        ret                 = sscanf(version, "%5d", &cpt_major);
+        int        ret                 = sscanf(headerContents.version, "%5d", &cpt_major);
         gmx_bool   majorVersionDiffers = (ret < 1 || gmx_major != cpt_major);
 
         const char msg_major_version_difference[] =
@@ -2154,13 +2140,8 @@ static void check_match(FILE *fplog,
             "GROMACS patchlevel, binary or parallel settings differ from previous run.\n"
             "Continuation is exact, but not guaranteed to be binary identical.\n";
 
-        const char msg_logdetails[] =
-            "See the log file for details.\n";
-
         if (majorVersionDiffers)
         {
-            fprintf(stderr, "%s%s\n", msg_major_version_difference, fplog ? msg_logdetails : "");
-
             if (fplog)
             {
                 fprintf(fplog, "%s\n", msg_major_version_difference);
@@ -2169,7 +2150,6 @@ static void check_match(FILE *fplog,
         else if (reproducibilityRequested)
         {
             /* Major & minor versions match at least, but something is different. */
-            fprintf(stderr, "%s%s\n", msg_mismatch_notice, fplog ? msg_logdetails : "");
             if (fplog)
             {
                 fprintf(fplog, "%s\n", msg_mismatch_notice);
@@ -2181,26 +2161,18 @@ static void check_match(FILE *fplog,
 static void read_checkpoint(const char *fn, FILE **pfplog,
                             const t_commrec *cr,
                             const ivec dd_nc,
-                            int eIntegrator, int *init_fep_state, gmx_int64_t *step, double *t,
+                            int eIntegrator,
+                            int *init_fep_state,
+                            CheckpointHeaderContents *headerContents,
                             t_state *state, gmx_bool *bReadEkin,
                             ObservablesHistory *observablesHistory,
-                            int *simulation_part,
                             gmx_bool bAppendOutputFiles, gmx_bool bForceAppend,
                             gmx_bool reproducibilityRequested)
 {
     t_fileio            *fp;
-    int                  i, j, rc;
-    int                  file_version;
-    char                *version, *btime, *buser, *bhost, *fprog, *ftime;
-    int                  double_prec;
+    int                  j, rc;
     char                 buf[STEPSTRSIZE];
-    int                  eIntegrator_f, nppnodes_f, npmenodes_f;
-    ivec                 dd_nc_f;
-    int                  natoms, ngtc, nnhpres, nhchainlength, nlambda, fflags, flags_eks, flags_enh, flags_dfh, flags_awhh;
-    int                  nED, eSwapCoords;
     int                  ret;
-    gmx_file_position_t *outputfiles;
-    int                  nfiles;
     t_fileio            *chksum_file;
     FILE               * fplog = *pfplog;
     unsigned char        digest[16];
@@ -2208,10 +2180,6 @@ static void read_checkpoint(const char *fn, FILE **pfplog,
     struct flock         fl; /* don't initialize here: the struct order is OS
                                 dependent! */
 #endif
-
-    const char *int_warn =
-        "WARNING: The checkpoint file was generated with integrator %s,\n"
-        "         while the simulation uses integrator %s\n\n";
 
 #if !defined __native_client__ && !GMX_NATIVE_WINDOWS
     fl.l_type   = F_WRLCK;
@@ -2222,24 +2190,12 @@ static void read_checkpoint(const char *fn, FILE **pfplog,
 #endif
 
     fp = gmx_fio_open(fn, "r");
-    do_cpt_header(gmx_fio_getxdr(fp), TRUE, &file_version,
-                  &version, &btime, &buser, &bhost, &double_prec, &fprog, &ftime,
-                  &eIntegrator_f, simulation_part, step, t,
-                  &nppnodes_f, dd_nc_f, &npmenodes_f,
-                  &natoms, &ngtc, &nnhpres, &nhchainlength, &nlambda,
-                  &fflags, &flags_eks, &flags_enh, &flags_dfh, &flags_awhh,
-                  &nED, &eSwapCoords, nullptr);
+    do_cpt_header(gmx_fio_getxdr(fp), TRUE, nullptr, headerContents);
 
     if (bAppendOutputFiles &&
-        file_version >= 13 && double_prec != GMX_DOUBLE)
+        headerContents->file_version >= 13 && headerContents->double_prec != GMX_DOUBLE)
     {
         gmx_fatal(FARGS, "Output file appending requested, but the code and checkpoint file precision (single/double) don't match");
-    }
-
-    if (cr == nullptr || MASTER(cr))
-    {
-        fprintf(stderr, "\nReading checkpoint file %s generated: %s\n\n",
-                fn, ftime);
     }
 
     /* This will not be written if we do appending, since fplog is still NULL then */
@@ -2247,181 +2203,136 @@ static void read_checkpoint(const char *fn, FILE **pfplog,
     {
         fprintf(fplog, "\n");
         fprintf(fplog, "Reading checkpoint file %s\n", fn);
-        fprintf(fplog, "  file generated by:     %s\n", fprog);
-        fprintf(fplog, "  file generated at:     %s\n", ftime);
-        fprintf(fplog, "  GROMACS build time:    %s\n", btime);
-        fprintf(fplog, "  GROMACS build user:    %s\n", buser);
-        fprintf(fplog, "  GROMACS build host:    %s\n", bhost);
-        fprintf(fplog, "  GROMACS double prec.:  %d\n", double_prec);
-        fprintf(fplog, "  simulation part #:     %d\n", *simulation_part);
-        fprintf(fplog, "  step:                  %s\n", gmx_step_str(*step, buf));
-        fprintf(fplog, "  time:                  %f\n", *t);
+        fprintf(fplog, "  file generated by:     %s\n", headerContents->fprog);
+        fprintf(fplog, "  file generated at:     %s\n", headerContents->ftime);
+        fprintf(fplog, "  GROMACS build time:    %s\n", headerContents->btime);
+        fprintf(fplog, "  GROMACS build user:    %s\n", headerContents->buser);
+        fprintf(fplog, "  GROMACS build host:    %s\n", headerContents->bhost);
+        fprintf(fplog, "  GROMACS double prec.:  %d\n", headerContents->double_prec);
+        fprintf(fplog, "  simulation part #:     %d\n", headerContents->simulation_part);
+        fprintf(fplog, "  step:                  %s\n", gmx_step_str(headerContents->step, buf));
+        fprintf(fplog, "  time:                  %f\n", headerContents->t);
         fprintf(fplog, "\n");
     }
 
-    if (natoms != state->natoms)
+    if (headerContents->natoms != state->natoms)
     {
-        gmx_fatal(FARGS, "Checkpoint file is for a system of %d atoms, while the current system consists of %d atoms", natoms, state->natoms);
+        gmx_fatal(FARGS, "Checkpoint file is for a system of %d atoms, while the current system consists of %d atoms", headerContents->natoms, state->natoms);
     }
-    if (ngtc != state->ngtc)
+    if (headerContents->ngtc != state->ngtc)
     {
-        gmx_fatal(FARGS, "Checkpoint file is for a system of %d T-coupling groups, while the current system consists of %d T-coupling groups", ngtc, state->ngtc);
+        gmx_fatal(FARGS, "Checkpoint file is for a system of %d T-coupling groups, while the current system consists of %d T-coupling groups", headerContents->ngtc, state->ngtc);
     }
-    if (nnhpres != state->nnhpres)
+    if (headerContents->nnhpres != state->nnhpres)
     {
-        gmx_fatal(FARGS, "Checkpoint file is for a system of %d NH-pressure-coupling variables, while the current system consists of %d NH-pressure-coupling variables", nnhpres, state->nnhpres);
+        gmx_fatal(FARGS, "Checkpoint file is for a system of %d NH-pressure-coupling variables, while the current system consists of %d NH-pressure-coupling variables", headerContents->nnhpres, state->nnhpres);
     }
 
     int nlambdaHistory = (state->dfhist ? state->dfhist->nlambda : 0);
-    if (nlambda != nlambdaHistory)
+    if (headerContents->nlambda != nlambdaHistory)
     {
-        gmx_fatal(FARGS, "Checkpoint file is for a system with %d lambda states, while the current system consists of %d lambda states", nlambda, nlambdaHistory);
+        gmx_fatal(FARGS, "Checkpoint file is for a system with %d lambda states, while the current system consists of %d lambda states", headerContents->nlambda, nlambdaHistory);
     }
 
-    init_gtc_state(state, state->ngtc, state->nnhpres, nhchainlength); /* need to keep this here to keep the tpr format working */
+    init_gtc_state(state, state->ngtc, state->nnhpres, headerContents->nhchainlength); /* need to keep this here to keep the tpr format working */
     /* write over whatever was read; we use the number of Nose-Hoover chains from the checkpoint */
 
-    if (eIntegrator_f != eIntegrator)
+    if (headerContents->eIntegrator != eIntegrator)
     {
-        if (MASTER(cr))
-        {
-            fprintf(stderr, int_warn, EI(eIntegrator_f), EI(eIntegrator));
-        }
-        if (bAppendOutputFiles)
-        {
-            gmx_fatal(FARGS,
-                      "Output file appending requested, but input/checkpoint integrators do not match.\n"
-                      "Stopping the run to prevent you from ruining all your data...\n"
-                      "If you _really_ know what you are doing, try with the -noappend option.\n");
-        }
-        if (fplog)
-        {
-            fprintf(fplog, int_warn, EI(eIntegrator_f), EI(eIntegrator));
-        }
+        gmx_fatal(FARGS, "Cannot change integrator during a checkpoint restart. Perhaps you should make a new .tpr with grompp -f new.mdp -t %s", fn);
     }
 
-    if (fflags != state->flags)
+    if (headerContents->flags_state != state->flags)
     {
-
-        if (MASTER(cr))
-        {
-            if (bAppendOutputFiles)
-            {
-                gmx_fatal(FARGS,
-                          "Output file appending requested, but input and checkpoint states are not identical.\n"
-                          "Stopping the run to prevent you from ruining all your data...\n"
-                          "You can try with the -noappend option, and get more info in the log file.\n");
-            }
-
-            if (getenv("GMX_ALLOW_CPT_MISMATCH") == nullptr)
-            {
-                gmx_fatal(FARGS, "You seem to have switched ensemble, integrator, T and/or P-coupling algorithm between the cpt and tpr file, or switched GROMACS version. The recommended way of doing this is passing the cpt file to grompp (with option -t) instead of to mdrun. If you know what you are doing, you can override this error by setting the env.var. GMX_ALLOW_CPT_MISMATCH");
-            }
-            else
-            {
-                fprintf(stderr,
-                        "WARNING: The checkpoint state entries do not match the simulation,\n"
-                        "         see the log file for details\n\n");
-            }
-        }
-
-        if (fplog)
-        {
-            print_flag_mismatch(fplog, state->flags, fflags);
-        }
+        gmx_fatal(FARGS, "Cannot change a simulation algorithm during a checkpoint restart. Perhaps you should make a new .tpr with grompp -f new.mdp -t %s", fn);
     }
-    else
+
+    if (MASTER(cr))
     {
-        if (MASTER(cr))
-        {
-            check_match(fplog, version, btime, buser, bhost, double_prec, fprog,
-                        cr, nppnodes_f, npmenodes_f, dd_nc, dd_nc_f,
-                        reproducibilityRequested);
-        }
+        check_match(fplog, cr, dd_nc, *headerContents,
+                    reproducibilityRequested);
     }
-    ret             = do_cpt_state(gmx_fio_getxdr(fp), fflags, state, nullptr);
+
+    ret             = do_cpt_state(gmx_fio_getxdr(fp), headerContents->flags_state, state, nullptr);
     *init_fep_state = state->fep_state;  /* there should be a better way to do this than setting it here.
                                             Investigate for 5.0. */
     if (ret)
     {
         cp_error();
     }
-    ret = do_cpt_ekinstate(gmx_fio_getxdr(fp), flags_eks, &state->ekinstate, nullptr);
+    ret = do_cpt_ekinstate(gmx_fio_getxdr(fp), headerContents->flags_eks, &state->ekinstate, nullptr);
     if (ret)
     {
         cp_error();
     }
-    *bReadEkin = ((flags_eks & (1<<eeksEKINH)) || (flags_eks & (1<<eeksEKINF)) || (flags_eks & (1<<eeksEKINO)) ||
-                  ((flags_eks & (1<<eeksEKINSCALEF)) | (flags_eks & (1<<eeksEKINSCALEH)) | (flags_eks & (1<<eeksVSCALE))));
+    *bReadEkin = ((headerContents->flags_eks & (1<<eeksEKINH)) ||
+                  (headerContents->flags_eks & (1<<eeksEKINF)) ||
+                  (headerContents->flags_eks & (1<<eeksEKINO)) ||
+                  ((headerContents->flags_eks & (1<<eeksEKINSCALEF)) |
+                   (headerContents->flags_eks & (1<<eeksEKINSCALEH)) |
+                   (headerContents->flags_eks & (1<<eeksVSCALE))));
 
-    if (flags_enh && observablesHistory->energyHistory == nullptr)
+    if (headerContents->flags_enh && observablesHistory->energyHistory == nullptr)
     {
         observablesHistory->energyHistory = std::unique_ptr<energyhistory_t>(new energyhistory_t {});
     }
     ret = do_cpt_enerhist(gmx_fio_getxdr(fp), TRUE,
-                          flags_enh, observablesHistory->energyHistory.get(), nullptr);
+                          headerContents->flags_enh, observablesHistory->energyHistory.get(), nullptr);
     if (ret)
     {
         cp_error();
     }
 
-    if (file_version < 6)
+    if (headerContents->file_version < 6)
     {
-        const char *warn = "Reading checkpoint file in old format, assuming that the run that generated this file started at step 0, if this is not the case the averages stored in the energy file will be incorrect.";
-
-        fprintf(stderr, "\nWARNING: %s\n\n", warn);
-        if (fplog)
-        {
-            fprintf(fplog, "\nWARNING: %s\n\n", warn);
-        }
-        observablesHistory->energyHistory->nsum     = *step;
-        observablesHistory->energyHistory->nsum_sim = *step;
+        gmx_fatal(FARGS, "Continuing from checkpoint files written before GROMACS 4.5 is not supported");
     }
 
-    ret = do_cpt_df_hist(gmx_fio_getxdr(fp), flags_dfh, nlambda, &state->dfhist, nullptr);
+    ret = do_cpt_df_hist(gmx_fio_getxdr(fp), headerContents->flags_dfh, headerContents->nlambda, &state->dfhist, nullptr);
     if (ret)
     {
         cp_error();
     }
 
-    if (nED > 0 && observablesHistory->edsamHistory == nullptr)
+    if (headerContents->nED > 0 && observablesHistory->edsamHistory == nullptr)
     {
         observablesHistory->edsamHistory = std::unique_ptr<edsamhistory_t>(new edsamhistory_t {});
     }
-    ret = do_cpt_EDstate(gmx_fio_getxdr(fp), TRUE, nED, observablesHistory->edsamHistory.get(), nullptr);
+    ret = do_cpt_EDstate(gmx_fio_getxdr(fp), TRUE, headerContents->nED, observablesHistory->edsamHistory.get(), nullptr);
     if (ret)
     {
         cp_error();
     }
 
-    if (flags_awhh != 0 && state->awhHistory == nullptr)
+    if (headerContents->flags_awhh != 0 && state->awhHistory == nullptr)
     {
         state->awhHistory = std::shared_ptr<gmx::AwhHistory>(new gmx::AwhHistory());
     }
     ret = do_cpt_awh(gmx_fio_getxdr(fp), TRUE,
-                     flags_awhh, state->awhHistory.get(), NULL);
+                     headerContents->flags_awhh, state->awhHistory.get(), NULL);
     if (ret)
     {
         cp_error();
     }
 
-    if (eSwapCoords != eswapNO && observablesHistory->swapHistory == nullptr)
+    if (headerContents->eSwapCoords != eswapNO && observablesHistory->swapHistory == nullptr)
     {
         observablesHistory->swapHistory = std::unique_ptr<swaphistory_t>(new swaphistory_t {});
     }
-    ret = do_cpt_swapstate(gmx_fio_getxdr(fp), TRUE, eSwapCoords, observablesHistory->swapHistory.get(), nullptr);
+    ret = do_cpt_swapstate(gmx_fio_getxdr(fp), TRUE, headerContents->eSwapCoords, observablesHistory->swapHistory.get(), nullptr);
     if (ret)
     {
         cp_error();
     }
 
-    ret = do_cpt_files(gmx_fio_getxdr(fp), TRUE, &outputfiles, &nfiles, nullptr, file_version);
+    std::vector<gmx_file_position_t> outputfiles;
+    ret = do_cpt_files(gmx_fio_getxdr(fp), TRUE, &outputfiles, nullptr, headerContents->file_version);
     if (ret)
     {
         cp_error();
     }
 
-    ret = do_cpt_footer(gmx_fio_getxdr(fp), file_version);
+    ret = do_cpt_footer(gmx_fio_getxdr(fp), headerContents->file_version);
     if (ret)
     {
         cp_error();
@@ -2430,12 +2341,6 @@ static void read_checkpoint(const char *fn, FILE **pfplog,
     {
         gmx_file("Cannot read/write checkpoint; corrupt file, or maybe you are out of disk space?");
     }
-
-    sfree(fprog);
-    sfree(ftime);
-    sfree(btime);
-    sfree(buser);
-    sfree(bhost);
 
     /* If the user wants to append to output files,
      * we use the file pointer positions of the output files stored
@@ -2446,6 +2351,10 @@ static void read_checkpoint(const char *fn, FILE **pfplog,
      */
     if (bAppendOutputFiles)
     {
+        if (outputfiles.empty())
+        {
+            gmx_fatal(FARGS, "No names of output files were recorded in the checkpoint");
+        }
         if (fn2ftp(outputfiles[0].filename) != efLOG)
         {
             /* make sure first file is log file so that it is OK to use it for
@@ -2454,23 +2363,24 @@ static void read_checkpoint(const char *fn, FILE **pfplog,
             gmx_fatal(FARGS, "The first output file should always be the log "
                       "file but instead is: %s. Cannot do appending because of this condition.", outputfiles[0].filename);
         }
-        for (i = 0; i < nfiles; i++)
+        bool firstFile = true;
+        for (const auto &outputfile : outputfiles)
         {
-            if (outputfiles[i].offset < 0)
+            if (outputfile.offset < 0)
             {
                 gmx_fatal(FARGS, "The original run wrote a file called '%s' which "
                           "is larger than 2 GB, but mdrun did not support large file"
                           " offsets. Can not append. Run mdrun with -noappend",
-                          outputfiles[i].filename);
+                          outputfile.filename);
             }
 #ifdef GMX_FAHCORE
-            chksum_file = gmx_fio_open(outputfiles[i].filename, "a");
+            chksum_file = gmx_fio_open(outputfile.filename, "a");
 
 #else
-            chksum_file = gmx_fio_open(outputfiles[i].filename, "r+");
+            chksum_file = gmx_fio_open(outputfile.filename, "r+");
 
             /* lock log file */
-            if (i == 0)
+            if (firstFile)
             {
                 /* Note that there are systems where the lock operation
                  * will succeed, but a second process can also lock the file.
@@ -2494,48 +2404,50 @@ static void read_checkpoint(const char *fn, FILE **pfplog,
                         }
                         else
                         {
-                            fprintf(stderr, "\nNOTE: File locking is not supported on this system, will not lock %s\n\n", outputfiles[i].filename);
                             if (fplog)
                             {
-                                fprintf(fplog, "\nNOTE: File locking not supported on this system, will not lock %s\n\n", outputfiles[i].filename);
+                                fprintf(fplog, "\nNOTE: File locking not supported on this system, will not lock %s\n\n", outputfile.filename);
                             }
                         }
                     }
                     else if (errno == EACCES || errno == EAGAIN)
                     {
                         gmx_fatal(FARGS, "Failed to lock: %s. Already running "
-                                  "simulation?", outputfiles[i].filename);
+                                  "simulation?", outputfile.filename);
                     }
                     else
                     {
                         gmx_fatal(FARGS, "Failed to lock: %s. %s.",
-                                  outputfiles[i].filename, std::strerror(errno));
+                                  outputfile.filename, std::strerror(errno));
                     }
                 }
             }
 
             /* compute md5 chksum */
-            if (outputfiles[i].chksum_size != -1)
+            if (outputfile.chksum_size != -1)
             {
-                if (gmx_fio_get_file_md5(chksum_file, outputfiles[i].offset,
-                                         digest) != outputfiles[i].chksum_size) /*at the end of the call the file position is at the end of the file*/
+                if (gmx_fio_get_file_md5(chksum_file, outputfile.offset,
+                                         digest) != outputfile.chksum_size) /*at the end of the call the file position is at the end of the file*/
                 {
                     gmx_fatal(FARGS, "Can't read %d bytes of '%s' to compute checksum. The file has been replaced or its contents have been modified. Cannot do appending because of this condition.",
-                              outputfiles[i].chksum_size,
-                              outputfiles[i].filename);
+                              outputfile.chksum_size,
+                              outputfile.filename);
                 }
             }
-            if (i == 0)  /*log file needs to be seeked in case we need to truncate (other files are truncated below)*/
+            /* log file needs to be seeked in case we need to truncate
+             * (other files are truncated below)*/
+            if (firstFile)
             {
-                if (gmx_fio_seek(chksum_file, outputfiles[i].offset))
+                if (gmx_fio_seek(chksum_file, outputfile.offset))
                 {
                     gmx_fatal(FARGS, "Seek error! Failed to truncate log-file: %s.", std::strerror(errno));
                 }
             }
 #endif
 
-            if (i == 0) /*open log file here - so that lock is never lifted
-                           after chksum is calculated */
+            /* open log file here - so that lock is never lifted
+             * after chksum is calculated */
+            if (firstFile)
             {
                 *pfplog = gmx_fio_getfp(chksum_file);
             }
@@ -2545,12 +2457,12 @@ static void read_checkpoint(const char *fn, FILE **pfplog,
             }
 #ifndef GMX_FAHCORE
             /* compare md5 chksum */
-            if (outputfiles[i].chksum_size != -1 &&
-                memcmp(digest, outputfiles[i].chksum, 16) != 0)
+            if (outputfile.chksum_size != -1 &&
+                memcmp(digest, outputfile.chksum, 16) != 0)
             {
                 if (debug)
                 {
-                    fprintf(debug, "chksum for %s: ", outputfiles[i].filename);
+                    fprintf(debug, "chksum for %s: ", outputfile.filename);
                     for (j = 0; j < 16; j++)
                     {
                         fprintf(debug, "%02x", digest[j]);
@@ -2558,26 +2470,25 @@ static void read_checkpoint(const char *fn, FILE **pfplog,
                     fprintf(debug, "\n");
                 }
                 gmx_fatal(FARGS, "Checksum wrong for '%s'. The file has been replaced or its contents have been modified. Cannot do appending because of this condition.",
-                          outputfiles[i].filename);
+                          outputfile.filename);
             }
 #endif
 
 
-            if (i != 0) /*log file is already seeked to correct position */
+            if (!firstFile) /* log file is already seeked to correct position */
             {
 #if !GMX_NATIVE_WINDOWS || !defined(GMX_FAHCORE)
                 /* For FAHCORE, we do this elsewhere*/
-                rc = gmx_truncate(outputfiles[i].filename, outputfiles[i].offset);
+                rc = gmx_truncate(outputfile.filename, outputfile.offset);
                 if (rc != 0)
                 {
-                    gmx_fatal(FARGS, "Truncation of file %s failed. Cannot do appending because of this failure.", outputfiles[i].filename);
+                    gmx_fatal(FARGS, "Truncation of file %s failed. Cannot do appending because of this failure.", outputfile.filename);
                 }
 #endif
             }
+            firstFile = false;
         }
     }
-
-    sfree(outputfiles);
 }
 
 
@@ -2589,48 +2500,36 @@ void load_checkpoint(const char *fn, FILE **fplog,
                      gmx_bool bAppend, gmx_bool bForceAppend,
                      gmx_bool reproducibilityRequested)
 {
-    gmx_int64_t     step;
-    double          t;
-
+    CheckpointHeaderContents headerContents;
     if (SIMMASTER(cr))
     {
         /* Read the state from the checkpoint file */
         read_checkpoint(fn, fplog,
                         cr, dd_nc,
-                        ir->eI, &(ir->fepvals->init_fep_state), &step, &t,
+                        ir->eI, &(ir->fepvals->init_fep_state),
+                        &headerContents,
                         state, bReadEkin, observablesHistory,
-                        &ir->simulation_part, bAppend, bForceAppend,
+                        bAppend, bForceAppend,
                         reproducibilityRequested);
     }
     if (PAR(cr))
     {
-        gmx_bcast(sizeof(step), &step, cr);
+        gmx_bcast(sizeof(headerContents.step), &headerContents.step, cr);
         gmx_bcast(sizeof(*bReadEkin), bReadEkin, cr);
     }
     ir->bContinuation    = TRUE;
     if (ir->nsteps >= 0)
     {
-        ir->nsteps          += ir->init_step - step;
+        ir->nsteps          += ir->init_step - headerContents.step;
     }
-    ir->init_step        = step;
-    ir->simulation_part += 1;
+    ir->init_step        = headerContents.step;
+    ir->simulation_part  = headerContents.simulation_part + 1;
 }
 
 void read_checkpoint_part_and_step(const char  *filename,
                                    int         *simulation_part,
                                    gmx_int64_t *step)
 {
-    int       file_version;
-    char     *version, *btime, *buser, *bhost, *fprog, *ftime;
-    int       double_prec;
-    int       eIntegrator;
-    int       nppnodes, npme;
-    ivec      dd_nc;
-    int       nlambda;
-    int       flags_eks, flags_enh, flags_dfh, flags_awhh;
-    double    t;
-    t_state   state;
-    int       nED, eSwapCoords;
     t_fileio *fp;
 
     if (filename == nullptr ||
@@ -2642,50 +2541,36 @@ void read_checkpoint_part_and_step(const char  *filename,
         return;
     }
 
-    /* Not calling initializing state before use is nasty, but all we
-       do is read into its member variables and throw the struct away
-       again immediately. */
-
-    do_cpt_header(gmx_fio_getxdr(fp), TRUE, &file_version,
-                  &version, &btime, &buser, &bhost, &double_prec, &fprog, &ftime,
-                  &eIntegrator, simulation_part, step, &t, &nppnodes, dd_nc, &npme,
-                  &state.natoms, &state.ngtc, &state.nnhpres, &state.nhchainlength,
-                  &nlambda, &state.flags, &flags_eks, &flags_enh, &flags_dfh, &flags_awhh,
-                  &nED, &eSwapCoords, nullptr);
-
+    CheckpointHeaderContents headerContents;
+    do_cpt_header(gmx_fio_getxdr(fp), TRUE, nullptr, &headerContents);
     gmx_fio_close(fp);
+    *simulation_part = headerContents.simulation_part;
+    *step            = headerContents.step;
 }
 
 static void read_checkpoint_data(t_fileio *fp, int *simulation_part,
                                  gmx_int64_t *step, double *t, t_state *state,
-                                 int *nfiles, gmx_file_position_t **outputfiles)
+                                 std::vector<gmx_file_position_t> *outputfiles)
 {
-    int                  file_version;
-    char                *version, *btime, *buser, *bhost, *fprog, *ftime;
-    int                  double_prec;
-    int                  eIntegrator;
-    int                  nppnodes, npme;
-    ivec                 dd_nc;
-    int                  nlambda;
-    int                  flags_eks, flags_enh, flags_dfh, flags_awhh;
-    int                  nED, eSwapCoords;
-    int                  nfiles_loc;
-    gmx_file_position_t *files_loc = nullptr;
-    int                  ret;
+    int                      ret;
 
-    do_cpt_header(gmx_fio_getxdr(fp), TRUE, &file_version,
-                  &version, &btime, &buser, &bhost, &double_prec, &fprog, &ftime,
-                  &eIntegrator, simulation_part, step, t, &nppnodes, dd_nc, &npme,
-                  &state->natoms, &state->ngtc, &state->nnhpres, &state->nhchainlength,
-                  &nlambda, &state->flags, &flags_eks, &flags_enh, &flags_dfh, &flags_awhh,
-                  &nED, &eSwapCoords, nullptr);
-    ret =
+    CheckpointHeaderContents headerContents;
+    do_cpt_header(gmx_fio_getxdr(fp), TRUE, nullptr, &headerContents);
+    *simulation_part     = headerContents.simulation_part;
+    *step                = headerContents.step;
+    *t                   = headerContents.t;
+    state->natoms        = headerContents.natoms;
+    state->ngtc          = headerContents.ngtc;
+    state->nnhpres       = headerContents.nnhpres;
+    state->nhchainlength = headerContents.nhchainlength;
+    state->flags         = headerContents.flags_state;
+    ret                  =
         do_cpt_state(gmx_fio_getxdr(fp), state->flags, state, nullptr);
     if (ret)
     {
         cp_error();
     }
-    ret = do_cpt_ekinstate(gmx_fio_getxdr(fp), flags_eks, &state->ekinstate, nullptr);
+    ret = do_cpt_ekinstate(gmx_fio_getxdr(fp), headerContents.flags_eks, &state->ekinstate, nullptr);
     if (ret)
     {
         cp_error();
@@ -2693,95 +2578,63 @@ static void read_checkpoint_data(t_fileio *fp, int *simulation_part,
 
     energyhistory_t enerhist;
     ret = do_cpt_enerhist(gmx_fio_getxdr(fp), TRUE,
-                          flags_enh, &enerhist, nullptr);
+                          headerContents.flags_enh, &enerhist, nullptr);
     if (ret)
     {
         cp_error();
     }
-    ret = do_cpt_df_hist(gmx_fio_getxdr(fp), flags_dfh, nlambda, &state->dfhist, nullptr);
+    ret = do_cpt_df_hist(gmx_fio_getxdr(fp), headerContents.flags_dfh, headerContents.nlambda, &state->dfhist, nullptr);
     if (ret)
     {
         cp_error();
     }
 
     edsamhistory_t edsamhist = {};
-    ret = do_cpt_EDstate(gmx_fio_getxdr(fp), TRUE, nED, &edsamhist, nullptr);
+    ret = do_cpt_EDstate(gmx_fio_getxdr(fp), TRUE, headerContents.nED, &edsamhist, nullptr);
     if (ret)
     {
         cp_error();
     }
 
     ret = do_cpt_awh(gmx_fio_getxdr(fp), TRUE,
-                     flags_awhh, state->awhHistory.get(), NULL);
+                     headerContents.flags_awhh, state->awhHistory.get(), NULL);
     if (ret)
     {
         cp_error();
     }
 
     swaphistory_t swaphist = {};
-    ret = do_cpt_swapstate(gmx_fio_getxdr(fp), TRUE, eSwapCoords, &swaphist, nullptr);
+    ret = do_cpt_swapstate(gmx_fio_getxdr(fp), TRUE, headerContents.eSwapCoords, &swaphist, nullptr);
     if (ret)
     {
         cp_error();
     }
 
     ret = do_cpt_files(gmx_fio_getxdr(fp), TRUE,
-                       &files_loc,
-                       &nfiles_loc,
-                       nullptr, file_version);
-    if (outputfiles != nullptr)
-    {
-        *outputfiles = files_loc;
-    }
-    else
-    {
-        sfree(files_loc);
-    }
-    if (nfiles != nullptr)
-    {
-        *nfiles = nfiles_loc;
-    }
+                       outputfiles,
+                       nullptr, headerContents.file_version);
 
     if (ret)
     {
         cp_error();
     }
 
-    ret = do_cpt_footer(gmx_fio_getxdr(fp), file_version);
+    ret = do_cpt_footer(gmx_fio_getxdr(fp), headerContents.file_version);
     if (ret)
     {
         cp_error();
-    }
-
-    sfree(fprog);
-    sfree(ftime);
-    sfree(btime);
-    sfree(buser);
-    sfree(bhost);
-}
-
-void
-read_checkpoint_state(const char *fn, int *simulation_part,
-                      gmx_int64_t *step, double *t, t_state *state)
-{
-    t_fileio *fp;
-
-    fp = gmx_fio_open(fn, "r");
-    read_checkpoint_data(fp, simulation_part, step, t, state, nullptr, nullptr);
-    if (gmx_fio_close(fp) != 0)
-    {
-        gmx_file("Cannot read/write checkpoint; corrupt file, or maybe you are out of disk space?");
     }
 }
 
 void read_checkpoint_trxframe(t_fileio *fp, t_trxframe *fr)
 {
-    t_state         state;
-    int             simulation_part;
-    gmx_int64_t     step;
-    double          t;
+    t_state                          state;
+    int                              simulation_part;
+    gmx_int64_t                      step;
+    double                           t;
 
-    read_checkpoint_data(fp, &simulation_part, &step, &t, &state, nullptr, nullptr);
+    std::vector<gmx_file_position_t> outputfiles;
+    read_checkpoint_data(fp, &simulation_part, &step, &t, &state, &outputfiles);
 
     fr->natoms  = state.natoms;
     fr->bStep   = TRUE;
@@ -2814,36 +2667,24 @@ void read_checkpoint_trxframe(t_fileio *fp, t_trxframe *fr)
 void list_checkpoint(const char *fn, FILE *out)
 {
     t_fileio            *fp;
-    int                  file_version;
-    char                *version, *btime, *buser, *bhost, *fprog, *ftime;
-    int                  double_prec;
-    int                  eIntegrator, simulation_part, nppnodes, npme;
-    gmx_int64_t          step;
-    double               t;
-    ivec                 dd_nc;
-    int                  nlambda;
-    int                  flags_eks, flags_enh, flags_dfh, flags_awhh;;
-    int                  nED, eSwapCoords;
     int                  ret;
-    gmx_file_position_t *outputfiles;
-    int                  nfiles;
 
     t_state              state;
 
     fp = gmx_fio_open(fn, "r");
-    do_cpt_header(gmx_fio_getxdr(fp), TRUE, &file_version,
-                  &version, &btime, &buser, &bhost, &double_prec, &fprog, &ftime,
-                  &eIntegrator, &simulation_part, &step, &t, &nppnodes, dd_nc, &npme,
-                  &state.natoms, &state.ngtc, &state.nnhpres, &state.nhchainlength,
-                  &nlambda, &state.flags,
-                  &flags_eks, &flags_enh, &flags_dfh, &flags_awhh, &nED, &eSwapCoords,
-                  out);
-    ret = do_cpt_state(gmx_fio_getxdr(fp), state.flags, &state, out);
+    CheckpointHeaderContents headerContents;
+    do_cpt_header(gmx_fio_getxdr(fp), TRUE, out, &headerContents);
+    state.natoms        = headerContents.natoms;
+    state.ngtc          = headerContents.ngtc;
+    state.nnhpres       = headerContents.nnhpres;
+    state.nhchainlength = headerContents.nhchainlength;
+    state.flags         = headerContents.flags_state;
+    ret                 = do_cpt_state(gmx_fio_getxdr(fp), state.flags, &state, out);
     if (ret)
     {
         cp_error();
     }
-    ret = do_cpt_ekinstate(gmx_fio_getxdr(fp), flags_eks, &state.ekinstate, out);
+    ret = do_cpt_ekinstate(gmx_fio_getxdr(fp), headerContents.flags_eks, &state.ekinstate, out);
     if (ret)
     {
         cp_error();
@@ -2851,40 +2692,41 @@ void list_checkpoint(const char *fn, FILE *out)
 
     energyhistory_t enerhist;
     ret = do_cpt_enerhist(gmx_fio_getxdr(fp), TRUE,
-                          flags_enh, &enerhist, out);
+                          headerContents.flags_enh, &enerhist, out);
 
     if (ret == 0)
     {
         ret = do_cpt_df_hist(gmx_fio_getxdr(fp),
-                             flags_dfh, nlambda, &state.dfhist, out);
+                             headerContents.flags_dfh, headerContents.nlambda, &state.dfhist, out);
     }
 
     if (ret == 0)
     {
         edsamhistory_t edsamhist = {};
-        ret = do_cpt_EDstate(gmx_fio_getxdr(fp), TRUE, nED, &edsamhist, out);
+        ret = do_cpt_EDstate(gmx_fio_getxdr(fp), TRUE, headerContents.nED, &edsamhist, out);
     }
 
     if (ret == 0)
     {
         ret = do_cpt_awh(gmx_fio_getxdr(fp), TRUE,
-                         flags_awhh, state.awhHistory.get(), out);
+                         headerContents.flags_awhh, state.awhHistory.get(), out);
     }
 
     if (ret == 0)
     {
         swaphistory_t swaphist = {};
-        ret = do_cpt_swapstate(gmx_fio_getxdr(fp), TRUE, eSwapCoords, &swaphist, out);
+        ret = do_cpt_swapstate(gmx_fio_getxdr(fp), TRUE, headerContents.eSwapCoords, &swaphist, out);
     }
 
     if (ret == 0)
     {
-        do_cpt_files(gmx_fio_getxdr(fp), TRUE, &outputfiles, &nfiles, out, file_version);
+        std::vector<gmx_file_position_t> outputfiles;
+        ret = do_cpt_files(gmx_fio_getxdr(fp), TRUE, &outputfiles, out, headerContents.file_version);
     }
 
     if (ret == 0)
     {
-        ret = do_cpt_footer(gmx_fio_getxdr(fp), file_version);
+        ret = do_cpt_footer(gmx_fio_getxdr(fp), headerContents.file_version);
     }
 
     if (ret)
@@ -2899,17 +2741,15 @@ void list_checkpoint(const char *fn, FILE *out)
 
 /* This routine cannot print tons of data, since it is called before the log file is opened. */
 void
-read_checkpoint_simulation_part_and_filenames(t_fileio             *fp,
-                                              int                  *simulation_part,
-                                              int                  *nfiles,
-                                              gmx_file_position_t **outputfiles)
+read_checkpoint_simulation_part_and_filenames(t_fileio                         *fp,
+                                              int                              *simulation_part,
+                                              std::vector<gmx_file_position_t> *outputfiles)
 {
     gmx_int64_t step = 0;
     double      t;
     t_state     state;
 
-    read_checkpoint_data(fp, simulation_part, &step, &t, &state,
-                         nfiles, outputfiles);
+    read_checkpoint_data(fp, simulation_part, &step, &t, &state, outputfiles);
     if (gmx_fio_close(fp) != 0)
     {
         gmx_file("Cannot read/write checkpoint; corrupt file, or maybe you are out of disk space?");

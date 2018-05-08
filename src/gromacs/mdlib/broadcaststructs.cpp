@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014,2015,2016,2017, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016,2017,2018, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -51,6 +51,7 @@
 #include "gromacs/mdtypes/md_enums.h"
 #include "gromacs/mdtypes/pull-params.h"
 #include "gromacs/mdtypes/state.h"
+#include "gromacs/topology/mtop_util.h"
 #include "gromacs/topology/symtab.h"
 #include "gromacs/topology/topology.h"
 #include "gromacs/utility/fatalerror.h"
@@ -748,19 +749,26 @@ static void bc_moltype(const t_commrec *cr, t_symtab *symtab,
     bc_blocka(cr, &moltype->excls);
 }
 
+static void bc_vector_of_rvec(const t_commrec *cr, std::vector<gmx::RVec> *vec)
+{
+    int numElements = vec->size();
+    block_bc(cr, numElements);
+    if (!MASTER(cr))
+    {
+        vec->resize(numElements);
+    }
+    if (numElements > 0)
+    {
+        nblock_bc(cr, numElements, as_rvec_array(vec->data()));
+    }
+}
+
 static void bc_molblock(const t_commrec *cr, gmx_molblock_t *molb)
 {
-    block_bc(cr, *molb);
-    if (molb->nposres_xA > 0)
-    {
-        snew_bc(cr, molb->posres_xA, molb->nposres_xA);
-        nblock_bc(cr, molb->nposres_xA*DIM, molb->posres_xA[0]);
-    }
-    if (molb->nposres_xB > 0)
-    {
-        snew_bc(cr, molb->posres_xB, molb->nposres_xB);
-        nblock_bc(cr, molb->nposres_xB*DIM, molb->posres_xB[0]);
-    }
+    block_bc(cr, molb->type);
+    block_bc(cr, molb->nmol);
+    bc_vector_of_rvec(cr, &molb->posres_xA);
+    bc_vector_of_rvec(cr, &molb->posres_xB);
     if (debug)
     {
         fprintf(debug, "after bc_molblock\n");
@@ -769,23 +777,7 @@ static void bc_molblock(const t_commrec *cr, gmx_molblock_t *molb)
 
 static void bc_atomtypes(const t_commrec *cr, t_atomtypes *atomtypes)
 {
-    int nr;
-
     block_bc(cr, atomtypes->nr);
-
-    nr = atomtypes->nr;
-
-    snew_bc(cr, atomtypes->radius, nr);
-    snew_bc(cr, atomtypes->vol, nr);
-    snew_bc(cr, atomtypes->surftens, nr);
-    snew_bc(cr, atomtypes->gb_radius, nr);
-    snew_bc(cr, atomtypes->S_hct, nr);
-
-    nblock_bc(cr, nr, atomtypes->radius);
-    nblock_bc(cr, nr, atomtypes->vol);
-    nblock_bc(cr, nr, atomtypes->surftens);
-    nblock_bc(cr, nr, atomtypes->gb_radius);
-    nblock_bc(cr, nr, atomtypes->S_hct);
 }
 
 /*! \brief Broadcasts ir and mtop from the master to all nodes in
@@ -793,7 +785,6 @@ static void bc_atomtypes(const t_commrec *cr, t_atomtypes *atomtypes)
 static
 void bcast_ir_mtop(const t_commrec *cr, t_inputrec *inputrec, gmx_mtop_t *mtop)
 {
-    int i;
     if (debug)
     {
         fprintf(debug, "in bc_data\n");
@@ -816,11 +807,12 @@ void bcast_ir_mtop(const t_commrec *cr, t_inputrec *inputrec, gmx_mtop_t *mtop)
 
     bc_ffparams(cr, &mtop->ffparams);
 
-    block_bc(cr, mtop->nmoltype);
-    snew_bc(cr, mtop->moltype, mtop->nmoltype);
-    for (i = 0; i < mtop->nmoltype; i++)
+    int nmoltype = mtop->moltype.size();
+    block_bc(cr, nmoltype);
+    mtop->moltype.resize(nmoltype);
+    for (gmx_moltype_t &moltype : mtop->moltype)
     {
-        bc_moltype(cr, &mtop->symtab, &mtop->moltype[i]);
+        bc_moltype(cr, &mtop->symtab, &moltype);
     }
 
     block_bc(cr, mtop->bIntermolecularInteractions);
@@ -830,19 +822,27 @@ void bcast_ir_mtop(const t_commrec *cr, t_inputrec *inputrec, gmx_mtop_t *mtop)
         bc_ilists(cr, mtop->intermolecular_ilist);
     }
 
-    block_bc(cr, mtop->nmolblock);
-    snew_bc(cr, mtop->molblock, mtop->nmolblock);
-    for (i = 0; i < mtop->nmolblock; i++)
+    int nmolblock = mtop->molblock.size();
+    block_bc(cr, nmolblock);
+    mtop->molblock.resize(nmolblock);
+    for (gmx_molblock_t &molblock : mtop->molblock)
     {
-        bc_molblock(cr, &mtop->molblock[i]);
+        bc_molblock(cr, &molblock);
     }
 
     block_bc(cr, mtop->natoms);
 
     bc_atomtypes(cr, &mtop->atomtypes);
 
-    bc_block(cr, &mtop->mols);
     bc_groups(cr, &mtop->symtab, mtop->natoms, &mtop->groups);
+
+    GMX_RELEASE_ASSERT(!MASTER(cr) || mtop->haveMoleculeIndices, "mtop should have valid molecule indices");
+    if (!MASTER(cr))
+    {
+        mtop->haveMoleculeIndices = true;
+
+        gmx_mtop_finalize(mtop);
+    }
 }
 
 void init_parallel(t_commrec *cr, t_inputrec *inputrec,

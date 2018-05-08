@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014,2015,2016,2017, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016,2017,2018, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -51,12 +51,12 @@
 #define GMX_EWALD_LONG_RANGE_CORRECTION_H
 
 #include "gromacs/math/vectypes.h"
-#include "gromacs/mdtypes/commrec.h"
-#include "gromacs/mdtypes/forcerec.h"
 #include "gromacs/topology/block.h"
 #include "gromacs/utility/basedefinitions.h"
 #include "gromacs/utility/real.h"
 
+struct t_commrec;
+struct t_forcerec;
 struct t_inputrec;
 
 /*! \brief Calculate long-range Ewald correction terms.
@@ -69,7 +69,7 @@ struct t_inputrec;
  * calculates correction for surface dipole terms. */
 void
 ewald_LRcorrection(int numAtomsLocal,
-                   t_commrec *cr,
+                   const t_commrec *cr,
                    int numThreads, int thread,
                    t_forcerec *fr,
                    const t_inputrec *ir,
@@ -79,7 +79,8 @@ ewald_LRcorrection(int numAtomsLocal,
                    real *sigma3A, real *sigma3B,
                    gmx_bool bHaveChargeOrTypePerturbed,
                    gmx_bool calc_excl_corr,
-                   t_blocka *excl, rvec x[],
+                   const t_blocka *excl,
+                   const rvec x[],
                    matrix box, rvec mu_tot[],
                    int ewald_geometry, real epsilon_surface,
                    rvec *f, tensor vir_q, tensor vir_lj,

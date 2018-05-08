@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014,2015,2016,2017, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016,2017,2018, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -61,6 +61,7 @@
 #include "gromacs/mdtypes/forceoutput.h"
 #include "gromacs/mdtypes/interaction_const.h"
 #include "gromacs/mdtypes/md_enums.h"
+#include "gromacs/timing/wallcycle.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/gmxmpi.h"
 #include "gromacs/utility/smalloc.h"
@@ -87,7 +88,7 @@ static void gmx_pme_send_coeffs_coords_wait(gmx_domdec_t *dd)
 }
 
 /*! \brief Send data to PME ranks */
-static void gmx_pme_send_coeffs_coords(t_commrec *cr, unsigned int flags,
+static void gmx_pme_send_coeffs_coords(const t_commrec *cr, unsigned int flags,
                                        real gmx_unused *chargeA, real gmx_unused *chargeB,
                                        real gmx_unused *c6A, real gmx_unused *c6B,
                                        real gmx_unused *sigmaA, real gmx_unused *sigmaB,
@@ -212,7 +213,7 @@ static void gmx_pme_send_coeffs_coords(t_commrec *cr, unsigned int flags,
     }
 }
 
-void gmx_pme_send_parameters(t_commrec *cr,
+void gmx_pme_send_parameters(const t_commrec *cr,
                              const interaction_const_t *ic,
                              gmx_bool bFreeEnergy_q, gmx_bool bFreeEnergy_lj,
                              real *chargeA, real *chargeB,
@@ -243,11 +244,13 @@ void gmx_pme_send_parameters(t_commrec *cr,
                                nullptr, nullptr, 0, 0, maxshift_x, maxshift_y, -1);
 }
 
-void gmx_pme_send_coordinates(t_commrec *cr, matrix box, rvec *x,
+void gmx_pme_send_coordinates(const t_commrec *cr, matrix box, rvec *x,
                               real lambda_q, real lambda_lj,
                               gmx_bool bEnerVir,
-                              gmx_int64_t step)
+                              gmx_int64_t step, gmx_wallcycle *wcycle)
 {
+    wallcycle_start(wcycle, ewcPP_PMESENDX);
+
     unsigned int flags = PP_PME_COORD;
     if (bEnerVir)
     {
@@ -255,19 +258,21 @@ void gmx_pme_send_coordinates(t_commrec *cr, matrix box, rvec *x,
     }
     gmx_pme_send_coeffs_coords(cr, flags, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
                                box, x, lambda_q, lambda_lj, 0, 0, step);
+
+    wallcycle_stop(wcycle, ewcPP_PMESENDX);
 }
 
-void gmx_pme_send_finish(t_commrec *cr)
+void gmx_pme_send_finish(const t_commrec *cr)
 {
     unsigned int flags = PP_PME_FINISH;
 
     gmx_pme_send_coeffs_coords(cr, flags, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, 0, 0, 0, 0, -1);
 }
 
-void gmx_pme_send_switchgrid(t_commrec gmx_unused *cr,
-                             ivec gmx_unused       grid_size,
-                             real gmx_unused       ewaldcoeff_q,
-                             real gmx_unused       ewaldcoeff_lj)
+void gmx_pme_send_switchgrid(const t_commrec *cr,
+                             ivec             grid_size,
+                             real             ewaldcoeff_q,
+                             real             ewaldcoeff_lj)
 {
 #if GMX_MPI
     gmx_pme_comm_n_box_t cnb;
@@ -284,10 +289,15 @@ void gmx_pme_send_switchgrid(t_commrec gmx_unused *cr,
         MPI_Send(&cnb, sizeof(cnb), MPI_BYTE,
                  cr->dd->pme_nodeid, eCommType_CNB, cr->mpi_comm_mysim);
     }
+#else
+    GMX_UNUSED_VALUE(cr);
+    GMX_UNUSED_VALUE(grid_size);
+    GMX_UNUSED_VALUE(ewaldcoeff_q);
+    GMX_UNUSED_VALUE(ewaldcoeff_lj);
 #endif
 }
 
-void gmx_pme_send_resetcounters(t_commrec gmx_unused *cr, gmx_int64_t gmx_unused step)
+void gmx_pme_send_resetcounters(const t_commrec gmx_unused *cr, gmx_int64_t gmx_unused step)
 {
 #if GMX_MPI
     gmx_pme_comm_n_box_t cnb;
@@ -306,7 +316,7 @@ void gmx_pme_send_resetcounters(t_commrec gmx_unused *cr, gmx_int64_t gmx_unused
 }
 
 /*! \brief Receive virial and energy from PME rank */
-static void receive_virial_energy(t_commrec *cr,
+static void receive_virial_energy(const t_commrec *cr,
                                   gmx::ForceWithVirial *forceWithVirial,
                                   real *energy_q, real *energy_lj,
                                   real *dvdlambda_q, real *dvdlambda_lj,
@@ -350,7 +360,7 @@ static void receive_virial_energy(t_commrec *cr,
     }
 }
 
-void gmx_pme_receive_f(t_commrec *cr,
+void gmx_pme_receive_f(const t_commrec *cr,
                        gmx::ForceWithVirial *forceWithVirial,
                        real *energy_q, real *energy_lj,
                        real *dvdlambda_q, real *dvdlambda_lj,

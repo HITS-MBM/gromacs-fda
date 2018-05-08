@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2012,2014,2015,2016,2017, by the GROMACS development team, led by
+ * Copyright (c) 2012,2014,2015,2016,2017,2018, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -43,7 +43,6 @@
 #include "gromacs/gpu_utils/cuda_arch_utils.cuh"
 #include "gromacs/gpu_utils/gpu_utils.h"
 #include "gromacs/utility/gmxassert.h"
-#include "gromacs/utility/smalloc.h"
 
 /*** Generic CUDA data operation wrappers ***/
 
@@ -135,87 +134,6 @@ int cu_copy_H2D_async(void * d_dest, void * h_src, size_t bytes, cudaStream_t s 
     return cu_copy_H2D(d_dest, h_src, bytes, GpuApiCallBehavior::Async, s);
 }
 
-/**** Operation on buffered arrays (arrays with "over-allocation" in gmx wording) *****/
-
-/*!
- * If the pointers to the size variables are NULL no resetting happens.
- */
-void cu_free_buffered(void *d_ptr, int *n, int *nalloc)
-{
-    cudaError_t stat;
-
-    if (d_ptr)
-    {
-        stat = cudaFree(d_ptr);
-        CU_RET_ERR(stat, "cudaFree failed");
-    }
-
-    if (n)
-    {
-        *n = -1;
-    }
-
-    if (nalloc)
-    {
-        *nalloc = -1;
-    }
-}
-
-/*!
- *  Reallocation of the memory pointed by d_ptr and copying of the data from
- *  the location pointed by h_src host-side pointer is done. Allocation is
- *  buffered and therefore freeing is only needed if the previously allocated
- *  space is not enough.
- *  The H2D copy is launched in stream s and can be done synchronously or
- *  asynchronously (the default is the latter).
- */
-void cu_realloc_buffered(void **d_dest, void *h_src,
-                         size_t type_size,
-                         int *curr_size, int *curr_alloc_size,
-                         int req_size,
-                         cudaStream_t s,
-                         bool bAsync = true)
-{
-    cudaError_t stat;
-
-    if (d_dest == NULL || req_size < 0)
-    {
-        return;
-    }
-
-    /* reallocate only if the data does not fit = allocation size is smaller
-       than the current requested size */
-    if (req_size > *curr_alloc_size)
-    {
-        /* only free if the array has already been initialized */
-        if (*curr_alloc_size >= 0)
-        {
-            cu_free_buffered(*d_dest, curr_size, curr_alloc_size);
-        }
-
-        *curr_alloc_size = over_alloc_large(req_size);
-
-        stat = cudaMalloc(d_dest, *curr_alloc_size * type_size);
-        CU_RET_ERR(stat, "cudaMalloc failed in cu_free_buffered");
-    }
-
-    /* size could have changed without actual reallocation */
-    *curr_size = req_size;
-
-    /* upload to device */
-    if (h_src)
-    {
-        if (bAsync)
-        {
-            cu_copy_H2D_async(*d_dest, h_src, *curr_size * type_size, s);
-        }
-        else
-        {
-            cu_copy_H2D_sync(*d_dest, h_src,  *curr_size * type_size);
-        }
-    }
-}
-
 /*! \brief Return whether texture objects are used on this device.
  *
  * \param[in]   pointer to the GPU device info structure to inspect for texture objects support
@@ -261,38 +179,12 @@ static void setup1DTexture(cudaTextureObject_t &texObj,
     CU_RET_ERR(stat, "cudaCreateTextureObject failed");
 }
 
-/*! \brief Set up texture reference for an array of type T.
- *
- * Set up texture object for an array of type T and bind it to the device memory
- * \p d_ptr points to.
- *
- * \tparam[in] T        Raw data type
- * \param[out] texObj   texture reference to initialize
- * \param[in]  d_ptr    pointer to device global memory to bind \p texObj to
- * \param[in]  sizeInBytes  size of memory area to bind \p texObj to
- */
-template <typename T>
-static void setup1DTexture(const struct texture<T, 1, cudaReadModeElementType> *texRef,
-                           const void                                          *d_ptr,
-                           size_t                                              sizeInBytes)
-{
-    assert(!c_disableCudaTextures);
-
-    cudaError_t           stat;
-    cudaChannelFormatDesc cd;
-
-    cd   = cudaCreateChannelDesc<T>();
-    stat = cudaBindTexture(nullptr, texRef, d_ptr, &cd, sizeInBytes);
-    CU_RET_ERR(stat, "cudaBindTexture failed");
-}
-
 template <typename T>
 void initParamLookupTable(T                        * &d_ptr,
-                          cudaTextureObject_t       &texObj,
-                          const struct texture<T, 1, cudaReadModeElementType> *texRef,
-                          const T                   *h_ptr,
-                          int                        numElem,
-                          const gmx_device_info_t   *devInfo)
+                          cudaTextureObject_t        &texObj,
+                          const T                    *h_ptr,
+                          int                         numElem,
+                          const gmx_device_info_t    *devInfo)
 {
     const size_t sizeInBytes = numElem * sizeof(*d_ptr);
     cudaError_t  stat        = cudaMalloc((void **)&d_ptr, sizeInBytes);
@@ -305,17 +197,12 @@ void initParamLookupTable(T                        * &d_ptr,
         {
             setup1DTexture<T>(texObj, d_ptr, sizeInBytes);
         }
-        else
-        {
-            setup1DTexture<T>(texRef, d_ptr, sizeInBytes);
-        }
     }
 }
 
 template <typename T>
 void destroyParamLookupTable(T                       *d_ptr,
                              cudaTextureObject_t      texObj,
-                             const struct texture<T, 1, cudaReadModeElementType> *texRef,
                              const gmx_device_info_t *devInfo)
 {
     if (!c_disableCudaTextures)
@@ -323,10 +210,6 @@ void destroyParamLookupTable(T                       *d_ptr,
         if (use_texobj(devInfo))
         {
             CU_RET_ERR(cudaDestroyTextureObject(texObj), "cudaDestroyTextureObject on texObj failed");
-        }
-        else
-        {
-            CU_RET_ERR(cudaUnbindTexture(texRef), "cudaUnbindTexture on texRef failed");
         }
     }
     CU_RET_ERR(cudaFree(d_ptr), "cudaFree failed");
@@ -336,7 +219,7 @@ void destroyParamLookupTable(T                       *d_ptr,
  * One should also verify that the result of cudaCreateChannelDesc<T>() during texture setup
  * looks reasonable, when instantiating the templates for new types - just in case.
  */
-template void initParamLookupTable<float>(float * &, cudaTextureObject_t &, const texture<float, 1, cudaReadModeElementType> *, const float *, int, const gmx_device_info_t *);
-template void destroyParamLookupTable<float>(float *, cudaTextureObject_t, const texture<float, 1, cudaReadModeElementType> *, const gmx_device_info_t *);
-template void initParamLookupTable<int>(int * &, cudaTextureObject_t &, const texture<int, 1, cudaReadModeElementType> *, const int *, int, const gmx_device_info_t *);
-template void destroyParamLookupTable<int>(int *, cudaTextureObject_t, const texture<int, 1, cudaReadModeElementType> *, const gmx_device_info_t *);
+template void initParamLookupTable<float>(float * &, cudaTextureObject_t &, const float *, int, const gmx_device_info_t *);
+template void destroyParamLookupTable<float>(float *, cudaTextureObject_t, const gmx_device_info_t *);
+template void initParamLookupTable<int>(int * &, cudaTextureObject_t &, const int *, int, const gmx_device_info_t *);
+template void destroyParamLookupTable<int>(int *, cudaTextureObject_t, const gmx_device_info_t *);

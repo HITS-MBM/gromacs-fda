@@ -56,7 +56,6 @@
 #include "gromacs/gpu_utils/ocl_compiler.h"
 #include "gromacs/gpu_utils/oclutils.h"
 #include "gromacs/hardware/hw_info.h"
-#include "gromacs/mdtypes/md_enums.h"
 #include "gromacs/utility/cstringutil.h"
 #include "gromacs/utility/exceptions.h"
 #include "gromacs/utility/fatalerror.h"
@@ -462,8 +461,8 @@ void gpu_set_host_malloc_and_free(bool               bUseGpuKernels,
 {
     if (bUseGpuKernels)
     {
-        *nb_alloc = &ocl_pmalloc;
-        *nb_free  = &ocl_pfree;
+        *nb_alloc = &pmalloc;
+        *nb_free  = &pfree;
     }
     else
     {

@@ -58,13 +58,11 @@
 #include "gromacs/utility/arrayref.h"
 #include "gromacs/utility/basenetwork.h"
 #include "gromacs/utility/classhelpers.h"
-#include "gromacs/utility/cstringutil.h"
 #include "gromacs/utility/exceptions.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/gmxassert.h"
 #include "gromacs/utility/path.h"
 #include "gromacs/utility/programcontext.h"
-#include "gromacs/utility/smalloc.h"
 #include "gromacs/utility/stringutil.h"
 
 /* The source code in this file should be thread-safe.
@@ -266,7 +264,7 @@ class OptionsAdapter
         /*! \brief
          * Copies values back from options to t_pargs/t_filenm.
          */
-        void copyValues(bool bReadNode);
+        void copyValues();
 
     private:
         struct FileNameData
@@ -316,22 +314,13 @@ class OptionsAdapter
 
 void OptionsAdapter::filenmToOptions(Options *options, t_filenm *fnm)
 {
-    if (fnm->opt == nullptr)
-    {
-        // Existing code may use opt2fn() instead of ftp2fn() for
-        // options that use the default option name, so we need to
-        // keep the old behavior instead of fixing opt2fn().
-        // TODO: Check that this is not the case, remove this, and make
-        // opt2*() work even if fnm->opt is NULL for some options.
-        fnm->opt = ftp2defopt(fnm->ftp);
-    }
     const bool        bRead     = ((fnm->flag & ffREAD)  != 0);
     const bool        bWrite    = ((fnm->flag & ffWRITE) != 0);
     const bool        bOptional = ((fnm->flag & ffOPT)   != 0);
     const bool        bLibrary  = ((fnm->flag & ffLIB)   != 0);
     const bool        bMultiple = ((fnm->flag & ffMULT)  != 0);
     const bool        bMissing  = ((fnm->flag & ffALLOW_MISSING) != 0);
-    const char *const name      = &fnm->opt[1];
+    const char *const name      = (fnm->opt ? &fnm->opt[1] : &ftp2defopt(fnm->ftp)[1]);
     const char *      defName   = fnm->fn;
     int               defType   = -1;
     if (defName == nullptr)
@@ -419,25 +408,16 @@ void OptionsAdapter::pargsToOptions(Options *options, t_pargs *pa)
     GMX_THROW(NotImplementedError("Argument type not implemented"));
 }
 
-void OptionsAdapter::copyValues(bool bReadNode)
+void OptionsAdapter::copyValues()
 {
     std::list<FileNameData>::const_iterator file;
     for (file = fileNameOptions_.begin(); file != fileNameOptions_.end(); ++file)
     {
-        if (!bReadNode && (file->fnm->flag & ffREAD))
-        {
-            continue;
-        }
         if (file->optionInfo->isSet())
         {
             file->fnm->flag |= ffSET;
         }
-        file->fnm->nfiles = file->values.size();
-        snew(file->fnm->fns, file->fnm->nfiles);
-        for (int i = 0; i < file->fnm->nfiles; ++i)
-        {
-            file->fnm->fns[i] = gmx_strdup(file->values[i].c_str());
-        }
+        file->fnm->filenames = file->values;
     }
     std::list<ProgramArgData>::const_iterator arg;
     for (arg = programArgs_.begin(); arg != programArgs_.end(); ++arg)
@@ -500,7 +480,7 @@ gmx_bool parse_common_args(int *argc, char *argv[], unsigned long Flags,
         gmx::FileNameOptionManager      fileOptManager;
 
         fileOptManager.disableInputOptionChecking(
-                isFlagSet(PCA_NOT_READ_NODE) || isFlagSet(PCA_DISABLE_INPUT_FILE_CHECKING));
+                isFlagSet(PCA_DISABLE_INPUT_FILE_CHECKING));
         options.addManager(&fileOptManager);
 
         if (isFlagSet(PCA_CAN_SET_DEFFNM))
@@ -585,7 +565,9 @@ gmx_bool parse_common_args(int *argc, char *argv[], unsigned long Flags,
         }
 
         /* Now parse all the command-line options */
-        gmx::CommandLineParser(&options).skipUnknown(isFlagSet(PCA_NOEXIT_ON_ARGS))
+        gmx::CommandLineParser(&options)
+            .skipUnknown(isFlagSet(PCA_NOEXIT_ON_ARGS))
+            .allowPositionalArguments(isFlagSet(PCA_NOEXIT_ON_ARGS))
             .parse(argc, argv);
         behaviors.optionsFinishing();
         options.finish();
@@ -609,7 +591,7 @@ gmx_bool parse_common_args(int *argc, char *argv[], unsigned long Flags,
             setTimeValue(TDELTA, tdelta);
         }
 
-        adapter.copyValues(!isFlagSet(PCA_NOT_READ_NODE));
+        adapter.copyValues();
 
         return TRUE;
     }

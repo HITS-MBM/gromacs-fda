@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2011,2012,2013,2014,2015,2016,2017, by the GROMACS development team, led by
+ * Copyright (c) 2011,2012,2013,2014,2015,2016,2017,2018, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -64,6 +64,8 @@
 #include "gromacs/gmxlib/network.h"
 #include "gromacs/mdlib/main.h"
 #include "gromacs/mdlib/mdrun.h"
+#include "gromacs/mdlib/repl_ex.h"
+#include "gromacs/mdrun/runner.h"
 #include "gromacs/mdrunutility/handlerestart.h"
 #include "gromacs/mdtypes/commrec.h"
 #include "gromacs/utility/arraysize.h"
@@ -71,16 +73,14 @@
 #include "gromacs/utility/smalloc.h"
 
 #include "mdrun_main.h"
-#include "repl_ex.h"
-#include "runner.h"
 
-/*! \brief Return whether either of the command-line parameters that
+/*! \brief Return whether the command-line parameter that
  *  will trigger a multi-simulation is set */
 static bool is_multisim_option_set(int argc, const char *const argv[])
 {
     for (int i = 0; i < argc; ++i)
     {
-        if (strcmp(argv[i], "-multi") == 0 || strcmp(argv[i], "-multidir") == 0)
+        if (strcmp(argv[i], "-multidir") == 0)
         {
             return true;
         }
@@ -343,8 +343,6 @@ int Mdrunner::mainFunction(int argc, char *argv[])
           "Run this number of steps, overrides .mdp file option (-1 means infinite, -2 means use mdp option, smaller is invalid)" },
         { "-maxh",   FALSE, etREAL, {&mdrunOptions.maximumHoursToRun},
           "Terminate after 0.99 times this time (hours)" },
-        { "-multi",   FALSE, etINT, {&nmultisim},
-          "Do multiple simulations in parallel" },
         { "-replex",  FALSE, etINT, {&replExParams.exchangeInterval},
           "Attempt replica exchange periodically with this period (steps)" },
         { "-nex",  FALSE, etINT, {&replExParams.numExchanges},
@@ -371,31 +369,18 @@ int Mdrunner::mainFunction(int argc, char *argv[])
           "HIDDENReset the cycle counters after half the number of steps or halfway [TT]-maxh[tt]" }
     };
     int               rc;
-    char            **multidir = nullptr;
 
     cr = init_commrec();
 
     unsigned long PCA_Flags = PCA_CAN_SET_DEFFNM;
-    // With -multi or -multidir, the file names are going to get processed
-    // further (or the working directory changed), so we can't check for their
-    // existence during parsing.  It isn't useful to do any completion based on
-    // file system contents, either.
+    // With -multidir, the working directory still needs to be
+    // changed, so we can't check for the existence of files during
+    // parsing.  It isn't useful to do any completion based on file
+    // system contents, either.
     if (is_multisim_option_set(argc, argv))
     {
         PCA_Flags |= PCA_DISABLE_INPUT_FILE_CHECKING;
     }
-
-    /* Comment this in to do fexist calls only on master
-     * works not with rerun or tables at the moment
-     * also comment out the version of init_forcerec in md.c
-     * with NULL instead of opt2fn
-     */
-    /*
-       if (!MASTER(cr))
-       {
-       PCA_Flags |= PCA_NOT_READ_NODE;
-       }
-     */
 
     if (!parse_common_args(&argc, argv, PCA_Flags, nfile, fnm, asize(pa), pa,
                            asize(desc), desc, 0, nullptr, &oenv))
@@ -445,20 +430,12 @@ int Mdrunner::mainFunction(int argc, char *argv[])
 
     hw_opt.thread_affinity = nenum(thread_aff_opt_choices);
 
-    /* now check the -multi and -multidir option */
-    if (opt2bSet("-multidir", nfile, fnm))
-    {
-        if (nmultisim > 0)
-        {
-            gmx_fatal(FARGS, "mdrun -multi and -multidir options are mutually exclusive.");
-        }
-        nmultisim = opt2fns(&multidir, "-multidir", nfile, fnm);
-    }
+    // now check for a multi-simulation
+    gmx::ArrayRef<const std::string> multidir = opt2fnsIfOptionSet("-multidir", nfile, fnm);
 
-
-    if (replExParams.exchangeInterval != 0 && nmultisim < 2)
+    if (replExParams.exchangeInterval != 0 && multidir.size() < 2)
     {
-        gmx_fatal(FARGS, "Need at least two replicas for replica exchange (option -multi)");
+        gmx_fatal(FARGS, "Need at least two replicas for replica exchange (use option -multidir)");
     }
 
     if (replExParams.numExchanges < 0)
@@ -466,15 +443,21 @@ int Mdrunner::mainFunction(int argc, char *argv[])
         gmx_fatal(FARGS, "Replica exchange number of exchanges needs to be positive");
     }
 
-    if (nmultisim >= 1)
+    ms = init_multisystem(MPI_COMM_WORLD, multidir);
+
+    /* Prepare the intra-simulation communication */
+    // TODO consolidate this with init_commrec, after changing the
+    // relative ordering of init_commrec and init_multisystem
+#if GMX_MPI
+    if (ms != nullptr)
     {
-#if !GMX_THREAD_MPI
-        init_multisystem(cr, nmultisim, multidir, nfile, fnm);
-#else
-        gmx_fatal(FARGS, "mdrun -multi or -multidir are not supported with the thread-MPI library. "
-                  "Please compile GROMACS with a proper external MPI library.");
-#endif
+        cr->nnodes = cr->nnodes / ms->nsim;
+        MPI_Comm_split(MPI_COMM_WORLD, ms->sim, cr->sim_nodeid, &cr->mpi_comm_mysim);
+        cr->mpi_comm_mygroup = cr->mpi_comm_mysim;
+        MPI_Comm_rank(cr->mpi_comm_mysim, &cr->sim_nodeid);
+        MPI_Comm_rank(cr->mpi_comm_mygroup, &cr->nodeid);
     }
+#endif
 
     if (!opt2bSet("-cpi", nfile, fnm))
     {
@@ -496,7 +479,7 @@ int Mdrunner::mainFunction(int argc, char *argv[])
 
     continuationOptions.appendFilesOptionSet = opt2parg_bSet("-append", asize(pa), pa);
 
-    handleRestart(cr, bTryToAppendFiles, nfile, fnm, &continuationOptions.appendFiles, &continuationOptions.startedFromCheckpoint);
+    handleRestart(cr, ms, bTryToAppendFiles, nfile, fnm, &continuationOptions.appendFiles, &continuationOptions.startedFromCheckpoint);
 
     mdrunOptions.rerun            = opt2bSet("-rerun", nfile, fnm);
     mdrunOptions.ntompOptionIsSet = opt2parg_bSet("-ntomp", asize(pa), pa);
@@ -529,11 +512,16 @@ int Mdrunner::mainFunction(int argc, char *argv[])
 
     /* Log file has to be closed in mdrunner if we are appending to it
        (fplog not set here) */
-    if (MASTER(cr) && !continuationOptions.appendFiles)
+    if (fplog != nullptr)
     {
         gmx_log_close(fplog);
     }
 
+    if (GMX_LIB_MPI)
+    {
+        done_commrec(cr);
+    }
+    done_multisim(ms);
     return rc;
 }
 

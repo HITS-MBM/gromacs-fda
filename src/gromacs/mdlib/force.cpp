@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014,2015,2016,2017, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016,2017,2018, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -57,7 +57,6 @@
 #include "gromacs/math/vec.h"
 #include "gromacs/math/vecdump.h"
 #include "gromacs/mdlib/forcerec-threading.h"
-#include "gromacs/mdlib/genborn.h"
 #include "gromacs/mdlib/mdrun.h"
 #include "gromacs/mdlib/ns.h"
 #include "gromacs/mdlib/qmmm.h"
@@ -74,15 +73,15 @@
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/smalloc.h"
 
-void ns(FILE              *fp,
-        t_forcerec        *fr,
-        matrix             box,
-        gmx_groups_t      *groups,
-        gmx_localtop_t    *top,
-        t_mdatoms         *md,
-        t_commrec         *cr,
-        t_nrnb            *nrnb,
-        gmx_bool           bFillGrid)
+void ns(FILE               *fp,
+        t_forcerec         *fr,
+        matrix              box,
+        const gmx_groups_t *groups,
+        gmx_localtop_t     *top,
+        const t_mdatoms    *md,
+        const t_commrec    *cr,
+        t_nrnb             *nrnb,
+        gmx_bool            bFillGrid)
 {
     int     nsearch;
 
@@ -135,26 +134,28 @@ static void reduceEwaldThreadOuput(int nthreads, ewald_corr_thread_t *ewc_t)
     }
 }
 
-void do_force_lowlevel(t_forcerec *fr,      t_inputrec *ir,
-                       t_idef     *idef,    t_commrec  *cr,
-                       t_nrnb     *nrnb,    gmx_wallcycle_t wcycle,
-                       t_mdatoms  *md,
-                       rvec       x[],      history_t  *hist,
-                       rvec      *forceForUseWithShiftForces,
+void do_force_lowlevel(t_forcerec           *fr,
+                       const t_inputrec     *ir,
+                       const t_idef         *idef,
+                       const t_commrec      *cr,
+                       const gmx_multisim_t *ms,
+                       t_nrnb               *nrnb,
+                       gmx_wallcycle_t       wcycle,
+                       const t_mdatoms      *md,
+                       rvec                  x[],
+                       history_t            *hist,
+                       rvec                 *forceForUseWithShiftForces,
                        gmx::ForceWithVirial *forceWithVirial,
-                       gmx_enerdata_t *enerd,
-                       t_fcdata   *fcd,
-                       gmx_localtop_t *top,
-                       gmx_genborn_t *born,
-                       gmx_bool       bBornRadii,
-                       matrix     box,
-                       t_lambda   *fepvals,
-                       real       *lambda,
-                       t_graph    *graph,
-                       t_blocka   *excl,
-                       rvec       mu_tot[],
-                       int        flags,
-                       float     *cycles_pme)
+                       gmx_enerdata_t       *enerd,
+                       t_fcdata             *fcd,
+                       matrix                box,
+                       t_lambda             *fepvals,
+                       real                 *lambda,
+                       const t_graph        *graph,
+                       const t_blocka       *excl,
+                       rvec                  mu_tot[],
+                       int                   flags,
+                       float                *cycles_pme)
 {
     int         i, j;
     int         donb_flags;
@@ -201,25 +202,6 @@ void do_force_lowlevel(t_forcerec *fr,      t_inputrec *ir,
         enerd->dvdl_lin[efptVDW] += dvdl_walls;
     }
 
-    /* If doing GB, reset dvda and calculate the Born radii */
-    if (ir->implicit_solvent)
-    {
-        wallcycle_sub_start(wcycle, ewcsNONBONDED);
-
-        for (i = 0; i < born->nr; i++)
-        {
-            fr->dvda[i] = 0;
-        }
-
-        if (bBornRadii)
-        {
-            calc_gb_rad(cr, fr, ir, top, x, fr->gblist, born, md, nrnb);
-        }
-
-        wallcycle_sub_stop(wcycle, ewcsNONBONDED);
-    }
-
-    where();
     /* We only do non-bonded calculation with group scheme here, the verlet
      * calls are done from do_force_cutsVERLET(). */
     if (fr->cutoff_scheme == ecutsGROUP && (flags & GMX_FORCE_NONBONDED))
@@ -270,18 +252,6 @@ void do_force_lowlevel(t_forcerec *fr,      t_inputrec *ir,
             }
         }
         wallcycle_sub_stop(wcycle, ewcsNONBONDED);
-        where();
-    }
-
-    /* If we are doing GB, calculate bonded forces and apply corrections
-     * to the solvation forces */
-    /* MRS: Eventually, many need to include free energy contribution here! */
-    if (ir->implicit_solvent)
-    {
-        wallcycle_sub_start(wcycle, ewcsLISTED);
-        calc_gb_forces(cr, md, born, top, x, forceForUseWithShiftForces, fr, idef,
-                       ir->gb_algorithm, ir->sa_algorithm, nrnb, &pbc, graph, enerd);
-        wallcycle_sub_stop(wcycle, ewcsLISTED);
     }
 
 #if GMX_MPI
@@ -359,14 +329,13 @@ void do_force_lowlevel(t_forcerec *fr,      t_inputrec *ir,
                    TRUE, box);
     }
 
-    do_force_listed(wcycle, box, ir->fepvals, cr,
+    do_force_listed(wcycle, box, ir->fepvals, cr, ms,
                     idef, (const rvec *) x, hist,
                     forceForUseWithShiftForces, forceWithVirial,
                     fr, &pbc, graph, enerd, nrnb, lambda, md, fcd,
                     DOMAINDECOMP(cr) ? cr->dd->gatindex : nullptr,
                     flags);
 
-    where();
 
     *cycles_pme = 0;
 
@@ -586,7 +555,6 @@ void do_force_lowlevel(t_forcerec *fr,      t_inputrec *ir,
             enerd->dvdl_lin[efptCOUL] += dvdl_rf_excl;
         }
     }
-    where();
 
     if (debug)
     {
@@ -703,8 +671,6 @@ void sum_epot(gmx_grppairener_t *grpp, real *epot)
     epot[F_LJ]       = sum_v(grpp->nener, grpp->ener[egLJSR]);
     epot[F_LJ14]     = sum_v(grpp->nener, grpp->ener[egLJ14]);
     epot[F_COUL14]   = sum_v(grpp->nener, grpp->ener[egCOUL14]);
-    /* We have already added 1-2,1-3, and 1-4 terms to F_GBPOL */
-    epot[F_GBPOL]   += sum_v(grpp->nener, grpp->ener[egGB]);
 
 /* lattice part of LR doesnt belong to any group
  * and has been added earlier

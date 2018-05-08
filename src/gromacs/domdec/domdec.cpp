@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2005,2006,2007,2008,2009,2010,2011,2012,2013,2014,2015,2016,2017, by the GROMACS development team, led by
+ * Copyright (c) 2005,2006,2007,2008,2009,2010,2011,2012,2013,2014,2015,2016,2017,2018, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -65,10 +65,11 @@
 #include "gromacs/math/vec.h"
 #include "gromacs/math/vectypes.h"
 #include "gromacs/mdlib/constr.h"
+#include "gromacs/mdlib/constraintrange.h"
 #include "gromacs/mdlib/force.h"
 #include "gromacs/mdlib/forcerec.h"
-#include "gromacs/mdlib/genborn.h"
 #include "gromacs/mdlib/gmx_omp_nthreads.h"
+#include "gromacs/mdlib/lincs.h"
 #include "gromacs/mdlib/mdatoms.h"
 #include "gromacs/mdlib/mdrun.h"
 #include "gromacs/mdlib/mdsetup.h"
@@ -391,8 +392,10 @@ void dd_get_constraint_range(const gmx_domdec_t *dd, int *at_start, int *at_end)
     *at_end   = dd->comm->nat[ddnatCON];
 }
 
-void dd_move_x(gmx_domdec_t *dd, matrix box, rvec x[])
+void dd_move_x(gmx_domdec_t *dd, matrix box, rvec x[], gmx_wallcycle *wcycle)
 {
+    wallcycle_start(wcycle, ewcMOVEX);
+
     int                    nzone, nat_tot, n, d, p, i, j, at0, at1, zone;
     int                   *index, *cgindex;
     gmx_domdec_comm_t     *comm;
@@ -499,10 +502,14 @@ void dd_move_x(gmx_domdec_t *dd, matrix box, rvec x[])
         }
         nzone += nzone;
     }
+
+    wallcycle_stop(wcycle, ewcMOVEX);
 }
 
-void dd_move_f(gmx_domdec_t *dd, rvec f[], rvec *fshift)
+void dd_move_f(gmx_domdec_t *dd, rvec f[], rvec *fshift, gmx_wallcycle *wcycle)
 {
+    wallcycle_start(wcycle, ewcMOVEF);
+
     int                    nzone, nat_tot, n, d, p, i, j, at0, at1, zone;
     int                   *index, *cgindex;
     gmx_domdec_comm_t     *comm;
@@ -620,6 +627,7 @@ void dd_move_f(gmx_domdec_t *dd, rvec f[], rvec *fshift)
         }
         nzone /= 2;
     }
+    wallcycle_stop(wcycle, ewcMOVEF);
 }
 
 void dd_atom_spread_real(gmx_domdec_t *dd, real v[])
@@ -1719,8 +1727,8 @@ static void write_dd_grid_pdb(const char *fn, gmx_int64_t step,
 }
 
 void write_dd_pdb(const char *fn, gmx_int64_t step, const char *title,
-                  const gmx_mtop_t *mtop, t_commrec *cr,
-                  int natoms, rvec x[], matrix box)
+                  const gmx_mtop_t *mtop, const t_commrec *cr,
+                  int natoms, const rvec x[], const matrix box)
 {
     char          fname[STRLEN], buf[22];
     FILE         *out;
@@ -1869,7 +1877,7 @@ static int *dd_interleaved_pme_ranks(const gmx_domdec_t *dd)
     return pme_rank;
 }
 
-static int gmx_ddcoord2pmeindex(t_commrec *cr, int x, int y, int z)
+static int gmx_ddcoord2pmeindex(const t_commrec *cr, int x, int y, int z)
 {
     gmx_domdec_t *dd;
     ivec          coords;
@@ -1897,7 +1905,7 @@ static int gmx_ddcoord2pmeindex(t_commrec *cr, int x, int y, int z)
     return slab;
 }
 
-static int ddcoord2simnodeid(t_commrec *cr, int x, int y, int z)
+static int ddcoord2simnodeid(const t_commrec *cr, int x, int y, int z)
 {
     gmx_domdec_comm_t *comm;
     ivec               coords;
@@ -2011,7 +2019,7 @@ void get_pme_nnodes(const gmx_domdec_t *dd,
     }
 }
 
-std::vector<int> get_pme_ddranks(t_commrec *cr, int pmenodeid)
+std::vector<int> get_pme_ddranks(const t_commrec *cr, int pmenodeid)
 {
     gmx_domdec_t *dd;
     int           x, y, z;
@@ -5409,8 +5417,10 @@ void dd_setup_dlb_resource_sharing(t_commrec            *cr,
     }
     /* Split the PP communicator over the physical nodes */
     /* TODO: See if we should store this (before), as it's also used for
-     * for the nodecomm summution.
+     * for the nodecomm summation.
      */
+    // TODO PhysicalNodeCommunicator could be extended/used to handle
+    // the need for per-node per-group communicators.
     MPI_Comm_split(dd->mpi_comm_all, physicalnode_id_hash, dd->rank,
                    &mpi_comm_pp_physicalnode);
     MPI_Comm_split(mpi_comm_pp_physicalnode, gpu_id, dd->rank,
@@ -6059,7 +6069,7 @@ static int multi_body_bondeds_count(const gmx_mtop_t *mtop)
 {
     int                  n, nmol, ftype;
     gmx_mtop_ilistloop_t iloop;
-    t_ilist             *il;
+    const t_ilist       *il;
 
     n     = 0;
     iloop = gmx_mtop_ilistloop_init(mtop);
@@ -6101,7 +6111,7 @@ static int dd_getenv(FILE *fplog, const char *env_var, int def)
     return nst;
 }
 
-static void dd_warning(t_commrec *cr, FILE *fplog, const char *warn_string)
+static void dd_warning(const t_commrec *cr, FILE *fplog, const char *warn_string)
 {
     if (MASTER(cr))
     {
@@ -6374,7 +6384,7 @@ static void set_dd_limits_and_grid(FILE *fplog, t_commrec *cr, gmx_domdec_t *dd,
 
     comm->bCGs = (ncg_mtop(mtop) < mtop->natoms);
 
-    comm->bInterCGBondeds = ((ncg_mtop(mtop) > mtop->mols.nr) ||
+    comm->bInterCGBondeds = ((ncg_mtop(mtop) > gmx_mtop_num_molecules(*mtop)) ||
                              mtop->bIntermolecularInteractions);
     if (comm->bInterCGBondeds)
     {
@@ -6735,7 +6745,7 @@ static void set_dlb_limits(gmx_domdec_t *dd)
 }
 
 
-static void turn_on_dlb(FILE *fplog, t_commrec *cr, gmx_int64_t step)
+static void turn_on_dlb(FILE *fplog, const t_commrec *cr, gmx_int64_t step)
 {
     gmx_domdec_t      *dd;
     gmx_domdec_comm_t *comm;
@@ -6801,7 +6811,7 @@ static void turn_on_dlb(FILE *fplog, t_commrec *cr, gmx_int64_t step)
     }
 }
 
-static void turn_off_dlb(FILE *fplog, t_commrec *cr, gmx_int64_t step)
+static void turn_off_dlb(FILE *fplog, const t_commrec *cr, gmx_int64_t step)
 {
     gmx_domdec_t *dd = cr->dd;
 
@@ -6813,7 +6823,7 @@ static void turn_off_dlb(FILE *fplog, t_commrec *cr, gmx_int64_t step)
     dd->comm->ddPartioningCountFirstDlbOff = dd->ddp_count;
 }
 
-static void turn_off_dlb_forever(FILE *fplog, t_commrec *cr, gmx_int64_t step)
+static void turn_off_dlb_forever(FILE *fplog, const t_commrec *cr, gmx_int64_t step)
 {
     GMX_RELEASE_ASSERT(cr->dd->comm->dlbState == edlbsOffCanTurnOn, "Can only turn off DLB forever when it was in the can-turn-on state");
     char buf[STRLEN];
@@ -7420,6 +7430,16 @@ static gmx_bool dd_dlb_get_should_check_whether_to_turn_dlb_on(gmx_domdec_t *dd)
         /* We ignore the first nstlist steps at the start of the run
          * or after PME load balancing or after turning DLB off, since
          * these often have extra allocation or cache miss overhead.
+         */
+        return FALSE;
+    }
+
+    if (dd->comm->cycl_n[ddCyclStep] == 0)
+    {
+        /* We can have zero timed steps when dd_partition_system is called
+         * more than once at the same step, e.g. with replica exchange.
+         * Turning on DLB would trigger an assertion failure later, but is
+         * also useless right after exchanging replicas.
          */
         return FALSE;
     }
@@ -9114,7 +9134,7 @@ void reset_dd_statistics_counters(gmx_domdec_t *dd)
     comm->load_pme = 0;
 }
 
-void print_dd_statistics(t_commrec *cr, const t_inputrec *ir, FILE *fplog)
+void print_dd_statistics(const t_commrec *cr, const t_inputrec *ir, FILE *fplog)
 {
     gmx_domdec_comm_t *comm;
     int                ddnat;
@@ -9172,7 +9192,7 @@ void print_dd_statistics(t_commrec *cr, const t_inputrec *ir, FILE *fplog)
 
 void dd_partition_system(FILE                *fplog,
                          gmx_int64_t          step,
-                         t_commrec           *cr,
+                         const t_commrec     *cr,
                          gmx_bool             bMasterState,
                          int                  nstglobalcomm,
                          t_state             *state_global,
@@ -9184,9 +9204,9 @@ void dd_partition_system(FILE                *fplog,
                          gmx_localtop_t      *top_local,
                          t_forcerec          *fr,
                          gmx_vsite_t         *vsite,
-                         gmx_constr_t         constr,
+                         gmx::Constraints    *constr,
                          t_nrnb              *nrnb,
-                         gmx_wallcycle_t      wcycle,
+                         gmx_wallcycle       *wcycle,
                          gmx_bool             bVerbose)
 {
     gmx_domdec_t      *dd;
@@ -9745,11 +9765,6 @@ void dd_partition_system(FILE                *fplog,
     mdAlgorithmsSetupAtomData(cr, ir, top_global, top_local, fr,
                               nullptr, mdAtoms, vsite, nullptr);
 
-    if (ir->implicit_solvent)
-    {
-        make_local_gb(cr, fr->born, ir->gb_algorithm);
-    }
-
     auto mdatoms = mdAtoms->mdatoms();
     if (!thisRankHasDuty(cr, DUTY_PME))
     {
@@ -9804,7 +9819,7 @@ void dd_partition_system(FILE                *fplog,
 
     if (comm->nstDDDump > 0 && step % comm->nstDDDump == 0)
     {
-        dd_move_x(dd, state_local->box, as_rvec_array(state_local->x.data()));
+        dd_move_x(dd, state_local->box, as_rvec_array(state_local->x.data()), nullWallcycle);
         write_dd_pdb("dd_dump", step, "dump", top_global, cr,
                      -1, as_rvec_array(state_local->x.data()), state_local->box);
     }
@@ -9832,4 +9847,23 @@ void dd_partition_system(FILE                *fplog,
     }
 
     wallcycle_stop(wcycle, ewcDOMDEC);
+}
+
+/*! \brief Check whether bonded interactions are missing, if appropriate */
+void checkNumberOfBondedInteractions(FILE                 *fplog,
+                                     t_commrec            *cr,
+                                     int                   totalNumberOfBondedInteractions,
+                                     const gmx_mtop_t     *top_global,
+                                     const gmx_localtop_t *top_local,
+                                     const t_state        *state,
+                                     bool                 *shouldCheckNumberOfBondedInteractions)
+{
+    if (*shouldCheckNumberOfBondedInteractions)
+    {
+        if (totalNumberOfBondedInteractions != cr->dd->nbonded_global)
+        {
+            dd_print_missing_interactions(fplog, cr, totalNumberOfBondedInteractions, top_global, top_local, state); // Does not return
+        }
+        *shouldCheckNumberOfBondedInteractions = false;
+    }
 }

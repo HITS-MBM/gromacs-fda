@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014,2015,2016,2017, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016,2017,2018, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -51,6 +51,7 @@ struct t_graph;
 struct t_ilist;
 struct t_mdatoms;
 struct t_nrnb;
+struct gmx_wallcycle;
 
 typedef struct gmx_vsite_t {
     gmx_bool             bHaveChargeGroups;    /* Do we have charge groups?               */
@@ -85,7 +86,7 @@ void construct_vsites(const gmx_vsite_t *vsite,
                       real dt, rvec v[],
                       const t_iparams ip[], const t_ilist ilist[],
                       int ePBC, gmx_bool bMolPBC,
-                      t_commrec *cr,
+                      const t_commrec *cr,
                       const matrix box);
 
 /*! \brief Create positions of vsite atoms for the whole system assuming all molecules are wholex
@@ -102,7 +103,7 @@ void spread_vsite_f(const gmx_vsite_t *vsite,
                     gmx_bool VirCorr, matrix vir,
                     t_nrnb *nrnb, const t_idef *idef,
                     int ePBC, gmx_bool bMolPBC, const t_graph *g, const matrix box,
-                    t_commrec *cr);
+                    const t_commrec *cr, gmx_wallcycle *wcycle);
 /* Spread the force operating on the vsite atoms on the surrounding atoms.
  * If fshift!=NULL also update the shift forces.
  * If VirCorr=TRUE add the virial correction for non-linear vsite constructs
@@ -121,7 +122,7 @@ int count_intercg_vsites(const gmx_mtop_t *mtop);
  * \returns A valid vsite struct or nullptr when there are no virtual sites
  */
 gmx_vsite_t *initVsite(const gmx_mtop_t &mtop,
-                       t_commrec        *cr);
+                       const t_commrec  *cr);
 
 void split_vsites_over_threads(const t_ilist   *ilist,
                                const t_iparams *ip,

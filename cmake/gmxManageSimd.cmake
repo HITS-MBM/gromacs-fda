@@ -1,7 +1,7 @@
 #
 # This file is part of the GROMACS molecular simulation package.
 #
-# Copyright (c) 2012,2013,2014,2015,2016,2017, by the GROMACS development team, led by
+# Copyright (c) 2012,2013,2014,2015,2016,2017,2018, by the GROMACS development team, led by
 # Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
 # and including many others, as listed in the AUTHORS file in the
 # top-level source directory and at http://www.gromacs.org.
@@ -237,18 +237,6 @@ elseif(GMX_SIMD_ACTIVE STREQUAL "ARM_NEON_ASIMD")
     set(GMX_SIMD_${GMX_SIMD_ACTIVE} 1)
     set(SIMD_STATUS_MESSAGE "Enabling ARM (AArch64) NEON Advanced SIMD instructions using CXX flags: ${SIMD_ARM_NEON_ASIMD_CXX_FLAGS}")
 
-elseif(GMX_SIMD_ACTIVE STREQUAL "IBM_QPX")
-
-    try_compile(TEST_QPX ${CMAKE_BINARY_DIR}
-        "${CMAKE_SOURCE_DIR}/cmake/TestQPX.c")
-
-    if (TEST_QPX)
-        set(GMX_SIMD_${GMX_SIMD_ACTIVE} 1)
-        set(SIMD_STATUS_MESSAGE "Enabling IBM QPX SIMD instructions without special flags.")
-    else()
-        gmx_give_fatal_error_when_simd_support_not_found("IBM QPX" "or 'cmake .. -DCMAKE_TOOLCHAIN_FILE=Platform/BlueGeneQ-static-bgclang-CXX' to set up the tool chain" "${SUGGEST_BINUTILS_UPDATE}")
-    endif()
-
 elseif(GMX_SIMD_ACTIVE STREQUAL "IBM_VMX")
 
     gmx_find_simd_ibm_vmx_flags(SIMD_IBM_VMX_C_SUPPORTED SIMD_IBM_VMX_CXX_SUPPORTED
@@ -323,7 +311,7 @@ endif()
 # breaks something. The actual test source file is built if
 # SIMD_AVX_512_CXX_SUPPORTED is set, so it will always be included if we have
 # GMX_SIMD=AVX_512.
-set(GMX_ENABLE_AVX512_TESTS ON CACHE INTERNAL "Compile AVX512 code to test FMA units, even when not using AVX512 SIMD")
+set(GMX_ENABLE_AVX512_TESTS ON CACHE BOOL "Compile AVX512 code to test FMA units, even when not using AVX512 SIMD")
 mark_as_advanced(GMX_ENABLE_AVX512_TESTS)
 
 if(GMX_ENABLE_AVX512_TESTS AND
@@ -375,9 +363,7 @@ endif()
 # so we avoid searching for any.
 #
 if(NOT DEFINED GMX_SIMD_CALLING_CONVENTION)
-    if(GMX_TARGET_BGQ)
-        set(CALLCONV_LIST " ")
-    elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND GMX_SIMD_ACTIVE STREQUAL "REFERENCE")
+    if(CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND GMX_SIMD_ACTIVE STREQUAL "REFERENCE")
         set(CALLCONV_LIST __regcall " ")
    elseif(CMAKE_CXX_COMPILER_ID MATCHES "XL")
         set(CALLCONV_LIST " ")

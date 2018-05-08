@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2012,2013,2014,2016,2017, by the GROMACS development team, led by
+ * Copyright (c) 2012,2013,2014,2016,2017,2018, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -43,6 +43,10 @@
  *  \ingroup module_mdlib
  */
 
+/* Currently we enable CJ prefetch for AMD/NVIDIA and disable it for the "nowarp" kernel
+ * Note that this should precede the kernel_utils include.
+ */
+#define USE_CJ_PREFETCH 1
 
 #include "nbnxn_ocl_kernel_utils.clh"
 
@@ -83,59 +87,58 @@
  */
 
 /* NOTE:
- NB_KERNEL_FUNC_NAME differs from the CUDA equivalent as it is not a variadic macro due to OpenCL not having a support for them, this version only takes exactly 2 arguments.
- Thus if more strings need to be appended a new macro must be written or it must be directly appended here.
-*/
+   NB_KERNEL_FUNC_NAME differs from the CUDA equivalent as it is not a variadic macro due to OpenCL not having a support for them, this version only takes exactly 2 arguments.
+   Thus if more strings need to be appended a new macro must be written or it must be directly appended here.
+ */
 __attribute__((reqd_work_group_size(CL_SIZE, CL_SIZE, 1)))
 #ifdef PRUNE_NBL
     #ifdef CALC_ENERGIES
-        __kernel void NB_KERNEL_FUNC_NAME(nbnxn_kernel, _VF_prune_opencl)
+__kernel void NB_KERNEL_FUNC_NAME(nbnxn_kernel, _VF_prune_opencl)
     #else
-        __kernel void NB_KERNEL_FUNC_NAME(nbnxn_kernel, _F_prune_opencl)
+__kernel void NB_KERNEL_FUNC_NAME(nbnxn_kernel, _F_prune_opencl)
     #endif
 #else
     #ifdef CALC_ENERGIES
-        __kernel void NB_KERNEL_FUNC_NAME(nbnxn_kernel, _VF_opencl)
+__kernel void NB_KERNEL_FUNC_NAME(nbnxn_kernel, _VF_opencl)
     #else
-        __kernel void NB_KERNEL_FUNC_NAME(nbnxn_kernel, _F_opencl)
+__kernel void NB_KERNEL_FUNC_NAME(nbnxn_kernel, _F_opencl)
     #endif
 #endif
 (
 #ifndef LJ_COMB
- int ntypes,                                                               /* IN  */
+    int ntypes,                               /* IN  */
 #endif
- cl_nbparam_params_t nbparam_params,                                       /* IN  */
- const __global float4 *restrict xq,                                       /* IN  */
- __global float *restrict f,                /* stores float3 values */     /* OUT */
- __global float *restrict e_lj,                                            /* OUT */
- __global float *restrict e_el,                                            /* OUT */
-__global float *restrict fshift,            /* stores float3 values */     /* OUT */
+    cl_nbparam_params_t nbparam_params,       /* IN  */
+    const __global float4 *restrict xq,       /* IN  */
+    __global float *restrict f,               /* OUT stores float3 values */
+    __global float *restrict e_lj,            /* OUT */
+    __global float *restrict e_el,            /* OUT */
+    __global float *restrict fshift,          /* OUT stores float3 values */
 #ifdef LJ_COMB
- const __global float2 *restrict lj_comb,      /* stores float2 values */  /* IN  */
+    const __global float2 *restrict lj_comb,  /* IN stores float2 values */
 #else
- const __global int *restrict atom_types,                                  /* IN  */
+    const __global int *restrict atom_types,  /* IN  */
 #endif
- const __global float *restrict shift_vec,  /* stores float3 values */     /* IN  */
- __constant float* nbfp_climg2d,                                           /* IN  */
- __constant float* nbfp_comb_climg2d,                                      /* IN  */
- __constant float* coulomb_tab_climg2d,                                    /* IN  */
- const __global nbnxn_sci_t* pl_sci,                                       /* IN  */
+    const __global float *restrict shift_vec, /* IN stores float3 values */
+    __constant float* nbfp_climg2d,           /* IN  */
+    __constant float* nbfp_comb_climg2d,      /* IN  */
+    __constant float* coulomb_tab_climg2d,    /* IN  */
+    const __global nbnxn_sci_t* pl_sci,       /* IN  */
 #ifndef PRUNE_NBL
     const
 #endif
- __global nbnxn_cj4_t* pl_cj4,                                             /* OUT / IN */
- const __global nbnxn_excl_t* excl,                                        /* IN  */
- int bCalcFshift,                                                          /* IN  */
- __local  float4   *xqib,                                                  /* Pointer to dyn alloc'ed shmem */
- __global float *debug_buffer                                              /* Debug buffer, can be used with print_to_debug_buffer_f */
- )
+    __global nbnxn_cj4_t* pl_cj4,             /* OUT / IN */
+    const __global nbnxn_excl_t* excl,        /* IN  */
+    int bCalcFshift,                          /* IN  */
+    __local  float4   *xqib                   /* Pointer to dyn alloc'ed shmem */
+)
 {
     /* convenience variables */
     cl_nbparam_params_t *nbparam = &nbparam_params;
 
-    float               rcoulomb_sq = nbparam->rcoulomb_sq;
+    float                rcoulomb_sq = nbparam->rcoulomb_sq;
 #ifdef LJ_COMB
-    float2              ljcp_i, ljcp_j;
+    float2               ljcp_i, ljcp_j;
 #endif
 #ifdef VDW_CUTOFF_CHECK
     float               rvdw_sq     = nbparam_params.rvdw_sq;
@@ -199,7 +202,7 @@ __global float *restrict fshift,            /* stores float3 values */     /* OU
 #endif
     unsigned int wexcl, imask, mask_ji;
     float4       xqbuf;
-    float3       xi, xj, rv, f_ij, fcj_buf/*, fshift_buf*/;
+    float3       xi, xj, rv, f_ij, fcj_buf /*, fshift_buf*/;
     float        fshift_buf;
     float3       fci_buf[NCL_PER_SUPERCL]; /* i force buffer */
     nbnxn_sci_t  nb_sci;
@@ -207,9 +210,14 @@ __global float *restrict fshift,            /* stores float3 values */     /* OU
     /*! i-cluster interaction mask for a super-cluster with all NCL_PER_SUPERCL=8 bits set */
     const unsigned superClInteractionMask = ((1U << NCL_PER_SUPERCL) - 1U);
 
+#define LOCAL_OFFSET xqib + NCL_PER_SUPERCL * CL_SIZE
+    __local int *cjs;
+#if USE_CJ_PREFETCH
     /* shmem buffer for cj, for both warps separately */
-    __local int *cjs       = (__local int *)(xqib + NCL_PER_SUPERCL * CL_SIZE);
+    cjs = (__local int *)(LOCAL_OFFSET);
+    #undef LOCAL_OFFSET
     #define LOCAL_OFFSET cjs + 2 * NBNXN_GPU_JGROUP_SIZE
+#endif
 
 #ifdef IATYPE_SHMEM
 #ifndef LJ_COMB
@@ -257,8 +265,10 @@ __global float *restrict fshift,            /* stores float3 values */     /* OU
 #endif
 #endif
     /* Initialise warp vote. (8x8 block) 2 warps for nvidia */
-    if(tidx==0 || tidx==32)
+    if (tidx == 0 || tidx == 32)
+    {
         warp_any[widx] = 0;
+    }
 
     barrier(CLK_LOCAL_MEM_FENCE);
 
@@ -290,7 +300,7 @@ __global float *restrict fshift,            /* stores float3 values */     /* OU
 #endif
 #if defined LJ_EWALD
             E_lj += nbfp_climg2d[atom_types[(sci*NCL_PER_SUPERCL + i)*CL_SIZE + tidxi]*(ntypes + 1)*2];
-#endif /* LJ_EWALD */
+#endif      /* LJ_EWALD */
         }
 
         /* divide the self term(s) equally over the j-threads, then multiply with the coefficients. */
@@ -324,16 +334,12 @@ __global float *restrict fshift,            /* stores float3 values */     /* OU
         imask       = pl_cj4[j4].imei[widx].imask;
         wexcl       = excl[wexcl_idx].pair[(tidx) & (WARP_SIZE - 1)];
 
+        preloadCj4(cjs, pl_cj4[j4].cj, tidxi, tidxj, imask);
+
 #ifndef PRUNE_NBL
         if (imask)
 #endif
         {
-            /* Pre-load cj into shared memory on both warps separately */
-            if ((tidxj == 0 | tidxj == 4) & (tidxi < NBNXN_GPU_JGROUP_SIZE))
-            {
-                cjs[tidxi + tidxj * NBNXN_GPU_JGROUP_SIZE / 4] = pl_cj4[j4].cj[tidxi];
-            }
-
             /* TODO: check loop unrolling with NVIDIA OpenCL */
 #if !defined PRUNE_NBL
 //#pragma unroll 4
@@ -345,7 +351,7 @@ __global float *restrict fshift,            /* stores float3 values */     /* OU
                 {
                     mask_ji = (1U << (jm * NCL_PER_SUPERCL));
 
-                    cj      = cjs[jm + (tidxj & 4) * NBNXN_GPU_JGROUP_SIZE / 4];
+                    cj      = loadCj(cjs, pl_cj4[j4].cj, jm, tidxi, tidxj);
                     aj      = cj * CL_SIZE + tidxj;
 
                     /* load j atom data */
@@ -383,15 +389,19 @@ __global float *restrict fshift,            /* stores float3 values */     /* OU
 #ifdef PRUNE_NBL
                             /* vote.. should code shmem serialisation, wonder what the hit will be */
                             if (r2 < rlist_sq)
-                                warp_any[widx]=1;
+                            {
+                                warp_any[widx] = 1;
+                            }
 
                             /* If _none_ of the atoms pairs are in cutoff range,
                                the bit corresponding to the current
                                cluster-pair in imask gets set to 0. */
                             if (!warp_any[widx])
+                            {
                                 imask &= ~mask_ji;
+                            }
 
-                            warp_any[widx]=0;
+                            warp_any[widx] = 0;
 #endif
 
                             int_bit = (wexcl & mask_ji) ? 1.0f : 0.0f;
@@ -411,18 +421,18 @@ __global float *restrict fshift,            /* stores float3 values */     /* OU
 #else
                                 ljcp_i  = ljcpib[i * CL_SIZE + tidxi];
 #endif
-#else /* IATYPE_SHMEM */
+#else                           /* IATYPE_SHMEM */
 #ifndef LJ_COMB
                                 typei   = atom_types[ai];
 #else
                                 ljcp_i  = lj_comb[ai];
 #endif
-#endif /* IATYPE_SHMEM */
+#endif                          /* IATYPE_SHMEM */
                                 /* LJ 6*C6 and 12*C12 */
 #ifndef LJ_COMB
                                 c6      = nbfp_climg2d[2 * (ntypes * typei + typej)];
                                 c12     = nbfp_climg2d[2 * (ntypes * typei + typej)+1];
-#else   /* LJ_COMB */
+#else                           /* LJ_COMB */
 #ifdef LJ_COMB_GEOM
                                 c6      = ljcp_i.x * ljcp_j.x;
                                 c12     = ljcp_i.y * ljcp_j.y;
@@ -437,7 +447,7 @@ __global float *restrict fshift,            /* stores float3 values */     /* OU
 #endif                          /* LJ_COMB */
 
                                 // Ensure distance do not become so small that r^-12 overflows
-                                r2      = max(r2,NBNXN_MIN_RSQ);
+                                r2      = max(r2, NBNXN_MIN_RSQ);
 
                                 inv_r   = rsqrt(r2);
                                 inv_r2  = inv_r * inv_r;
@@ -533,13 +543,9 @@ __global float *restrict fshift,            /* stores float3 values */     /* OU
                                 F_invr  += qi * qj_f * (int_bit*inv_r2*inv_r + pmecorrF(beta2*r2)*beta3);
 #elif defined EL_EWALD_TAB
                                 F_invr  += qi * qj_f * (int_bit*inv_r2 -
-#ifdef USE_TEXOBJ
-                                                        interpolate_coulomb_force_r(nbparam->coulomb_tab_texobj, r2 * inv_r, coulomb_tab_scale)
-#else
                                                         interpolate_coulomb_force_r(coulomb_tab_climg2d, r2 * inv_r, coulomb_tab_scale)
-#endif /* USE_TEXOBJ */
                                                         ) * inv_r;
-#endif /* EL_EWALD_ANA/TAB */
+#endif                          /* EL_EWALD_ANA/TAB */
 
 #ifdef CALC_ENERGIES
 #ifdef EL_CUTOFF
@@ -615,9 +621,11 @@ __global float *restrict fshift,            /* stores float3 values */     /* OU
         /* Only threads with tidxj < 3 will update fshift.
            The threads performing the update must be the same with the threads
            which stored the reduction result in reduce_force_i function
-        */
+         */
         if (tidxj < 3)
+        {
             atomicAdd_g_f(&(fshift[3 * nb_sci.shift + tidxj]), fshift_buf);
+        }
     }
 
 #ifdef CALC_ENERGIES
@@ -634,3 +642,4 @@ __global float *restrict fshift,            /* stores float3 values */     /* OU
 #undef LJ_EWALD
 
 #undef LJ_COMB
+#undef USE_CJ_PREFETCH

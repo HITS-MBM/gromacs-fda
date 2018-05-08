@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014,2015,2016,2017, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016,2017,2018, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -100,20 +100,19 @@ int write_trx(t_trxstatus *status, int nind, const int *ind, const t_atoms *atom
  * v can be NULL.
  * atoms can be NULL for file types which don't need atom names.
  */
-
-void trjtools_gmx_prepare_tng_writing(const char               *filename,
-                                      char                      filemode,
-                                      t_trxstatus              *in,
-                                      t_trxstatus             **out,
-                                      const char               *infile,
-                                      const int                 natoms,
-                                      const struct gmx_mtop_t  *mtop,
-                                      const int                *index,
-                                      const char               *index_group_name);
+t_trxstatus *
+trjtools_gmx_prepare_tng_writing(const char               *filename,
+                                 char                      filemode,
+                                 t_trxstatus              *in,
+                                 const char               *infile,
+                                 const int                 natoms,
+                                 const struct gmx_mtop_t  *mtop,
+                                 const int                *index,
+                                 const char               *index_group_name);
 /* Sets up *out for writing TNG. If *in != NULL and contains a TNG trajectory
- * some data, e.g. molecule system, will be copied over from *in to *out.
+ * some data, e.g. molecule system, will be copied over from *in to the return value.
  * If *in == NULL a file name (infile) of a TNG file can be provided instead
- * and used for copying data to *out.
+ * and used for copying data to the return value.
  * If there is no TNG input natoms is used to create "implicit atoms" (no atom
  * or molecular data present). If natoms == -1 the number of atoms are
  * not known (or there is already a TNG molecule system to copy, in which case
@@ -125,7 +124,7 @@ void trjtools_gmx_prepare_tng_writing(const char               *filename,
 /*! \brief Write a trxframe to the TNG file in status.
  *
  * This function is needed because both t_trxstatus and
- * tng_trajectory_t are encapsulated, so client trajectory-writing
+ * gmx_tng_trajectory_t are encapsulated, so client trajectory-writing
  * code with a t_trxstatus can't just call the TNG writing
  * function. */
 void write_tng_frame(t_trxstatus        *status,

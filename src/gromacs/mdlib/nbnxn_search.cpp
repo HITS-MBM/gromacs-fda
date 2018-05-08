@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2012,2013,2014,2015,2016,2017, by the GROMACS development team, led by
+ * Copyright (c) 2012,2013,2014,2015,2016,2017,2018, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -66,6 +66,7 @@
 #include "gromacs/pbcutil/pbc.h"
 #include "gromacs/simd/simd.h"
 #include "gromacs/simd/vector_operations.h"
+#include "gromacs/topology/block.h"
 #include "gromacs/utility/exceptions.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/gmxomp.h"
@@ -552,7 +553,7 @@ static void subc_bb_dist2_simd4_xxxx(const float *bb_j,
 
 
 /* Returns if any atom pair from two clusters is within distance sqrt(rlist2) */
-static gmx_inline gmx_bool
+static inline gmx_bool
 clusterpair_in_range(const nbnxn_list_work_t *work,
                      int si,
                      int csj, int stride, const real *x_j,
@@ -587,11 +588,11 @@ clusterpair_in_range(const nbnxn_list_work_t *work,
 #else /* !GMX_SIMD4_HAVE_REAL */
 
     /* 4-wide SIMD version.
-     * A cluster is hard-coded to 8 atoms.
      * The coordinates x_i are stored as xxxxyyyy..., x_j is stored xyzxyz...
      * Using 8-wide AVX(2) is not faster on Intel Sandy Bridge and Haswell.
      */
-    assert(c_nbnxnGpuClusterSize == 8);
+    static_assert(c_nbnxnGpuClusterSize == 8 || c_nbnxnGpuClusterSize == 4,
+                  "A cluster is hard-coded to 4/8 atoms.");
 
     Simd4Real   rc2_S      = Simd4Real(rlist2);
 
@@ -601,10 +602,14 @@ clusterpair_in_range(const nbnxn_list_work_t *work,
     Simd4Real   ix_S0      = load4(x_i + si*dim_stride + 0*GMX_SIMD4_WIDTH);
     Simd4Real   iy_S0      = load4(x_i + si*dim_stride + 1*GMX_SIMD4_WIDTH);
     Simd4Real   iz_S0      = load4(x_i + si*dim_stride + 2*GMX_SIMD4_WIDTH);
-    Simd4Real   ix_S1      = load4(x_i + si*dim_stride + 3*GMX_SIMD4_WIDTH);
-    Simd4Real   iy_S1      = load4(x_i + si*dim_stride + 4*GMX_SIMD4_WIDTH);
-    Simd4Real   iz_S1      = load4(x_i + si*dim_stride + 5*GMX_SIMD4_WIDTH);
 
+    Simd4Real   ix_S1, iy_S1, iz_S1;
+    if (c_nbnxnGpuClusterSize == 8)
+    {
+        ix_S1      = load4(x_i + si*dim_stride + 3*GMX_SIMD4_WIDTH);
+        iy_S1      = load4(x_i + si*dim_stride + 4*GMX_SIMD4_WIDTH);
+        iz_S1      = load4(x_i + si*dim_stride + 5*GMX_SIMD4_WIDTH);
+    }
     /* We loop from the outer to the inner particles to maximize
      * the chance that we find a pair in range quickly and return.
      */
@@ -643,30 +648,45 @@ clusterpair_in_range(const nbnxn_list_work_t *work,
         dx_S0            = ix_S0 - jx0_S;
         dy_S0            = iy_S0 - jy0_S;
         dz_S0            = iz_S0 - jz0_S;
-        dx_S1            = ix_S1 - jx0_S;
-        dy_S1            = iy_S1 - jy0_S;
-        dz_S1            = iz_S1 - jz0_S;
         dx_S2            = ix_S0 - jx1_S;
         dy_S2            = iy_S0 - jy1_S;
         dz_S2            = iz_S0 - jz1_S;
-        dx_S3            = ix_S1 - jx1_S;
-        dy_S3            = iy_S1 - jy1_S;
-        dz_S3            = iz_S1 - jz1_S;
+        if (c_nbnxnGpuClusterSize == 8)
+        {
+            dx_S1            = ix_S1 - jx0_S;
+            dy_S1            = iy_S1 - jy0_S;
+            dz_S1            = iz_S1 - jz0_S;
+            dx_S3            = ix_S1 - jx1_S;
+            dy_S3            = iy_S1 - jy1_S;
+            dz_S3            = iz_S1 - jz1_S;
+        }
 
         /* rsq = dx*dx+dy*dy+dz*dz */
         rsq_S0           = norm2(dx_S0, dy_S0, dz_S0);
-        rsq_S1           = norm2(dx_S1, dy_S1, dz_S1);
         rsq_S2           = norm2(dx_S2, dy_S2, dz_S2);
-        rsq_S3           = norm2(dx_S3, dy_S3, dz_S3);
+        if (c_nbnxnGpuClusterSize == 8)
+        {
+            rsq_S1           = norm2(dx_S1, dy_S1, dz_S1);
+            rsq_S3           = norm2(dx_S3, dy_S3, dz_S3);
+        }
 
         wco_S0           = (rsq_S0 < rc2_S);
-        wco_S1           = (rsq_S1 < rc2_S);
         wco_S2           = (rsq_S2 < rc2_S);
-        wco_S3           = (rsq_S3 < rc2_S);
-
-        wco_any_S01      = wco_S0 || wco_S1;
-        wco_any_S23      = wco_S2 || wco_S3;
-        wco_any_S        = wco_any_S01 || wco_any_S23;
+        if (c_nbnxnGpuClusterSize == 8)
+        {
+            wco_S1           = (rsq_S1 < rc2_S);
+            wco_S3           = (rsq_S3 < rc2_S);
+        }
+        if (c_nbnxnGpuClusterSize == 8)
+        {
+            wco_any_S01      = wco_S0 || wco_S1;
+            wco_any_S23      = wco_S2 || wco_S3;
+            wco_any_S        = wco_any_S01 || wco_any_S23;
+        }
+        else
+        {
+            wco_any_S = wco_S0 || wco_S2;
+        }
 
         if (anyTrue(wco_any_S))
         {
@@ -1102,7 +1122,7 @@ static void set_self_and_newton_excls_supersub(nbnxn_pairlist_t *nbl,
 
     /* Here we only set the set self and double pair exclusions */
 
-    assert(c_nbnxnGpuClusterpairSplit == 2);
+    static_assert(c_nbnxnGpuClusterpairSplit == 2, "");
 
     get_nbl_exclusions_2(nbl, cj4_ind, &excl[0], &excl[1]);
 
@@ -1624,7 +1644,7 @@ setExclusionsForSimpleIentry(const nbnxn_search_t  nbs,
 }
 
 /* Add a new i-entry to the FEP list and copy the i-properties */
-static gmx_inline void fep_list_new_nri_copy(t_nblist *nlist)
+static inline void fep_list_new_nri_copy(t_nblist *nlist)
 {
     /* Add a new i-entry */
     nlist->nri++;
@@ -1836,19 +1856,19 @@ static void make_fep_list(const nbnxn_search_t    nbs,
 }
 
 /* Return the index of atom a within a cluster */
-static gmx_inline int cj_mod_cj4(int cj)
+static inline int cj_mod_cj4(int cj)
 {
     return cj & (c_nbnxnGpuJgroupSize - 1);
 }
 
 /* Convert a j-cluster to a cj4 group */
-static gmx_inline int cj_to_cj4(int cj)
+static inline int cj_to_cj4(int cj)
 {
     return cj/c_nbnxnGpuJgroupSize;
 }
 
 /* Return the index of an j-atom within a warp */
-static gmx_inline int a_mod_wj(int a)
+static inline int a_mod_wj(int a)
 {
     return a & (c_nbnxnGpuClusterSize/c_nbnxnGpuClusterpairSplit - 1);
 }
@@ -2428,9 +2448,9 @@ static void clear_pairlist_fep(t_nblist *nl)
 }
 
 /* Sets a simple list i-cell bounding box, including PBC shift */
-static gmx_inline void set_icell_bb_simple(const nbnxn_bb_t *bb, int ci,
-                                           real shx, real shy, real shz,
-                                           nbnxn_bb_t *bb_ci)
+static inline void set_icell_bb_simple(const nbnxn_bb_t *bb, int ci,
+                                       real shx, real shy, real shz,
+                                       nbnxn_bb_t *bb_ci)
 {
     bb_ci->lower[BB_X] = bb[ci].lower[BB_X] + shx;
     bb_ci->lower[BB_Y] = bb[ci].lower[BB_Y] + shy;

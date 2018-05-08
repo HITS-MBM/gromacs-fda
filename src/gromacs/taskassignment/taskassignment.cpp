@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2017, by the GROMACS development team, led by
+ * Copyright (c) 2017,2018, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -65,6 +65,7 @@
 #include "gromacs/utility/gmxassert.h"
 #include "gromacs/utility/gmxmpi.h"
 #include "gromacs/utility/logger.h"
+#include "gromacs/utility/physicalnodecommunicator.h"
 #include "gromacs/utility/stringutil.h"
 #include "gromacs/utility/sysinfo.h"
 
@@ -179,38 +180,22 @@ size_t countGpuTasksOnThisNode(const GpuTasksOnRanks &gpuTasksOnRanksOfThisNode)
     return numGpuTasksOnThisNode;
 }
 
-//! Finds whether there is any task of \c queryTask in the tasks on the ranks of this node.
-bool hasAnyTaskOfTypeOnThisNode(const GpuTasksOnRanks &gpuTasksOnRanksOfThisNode,
-                                const GpuTask          queryTask)
-{
-    for (const auto &gpuTasksOnRank : gpuTasksOnRanksOfThisNode)
-    {
-        for (const auto &gpuTask : gpuTasksOnRank)
-        {
-            if (queryTask == gpuTask)
-            {
-                return true;
-            }
-        }
-    }
-    return false;
-}
-
 }   // namespace
 
 GpuTaskAssignments::value_type
-runTaskAssignment(const std::vector<int>     &gpuIdsToUse,
-                  const std::vector<int>     &userGpuTaskAssignment,
-                  const gmx_hw_info_t        &hardwareInfo,
-                  const MDLogger             &mdlog,
-                  const t_commrec            *cr,
-                  const std::vector<GpuTask> &gpuTasksOnThisRank)
+runTaskAssignment(const std::vector<int>         &gpuIdsToUse,
+                  const std::vector<int>         &userGpuTaskAssignment,
+                  const gmx_hw_info_t            &hardwareInfo,
+                  const MDLogger                 &mdlog,
+                  const t_commrec                *cr,
+                  const gmx_multisim_t           *ms,
+                  const PhysicalNodeCommunicator &physicalNodeComm,
+                  const std::vector<GpuTask>     &gpuTasksOnThisRank)
 {
     /* Communicate among ranks on this node to find each task that can
      * be executed on a GPU, on each rank. */
-    auto gpuTasksOnRanksOfThisNode = findAllGpuTasksOnThisNode(gpuTasksOnThisRank,
-                                                               cr->nrank_intranode,
-                                                               cr->mpi_comm_physicalnode);
+    auto               gpuTasksOnRanksOfThisNode = findAllGpuTasksOnThisNode(gpuTasksOnThisRank,
+                                                                             physicalNodeComm);
     auto               numGpuTasksOnThisNode = countGpuTasksOnThisNode(gpuTasksOnRanksOfThisNode);
 
     GpuTaskAssignments taskAssignmentOnRanksOfThisNode;
@@ -237,17 +222,36 @@ runTaskAssignment(const std::vector<int>     &gpuIdsToUse,
         if (userGpuTaskAssignment.empty())
         {
             ArrayRef<const int> compatibleGpusToUse = gpuIdsToUse;
-            if (hasAnyTaskOfTypeOnThisNode(gpuTasksOnRanksOfThisNode, GpuTask::Pme))
+
+            // enforce the single device/rank restriction
+            if (physicalNodeComm.size_ == 1 && !compatibleGpusToUse.empty())
             {
-                // PP and PME tasks must run on the same device, so
-                // restrict the assignment to the first device. If
-                // there aren't any, then that error is handled later.
-                if (!compatibleGpusToUse.empty())
-                {
-                    compatibleGpusToUse = compatibleGpusToUse.subArray(0, 1);
-                }
+                compatibleGpusToUse = compatibleGpusToUse.subArray(0, 1);
             }
+
+            // When doing automated assignment of GPU tasks to GPU
+            // IDs, even if we have more than one kind of GPU task, we
+            // do a simple round-robin assignment. That's not ideal,
+            // but we don't have any way to do a better job reliably.
             generatedGpuIds         = makeGpuIds(compatibleGpusToUse, numGpuTasksOnThisNode);
+
+            if ((numGpuTasksOnThisNode > gpuIdsToUse.size()) &&
+                (numGpuTasksOnThisNode % gpuIdsToUse.size() != 0))
+            {
+                // TODO Decorating the message with hostname should be
+                // the job of an error-reporting module.
+                char host[STRLEN];
+                gmx_gethostname(host, STRLEN);
+
+                GMX_THROW(InconsistentInputError
+                              (formatString("There were %zu GPU tasks found on node %s, but %zu GPUs were "
+                                            "available. If the GPUs are equivalent, then it is usually best "
+                                            "to have a number of tasks that is a multiple of the number of GPUs. "
+                                            "You should reconsider your GPU task assignment, "
+                                            "number of ranks, or your use of the -nb, -pme, and -npme options, "
+                                            "perhaps after measuring the performance you can get.", numGpuTasksOnThisNode,
+                                            host, gpuIdsToUse.size())));
+            }
             gpuIdsForTaskAssignment = generatedGpuIds;
         }
         else
@@ -281,7 +285,7 @@ runTaskAssignment(const std::vector<int>     &gpuIdsToUse,
         // GMX_CATCH_ALL_AND_EXIT_WITH_FATAL_ERROR), but it is unclear
         // how we should involve MPI in the implementation of error
         // handling.
-        if (cr->rank_intranode == 0)
+        if (physicalNodeComm.rank_ == 0)
         {
             printFatalErrorMessage(stderr, ex);
         }
@@ -292,10 +296,10 @@ runTaskAssignment(const std::vector<int>     &gpuIdsToUse,
             MPI_Barrier(cr->mpi_comm_mysim);
 #endif
         }
-        if (MULTISIM(cr))
+        if (isMultiSim(ms))
         {
 #if GMX_MPI
-            MPI_Barrier(cr->ms->mpi_comm_masters);
+            MPI_Barrier(ms->mpi_comm_masters);
 #endif
         }
 
@@ -303,7 +307,7 @@ runTaskAssignment(const std::vector<int>     &gpuIdsToUse,
     }
 
     reportGpuUsage(mdlog, !userGpuTaskAssignment.empty(), taskAssignmentOnRanksOfThisNode,
-                   numGpuTasksOnThisNode, cr->nrank_intranode, cr->nnodes > 1);
+                   numGpuTasksOnThisNode, physicalNodeComm.size_, cr->nnodes > 1);
 
     // If the user chose a task assignment, give them some hints where appropriate.
     if (!userGpuTaskAssignment.empty())
@@ -313,7 +317,7 @@ runTaskAssignment(const std::vector<int>     &gpuIdsToUse,
                             taskAssignmentOnRanksOfThisNode);
     }
 
-    return taskAssignmentOnRanksOfThisNode[cr->rank_intranode];
+    return taskAssignmentOnRanksOfThisNode[physicalNodeComm.rank_];
 
     // TODO There is no check that mdrun -nb gpu or -pme gpu or
     // -gpu_id is actually being implemented such that nonbonded tasks

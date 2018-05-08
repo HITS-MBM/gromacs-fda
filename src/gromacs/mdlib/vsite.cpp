@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014,2015,2016,2017, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016,2017,2018, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -51,17 +51,19 @@
 #include "gromacs/math/vec.h"
 #include "gromacs/mdlib/gmx_omp_nthreads.h"
 #include "gromacs/mdtypes/commrec.h"
+#include "gromacs/mdtypes/mdatom.h"
 #include "gromacs/pbcutil/ishift.h"
 #include "gromacs/pbcutil/mshift.h"
 #include "gromacs/pbcutil/pbc.h"
+#include "gromacs/timing/wallcycle.h"
 #include "gromacs/topology/ifunc.h"
 #include "gromacs/topology/mtop_util.h"
+#include "gromacs/topology/topology.h"
 #include "gromacs/utility/exceptions.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/gmxassert.h"
 #include "gromacs/utility/gmxomp.h"
 #include "gromacs/utility/smalloc.h"
-
 
 /* The strategy used here for assigning virtual sites to (thread-)tasks
  * is as follows:
@@ -631,7 +633,7 @@ void construct_vsites(const gmx_vsite_t *vsite,
                       real dt, rvec *v,
                       const t_iparams ip[], const t_ilist ilist[],
                       int ePBC, gmx_bool bMolPBC,
-                      t_commrec *cr,
+                      const t_commrec *cr,
                       const matrix box)
 {
     const bool useDomdec = (vsite != nullptr && vsite->useDomdec);
@@ -766,14 +768,15 @@ void constructVsitesGlobal(const gmx_mtop_t         &mtop,
                            gmx::ArrayRef<gmx::RVec>  x)
 {
     GMX_ASSERT(x.size() >= static_cast<size_t>(mtop.natoms), "x should contain the whole system");
+    GMX_ASSERT(!mtop.moleculeBlockIndices.empty(), "molblock indices are needed in constructVsitesGlobal");
 
-    for (int mb = 0; mb < mtop.nmolblock; mb++)
+    for (size_t mb = 0; mb < mtop.molblock.size(); mb++)
     {
-        const gmx_molblock_t &molb = mtop.molblock[mb];
-        const gmx_moltype_t  &molt = mtop.moltype[molb.type];
+        const gmx_molblock_t  &molb = mtop.molblock[mb];
+        const gmx_moltype_t   &molt = mtop.moltype[molb.type];
         if (vsiteIlistNrCount(molt.ilist) > 0)
         {
-            int atomOffset = molb.globalAtomStart;
+            int atomOffset = mtop.moleculeBlockIndices[mb].globalAtomStart;
             for (int mol = 0; mol < molb.nmol; mol++)
             {
                 construct_vsites(nullptr, as_rvec_array(x.data()) + atomOffset,
@@ -1615,8 +1618,9 @@ void spread_vsite_f(const gmx_vsite_t *vsite,
                     gmx_bool VirCorr, matrix vir,
                     t_nrnb *nrnb, const t_idef *idef,
                     int ePBC, gmx_bool bMolPBC, const t_graph *g, const matrix box,
-                    t_commrec *cr)
+                    const t_commrec *cr, gmx_wallcycle *wcycle)
 {
+    wallcycle_start(wcycle, ewcVSITESPREAD);
     const bool useDomdec = vsite->useDomdec;
     GMX_ASSERT(!useDomdec || (cr != nullptr && DOMAINDECOMP(cr)), "When vsites are set up with domain decomposition, we need a valid commrec");
 
@@ -1817,6 +1821,8 @@ void spread_vsite_f(const gmx_vsite_t *vsite,
     inc_nrnb(nrnb, eNR_VSITE4FD, vsite_count(idef->il, F_VSITE4FD));
     inc_nrnb(nrnb, eNR_VSITE4FDN, vsite_count(idef->il, F_VSITE4FDN));
     inc_nrnb(nrnb, eNR_VSITEN,   vsite_count(idef->il, F_VSITEN));
+
+    wallcycle_stop(wcycle, ewcVSITESPREAD);
 }
 
 /*! \brief Returns the an array with charge-group indices for each atom
@@ -1839,30 +1845,25 @@ static std::vector<int> atom2cg(const t_block &chargeGroups)
 
 int count_intercg_vsites(const gmx_mtop_t *mtop)
 {
-    gmx_molblock_t *molb;
-    gmx_moltype_t  *molt;
-    int             n_intercg_vsite;
-
-    n_intercg_vsite = 0;
-    for (int mb = 0; mb < mtop->nmolblock; mb++)
+    int n_intercg_vsite = 0;
+    for (const gmx_molblock_t &molb : mtop->molblock)
     {
-        molb = &mtop->molblock[mb];
-        molt = &mtop->moltype[molb->type];
+        const gmx_moltype_t &molt = mtop->moltype[molb.type];
 
-        std::vector<int> a2cg = atom2cg(molt->cgs);
+        std::vector<int>     a2cg = atom2cg(molt.cgs);
         for (int ftype = c_ftypeVsiteStart; ftype < c_ftypeVsiteEnd; ftype++)
         {
             int            nral = NRAL(ftype);
-            t_ilist       *il   = &molt->ilist[ftype];
-            const t_iatom *ia   = il->iatoms;
-            for (int i = 0; i < il->nr; i += 1 + nral)
+            const t_ilist &il   = molt.ilist[ftype];
+            const t_iatom *ia   = il.iatoms;
+            for (int i = 0; i < il.nr; i += 1 + nral)
             {
                 int cg = a2cg[ia[1+i]];
                 for (int a = 1; a < nral; a++)
                 {
                     if (a2cg[ia[1+a]] != cg)
                     {
-                        n_intercg_vsite += molb->nmol;
+                        n_intercg_vsite += molb.nmol;
                         break;
                     }
                 }
@@ -2011,7 +2012,7 @@ static int **get_vsite_pbc(const t_iparams *iparams, const t_ilist *ilist,
 
 
 gmx_vsite_t *initVsite(const gmx_mtop_t &mtop,
-                       t_commrec        *cr)
+                       const t_commrec  *cr)
 {
     GMX_RELEASE_ASSERT(cr != nullptr, "We need a valid commrec");
 
@@ -2055,9 +2056,9 @@ gmx_vsite_t *initVsite(const gmx_mtop_t &mtop,
         vsite->n_intercg_vsite > 0 &&
         DOMAINDECOMP(cr))
     {
-        vsite->nvsite_pbc_molt = mtop.nmoltype;
+        vsite->nvsite_pbc_molt = mtop.moltype.size();
         snew(vsite->vsite_pbc_molt, vsite->nvsite_pbc_molt);
-        for (int mt = 0; mt < mtop.nmoltype; mt++)
+        for (size_t mt = 0; mt < mtop.moltype.size(); mt++)
         {
             const gmx_moltype_t &molt = mtop.moltype[mt];
             vsite->vsite_pbc_molt[mt] = get_vsite_pbc(mtop.ffparams.iparams,
@@ -2106,8 +2107,8 @@ gmx_vsite_t *initVsite(const gmx_mtop_t &mtop,
     return vsite;
 }
 
-static gmx_inline void flagAtom(InterdependentTask *idTask, int atom,
-                                int thread, int nthread, int natperthread)
+static inline void flagAtom(InterdependentTask *idTask, int atom,
+                            int thread, int nthread, int natperthread)
 {
     if (!idTask->use[atom])
     {

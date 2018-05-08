@@ -44,6 +44,7 @@
 
 #include "gromacs/commandline/pargs.h"
 #include "gromacs/commandline/viewit.h"
+#include "gromacs/compat/make_unique.h"
 #include "gromacs/fileio/confio.h"
 #include "gromacs/fileio/g96io.h"
 #include "gromacs/fileio/gmxfio.h"
@@ -569,20 +570,21 @@ static void do_trunc(const char *fn, real t0)
  * molecule information will generally be present if the input TNG
  * file was written by a GROMACS tool, this seems like reasonable
  * behaviour. */
-static gmx_mtop_t *read_mtop_for_tng(const char *tps_file,
-                                     const char *input_file,
-                                     const char *output_file)
+static std::unique_ptr<gmx_mtop_t>
+read_mtop_for_tng(const char *tps_file,
+                  const char *input_file,
+                  const char *output_file)
 {
-    gmx_mtop_t *mtop = nullptr;
+    std::unique_ptr<gmx_mtop_t> mtop;
 
     if (fn2bTPX(tps_file) &&
         efTNG != fn2ftp(input_file) &&
         efTNG == fn2ftp(output_file))
     {
         int temp_natoms = -1;
-        snew(mtop, 1);
+        mtop = gmx::compat::make_unique<gmx_mtop_t>();
         read_tpx(tps_file, nullptr, nullptr, &temp_natoms,
-                 nullptr, nullptr, mtop);
+                 nullptr, nullptr, mtop.get());
     }
 
     return mtop;
@@ -617,7 +619,7 @@ int gmx_trjconv(int argc, char *argv[])
         "[REF].xtc[ref], [REF].trr[ref], [REF].gro[ref], [TT].g96[tt]",
         "and [REF].pdb[ref].",
         "The file formats are detected from the file extension.",
-        "The precision of [REF].xtc[ref] and [REF].gro[ref] output is taken from the",
+        "The precision of the [REF].xtc[ref] output is taken from the",
         "input file for [REF].xtc[ref], [REF].gro[ref] and [REF].pdb[ref],",
         "and from the [TT]-ndec[tt] option for other input formats. The precision",
         "is always taken from [TT]-ndec[tt], when this option is set.",
@@ -871,7 +873,6 @@ int gmx_trjconv(int argc, char *argv[])
     int               m, i, d, frame, outframe, natoms, nout, ncent, newstep = 0, model_nr;
 #define SKIP 10
     t_topology        top;
-    gmx_mtop_t       *mtop  = nullptr;
     gmx_conect        gc    = nullptr;
     int               ePBC  = -1;
     t_atoms          *atoms = nullptr, useatoms;
@@ -904,7 +905,7 @@ int gmx_trjconv(int argc, char *argv[])
     char              out_file2[256], *charpt;
     char             *outf_base = nullptr;
     const char       *outf_ext  = nullptr;
-    char              top_title[256], title[256], filemode[5];
+    char              top_title[256], title[256], timestr[32], stepstr[32], filemode[5];
     gmx_output_env_t *oenv;
 
     t_filenm          fnm[] = {
@@ -1079,9 +1080,10 @@ int gmx_trjconv(int argc, char *argv[])
         /* skipping */
         if (skip_nr <= 0)
         {
+            gmx_fatal(FARGS, "Argument for -skip (%d) needs to be greater or equal to 1.", skip_nr);
         }
 
-        mtop = read_mtop_for_tng(top_file, in_file, out_file);
+        std::unique_ptr<gmx_mtop_t> mtop = read_mtop_for_tng(top_file, in_file, out_file);
 
         /* Determine whether to read a topology */
         bTPS = (ftp2bSet(efTPS, NFILE, fnm) ||
@@ -1105,10 +1107,17 @@ int gmx_trjconv(int argc, char *argv[])
             }
 
             /* top_title is only used for gro and pdb,
-             * the header in such a file is top_title t= ...
-             * to prevent a double t=, remove it from top_title
+             * the header in such a file is top_title, followed by
+             * t= ... and/or step= ...
+             * to prevent double t= or step=, remove it from top_title.
+             * From GROMACS-2018 we only write t/step when the frame actually
+             * has a valid time/step, so we need to check for both separately.
              */
             if ((charpt = std::strstr(top_title, " t= ")))
+            {
+                charpt[0] = '\0';
+            }
+            if ((charpt = std::strstr(top_title, " step= ")))
             {
                 charpt[0] = '\0';
             }
@@ -1353,15 +1362,14 @@ int gmx_trjconv(int argc, char *argv[])
             switch (ftp)
             {
                 case efTNG:
-                    trjtools_gmx_prepare_tng_writing(out_file,
-                                                     filemode[0],
-                                                     trxin,
-                                                     &trxout,
-                                                     nullptr,
-                                                     nout,
-                                                     mtop,
-                                                     index,
-                                                     grpnm);
+                    trxout = trjtools_gmx_prepare_tng_writing(out_file,
+                                                              filemode[0],
+                                                              trxin,
+                                                              nullptr,
+                                                              nout,
+                                                              mtop.get(),
+                                                              index,
+                                                              grpnm);
                     break;
                 case efXTC:
                 case efTRR:
@@ -1827,8 +1835,29 @@ int gmx_trjconv(int argc, char *argv[])
                             case efGRO:
                             case efG96:
                             case efPDB:
-                                sprintf(title, "Generated by trjconv : %s t= %9.5f",
-                                        top_title, frout.time);
+                                // Only add a generator statement if title is empty,
+                                // to avoid multiple generated-by statements from various programs
+                                if (std::strlen(top_title) == 0)
+                                {
+                                    sprintf(top_title, "Generated by trjconv");
+                                }
+                                if (frout.bTime)
+                                {
+                                    sprintf(timestr, " t= %9.5f", frout.time);
+                                }
+                                else
+                                {
+                                    std::strcpy(timestr, "");
+                                }
+                                if (frout.bStep)
+                                {
+                                    sprintf(stepstr, " step= %" GMX_PRId64, frout.step);
+                                }
+                                else
+                                {
+                                    std::strcpy(stepstr, "");
+                                }
+                                snprintf(title, 256, "%s%s%s", top_title, timestr, stepstr);
                                 if (bSeparate || bSplitHere)
                                 {
                                     out = gmx_ffopen(out_file2, "w");
@@ -1841,7 +1870,6 @@ int gmx_trjconv(int argc, char *argv[])
                                         break;
                                     case efPDB:
                                         fprintf(out, "REMARK    GENERATED BY TRJCONV\n");
-                                        sprintf(title, "%s t= %9.5f", top_title, frout.time);
                                         /* if reading from pdb, we want to keep the original
                                            model numbering else we write the output frame
                                            number plus one, because model 0 is not allowed in pdb */
@@ -1950,8 +1978,10 @@ int gmx_trjconv(int argc, char *argv[])
         }
     }
 
-    sfree(mtop);
-    done_top(&top);
+    if (bTPS)
+    {
+        done_top(&top);
+    }
     sfree(xp);
     sfree(xmem);
     sfree(vmem);
@@ -1959,7 +1989,6 @@ int gmx_trjconv(int argc, char *argv[])
     sfree(grpnm);
     sfree(index);
     sfree(cindex);
-    done_filenms(NFILE, fnm);
     done_frame(&fr);
 
     do_view(oenv, out_file, nullptr);

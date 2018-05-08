@@ -202,20 +202,17 @@ gmx_add_cache_dependency(GMX_COOL_QUOTES BOOL "NOT GMX_FAHCORE" OFF)
 option(GMX_USE_OPENCL "Enable OpenCL acceleration" OFF)
 
 # Decide on GPU settings based on user-settings and GPU/CUDA
-# detection.  GCC 4.8 requires CUDA 6.0 (but we choose 6.5 for the
-# preliminary C++11 support), icc 15 requires CUDA 7.0, and VS2015
-# requires CUDA 8.0
+# detection. VS2015 requires CUDA 8.0, for the other arch/compilers
+# rest we require CUDA 7.0 or later (including for clang-CUDA).
 if(MSVC)
     set(REQUIRED_CUDA_VERSION 8.0)
-elseif(CMAKE_CXX_COMPILER_ID MATCHES "Intel")
-    set(REQUIRED_CUDA_VERSION 7.0)
 else()
-    set(REQUIRED_CUDA_VERSION 6.5)
+    set(REQUIRED_CUDA_VERSION 7.0)
 endif()
 set(REQUIRED_CUDA_COMPUTE_CAPABILITY 2.0)
 
-# OpenCL required version: 1.1 or newer
-set(REQUIRED_OPENCL_MIN_VERSION 1.1)
+# OpenCL required version: 1.2 or newer
+set(REQUIRED_OPENCL_MIN_VERSION 1.2)
 
 option(GMX_BUILD_FDA "Switch on force distribution analysis (FDA)" OFF)
 mark_as_advanced(GMX_BUILD_FDA)
@@ -247,7 +244,7 @@ gmx_option_multichoice(
     GMX_SIMD
     "SIMD instruction set for CPU kernels and compiler optimization"
     "AUTO"
-    AUTO None SSE2 SSE4.1 AVX_128_FMA AVX_256 AVX2_256 AVX2_128 AVX_512 AVX_512_KNL MIC ARM_NEON ARM_NEON_ASIMD IBM_QPX IBM_VMX IBM_VSX Sparc64_HPC_ACE Reference)
+    AUTO None SSE2 SSE4.1 AVX_128_FMA AVX_256 AVX2_256 AVX2_128 AVX_512 AVX_512_KNL MIC ARM_NEON ARM_NEON_ASIMD IBM_VMX IBM_VSX Sparc64_HPC_ACE Reference)
 
 if(GMX_TARGET_MIC)
     set(GMX_FFT_LIBRARY_DEFAULT "mkl")
@@ -425,6 +422,7 @@ find_library(HAVE_LIBM m)
 mark_as_advanced(HAVE_LIBM)
 check_library_exists(rt clock_gettime "" HAVE_CLOCK_GETTIME)
 check_library_exists(m feenableexcept "" HAVE_FEENABLEEXCEPT)
+check_library_exists(m fedisableexcept "" HAVE_FEDISABLEEXCEPT)
 
 include(TestSchedAffinity)
 test_sched_affinity(HAVE_SCHED_AFFINITY)
@@ -452,10 +450,6 @@ gmx_set_boolean(GMX_USE_NICE "HAVE_UNISTD_H AND HAVE_NICE")
 # GROMACS defaults or user settings will make sense. Also, any
 # toolchain-related reasons for choosing whether to detect various
 # things can be sorted out now, before the detection takes place.
-if(${CMAKE_SYSTEM_NAME} MATCHES BlueGene)
-    include(gmxManageBlueGene)
-endif()
-
 if(GMX_TARGET_FUJITSU_SPARC64)
     include(gmxManageFujitsuSparc64)
 endif()
@@ -511,32 +505,37 @@ gmx_test_zlib(HAVE_ZLIB)
 #    set(XML_LIBRARIES ${LIBXML2_LIBRARIES})
 #endif()
 
-if(DEFINED HWLOC_LIBRARIES)
-  set(Hwloc_FIND_QUIETLY TRUE)
-endif()
-find_package(Hwloc 1.5)
-if (HWLOC_FOUND)
-    if (HWLOC_LIBRARIES MATCHES ".a$")
-        set(_STATIC_HWLOC TRUE)
-    endif()
+gmx_option_trivalue(
+    GMX_HWLOC
+    "Use hwloc portable hardware locality library"
+    "AUTO")
 
-    gmx_check_if_changed(HWLOC_FOUND_CHANGED HWLOC_FOUND)
-    if (_STATIC_HWLOC AND HWLOC_FOUND_CHANGED)
-        message(STATUS "Static hwloc library found, will not attempt using it as it could lead to link-time errors. To use the detected library, manually set GMX_HWLOC=ON and you will likely have to pass appropriate linker flags too to satisfy the link-time dependencies of your hwloc library. Try \"pkg-config --libs --static hwloc\" for suggestions on what you will need.")
-        set(GMX_HWLOC_DEFAULT OFF)
-    else()
-        set(GMX_HWLOC_DEFAULT ON)
+if (GMX_HWLOC)
+    # Find quietly the second time.
+    if(DEFINED HWLOC_LIBRARIES)
+        set(Hwloc_FIND_QUIETLY TRUE)
     endif()
-else()
-    set(GMX_HWLOC_DEFAULT OFF)
-endif()
-option(GMX_HWLOC "Add support for hwloc Portable Hardware locality library" ${GMX_HWLOC_DEFAULT})
-if(GMX_HWLOC)
-    if(HWLOC_FOUND)
-        include_directories(SYSTEM ${HWLOC_INCLUDE_DIRS})
-        list(APPEND GMX_EXTRA_LIBRARIES ${HWLOC_LIBRARIES})
-    else()
-        message(FATAL_ERROR "Hwloc package support requested, but not found.")
+    find_package(Hwloc 1.5)
+
+    if (HWLOC_FOUND)
+        if (HWLOC_LIBRARIES MATCHES ".a$")
+            set(_STATIC_HWLOC TRUE)
+        endif()
+
+        gmx_check_if_changed(HWLOC_FOUND_CHANGED HWLOC_FOUND)
+        if (_STATIC_HWLOC AND HWLOC_FOUND_CHANGED)
+            message(STATUS "Static hwloc library found, will not attempt using it as it could lead to link-time errors. To use the detected library, manually set GMX_HWLOC=ON and you will likely have to pass appropriate linker flags too to satisfy the link-time dependencies of your hwloc library. Try \"pkg-config --libs --static hwloc\" for suggestions on what you will need.")
+            set(GMX_USE_HWLOC OFF)
+        else()
+            set(GMX_USE_HWLOC ON)
+        endif()
+
+        if (GMX_USE_HWLOC)
+            include_directories(SYSTEM ${HWLOC_INCLUDE_DIRS})
+            list(APPEND GMX_EXTRA_LIBRARIES ${HWLOC_LIBRARIES})
+        endif()
+    elseif(GMX_HWLOC_FORCE)
+        message(FATAL_ERROR "Hwloc package support required, but not found.")
     endif()
 endif()
 
@@ -580,8 +579,6 @@ endif()
 include(ThreadMPI)
 # Enable core threading facilities
 tmpi_enable_core("${CMAKE_SOURCE_DIR}/src/external/thread_mpi/include")
-# Enable tMPI C++ support
-tmpi_enable_cxx()
 if(GMX_THREAD_MPI)
     # enable MPI functions
     tmpi_enable()

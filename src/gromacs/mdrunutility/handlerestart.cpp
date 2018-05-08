@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2015,2016,2017, by the GROMACS development team, led by
+ * Copyright (c) 2015,2016,2017,2018, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -75,7 +75,7 @@ static gmx_bool exist_output_file(const char *fnm_cp, int nfile, const t_filenm 
      */
     i = 0;
     while (i < nfile &&
-           !(is_output(&fnm[i]) && strcmp(fnm_cp, fnm[i].fns[0]) == 0))
+           !(is_output(&fnm[i]) && strcmp(fnm_cp, fnm[i].filenames[0].c_str()) == 0))
     {
         i++;
     }
@@ -108,9 +108,6 @@ read_checkpoint_data(const char *filename, int *simulation_part,
                      bool *bDoAppendFiles)
 {
     t_fileio            *fp;
-    int                  nfiles;
-    gmx_file_position_t *outputfiles;
-    int                  nexist, f;
     char                *fn, suf_up[STRLEN];
 
     *bDoAppendFiles = FALSE;
@@ -126,22 +123,22 @@ read_checkpoint_data(const char *filename, int *simulation_part,
         }
         else
         {
+            std::vector<gmx_file_position_t> outputfiles;
             read_checkpoint_simulation_part_and_filenames(fp,
                                                           simulation_part,
-                                                          &nfiles,
                                                           &outputfiles);
 
             if (bTryToAppendFiles)
             {
-                nexist = 0;
-                for (f = 0; f < nfiles; f++)
+                std::size_t nexist = 0;
+                for (const auto &outputfile : outputfiles)
                 {
-                    if (exist_output_file(outputfiles[f].filename, nfile, fnm))
+                    if (exist_output_file(outputfile.filename, nfile, fnm))
                     {
                         nexist++;
                     }
                 }
-                if (nexist == nfiles)
+                if (nexist == outputfiles.size())
                 {
                     *bDoAppendFiles = bTryToAppendFiles;
                 }
@@ -157,27 +154,27 @@ read_checkpoint_data(const char *filename, int *simulation_part,
                             "are not present or not named as the output files by the current program:\n",
                             filename);
                     fprintf(stderr, "Expect output files present:\n");
-                    for (f = 0; f < nfiles; f++)
+                    for (const auto &outputfile : outputfiles)
                     {
-                        if (exist_output_file(outputfiles[f].filename,
+                        if (exist_output_file(outputfile.filename,
                                               nfile, fnm))
                         {
-                            fprintf(stderr, "  %s\n", outputfiles[f].filename);
+                            fprintf(stderr, "  %s\n", outputfile.filename);
                         }
                     }
                     fprintf(stderr, "\n");
                     fprintf(stderr, "Expected output files not present or named differently:\n");
-                    for (f = 0; f < nfiles; f++)
+                    for (const auto &outputfile : outputfiles)
                     {
-                        if (!exist_output_file(outputfiles[f].filename,
+                        if (!exist_output_file(outputfile.filename,
                                                nfile, fnm))
                         {
-                            fprintf(stderr, "  %s\n", outputfiles[f].filename);
+                            fprintf(stderr, "  %s\n", outputfile.filename);
                         }
                     }
 
                     gmx_fatal(FARGS,
-                              "File appending requested, but %d of the %d output files are not present or are named differently. "
+                              "File appending requested, but %zu of the %zu output files are not present or are named differently. "
                               "For safety reasons, GROMACS-2016 and later only allows file appending to be used when all files "
                               "have the same names as they had in the original run. "
                               "Checkpointing is merely intended for plain continuation of runs. "
@@ -188,13 +185,13 @@ read_checkpoint_data(const char *filename, int *simulation_part,
                               "If the files are not available, you "
                               "can add the -noappend flag to mdrun and write separate new parts. "
                               "For mere concatenation of files, you should use the gmx trjcat tool instead.",
-                              nfiles-nexist, nfiles);
+                              outputfiles.size()-nexist, outputfiles.size());
                 }
             }
 
             if (*bDoAppendFiles)
             {
-                if (nfiles == 0)
+                if (outputfiles.empty())
                 {
                     gmx_fatal(FARGS, "File appending requested, but no output file information is stored in the checkpoint file");
                 }
@@ -212,8 +209,6 @@ read_checkpoint_data(const char *filename, int *simulation_part,
                 *bAddPart = (strstr(fn, part_suffix) != nullptr ||
                              strstr(fn, suf_up) != nullptr);
             }
-
-            sfree(outputfiles);
         }
     }
     if (PAR(cr))
@@ -231,12 +226,13 @@ read_checkpoint_data(const char *filename, int *simulation_part,
 
 /* This routine cannot print tons of data, since it is called before the log file is opened. */
 void
-handleRestart(t_commrec *cr,
-              gmx_bool   bTryToAppendFiles,
-              const int  NFILE,
-              t_filenm   fnm[],
-              bool      *bDoAppendFiles,
-              bool      *bStartFromCpt)
+handleRestart(t_commrec            *cr,
+              const gmx_multisim_t *ms,
+              gmx_bool              bTryToAppendFiles,
+              const int             NFILE,
+              t_filenm              fnm[],
+              bool                 *bDoAppendFiles,
+              bool                 *bStartFromCpt)
 {
     gmx_bool        bAddPart;
     int             sim_part, sim_part_fn;
@@ -255,7 +251,7 @@ handleRestart(t_commrec *cr,
                              &sim_part_fn, cr,
                              bTryToAppendFiles, NFILE, fnm,
                              part_suffix, &bAddPart, bDoAppendFiles);
-        if (sim_part_fn == 0 && MULTIMASTER(cr))
+        if (sim_part_fn == 0 && isMasterSimMasterRank(ms, cr))
         {
             fprintf(stdout, "No previous checkpoint file present with -cpi option, assuming this is a new run.\n");
         }
@@ -264,9 +260,13 @@ handleRestart(t_commrec *cr,
             sim_part = sim_part_fn + 1;
         }
 
-        if (MULTISIM(cr) && MASTER(cr))
+        // Master ranks of multi simulations should check that the
+        // simulation part number is consistent across the
+        // simulations.
+        if (isMultiSim(ms) && MASTER(cr))
         {
-            if (MULTIMASTER(cr))
+            // Only the master simulation should report on problems.
+            if (isMasterSimMasterRank(ms, cr))
             {
                 /* Log file is not yet available, so if there's a
                  * problem we can only write to stderr. */
@@ -276,7 +276,7 @@ handleRestart(t_commrec *cr,
             {
                 fpmulti = nullptr;
             }
-            check_multi_int(fpmulti, cr->ms, sim_part, "simulation part", TRUE);
+            check_multi_int(fpmulti, ms, sim_part, "simulation part", TRUE);
         }
     }
     else
@@ -301,7 +301,7 @@ handleRestart(t_commrec *cr,
         sprintf(suffix, "%s%04d", part_suffix, sim_part_fn);
 
         add_suffix_to_output_names(fnm, NFILE, suffix);
-        if (MULTIMASTER(cr))
+        if (isMasterSimMasterRank(ms, cr))
         {
             fprintf(stdout, "Checkpoint file is from part %d, new output files will be suffixed '%s'.\n", sim_part-1, suffix);
         }

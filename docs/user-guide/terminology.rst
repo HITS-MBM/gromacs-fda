@@ -194,7 +194,7 @@ case:
 * Cut-off treatment and/or long-range electrostatics treatment (see Van Der
   Spoel, D. & van Maaren, P. J. The origin of layer structure artifacts in
   simulations of liquid water. *J. Chem. Theor. Comp.* **2**, 1–11 (2006).)
-* Treatment of neighborlists,
+* Treatment of pair lists,
 * Constraint algorithms (see e.g. Hess, B. P-LINCS: A parallel linear constraint
   solver for molecular simulation. *J. Chem. Theor. Comp.* **4**, 116–122
   (2008).)
@@ -333,7 +333,7 @@ when addressing such a scenario:
    to a breakdown in the model physics, even if the starting configuration of
    the system is reasonable.
 
-If using implicit solvation, starting your equilibration with a smaller time
+When using no explict solvent, starting your equilibration with a smaller time
 step than your production run can help energy equipartition more stably.
 
 There are several common situations in which instability frequently arises,
@@ -379,31 +379,3 @@ guide, and the user is asked to consult either the relevant literature or
 try to start at the relevant `Wikipedia page`_.
 
 .. _Wikipedia page: https://en.wikipedia.org/wiki/Force_field_(chemistry)
-
-.. _gmx-vdw:
-
-van der Waals radius
---------------------
-
-Add what this means here.
-
-.. _gmx-residue:
-
-Residue
--------
-
-Add definition of a residue here.
-
-.. _gmx-energy-min:
-
-Energy minimisation
--------------------
-
-Add short explanation of energy minimization here.
-
-.. _gmx-PME:
-
-Particle Mesh Ewald
--------------------
-
-Add info here for PME in |Gromacs|

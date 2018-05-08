@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2014,2015,2016,2017, by the GROMACS development team, led by
+ * Copyright (c) 2014,2015,2016,2017,2018, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -756,7 +756,7 @@ static void keep_old_values(t_gmx_IMD_setup *IMDsetup)
 
 
 /*! \brief Returns TRUE if any component of the two rvecs differs. */
-static gmx_inline gmx_bool rvecs_differ(const rvec v1, const rvec v2)
+static inline gmx_bool rvecs_differ(const rvec v1, const rvec v2)
 {
     int i;
 
@@ -808,7 +808,7 @@ static void output_imd_forces(t_inputrec *ir, double time)
 
 
 /*! \brief Synchronize the nodes. */
-static void imd_sync_nodes(t_inputrec *ir, t_commrec *cr, double t)
+static void imd_sync_nodes(t_inputrec *ir, const t_commrec *cr, double t)
 {
     int              new_nforces = 0;
     t_gmx_IMD_setup *IMDsetup;
@@ -1048,11 +1048,10 @@ static void init_imd_prepare_mols_in_imdgroup(t_gmx_IMD_setup *IMDsetup, gmx_mto
 {
     int      i, ii;
     int      gstart, gend, count;
-    t_block  gmols, lmols;
+    t_block  lmols;
     int      nat;
     int     *ind;
 
-    gmols = top_global->mols;
     nat   = IMDsetup->nat;
     ind   = IMDsetup->ind;
 
@@ -1067,10 +1066,11 @@ static void init_imd_prepare_mols_in_imdgroup(t_gmx_IMD_setup *IMDsetup, gmx_mto
         }
     }
 
-    snew(lmols.index, gmols.nr+1);
+    gmx::BlockRanges gmols = gmx_mtop_molecules(*top_global);
+    snew(lmols.index, gmols.numBlocks() + 1);
     lmols.index[0] = 0;
 
-    for (i = 0; i < gmols.nr; i++)
+    for (i = 0; i < gmols.numBlocks(); i++)
     {
         gstart = gmols.index[i];
         gend   = gmols.index[i+1];
@@ -1227,7 +1227,7 @@ static void imd_remove_molshifts(t_gmx_IMD_setup *IMDsetup, matrix box)
 
 
 /*! \brief Initialize arrays used to assemble the positions from the other nodes. */
-static void init_imd_prepare_for_x_assembly(t_commrec *cr, rvec x[], t_gmx_IMD_setup *IMDsetup)
+static void init_imd_prepare_for_x_assembly(const t_commrec *cr, rvec x[], t_gmx_IMD_setup *IMDsetup)
 {
     int i, ii;
 
@@ -1273,7 +1273,7 @@ static void init_imd_prepare_for_x_assembly(t_commrec *cr, rvec x[], t_gmx_IMD_s
 
 
 /*! \brief Check for non-working integrator / parallel options. */
-static void imd_check_integrator_parallel(t_inputrec *ir, t_commrec *cr)
+static void imd_check_integrator_parallel(t_inputrec *ir, const t_commrec *cr)
 {
     if (PAR(cr))
     {
@@ -1286,7 +1286,8 @@ static void imd_check_integrator_parallel(t_inputrec *ir, t_commrec *cr)
 }
 
 void init_IMD(t_inputrec             *ir,
-              t_commrec              *cr,
+              const t_commrec        *cr,
+              const gmx_multisim_t   *ms,
               gmx_mtop_t             *top_global,
               FILE                   *fplog,
               int                     defnstimd,
@@ -1308,6 +1309,9 @@ void init_IMD(t_inputrec             *ir,
     {
         return;
     }
+    // TODO many of these error conditions were we can't do what the
+    // user asked for should be handled with a fatal error, not just a
+    // warning.
 
     const ImdOptions &options = mdrunOptions.imdOptions;
 
@@ -1319,7 +1323,7 @@ void init_IMD(t_inputrec             *ir,
         if (options.wait || options.terminatable || options.pull)
         {
             /* Multiple simulations or replica exchange */
-            if (MULTISIM(cr))
+            if (isMultiSim(ms))
             {
                 fprintf(stderr, "%s Cannot use IMD for multiple simulations or replica exchange.\n", IMDstr);
             }
@@ -1473,15 +1477,15 @@ void init_IMD(t_inputrec             *ir,
 }
 
 
-gmx_bool do_IMD(gmx_bool        bIMD,
-                gmx_int64_t     step,
-                t_commrec      *cr,
-                gmx_bool        bNS,
-                matrix          box,
-                rvec            x[],
-                t_inputrec     *ir,
-                double          t,
-                gmx_wallcycle  *wcycle)
+gmx_bool do_IMD(gmx_bool         bIMD,
+                gmx_int64_t      step,
+                const t_commrec *cr,
+                gmx_bool         bNS,
+                matrix           box,
+                rvec             x[],
+                t_inputrec      *ir,
+                double           t,
+                gmx_wallcycle   *wcycle)
 {
     gmx_bool         imdstep = FALSE;
     t_gmx_IMD_setup *IMDsetup;
@@ -1658,7 +1662,7 @@ int IMD_get_step(t_gmx_IMD *IMDsetup)
 }
 
 
-void IMD_apply_forces(gmx_bool bIMD, t_IMD *imd, t_commrec *cr, rvec *f,
+void IMD_apply_forces(gmx_bool bIMD, t_IMD *imd, const t_commrec *cr, rvec *f,
                       gmx_wallcycle *wcycle)
 {
     int              i, j;

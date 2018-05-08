@@ -153,7 +153,7 @@ void compute_globals(FILE *fplog, gmx_global_stat *gstat, t_commrec *cr, t_input
                      t_state *state, t_mdatoms *mdatoms,
                      t_nrnb *nrnb, t_vcm *vcm, gmx_wallcycle_t wcycle,
                      gmx_enerdata_t *enerd, tensor force_vir, tensor shake_vir, tensor total_vir,
-                     tensor pres, rvec mu_tot, struct gmx_constr *constr,
+                     tensor pres, rvec mu_tot, gmx::Constraints *constr,
                      gmx::SimulationSignaller *signalCoordinator,
                      matrix box, int *totalNumberOfBondedInteractions,
                      gmx_bool *bSumEkinhOld, int flags)
@@ -233,14 +233,6 @@ void compute_globals(FILE *fplog, gmx_global_stat *gstat, t_commrec *cr, t_input
             signalCoordinator->finalizeSignals();
             *bSumEkinhOld = FALSE;
         }
-    }
-
-    if (!ekind->bNEMD && debug && bTemp && (vcm->nr > 0))
-    {
-        correct_ekin(debug,
-                     0, mdatoms->homenr,
-                     as_rvec_array(state->v.data()), vcm->group_p[0],
-                     mdatoms->massT, mdatoms->tmass, ekind->ekin);
     }
 
     /* Do center of mass motion removal */

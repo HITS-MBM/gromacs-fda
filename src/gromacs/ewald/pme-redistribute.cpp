@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014,2015,2016, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016,2018, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -433,7 +433,7 @@ void dd_pmeredist_f(struct gmx_pme_t *pme, pme_atomcomm_t *atc,
 }
 
 void
-do_redist_pos_coeffs(struct gmx_pme_t *pme, t_commrec *cr, int start, int homenr,
+do_redist_pos_coeffs(struct gmx_pme_t *pme, const t_commrec *cr, int start, int homenr,
                      gmx_bool bFirst, rvec x[], real *data)
 {
     int             d;
@@ -466,7 +466,6 @@ do_redist_pos_coeffs(struct gmx_pme_t *pme, t_commrec *cr, int start, int homenr
             srenew(atc->pd, atc->pd_nalloc);
         }
         pme_calc_pidx_wrapper(n_d, pme->recipbox, x_d, atc);
-        where();
         /* Redistribute x (only once) and qA/c6A or qB/c6B */
         if (DOMAINDECOMP(cr))
         {

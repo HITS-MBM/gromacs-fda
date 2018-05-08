@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2012,2013,2014,2015,2016,2017, by the GROMACS development team, led by
+ * Copyright (c) 2012,2013,2014,2015,2016,2017,2018, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -112,7 +112,6 @@ static void init_ewald_coulomb_force_table(const interaction_const_t *ic,
 
     nbp->coulomb_tab_scale = ic->tabq_scale;
     initParamLookupTable(nbp->coulomb_tab, nbp->coulomb_tab_texobj,
-                         &nbnxn_cuda_get_coulomb_tab_texref(),
                          ic->tabq_coul_F, ic->tabq_size, dev_info);
 }
 
@@ -327,7 +326,6 @@ static void init_nbparam(cu_nbparam_t              *nbp,
     if (!useLjCombRule(nbp))
     {
         initParamLookupTable(nbp->nbfp, nbp->nbfp_texobj,
-                             &nbnxn_cuda_get_nbfp_texref(),
                              nbat->nbfp, 2*ntypes*ntypes, dev_info);
     }
 
@@ -335,7 +333,6 @@ static void init_nbparam(cu_nbparam_t              *nbp,
     if (ic->vdwtype == evdwPME)
     {
         initParamLookupTable(nbp->nbfp_comb, nbp->nbfp_comb_texobj,
-                             &nbnxn_cuda_get_nbfp_comb_texref(),
                              nbat->nbfp_comb, 2*ntypes, dev_info);
     }
 }
@@ -560,26 +557,28 @@ void nbnxn_gpu_init_pairlist(gmx_nbnxn_cuda_t       *nb,
         nb->timers->didPairlistH2D[iloc] = true;
     }
 
-    cu_realloc_buffered((void **)&d_plist->sci, h_plist->sci, sizeof(*d_plist->sci),
-                        &d_plist->nsci, &d_plist->sci_nalloc,
-                        h_plist->nsci,
-                        stream, true);
+    Context context = nullptr;
 
-    cu_realloc_buffered((void **)&d_plist->cj4, h_plist->cj4, sizeof(*d_plist->cj4),
-                        &d_plist->ncj4, &d_plist->cj4_nalloc,
-                        h_plist->ncj4,
-                        stream, true);
+    reallocateDeviceBuffer(&d_plist->sci, h_plist->nsci,
+                           &d_plist->nsci, &d_plist->sci_nalloc, context);
+    copyToDeviceBuffer(&d_plist->sci, h_plist->sci, 0, h_plist->nsci,
+                       stream, GpuApiCallBehavior::Async,
+                       bDoTime ? nb->timers->pl_h2d[iloc].fetchNextEvent() : nullptr);
 
-    /* this call only allocates space on the device (no data is transferred) */
-    cu_realloc_buffered((void **)&d_plist->imask, NULL, sizeof(*d_plist->imask),
-                        &d_plist->nimask, &d_plist->imask_nalloc,
-                        h_plist->ncj4*c_nbnxnGpuClusterpairSplit,
-                        stream, true);
+    reallocateDeviceBuffer(&d_plist->cj4, h_plist->ncj4,
+                           &d_plist->ncj4, &d_plist->cj4_nalloc, context);
+    copyToDeviceBuffer(&d_plist->cj4, h_plist->cj4, 0, h_plist->ncj4,
+                       stream, GpuApiCallBehavior::Async,
+                       bDoTime ? nb->timers->pl_h2d[iloc].fetchNextEvent() : nullptr);
 
-    cu_realloc_buffered((void **)&d_plist->excl, h_plist->excl, sizeof(*d_plist->excl),
-                        &d_plist->nexcl, &d_plist->excl_nalloc,
-                        h_plist->nexcl,
-                        stream, true);
+    reallocateDeviceBuffer(&d_plist->imask, h_plist->ncj4*c_nbnxnGpuClusterpairSplit,
+                           &d_plist->nimask, &d_plist->imask_nalloc, context);
+
+    reallocateDeviceBuffer(&d_plist->excl, h_plist->nexcl,
+                           &d_plist->nexcl, &d_plist->excl_nalloc, context);
+    copyToDeviceBuffer(&d_plist->excl, h_plist->excl, 0, h_plist->nexcl,
+                       stream, GpuApiCallBehavior::Async,
+                       bDoTime ? nb->timers->pl_h2d[iloc].fetchNextEvent() : nullptr);
 
     if (bDoTime)
     {
@@ -671,10 +670,10 @@ void nbnxn_gpu_init_atomdata(gmx_nbnxn_cuda_t              *nb,
         /* free up first if the arrays have already been initialized */
         if (d_atdat->nalloc != -1)
         {
-            cu_free_buffered(d_atdat->f, &d_atdat->natoms, &d_atdat->nalloc);
-            cu_free_buffered(d_atdat->xq);
-            cu_free_buffered(d_atdat->atom_types);
-            cu_free_buffered(d_atdat->lj_comb);
+            freeDeviceBuffer(&d_atdat->f);
+            freeDeviceBuffer(&d_atdat->xq);
+            freeDeviceBuffer(&d_atdat->atom_types);
+            freeDeviceBuffer(&d_atdat->lj_comb);
         }
 
         stat = cudaMalloc((void **)&d_atdat->f, nalloc*sizeof(*d_atdat->f));
@@ -728,7 +727,7 @@ static void nbnxn_cuda_free_nbparam_table(cu_nbparam_t            *nbparam,
     if (nbparam->eeltype == eelCuEWALD_TAB || nbparam->eeltype == eelCuEWALD_TAB_TWIN)
     {
         destroyParamLookupTable(nbparam->coulomb_tab, nbparam->coulomb_tab_texobj,
-                                &nbnxn_cuda_get_coulomb_tab_texref(), dev_info);
+                                dev_info);
     }
 }
 
@@ -737,7 +736,6 @@ void nbnxn_gpu_free(gmx_nbnxn_cuda_t *nb)
     cudaError_t      stat;
     cu_atomdata_t   *atdat;
     cu_nbparam_t    *nbparam;
-    cu_plist_t      *plist, *plist_nl;
 
     if (nb == NULL)
     {
@@ -746,8 +744,6 @@ void nbnxn_gpu_free(gmx_nbnxn_cuda_t *nb)
 
     atdat       = nb->atdat;
     nbparam     = nb->nbparam;
-    plist       = nb->plist[eintLocal];
-    plist_nl    = nb->plist[eintNonlocal];
 
     nbnxn_cuda_free_nbparam_table(nbparam, nb->dev_info);
 
@@ -770,14 +766,14 @@ void nbnxn_gpu_free(gmx_nbnxn_cuda_t *nb)
     if (!useLjCombRule(nb->nbparam))
     {
         destroyParamLookupTable(nbparam->nbfp, nbparam->nbfp_texobj,
-                                &nbnxn_cuda_get_nbfp_texref(), nb->dev_info);
+                                nb->dev_info);
 
     }
 
     if (nbparam->vdwtype == evdwCuEWALDGEOM || nbparam->vdwtype == evdwCuEWALDLB)
     {
         destroyParamLookupTable(nbparam->nbfp_comb, nbparam->nbfp_comb_texobj,
-                                &nbnxn_cuda_get_nbfp_comb_texref(), nb->dev_info);
+                                nb->dev_info);
     }
 
     stat = cudaFree(atdat->shift_vec);
@@ -790,30 +786,40 @@ void nbnxn_gpu_free(gmx_nbnxn_cuda_t *nb)
     stat = cudaFree(atdat->e_el);
     CU_RET_ERR(stat, "cudaFree failed on atdat->e_el");
 
-    cu_free_buffered(atdat->f, &atdat->natoms, &atdat->nalloc);
-    cu_free_buffered(atdat->xq);
-    cu_free_buffered(atdat->atom_types, &atdat->ntypes);
-    cu_free_buffered(atdat->lj_comb);
+    freeDeviceBuffer(&atdat->f);
+    freeDeviceBuffer(&atdat->xq);
+    freeDeviceBuffer(&atdat->atom_types);
+    freeDeviceBuffer(&atdat->lj_comb);
 
-    cu_free_buffered(plist->sci, &plist->nsci, &plist->sci_nalloc);
-    cu_free_buffered(plist->cj4, &plist->ncj4, &plist->cj4_nalloc);
-    cu_free_buffered(plist->imask, &plist->nimask, &plist->imask_nalloc);
-    cu_free_buffered(plist->excl, &plist->nexcl, &plist->excl_nalloc);
-    if (nb->bUseTwoStreams)
-    {
-        cu_free_buffered(plist_nl->sci, &plist_nl->nsci, &plist_nl->sci_nalloc);
-        cu_free_buffered(plist_nl->cj4, &plist_nl->ncj4, &plist_nl->cj4_nalloc);
-        cu_free_buffered(plist_nl->imask, &plist_nl->nimask, &plist_nl->imask_nalloc);
-        cu_free_buffered(plist_nl->excl, &plist_nl->nexcl, &plist->excl_nalloc);
-    }
-
-    sfree(atdat);
-    sfree(nbparam);
+    /* Free plist */
+    auto *plist = nb->plist[eintLocal];
+    freeDeviceBuffer(&plist->sci);
+    freeDeviceBuffer(&plist->cj4);
+    freeDeviceBuffer(&plist->imask);
+    freeDeviceBuffer(&plist->excl);
     sfree(plist);
     if (nb->bUseTwoStreams)
     {
+        auto *plist_nl = nb->plist[eintNonlocal];
+        freeDeviceBuffer(&plist_nl->sci);
+        freeDeviceBuffer(&plist_nl->cj4);
+        freeDeviceBuffer(&plist_nl->imask);
+        freeDeviceBuffer(&plist_nl->excl);
         sfree(plist_nl);
     }
+
+    /* Free nbst */
+    pfree(nb->nbst.e_lj);
+    nb->nbst.e_lj = NULL;
+
+    pfree(nb->nbst.e_el);
+    nb->nbst.e_el = NULL;
+
+    pfree(nb->nbst.fshift);
+    nb->nbst.fshift = NULL;
+
+    sfree(atdat);
+    sfree(nbparam);
     sfree(nb->timings);
     sfree(nb);
 

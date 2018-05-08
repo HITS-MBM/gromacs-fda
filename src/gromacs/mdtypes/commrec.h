@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014,2015,2017, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2017,2018, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -63,14 +63,17 @@ typedef struct {
     int              dbuf_alloc;
 } mpi_in_place_buf_t;
 
-struct gmx_multisim_t {
-    int       nsim;
-    int       sim;
-    MPI_Group mpi_group_masters;
-    MPI_Comm  mpi_comm_masters;
+void done_mpi_in_place_buf(mpi_in_place_buf_t *buf);
+
+struct gmx_multisim_t
+{
+    int       nsim              = 1;
+    int       sim               = 0;
+    MPI_Group mpi_group_masters = MPI_GROUP_NULL;
+    MPI_Comm  mpi_comm_masters  = MPI_COMM_NULL;
     /* these buffers are used as destination buffers if MPI_IN_PLACE isn't
        supported.*/
-    mpi_in_place_buf_t *mpb;
+    mpi_in_place_buf_t *mpb = nullptr;
 };
 
 #define DUTY_PP  (1<<0)
@@ -104,15 +107,6 @@ struct t_commrec {
     MPI_Comm mpi_comm_mygroup;         /* subset of mpi_comm_mysim including only
                                           the ranks in the same group (PP or PME) */
 
-    /* MPI ranks and a communicator within a physical node for hardware access */
-    MPI_Comm       mpi_comm_physicalnode; /* communicator for all ranks of the physical node
-                                           * NOTE: this communicator should only be used during initialization and finalization, as it can contain ranks from PP, PME and multiple simulations with multisim
-                                           */
-    int            nrank_intranode;       /* nr of ranks on this physical node */
-    int            rank_intranode;        /* our rank on this physical node */
-    int            nrank_pp_intranode;    /* as nrank_intranode, for particle-particle only */
-    int            rank_pp_intranode;     /* as rank_intranode, for particle-particle only */
-
     gmx_nodecomm_t nc;
 
     /* For domain decomposition */
@@ -122,8 +116,6 @@ struct t_commrec {
      * This should be read through thisRankHasDuty() or getThisRankDuties().
      */
     int                    duty;
-
-    gmx_multisim_t        *ms;
 
     /* these buffers are used as destination buffers if MPI_IN_PLACE isn't
        supported.*/
@@ -179,13 +171,25 @@ inline bool thisRankHasDuty(const t_commrec *cr, int duty)
  * than one domain, not just that the dd algorithm is active. */
 #define DOMAINDECOMP(cr)   (((cr)->dd != NULL) && PAR(cr))
 
-//! Are we doing multiple independent simulations
-#define MULTISIM(cr)       ((cr)->ms)
+//! Are we doing multiple independent simulations?
+static bool inline isMultiSim(const gmx_multisim_t *ms)
+{
+    return ms != nullptr;
+}
 
-//! Are we the master node of a multisimulation
-#define MASTERSIM(ms)      ((ms)->sim == 0)
+//! Are we the master simulation of a possible multi-simulation?
+static bool inline isMasterSim(const gmx_multisim_t *ms)
+{
+    return !isMultiSim(ms) || ms->sim == 0;
+}
 
-//! The master of all (the node that prints the remaining run time etc.)
-#define MULTIMASTER(cr)    (SIMMASTER(cr) && (!MULTISIM(cr) || MASTERSIM((cr)->ms)))
+/*! \brief Are we the master rank (of the master simulation, for a multi-sim).
+ *
+ * This rank prints the remaining run time etc. */
+static bool inline isMasterSimMasterRank(const gmx_multisim_t *ms,
+                                         const t_commrec      *cr)
+{
+    return (SIMMASTER(cr) && isMasterSim(ms));
+}
 
 #endif

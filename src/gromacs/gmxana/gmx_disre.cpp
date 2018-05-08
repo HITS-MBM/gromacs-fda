@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014,2015,2016,2017, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016,2017,2018, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -204,7 +204,7 @@ static void check_viol(FILE *log,
         while (((i+n) < disres->nr) &&
                (forceparams[forceatoms[i+n]].disres.label == label));
 
-        calc_disres_R_6(nullptr, n, &forceatoms[i],
+        calc_disres_R_6(nullptr, nullptr, n, &forceatoms[i],
                         (const rvec*)x, pbc, fcd, nullptr);
 
         if (fcd->disres.Rt_6[label] <= 0)
@@ -484,7 +484,7 @@ static void dump_clust_stats(FILE *fp, int ndr, t_ilist *disres,
             drs[i].bCore  = is_core(i, isize, index);
             drs[i].up1    = ip[disres->iatoms[j]].disres.up1;
             drs[i].r      = dr[k].aver1[i]/dr[k].nframes;
-            if ((dr[k].aver_3[i] <= 0) || (dr[k].aver_3[i] != dr[k].aver_3[i]))
+            if ((dr[k].aver_3[i] <= 0) || !std::isfinite(dr[k].aver_3[i]))
             {
                 gmx_fatal(FARGS, "dr[%d].aver_3[%d] = %f", k, i, dr[k].aver_3[i]);
             }
@@ -532,8 +532,7 @@ static void dump_disre_matrix(const char *fn, t_dr_result *dr, int ndr,
 {
     FILE      *fp;
     int       *resnr;
-    int        n_res, a_offset, mb, mol, a;
-    t_atoms   *atoms;
+    int        n_res, a_offset, mol, a;
     int        i, j, nra, nratoms, tp, ri, rj, index, nlabel, label;
     int        ai, aj, *ptr;
     real     **matrix, *t_res, hi, *w_dr, rav, rviol;
@@ -547,17 +546,17 @@ static void dump_disre_matrix(const char *fn, t_dr_result *dr, int ndr,
     snew(resnr, mtop->natoms);
     n_res    = 0;
     a_offset = 0;
-    for (mb = 0; mb < mtop->nmolblock; mb++)
+    for (const gmx_molblock_t &molb : mtop->molblock)
     {
-        atoms = &mtop->moltype[mtop->molblock[mb].type].atoms;
-        for (mol = 0; mol < mtop->molblock[mb].nmol; mol++)
+        const t_atoms &atoms = mtop->moltype[molb.type].atoms;
+        for (mol = 0; mol < molb.nmol; mol++)
         {
-            for (a = 0; a < atoms->nr; a++)
+            for (a = 0; a < atoms.nr; a++)
             {
-                resnr[a_offset+a] = n_res + atoms->atom[a].resind;
+                resnr[a_offset + a] = n_res + atoms.atom[a].resind;
             }
-            n_res    += atoms->nres;
-            a_offset += atoms->nr;
+            n_res    += atoms.nres;
+            a_offset += atoms.nr;
         }
     }
 
@@ -813,7 +812,7 @@ int gmx_disre(int argc, char *argv[])
     }
 
     ir->dr_tau = 0.0;
-    init_disres(fplog, &mtop, ir, nullptr, &fcd, nullptr, FALSE);
+    init_disres(fplog, &mtop, ir, nullptr, nullptr, &fcd, nullptr, FALSE);
 
     natoms = read_first_x(oenv, &status, ftp2fn(efTRX, NFILE, fnm), &t, &x, box);
     snew(f, 5*natoms);

@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014,2015,2016,2017, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016,2017,2018, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -95,12 +95,15 @@ t_inpfile *read_inpfile(gmx::TextInputStream *stream, const char *fn, int *ninp,
         }
         if (tokens.size() > 2)
         {
-            // TODO ignoring such lines does not seem like good behaviour
-            if (debug)
-            {
-                fprintf(debug, "Multiple equals signs on line %d in file %s, ignored\n", indexOfLineReadFromFile, fn);
-            }
-            continue;
+            // More than one equals symbol in the original line is
+            // valid if the RHS is a free string, and needed for
+            // "define = -DBOOLVAR -DVAR=VALUE".
+            //
+            // First, drop all the fields on the RHS of the first equals symbol.
+            tokens.resize(1);
+            // This find cannot return std::string::npos.
+            auto firstEqualsPos = line.find('=');
+            tokens.emplace_back(gmx::stripString(line.substr(firstEqualsPos + 1)));
         }
         if (tokens[0].empty())
         {
@@ -263,6 +266,13 @@ void replace_inp_entry(int ninp, t_inpfile *inp, const char *old_entry, const ch
             {
                 fprintf(stderr, "Replacing old mdp entry '%s' by '%s'\n",
                         inp[i].name, new_entry);
+
+                int foundIndex = search_einp(ninp, inp, new_entry);
+                if (foundIndex >= 0)
+                {
+                    gmx_fatal(FARGS, "A parameter is present with both the old name '%s' and the new name '%s'.", inp[i].name, inp[foundIndex].name);
+                }
+
                 sfree(inp[i].name);
                 inp[i].name = gmx_strdup(new_entry);
             }
