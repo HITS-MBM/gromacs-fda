@@ -704,7 +704,7 @@ gmx::HostVector<gmx::RVec> FDA::get_residues_com(gmx::HostVector<gmx::RVec> cons
     }
 
     atom_global_index = 0;
-    for (moltype_index = 0; moltype_index < mtop->nmolblock; moltype_index++) {
+    for (moltype_index = 0; moltype_index < mtop->molblock.size(); moltype_index++) {
         mb = &mtop->molblock[moltype_index];
         for (mol_index = 0; mol_index < mb->nmol; mol_index++) {
         atoms = &mtop->moltype[mb->type].atoms;
@@ -756,7 +756,7 @@ void FDA::respect_charge_groups(unsigned char* array, gmx_mtop_t const* mtop) co
     int *chargeGroupsIndex = NULL;
     unsigned char* p = array;
 
-    for (i = 0; i < mtop->nmolblock; ++i) {
+    for (i = 0; i < mtop->molblock.size(); ++i) {
 
         nbMolecules = mtop->molblock[i].nmol;
         molTypeIndex = mtop->molblock[i].type;

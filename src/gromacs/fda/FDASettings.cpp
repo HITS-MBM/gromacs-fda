@@ -255,7 +255,7 @@ void FDASettings::fill_atom2residue(gmx_mtop_t *mtop)
     int atom_global_index = 0;
     int renum = 0; //< renumbered residue nr.; increased monotonically, so could theoretically be as large as the nr. of atoms => type int
     bool bResnrCollision = false;
-    for (int moltype_index = 0; moltype_index < mtop->nmolblock; ++moltype_index) {
+    for (size_t moltype_index = 0; moltype_index < mtop->molblock.size(); ++moltype_index) {
         mb = &mtop->molblock[moltype_index];
         for (int mol_index = 0; mol_index < mb->nmol; ++mol_index) {
             atoms = &mtop->moltype[mb->type].atoms;

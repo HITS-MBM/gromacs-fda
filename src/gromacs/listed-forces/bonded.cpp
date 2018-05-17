@@ -686,7 +686,6 @@ real water_pol(int nbonds,
     int  i, m, aO, aH1, aH2, aD, aS, type, type0, ki;
     ivec dt;
     rvec dOH1, dOH2, dHH, dOD, dDS, nW, kk, dx, kdx, proj, pf_forcevector;
-    rvec dOH1, dOH2, dHH, dOD, dDS, nW, kk, dx, kdx, proj;
     real vtot, fij, r_HH, r_OD, r_nW, tx, ty, tz, qS;
 
     vtot = 0.0;

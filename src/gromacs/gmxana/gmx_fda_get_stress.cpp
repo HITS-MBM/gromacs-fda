@@ -47,8 +47,6 @@ int gmx_fda_get_stress(int argc, char *argv[])
 
     gmx_output_env_t *oenv;
 
-    t_pargs pa[] = {};
-
     t_filenm fnm[] = {
         { efPFX, "-ipf", NULL, ffREAD },
         { efPFX, "-ipf-diff", NULL, ffOPTRD },
@@ -58,7 +56,7 @@ int gmx_fda_get_stress(int argc, char *argv[])
 #define NFILE asize(fnm)
 
     if (!parse_common_args(&argc, argv, PCA_CAN_TIME,
-        NFILE, fnm, asize(pa), pa, asize(desc), desc, 0, NULL, &oenv)) return 0;
+        NFILE, fnm, 0, NULL, asize(desc), desc, 0, NULL, &oenv)) return 0;
 
     size_t nbFrames = getNumberOfFrames(opt2fn("-ipf", NFILE, fnm));
     size_t nbParticles = getMaxIndexSecondColumnFirstFrame(opt2fn("-ipf", NFILE, fnm)) + 1;

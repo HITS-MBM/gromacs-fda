@@ -522,9 +522,9 @@ int Mdrunner::mdrunner()
         read_tpx_state(ftp2fn(efTPR, nfile, fnm), inputrec, globalState.get(), &mtop);
 
 #ifdef BUILD_WITH_FDA
-        ptr_fda_settings = std::make_shared<fda::FDASettings>(nfile, fnm, mtop, PAR(cr));
+        ptr_fda_settings = std::make_shared<fda::FDASettings>(nfile, fnm, &mtop, PAR(cr));
         ptr_fda = std::make_shared<FDA>(*ptr_fda_settings);
-        ptr_fda->modify_energy_group_exclusions(mtop, inputrec);
+        ptr_fda->modify_energy_group_exclusions(&mtop, inputrec);
 #endif
 
         if (inputrec->cutoff_scheme != ecutsVERLET)
