@@ -71,7 +71,9 @@ nbnxn_kernel_ElecEwTwinCut_VdwLJEwCombGeom_F_2xnn(const nbnxn_pairlist_t    gmx_
                                                   real                      gmx_unused *f,
                                                   real                      gmx_unused *fshift,
                                                   real                      gmx_unused *Vvdw,
-                                                  real                      gmx_unused *Vc)
+                                                  real                      gmx_unused *Vc,
+                                                  FDA                       gmx_unused *fda,
+                                                  int                       gmx_unused *cellInv)
 #else /* CALC_ENERGIES */
 void
 nbnxn_kernel_ElecEwTwinCut_VdwLJEwCombGeom_F_2xnn(const nbnxn_pairlist_t    gmx_unused *nbl,

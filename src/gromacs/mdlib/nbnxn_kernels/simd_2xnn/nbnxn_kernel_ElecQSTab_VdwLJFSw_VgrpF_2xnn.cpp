@@ -70,7 +70,9 @@ nbnxn_kernel_ElecQSTab_VdwLJFSw_VgrpF_2xnn(const nbnxn_pairlist_t    gmx_unused 
                                            real                      gmx_unused *f,
                                            real                      gmx_unused *fshift,
                                            real                      gmx_unused *Vvdw,
-                                           real                      gmx_unused *Vc)
+                                           real                      gmx_unused *Vc,
+                                           FDA                       gmx_unused *fda,
+                                           int                       gmx_unused *cellInv)
 #else /* CALC_ENERGIES */
 void
 nbnxn_kernel_ElecQSTab_VdwLJFSw_VgrpF_2xnn(const nbnxn_pairlist_t    gmx_unused *nbl,

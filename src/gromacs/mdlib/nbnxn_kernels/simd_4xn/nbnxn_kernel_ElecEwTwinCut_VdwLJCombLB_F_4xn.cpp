@@ -70,7 +70,9 @@ nbnxn_kernel_ElecEwTwinCut_VdwLJCombLB_F_4xn(const nbnxn_pairlist_t    gmx_unuse
                                              real                      gmx_unused *f,
                                              real                      gmx_unused *fshift,
                                              real                      gmx_unused *Vvdw,
-                                             real                      gmx_unused *Vc)
+                                             real                      gmx_unused *Vc,
+                                             FDA                       gmx_unused *fda,
+                                             int                       gmx_unused *cellInv)
 #else /* CALC_ENERGIES */
 void
 nbnxn_kernel_ElecEwTwinCut_VdwLJCombLB_F_4xn(const nbnxn_pairlist_t    gmx_unused *nbl,
