@@ -63,7 +63,9 @@ void
 {6}real                      gmx_unused *f,
 {6}real                      gmx_unused *fshift,
 {6}real                      gmx_unused *Vvdw,
-{6}real                      gmx_unused *Vc)
+{6}real                      gmx_unused *Vc,
+{6}FDA                       gmx_unused *fda,
+{6}int                       gmx_unused *cellInv)
 #else /* CALC_ENERGIES */
 void
 {5}(const nbnxn_pairlist_t    gmx_unused *nbl,

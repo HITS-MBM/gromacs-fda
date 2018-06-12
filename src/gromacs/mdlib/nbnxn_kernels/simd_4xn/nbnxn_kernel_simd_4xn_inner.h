@@ -1143,6 +1143,18 @@
     fscal_S3    = rinvsq_S3 * frcoul_S3;
 #endif
 
+    /* pairwise forces */
+#ifdef CALC_LJ
+    if (fabs(fvdw) > PF_TINY_REAL_NUMBER) {
+        fda->add_nonbonded_single(cellInv[ai], cellInv[aj], fda::InteractionType_LJ, fscal, dx, dy, dz);
+    }
+#endif
+#ifdef CALC_COULOMB
+    if (fabs(fcoul) > PF_TINY_REAL_NUMBER) {
+        fda->add_nonbonded_single(cellInv[ai], cellInv[aj], fda::InteractionType_COULOMB, fcoul, dx, dy, dz);
+    }
+#endif
+
     /* Calculate temporary vectorial force */
     tx_S0       = fscal_S0 * dx_S0;
     tx_S1       = fscal_S1 * dx_S1;

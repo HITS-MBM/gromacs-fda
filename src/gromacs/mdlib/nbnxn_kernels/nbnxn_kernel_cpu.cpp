@@ -143,7 +143,7 @@ nbnxn_kernel_cpu(nonbonded_verlet_group_t  *nbvg,
                  real                      *vCoulomb,
                  real                      *vVdw,
                  FDA                       *fda,
-		         int                       *cellInv)
+                 int                       *cellInv)
 {
 
     int                      coulkt;
@@ -316,7 +316,9 @@ nbnxn_kernel_cpu(nonbonded_verlet_group_t  *nbvg,
                                                                out->f,
                                                                fshift_p,
                                                                out->Vvdw,
-                                                               out->Vc);
+                                                               out->Vc,
+                                                               fda,
+                                                               cellInv);
                     break;
 #endif
 #ifdef GMX_NBNXN_SIMD_4XN
@@ -327,7 +329,9 @@ nbnxn_kernel_cpu(nonbonded_verlet_group_t  *nbvg,
                                                               out->f,
                                                               fshift_p,
                                                               out->Vvdw,
-                                                              out->Vc);
+                                                              out->Vc,
+                                                              fda,
+                                                              cellInv);
                     break;
 #endif
                 default:
@@ -364,7 +368,9 @@ nbnxn_kernel_cpu(nonbonded_verlet_group_t  *nbvg,
                                                                   out->f,
                                                                   fshift_p,
                                                                   out->VSvdw,
-                                                                  out->VSc);
+                                                                  out->VSc,
+                                                                  fda,
+                                                                  cellInv);
                     break;
 #endif
 #ifdef GMX_NBNXN_SIMD_4XN
@@ -376,7 +382,9 @@ nbnxn_kernel_cpu(nonbonded_verlet_group_t  *nbvg,
                                                                  out->f,
                                                                  fshift_p,
                                                                  out->VSvdw,
-                                                                 out->VSc);
+                                                                 out->VSc,
+                                                                 fda,
+                                                                 cellInv);
                     break;
 #endif
                 default:
