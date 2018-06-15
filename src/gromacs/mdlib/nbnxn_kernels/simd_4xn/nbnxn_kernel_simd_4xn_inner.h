@@ -1145,14 +1145,17 @@
 
     /* pairwise forces */
 #ifdef CALC_LJ
-    if (fabs(fvdw) > PF_TINY_REAL_NUMBER) {
-        fda->add_nonbonded_single(cellInv[ai], cellInv[aj], fda::InteractionType_LJ, fscal, dx, dy, dz);
+#ifdef CALC_COULOMB
+    real real_fscal_S0;
+	store(&real_fscal_S0, fscal_S0);
+    if (fabs(real_fscal_S0) > PF_TINY_REAL_NUMBER) {
+        real real_dx_S0, real_dy_S0, real_dz_S0;
+        store(&real_dx_S0, dx_S0);
+        store(&real_dy_S0, dy_S0);
+        store(&real_dz_S0, dz_S0);
+        fda->add_nonbonded_single(cellInv[0], cellInv[0], fda::InteractionType_LJ, real_fscal_S0, real_dx_S0, real_dy_S0, real_dz_S0);
     }
 #endif
-#ifdef CALC_COULOMB
-    if (fabs(fcoul) > PF_TINY_REAL_NUMBER) {
-        fda->add_nonbonded_single(cellInv[ai], cellInv[aj], fda::InteractionType_COULOMB, fcoul, dx, dy, dz);
-    }
 #endif
 
     /* Calculate temporary vectorial force */

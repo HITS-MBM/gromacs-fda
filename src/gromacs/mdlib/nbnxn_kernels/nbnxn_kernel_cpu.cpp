@@ -265,7 +265,9 @@ nbnxn_kernel_cpu(nonbonded_verlet_group_t  *nbvg,
                                                            ic,
                                                            shiftVectors,
                                                            out->f,
-                                                           fshift_p);
+                                                           fshift_p,
+                                                           fda,
+                                                           cellInv);
                     break;
 #ifdef GMX_NBNXN_SIMD_2XNN
                 case nbnxnk4xN_SIMD_2xNN:
@@ -273,7 +275,9 @@ nbnxn_kernel_cpu(nonbonded_verlet_group_t  *nbvg,
                                                                  ic,
                                                                  shiftVectors,
                                                                  out->f,
-                                                                 fshift_p);
+                                                                 fshift_p,
+                                                                 fda,
+                                                                 cellInv);
                     break;
 #endif
 #ifdef GMX_NBNXN_SIMD_4XN
@@ -282,7 +286,9 @@ nbnxn_kernel_cpu(nonbonded_verlet_group_t  *nbvg,
                                                                 ic,
                                                                 shiftVectors,
                                                                 out->f,
-                                                                fshift_p);
+                                                                fshift_p,
+                                                                fda,
+                                                                cellInv);
                     break;
 #endif
                 default:
@@ -303,10 +309,10 @@ nbnxn_kernel_cpu(nonbonded_verlet_group_t  *nbvg,
                                                          shiftVectors,
                                                          out->f,
                                                          fshift_p,
-                                                         out->Vvdw,
-                                                         out->Vc,
                                                          fda,
-                                                         cellInv);
+                                                         cellInv,
+                                                         out->Vvdw,
+                                                         out->Vc);
                     break;
 #ifdef GMX_NBNXN_SIMD_2XNN
                 case nbnxnk4xN_SIMD_2xNN:
@@ -315,10 +321,10 @@ nbnxn_kernel_cpu(nonbonded_verlet_group_t  *nbvg,
                                                                shiftVectors,
                                                                out->f,
                                                                fshift_p,
-                                                               out->Vvdw,
-                                                               out->Vc,
                                                                fda,
-                                                               cellInv);
+                                                               cellInv,
+                                                               out->Vvdw,
+                                                               out->Vc);
                     break;
 #endif
 #ifdef GMX_NBNXN_SIMD_4XN
@@ -328,10 +334,10 @@ nbnxn_kernel_cpu(nonbonded_verlet_group_t  *nbvg,
                                                               shiftVectors,
                                                               out->f,
                                                               fshift_p,
-                                                              out->Vvdw,
-                                                              out->Vc,
                                                               fda,
-                                                              cellInv);
+                                                              cellInv,
+                                                              out->Vvdw,
+                                                              out->Vc);
                     break;
 #endif
                 default:
@@ -354,10 +360,10 @@ nbnxn_kernel_cpu(nonbonded_verlet_group_t  *nbvg,
                                                             shiftVectors,
                                                             out->f,
                                                             fshift_p,
-                                                            out->Vvdw,
-                                                            out->Vc,
                                                             fda,
-                                                            cellInv);
+                                                            cellInv,
+                                                            out->Vvdw,
+                                                            out->Vc);
                     break;
 #ifdef GMX_NBNXN_SIMD_2XNN
                 case nbnxnk4xN_SIMD_2xNN:
@@ -367,10 +373,10 @@ nbnxn_kernel_cpu(nonbonded_verlet_group_t  *nbvg,
                                                                   shiftVectors,
                                                                   out->f,
                                                                   fshift_p,
-                                                                  out->VSvdw,
-                                                                  out->VSc,
                                                                   fda,
-                                                                  cellInv);
+                                                                  cellInv,
+                                                                  out->VSvdw,
+                                                                  out->VSc);
                     break;
 #endif
 #ifdef GMX_NBNXN_SIMD_4XN
@@ -381,10 +387,10 @@ nbnxn_kernel_cpu(nonbonded_verlet_group_t  *nbvg,
                                                                  shiftVectors,
                                                                  out->f,
                                                                  fshift_p,
-                                                                 out->VSvdw,
-                                                                 out->VSc,
                                                                  fda,
-                                                                 cellInv);
+                                                                 cellInv,
+                                                                 out->VSvdw,
+                                                                 out->VSc);
                     break;
 #endif
                 default:
