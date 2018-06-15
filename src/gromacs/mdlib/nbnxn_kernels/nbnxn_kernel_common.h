@@ -61,10 +61,10 @@ typedef void (nbk_func_ener)(const nbnxn_pairlist_t     *nbl,
                              rvec                       *shift_vec,
                              real                       *f,
                              real                       *fshift,
-                             real                       *Vvdw,
-                             real                       *Vc,
                              FDA                        *fda,
-                             int                        *cellInv);
+                             int                        *cellInv,
+                             real                       *Vvdw,
+                             real                       *Vc);
 
 /*! \brief Pointer to \p nbk_func_ener.
  */
@@ -77,7 +77,9 @@ typedef void (nbk_func_noener)(const nbnxn_pairlist_t     *nbl,
                                const interaction_const_t  *ic,
                                rvec                       *shift_vec,
                                real                       *f,
-                               real                       *fshift);
+                               real                       *fshift,
+                               FDA                        *fda,
+                               int                        *cellInv);
 
 /*! \brief Pointer to \p nbk_func_noener.
  */

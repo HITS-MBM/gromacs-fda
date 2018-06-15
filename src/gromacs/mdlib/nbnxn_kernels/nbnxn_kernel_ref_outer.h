@@ -98,13 +98,13 @@ NBK_FUNC_NAME(_VgrpF)
  const interaction_const_t  *ic,
  rvec                       *shift_vec,
  real                       *f,
- real gmx_unused            *fshift
+ real gmx_unused            *fshift,
+ FDA                        *fda,
+ int                        *cellInv
 #ifdef CALC_ENERGIES
  ,
  real                       *Vvdw,
- real                       *Vc,
- FDA                        *fda,
- int                        *cellInv
+ real                       *Vc
 #endif
 )
 {
