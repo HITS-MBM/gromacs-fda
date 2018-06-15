@@ -1146,17 +1146,29 @@
     /* pairwise forces */
 #ifdef CALC_LJ
 #ifdef CALC_COULOMB
+    // write both
+#else // CALC_COULOMB
     real real_fscal_S0;
 	store(&real_fscal_S0, fscal_S0);
+    int ai = ci * UNROLLI;
+    int ai = cj * UNROLLJ;
     if (fabs(real_fscal_S0) > PF_TINY_REAL_NUMBER) {
         real real_dx_S0, real_dy_S0, real_dz_S0;
         store(&real_dx_S0, dx_S0);
         store(&real_dy_S0, dy_S0);
         store(&real_dz_S0, dz_S0);
-        fda->add_nonbonded_single(cellInv[0], cellInv[0], fda::InteractionType_LJ, real_fscal_S0, real_dx_S0, real_dy_S0, real_dz_S0);
+        fda->add_nonbonded_single(cellInv[ai], cellInv[aj], fda::InteractionType_LJ, real_fscal_S0, real_dx_S0, real_dy_S0, real_dz_S0);
+
+        real real_dx_S1, real_dy_S1, real_dz_S1;
+        store(&real_dx_S1, dx_S1);
+        store(&real_dy_S1, dy_S1);
+        store(&real_dz_S1, dz_S1);
+        fda->add_nonbonded_single(cellInv[ai+1], cellInv[aj+1], fda::InteractionType_LJ, real_fscal_S1, real_dx_S1, real_dy_S1, real_dz_S1);
     }
-#endif
-#endif
+#endif // CALC_COULOMB
+#else // CALC_LJ
+    // write coulomb
+#endif // CALC_LJ
 
     /* Calculate temporary vectorial force */
     tx_S0       = fscal_S0 * dx_S0;
