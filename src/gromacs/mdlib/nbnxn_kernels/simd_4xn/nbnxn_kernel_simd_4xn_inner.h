@@ -1144,31 +1144,60 @@
 #endif
 
     /* pairwise forces */
-#ifdef CALC_LJ
-#ifdef CALC_COULOMB
-    // write both
-#else // CALC_COULOMB
-    real real_fscal_S0;
-	store(&real_fscal_S0, fscal_S0);
     int ai = ci * UNROLLI;
-    int ai = cj * UNROLLJ;
-    if (fabs(real_fscal_S0) > PF_TINY_REAL_NUMBER) {
+    real real_fscal[4];
+	store(real_fscal, fscal_S0);
+    if (fabs(real_fscal[0]) > PF_TINY_REAL_NUMBER) {
         real real_dx_S0, real_dy_S0, real_dz_S0;
         store(&real_dx_S0, dx_S0);
         store(&real_dy_S0, dy_S0);
         store(&real_dz_S0, dz_S0);
-        fda->add_nonbonded_single(cellInv[ai], cellInv[aj], fda::InteractionType_LJ, real_fscal_S0, real_dx_S0, real_dy_S0, real_dz_S0);
-
+#ifdef CALC_LJ
+        fda->add_nonbonded_single(cellInv[ai], cellInv[aj], fda::InteractionType_LJ, real_fscal[0], real_dx_S0, real_dy_S0, real_dz_S0);
+#endif
+#ifdef CALC_COULOMB
+        fda->add_nonbonded_single(cellInv[ai], cellInv[aj], fda::InteractionType_COULOMB, real_fscal[0], real_dx_S0, real_dy_S0, real_dz_S0);
+#endif
+    }
+    store(real_fscal + 1, fscal_S1);
+    if (fabs(real_fscal[1]) > PF_TINY_REAL_NUMBER) {
         real real_dx_S1, real_dy_S1, real_dz_S1;
         store(&real_dx_S1, dx_S1);
         store(&real_dy_S1, dy_S1);
         store(&real_dz_S1, dz_S1);
-        fda->add_nonbonded_single(cellInv[ai+1], cellInv[aj+1], fda::InteractionType_LJ, real_fscal_S1, real_dx_S1, real_dy_S1, real_dz_S1);
+#ifdef CALC_LJ
+        fda->add_nonbonded_single(cellInv[ai+1], cellInv[aj+1], fda::InteractionType_LJ, real_fscal[1], real_dx_S1, real_dy_S1, real_dz_S1);
+#endif
+#ifdef CALC_COULOMB
+        fda->add_nonbonded_single(cellInv[ai+1], cellInv[aj+1], fda::InteractionType_COULOMB, real_fscal[1], real_dx_S1, real_dy_S1, real_dz_S1);
+#endif
     }
-#endif // CALC_COULOMB
-#else // CALC_LJ
-    // write coulomb
-#endif // CALC_LJ
+    store(real_fscal + 2, fscal_S2);
+    if (fabs(real_fscal[2]) > PF_TINY_REAL_NUMBER) {
+        real real_dx_S2, real_dy_S2, real_dz_S2;
+        store(&real_dx_S2, dx_S2);
+        store(&real_dy_S2, dy_S2);
+        store(&real_dz_S2, dz_S2);
+#ifdef CALC_LJ
+        fda->add_nonbonded_single(cellInv[ai+2], cellInv[aj+2], fda::InteractionType_LJ, real_fscal[2], real_dx_S2, real_dy_S2, real_dz_S2);
+#endif
+#ifdef CALC_COULOMB
+        fda->add_nonbonded_single(cellInv[ai+2], cellInv[aj+2], fda::InteractionType_COULOMB, real_fscal[2], real_dx_S2, real_dy_S2, real_dz_S2);
+#endif
+    }
+    store(real_fscal + 3, fscal_S3);
+    if (fabs(real_fscal[3]) > PF_TINY_REAL_NUMBER) {
+        real real_dx_S3, real_dy_S3, real_dz_S3;
+        store(&real_dx_S3, dx_S3);
+        store(&real_dy_S3, dy_S3);
+        store(&real_dz_S3, dz_S3);
+#ifdef CALC_LJ
+        fda->add_nonbonded_single(cellInv[ai+3], cellInv[aj+3], fda::InteractionType_LJ, real_fscal[3], real_dx_S3, real_dy_S3, real_dz_S3);
+#endif
+#ifdef CALC_COULOMB
+        fda->add_nonbonded_single(cellInv[ai+3], cellInv[aj+3], fda::InteractionType_COULOMB, real_fscal[3], real_dx_S3, real_dy_S3, real_dz_S3);
+#endif
+    }
 
     /* Calculate temporary vectorial force */
     tx_S0       = fscal_S0 * dx_S0;
