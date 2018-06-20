@@ -125,6 +125,7 @@ if (SPHINX_FOUND)
         fragments/doxygen-links.rst
         install-guide/index.rst
         release-notes/index.rst
+        release-notes/2018/2018.2.rst
         release-notes/2018/2018.1.rst
         release-notes/2018/major/highlights.rst
         release-notes/2018/major/features.rst
@@ -304,7 +305,7 @@ if (MAN_PAGE_DIR)
     # Trailing slash on directory is significant for
     # install(DIRECTORY). See CMake docs.
     install(DIRECTORY ${MAN_PAGE_DIR}/
-        DESTINATION ${MAN_INSTALL_DIR}/man1
+        DESTINATION ${CMAKE_INSTALL_MANDIR}/man1
         COMPONENT man OPTIONAL
         FILES_MATCHING PATTERN "*.1")
 endif()
