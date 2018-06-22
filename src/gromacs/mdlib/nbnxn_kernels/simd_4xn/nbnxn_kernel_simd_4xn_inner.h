@@ -1146,6 +1146,7 @@
     /* pairwise forces */
     int ai = ci * UNROLLI;
     real* real_fscal_S0 = (real*)&fscal_S0;
+
 #if defined CALC_LJ && defined CALC_COULOMB
     SimdReal fcoul_S0 = rinvsq_S0 * frcoul_S0;
     SimdReal fcoul_S1 = rinvsq_S0 * frcoul_S1;
@@ -1168,11 +1169,22 @@
     real* real_fvdw_S3 = (real*)&fvdw_S3;
 #endif
 #endif
+
+    real* real_dx_S0 = (real*)&dx_S0;
+    real* real_dy_S0 = (real*)&dy_S0;
+    real* real_dz_S0 = (real*)&dz_S0;
+    real* real_dx_S1 = (real*)&dx_S1;
+    real* real_dy_S1 = (real*)&dy_S1;
+    real* real_dz_S1 = (real*)&dz_S1;
+    real* real_dx_S2 = (real*)&dx_S2;
+    real* real_dy_S2 = (real*)&dy_S2;
+    real* real_dz_S2 = (real*)&dz_S2;
+    real* real_dx_S3 = (real*)&dx_S3;
+    real* real_dy_S3 = (real*)&dy_S3;
+    real* real_dz_S3 = (real*)&dz_S3;
+
     for (int j = 0; j < UNROLLJ; j++) {
         if (fabs(real_fscal_S0[j]) > PF_TINY_REAL_NUMBER) {
-            real* real_dx_S0 = (real*)&dx_S0;
-            real* real_dy_S0 = (real*)&dy_S0;
-            real* real_dz_S0 = (real*)&dz_S0;
 #if defined CALC_LJ && defined CALC_COULOMB
             fda->add_nonbonded(cellInv[ai], cellInv[aj+j], real_fcoul_S0[j], real_fvdw_S0[j], real_dx_S0[j], real_dy_S0[j], real_dz_S0[j]);
 #endif
@@ -1187,9 +1199,6 @@
     real* real_fscal_S1 = (real*)&fscal_S1;
     for (int j = 0; j < UNROLLJ; j++) {
         if (fabs(real_fscal_S1[j]) > PF_TINY_REAL_NUMBER) {
-            real* real_dx_S1 = (real*)&dx_S1;
-            real* real_dy_S1 = (real*)&dy_S1;
-            real* real_dz_S1 = (real*)&dz_S1;
 #if defined CALC_LJ && defined CALC_COULOMB
             fda->add_nonbonded(cellInv[ai+1], cellInv[aj+j], real_fcoul_S1[j], real_fvdw_S1[j], real_dx_S1[j], real_dy_S1[j], real_dz_S1[j]);
 #endif
@@ -1204,9 +1213,6 @@
     real* real_fscal_S2 = (real*)&fscal_S2;
     for (int j = 0; j < UNROLLJ; j++) {
         if (fabs(real_fscal_S2[j]) > PF_TINY_REAL_NUMBER) {
-            real* real_dx_S2 = (real*)&dx_S2;
-            real* real_dy_S2 = (real*)&dy_S2;
-            real* real_dz_S2 = (real*)&dz_S2;
 #if defined CALC_LJ && defined CALC_COULOMB
 #if defined HALF_LJ
             fda->add_nonbonded_single(cellInv[ai+2], cellInv[aj+j], fda::InteractionType_COULOMB, real_fcoul_S2[j], real_dx_S2[j], real_dy_S2[j], real_dz_S2[j]);
@@ -1225,9 +1231,6 @@
     real* real_fscal_S3 = (real*)&fscal_S3;
     for (int j = 0; j < UNROLLJ; j++) {
         if (fabs(real_fscal_S3[j]) > PF_TINY_REAL_NUMBER) {
-            real* real_dx_S3 = (real*)&dx_S3;
-            real* real_dy_S3 = (real*)&dy_S3;
-            real* real_dz_S3 = (real*)&dz_S3;
 #if defined CALC_LJ && defined CALC_COULOMB
 #if defined HALF_LJ
             fda->add_nonbonded_single(cellInv[ai+3], cellInv[aj+j], fda::InteractionType_COULOMB, real_fcoul_S3[j], real_dx_S3[j], real_dy_S3[j], real_dz_S3[j]);
