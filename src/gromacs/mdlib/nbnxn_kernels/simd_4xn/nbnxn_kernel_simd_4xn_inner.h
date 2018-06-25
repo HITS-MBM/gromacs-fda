@@ -1145,26 +1145,25 @@
 
     /* pairwise forces */
     int ai = ci * UNROLLI;
-    real* real_fscal_S0 = (real*)&fscal_S0;
 
-#if defined CALC_LJ && defined CALC_COULOMB
+#if defined CALC_COULOMB
     SimdReal fcoul_S0 = rinvsq_S0 * frcoul_S0;
     SimdReal fcoul_S1 = rinvsq_S0 * frcoul_S1;
     SimdReal fcoul_S2 = rinvsq_S0 * frcoul_S2;
     SimdReal fcoul_S3 = rinvsq_S0 * frcoul_S3;
-    SimdReal fvdw_S0 = rinvsq_S0 * frLJ_S0;
-    SimdReal fvdw_S1 = rinvsq_S0 * frLJ_S1;
-#if !defined HALF_LJ
-    SimdReal fvdw_S2 = rinvsq_S0 * frLJ_S2;
-    SimdReal fvdw_S3 = rinvsq_S0 * frLJ_S3;
-#endif
     real* real_fcoul_S0 = (real*)&fcoul_S0;
     real* real_fcoul_S1 = (real*)&fcoul_S1;
     real* real_fcoul_S2 = (real*)&fcoul_S2;
     real* real_fcoul_S3 = (real*)&fcoul_S3;
+#endif
+#if defined CALC_LJ
+    SimdReal fvdw_S0 = rinvsq_S0 * frLJ_S0;
+    SimdReal fvdw_S1 = rinvsq_S0 * frLJ_S1;
     real* real_fvdw_S0 = (real*)&fvdw_S0;
     real* real_fvdw_S1 = (real*)&fvdw_S1;
 #if !defined HALF_LJ
+    SimdReal fvdw_S2 = rinvsq_S0 * frLJ_S2;
+    SimdReal fvdw_S3 = rinvsq_S0 * frLJ_S3;
     real* real_fvdw_S2 = (real*)&fvdw_S2;
     real* real_fvdw_S3 = (real*)&fvdw_S3;
 #endif
@@ -1183,69 +1182,102 @@
     real* real_dy_S3 = (real*)&dy_S3;
     real* real_dz_S3 = (real*)&dz_S3;
 
-    for (int j = 0; j < UNROLLJ; j++) {
-        if (fabs(real_fscal_S0[j]) > PF_TINY_REAL_NUMBER) {
+    for (int j = 0; j < UNROLLJ; ++j) {
+
+        if (cellInv[ai] == 0 && cellInv[aj+j] == 13) {
+            std::cout << "hey" << std::endl;
+        }
+
 #if defined CALC_LJ && defined CALC_COULOMB
+        if (fabs(real_fvdw_S0[j]) > PF_TINY_REAL_NUMBER && fabs(real_fcoul_S0[j]) > PF_TINY_REAL_NUMBER) {
             fda->add_nonbonded(cellInv[ai], cellInv[aj+j], real_fcoul_S0[j], real_fvdw_S0[j], real_dx_S0[j], real_dy_S0[j], real_dz_S0[j]);
+        } else if (fabs(real_fvdw_S0[j]) > PF_TINY_REAL_NUMBER) {
+            fda->add_nonbonded_single(cellInv[ai], cellInv[aj+j], fda::InteractionType_LJ, real_fvdw_S0[j], real_dx_S0[j], real_dy_S0[j], real_dz_S0[j]);
+        } else if (fabs(real_fcoul_S0[j]) > PF_TINY_REAL_NUMBER) {
+            fda->add_nonbonded_single(cellInv[ai], cellInv[aj+j], fda::InteractionType_COULOMB, real_fcoul_S0[j], real_dx_S0[j], real_dy_S0[j], real_dz_S0[j]);
+        }
 #endif
 #if defined CALC_LJ && !defined CALC_COULOMB
-            fda->add_nonbonded_single(cellInv[ai], cellInv[aj+j], fda::InteractionType_LJ, real_fscal_S0[j], real_dx_S0[j], real_dy_S0[j], real_dz_S0[j]);
+        if (fabs(real_fvdw_S0[j]) > PF_TINY_REAL_NUMBER) {
+            fda->add_nonbonded_single(cellInv[ai], cellInv[aj+j], fda::InteractionType_LJ, real_fvdw_S0[j], real_dx_S0[j], real_dy_S0[j], real_dz_S0[j]);
+        }
 #endif
 #if defined CALC_COULOMB && !defined CALC_LJ
-            fda->add_nonbonded_single(cellInv[ai], cellInv[aj+j], fda::InteractionType_COULOMB, real_fscal_S0[j], real_dx_S0[j], real_dy_S0[j], real_dz_S0[j]);
-#endif
+        if (fabs(real_fcoul_S0[j]) > PF_TINY_REAL_NUMBER) {
+            fda->add_nonbonded_single(cellInv[ai], cellInv[aj+j], fda::InteractionType_COULOMB, real_fcoul_S0[j], real_dx_S0[j], real_dy_S0[j], real_dz_S0[j]);
         }
-    }
-    real* real_fscal_S1 = (real*)&fscal_S1;
-    for (int j = 0; j < UNROLLJ; j++) {
-        if (fabs(real_fscal_S1[j]) > PF_TINY_REAL_NUMBER) {
+#endif
 #if defined CALC_LJ && defined CALC_COULOMB
+        if (fabs(real_fvdw_S1[j]) > PF_TINY_REAL_NUMBER && fabs(real_fcoul_S1[j]) > PF_TINY_REAL_NUMBER) {
             fda->add_nonbonded(cellInv[ai+1], cellInv[aj+j], real_fcoul_S1[j], real_fvdw_S1[j], real_dx_S1[j], real_dy_S1[j], real_dz_S1[j]);
+        } else if (fabs(real_fvdw_S1[j]) > PF_TINY_REAL_NUMBER) {
+            fda->add_nonbonded_single(cellInv[ai+1], cellInv[aj+j], fda::InteractionType_LJ, real_fvdw_S1[j], real_dx_S1[j], real_dy_S1[j], real_dz_S1[j]);
+        } else if (fabs(real_fcoul_S1[j]) > PF_TINY_REAL_NUMBER) {
+            fda->add_nonbonded_single(cellInv[ai+1], cellInv[aj+j], fda::InteractionType_COULOMB, real_fcoul_S1[j], real_dx_S1[j], real_dy_S1[j], real_dz_S1[j]);
+        }
 #endif
 #if defined CALC_LJ && !defined CALC_COULOMB
-            fda->add_nonbonded_single(cellInv[ai+1], cellInv[aj+j], fda::InteractionType_LJ, real_fscal_S1[j], real_dx_S1[j], real_dy_S1[j], real_dz_S1[j]);
+        if (fabs(real_fvdw_S1[j]) > PF_TINY_REAL_NUMBER) {
+            fda->add_nonbonded_single(cellInv[ai+1], cellInv[aj+j], fda::InteractionType_LJ, real_fvdw_S1[j], real_dx_S1[j], real_dy_S1[j], real_dz_S1[j]);
+        }
 #endif
 #if defined CALC_COULOMB && !defined CALC_LJ
-            fda->add_nonbonded_single(cellInv[ai+1], cellInv[aj+j], fda::InteractionType_COULOMB, real_fscal_S1[j], real_dx_S1[j], real_dy_S1[j], real_dz_S1[j]);
-#endif
+        if (fabs(real_fcoul_S1[j]) > PF_TINY_REAL_NUMBER) {
+            fda->add_nonbonded_single(cellInv[ai+1], cellInv[aj+j], fda::InteractionType_COULOMB, real_fcoul_S1[j], real_dx_S1[j], real_dy_S1[j], real_dz_S1[j]);
         }
-    }
-    real* real_fscal_S2 = (real*)&fscal_S2;
-    for (int j = 0; j < UNROLLJ; j++) {
-        if (fabs(real_fscal_S2[j]) > PF_TINY_REAL_NUMBER) {
+#endif
 #if defined CALC_LJ && defined CALC_COULOMB
-#if defined HALF_LJ
-            fda->add_nonbonded_single(cellInv[ai+2], cellInv[aj+j], fda::InteractionType_COULOMB, real_fcoul_S2[j], real_dx_S2[j], real_dy_S2[j], real_dz_S2[j]);
-#else
+#if !defined HALF_LJ
+        if (fabs(real_fvdw_S2[j]) > PF_TINY_REAL_NUMBER && fabs(real_fcoul_S2[j]) > PF_TINY_REAL_NUMBER) {
             fda->add_nonbonded(cellInv[ai+2], cellInv[aj+j], real_fcoul_S2[j], real_fvdw_S2[j], real_dx_S2[j], real_dy_S2[j], real_dz_S2[j]);
-#endif
-#endif
-#if defined CALC_LJ && !defined CALC_COULOMB && !defined HALF_LJ
-            fda->add_nonbonded_single(cellInv[ai+2], cellInv[aj+j], fda::InteractionType_LJ, real_fscal_S2[j], real_dx_S2[j], real_dy_S2[j], real_dz_S2[j]);
-#endif
-#if defined CALC_COULOMB && !defined CALC_LJ
-            fda->add_nonbonded_single(cellInv[ai+2], cellInv[aj+j], fda::InteractionType_COULOMB, real_fscal_S2[j], real_dx_S2[j], real_dy_S2[j], real_dz_S2[j]);
-#endif
+        } else if (fabs(real_fvdw_S2[j]) > PF_TINY_REAL_NUMBER) {
+            fda->add_nonbonded_single(cellInv[ai+2], cellInv[aj+j], fda::InteractionType_LJ, real_fvdw_S2[j], real_dx_S2[j], real_dy_S2[j], real_dz_S2[j]);
+        } else if (fabs(real_fcoul_S2[j]) > PF_TINY_REAL_NUMBER) {
+            fda->add_nonbonded_single(cellInv[ai+2], cellInv[aj+j], fda::InteractionType_COULOMB, real_fcoul_S2[j], real_dx_S2[j], real_dy_S2[j], real_dz_S2[j]);
         }
-    }
-    real* real_fscal_S3 = (real*)&fscal_S3;
-    for (int j = 0; j < UNROLLJ; j++) {
-        if (fabs(real_fscal_S3[j]) > PF_TINY_REAL_NUMBER) {
-#if defined CALC_LJ && defined CALC_COULOMB
-#if defined HALF_LJ
-            fda->add_nonbonded_single(cellInv[ai+3], cellInv[aj+j], fda::InteractionType_COULOMB, real_fcoul_S3[j], real_dx_S3[j], real_dy_S3[j], real_dz_S3[j]);
 #else
-            fda->add_nonbonded(cellInv[ai+3], cellInv[aj+j], real_fcoul_S3[j], real_fvdw_S3[j], real_dx_S3[j], real_dy_S3[j], real_dz_S3[j]);
+        if (fabs(real_fcoul_S2[j]) > PF_TINY_REAL_NUMBER) {
+            fda->add_nonbonded_single(cellInv[ai+2], cellInv[aj+j], fda::InteractionType_COULOMB, real_fcoul_S2[j], real_dx_S2[j], real_dy_S2[j], real_dz_S2[j]);
+        }
 #endif
 #endif
 #if defined CALC_LJ && !defined CALC_COULOMB && !defined HALF_LJ
-            fda->add_nonbonded_single(cellInv[ai+3], cellInv[aj+j], fda::InteractionType_LJ, real_fscal_S3[j], real_dx_S3[j], real_dy_S3[j], real_dz_S3[j]);
+        if (fabs(real_fvdw_S2[j]) > PF_TINY_REAL_NUMBER) {
+            fda->add_nonbonded_single(cellInv[ai+2], cellInv[aj+j], fda::InteractionType_LJ, real_fvdw_S2[j], real_dx_S2[j], real_dy_S2[j], real_dz_S2[j]);
+        }
 #endif
 #if defined CALC_COULOMB && !defined CALC_LJ
-            fda->add_nonbonded_single(cellInv[ai+3], cellInv[aj+j], fda::InteractionType_COULOMB, real_fscal_S3[j], real_dx_S3[j], real_dy_S3[j], real_dz_S3[j]);
-#endif
+        if (fabs(real_fcoul_S2[j]) > PF_TINY_REAL_NUMBER) {
+            fda->add_nonbonded_single(cellInv[ai+2], cellInv[aj+j], fda::InteractionType_COULOMB, real_fcoul_S2[j], real_dx_S2[j], real_dy_S2[j], real_dz_S2[j]);
         }
+#endif
+#if defined CALC_LJ && defined CALC_COULOMB
+#if !defined HALF_LJ
+        if (fabs(real_fvdw_S3[j]) > PF_TINY_REAL_NUMBER && fabs(real_fcoul_S3[j]) > PF_TINY_REAL_NUMBER) {
+            fda->add_nonbonded(cellInv[ai+3], cellInv[aj+j], real_fcoul_S3[j], real_fvdw_S3[j], real_dx_S3[j], real_dy_S3[j], real_dz_S3[j]);
+        } else if (fabs(real_fvdw_S3[j]) > PF_TINY_REAL_NUMBER) {
+            fda->add_nonbonded_single(cellInv[ai+3], cellInv[aj+j], fda::InteractionType_LJ, real_fvdw_S3[j], real_dx_S3[j], real_dy_S3[j], real_dz_S3[j]);
+        } else if (fabs(real_fcoul_S3[j]) > PF_TINY_REAL_NUMBER) {
+            fda->add_nonbonded_single(cellInv[ai+3], cellInv[aj+j], fda::InteractionType_COULOMB, real_fcoul_S3[j], real_dx_S3[j], real_dy_S3[j], real_dz_S3[j]);
+        }
+#else
+        if (fabs(real_fcoul_S3[j]) > PF_TINY_REAL_NUMBER) {
+            fda->add_nonbonded_single(cellInv[ai+3], cellInv[aj+j], fda::InteractionType_COULOMB, real_fcoul_S3[j], real_dx_S3[j], real_dy_S3[j], real_dz_S3[j]);
+        }
+#endif
+#endif
+#if defined CALC_LJ && !defined CALC_COULOMB && !defined HALF_LJ
+        if (fabs(real_fvdw_S3[j]) > PF_TINY_REAL_NUMBER) {
+            fda->add_nonbonded_single(cellInv[ai+3], cellInv[aj+j], fda::InteractionType_LJ, real_fvdw_S3[j], real_dx_S3[j], real_dy_S3[j], real_dz_S3[j]);
+        }
+#endif
+#if defined CALC_COULOMB && !defined CALC_LJ
+        if (fabs(real_fcoul_S3[j]) > PF_TINY_REAL_NUMBER) {
+            fda->add_nonbonded_single(cellInv[ai+3], cellInv[aj+j], fda::InteractionType_COULOMB, real_fcoul_S3[j], real_dx_S3[j], real_dy_S3[j], real_dz_S3[j]);
+        }
+#endif
     }
+    /* end pairwise forces */
 
     /* Calculate temporary vectorial force */
     tx_S0       = fscal_S0 * dx_S0;
