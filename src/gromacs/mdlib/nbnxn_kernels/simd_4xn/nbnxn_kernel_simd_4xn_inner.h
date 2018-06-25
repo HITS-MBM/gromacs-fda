@@ -1148,9 +1148,9 @@
 
 #if defined CALC_COULOMB
     SimdReal fcoul_S0 = rinvsq_S0 * frcoul_S0;
-    SimdReal fcoul_S1 = rinvsq_S0 * frcoul_S1;
-    SimdReal fcoul_S2 = rinvsq_S0 * frcoul_S2;
-    SimdReal fcoul_S3 = rinvsq_S0 * frcoul_S3;
+    SimdReal fcoul_S1 = rinvsq_S1 * frcoul_S1;
+    SimdReal fcoul_S2 = rinvsq_S2 * frcoul_S2;
+    SimdReal fcoul_S3 = rinvsq_S3 * frcoul_S3;
     real* real_fcoul_S0 = (real*)&fcoul_S0;
     real* real_fcoul_S1 = (real*)&fcoul_S1;
     real* real_fcoul_S2 = (real*)&fcoul_S2;
@@ -1158,12 +1158,12 @@
 #endif
 #if defined CALC_LJ
     SimdReal fvdw_S0 = rinvsq_S0 * frLJ_S0;
-    SimdReal fvdw_S1 = rinvsq_S0 * frLJ_S1;
+    SimdReal fvdw_S1 = rinvsq_S1 * frLJ_S1;
     real* real_fvdw_S0 = (real*)&fvdw_S0;
     real* real_fvdw_S1 = (real*)&fvdw_S1;
 #if !defined HALF_LJ
-    SimdReal fvdw_S2 = rinvsq_S0 * frLJ_S2;
-    SimdReal fvdw_S3 = rinvsq_S0 * frLJ_S3;
+    SimdReal fvdw_S2 = rinvsq_S2 * frLJ_S2;
+    SimdReal fvdw_S3 = rinvsq_S3 * frLJ_S3;
     real* real_fvdw_S2 = (real*)&fvdw_S2;
     real* real_fvdw_S3 = (real*)&fvdw_S3;
 #endif
@@ -1183,11 +1183,6 @@
     real* real_dz_S3 = (real*)&dz_S3;
 
     for (int j = 0; j < UNROLLJ; ++j) {
-
-        if (cellInv[ai] == 0 && cellInv[aj+j] == 13) {
-            std::cout << "hey" << std::endl;
-        }
-
 #if defined CALC_LJ && defined CALC_COULOMB
         if (fabs(real_fvdw_S0[j]) > PF_TINY_REAL_NUMBER && fabs(real_fcoul_S0[j]) > PF_TINY_REAL_NUMBER) {
             fda->add_nonbonded(cellInv[ai], cellInv[aj+j], real_fcoul_S0[j], real_fvdw_S0[j], real_dx_S0[j], real_dy_S0[j], real_dz_S0[j]);
