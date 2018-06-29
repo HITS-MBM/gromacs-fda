@@ -27,6 +27,7 @@ struct FDASettings
     FDASettings()
      : atom_based_result_type(ResultType::NO),
        residue_based_result_type(ResultType::NO),
+	   binary_result_file(false),
        one_pair(OnePair::DETAILED),
        v2s(Vector2Scalar::NORM),
        residues_renumber(ResiduesRenumber::AUTO),
@@ -91,6 +92,9 @@ struct FDASettings
 
     /// ResultType for residue based forces
     ResultType residue_based_result_type;
+
+    /// If true, the result files will be written in binary format
+    bool binary_result_file;
 
     /// OnePair defines the way the interactions between the same pair of atoms are stored
     OnePair one_pair;
