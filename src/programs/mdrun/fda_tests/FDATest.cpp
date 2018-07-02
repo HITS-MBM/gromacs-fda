@@ -36,14 +36,16 @@ struct TestDataStructure
         std::string const& residueFileExtension,
         std::string const& trajectoryFilename = "traj.trr",
         bool is_vector = false,
-        bool must_die = false
+        bool must_die = false,
+		bool is_binary = false
     )
       : testDirectory(testDirectory),
         atomFileExtension(atomFileExtension),
         residueFileExtension(residueFileExtension),
         trajectoryFilename(trajectoryFilename),
         is_vector(is_vector),
-        must_die(must_die)
+        must_die(must_die),
+		is_binary(is_binary)
     {}
 
     std::string testDirectory;
@@ -52,6 +54,7 @@ struct TestDataStructure
     std::string trajectoryFilename;
     bool is_vector;
     bool must_die;
+    bool is_binary;
 };
 
 //! Test fixture for FDA
@@ -99,38 +102,40 @@ TEST_P(FDATest, Basic)
     if (GetParam().must_die) {
         EXPECT_EXIT(gmx_mdrun(callRerun.argc(), callRerun.argv()), ::testing::ExitedWithCode(1), "");
     } else {
-        ASSERT_FALSE(gmx_mdrun(callRerun.argc(), callRerun.argv()));
+    	if (!GetParam().is_binary) {
+			ASSERT_FALSE(gmx_mdrun(callRerun.argc(), callRerun.argv()));
 
-        const double error_factor = 1e4;
-        const bool weight_by_magnitude = true;
-        const bool ignore_sign = false;
+			const double error_factor = 1e4;
+			const bool weight_by_magnitude = true;
+			const bool ignore_sign = false;
 
-        LogicallyEqualComparer<weight_by_magnitude, ignore_sign> comparer(error_factor);
+			LogicallyEqualComparer<weight_by_magnitude, ignore_sign> comparer(error_factor);
 
-        // Check results
-        if (!GetParam().atomFileExtension.empty()) {
-            if (GetParam().atomFileExtension == "pfa")
-                if (GetParam().is_vector)
-                    EXPECT_TRUE((fda::PairwiseForces<fda::Force<fda::Vector>>(atomFilename).equal(
-                        fda::PairwiseForces<fda::Force<fda::Vector>>(atomReference), comparer)));
-                else
-                    EXPECT_TRUE((fda::PairwiseForces<fda::Force<real>>(atomFilename).equal(
-                        fda::PairwiseForces<fda::Force<real>>(atomReference), comparer)));
-            else
-                EXPECT_TRUE((equal(TextSplitter(atomFilename), TextSplitter(atomReference), comparer)));
-        }
-        if (!GetParam().residueFileExtension.empty()) {
-            if (GetParam().residueFileExtension == "pfr")
-                if (GetParam().is_vector)
-                    EXPECT_TRUE((fda::PairwiseForces<fda::Force<fda::Vector>>(residueFilename).equal(
-                        fda::PairwiseForces<fda::Force<fda::Vector>>(residueReference), comparer)));
-                else
-                    EXPECT_TRUE((fda::PairwiseForces<fda::Force<real>>(residueFilename).equal(
-                        fda::PairwiseForces<fda::Force<real>>(residueReference), comparer)));
-            else
-                EXPECT_TRUE((equal(TextSplitter(residueFilename), TextSplitter(residueReference), comparer)));
-        }
-        gmx_chdir(cwd.c_str());
+			// Check results
+			if (!GetParam().atomFileExtension.empty()) {
+				if (GetParam().atomFileExtension == "pfa")
+					if (GetParam().is_vector)
+						EXPECT_TRUE((fda::PairwiseForces<fda::Force<fda::Vector>>(atomFilename).equal(
+							fda::PairwiseForces<fda::Force<fda::Vector>>(atomReference), comparer)));
+					else
+						EXPECT_TRUE((fda::PairwiseForces<fda::Force<real>>(atomFilename).equal(
+							fda::PairwiseForces<fda::Force<real>>(atomReference), comparer)));
+				else
+					EXPECT_TRUE((equal(TextSplitter(atomFilename), TextSplitter(atomReference), comparer)));
+			}
+			if (!GetParam().residueFileExtension.empty()) {
+				if (GetParam().residueFileExtension == "pfr")
+					if (GetParam().is_vector)
+						EXPECT_TRUE((fda::PairwiseForces<fda::Force<fda::Vector>>(residueFilename).equal(
+							fda::PairwiseForces<fda::Force<fda::Vector>>(residueReference), comparer)));
+					else
+						EXPECT_TRUE((fda::PairwiseForces<fda::Force<real>>(residueFilename).equal(
+							fda::PairwiseForces<fda::Force<real>>(residueReference), comparer)));
+				else
+					EXPECT_TRUE((equal(TextSplitter(residueFilename), TextSplitter(residueReference), comparer)));
+			}
+			gmx_chdir(cwd.c_str());
+    	}
     }
 }
 
@@ -145,6 +150,7 @@ INSTANTIATE_TEST_CASE_P(AllFDATests, FDATest, ::testing::Values(
     TestDataStructure("alagly_pairwise_forces_vector_detailed_nonbonded", "pfa", "pfr", "traj.trr", true),
     TestDataStructure("alagly_verlet_summed_scalar", "pfa", "pfr"),
     TestDataStructure("alagly_verlet_pbc_summed_scalar", "pfa", "pfr"),
+    TestDataStructure("alagly_verlet_pbc_summed_scalar_binary", "pfa", "pfr", "traj.trr", false, false, true),
     TestDataStructure("alagly_group_excl", "pfa", "pfr"),
     TestDataStructure("alagly_group_excl_uncomplete_cgs", "pfa", "pfr"),
     TestDataStructure("alagly_pairwise_forces_scalar_all", "pfa", "pfr"),

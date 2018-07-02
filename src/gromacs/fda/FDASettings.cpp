@@ -226,6 +226,9 @@ FDASettings::FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *mtop, bool
     // Energy groups exclusions
     nonbonded_exclusion_on = strcasecmp(get_estr(&ninp, &inp, "energy_grp_exclusion", "yes"), "no");
     bonded_exclusion_on = strcasecmp(get_estr(&ninp, &inp, "bonded_exclusion", "yes"), "no");
+
+    // Binary result file
+    binary_result_file = strcasecmp(get_estr(&ninp, &inp, "binary_result_file", "yes"), "no");
 }
 
 std::vector<int> FDASettings::groupatoms2residues(std::vector<int> const& group_atoms) const
