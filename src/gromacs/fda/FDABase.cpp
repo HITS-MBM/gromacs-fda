@@ -217,6 +217,16 @@ template <>
 void FDABase<Residue>::write_virial_sum_von_mises()
 {}
 
+template <class Base>
+void FDABase<Base>::write_frame_number(int nsteps)
+{
+	if (fda_settings.binary_result_file)
+		result_file.write(reinterpret_cast<char*>(&nsteps), sizeof(int));
+	else
+        result_file << "frame " << nsteps << std::endl;
+
+}
+
 /// template instantiation
 template class FDABase<Atom>;
 template class FDABase<Residue>;

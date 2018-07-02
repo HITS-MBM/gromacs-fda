@@ -115,6 +115,8 @@ private:
 
     friend class ::FDA;
 
+    void write_frame_number(int nsteps);
+
     /// Result type
     ResultType result_type;
 
