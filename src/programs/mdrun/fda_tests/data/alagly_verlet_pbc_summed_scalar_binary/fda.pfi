@@ -16,4 +16,4 @@ type = bond
 energy_grp_exclusion = no
 
 ; Write FDA result file in binary format 
-binary_result_file
+binary_result_file = yes

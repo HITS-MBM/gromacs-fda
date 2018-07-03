@@ -5,7 +5,6 @@
  *      Author: Bernd Doser, HITS gGmbH <bernd.doser@h-its.org>
  */
 
-#include <cmath>
 #include <iomanip>
 #include <iostream>
 #include "FDABase.h"
@@ -22,11 +21,12 @@ FDABase<Base>::FDABase(ResultType result_type, int syslen, std::string const& re
    result_type(result_type),
    syslen(syslen),
    distributed_forces(syslen, fda_settings),
-   result_file(result_filename),
    fda_settings(fda_settings)
 {
     result_file << std::scientific << std::setprecision(6);
     if (PF_or_PS_mode()) make_backup(result_filename.c_str());
+    if (fda_settings.binary_result_file) result_file.open(result_filename, std::ifstream::binary);
+    else result_file.open(result_filename);
     write_compat_header(1);
 }
 
@@ -191,15 +191,6 @@ void FDABase<Atom>::write_virial_sum()
 template <>
 void FDABase<Residue>::write_virial_sum()
 {}
-
-real tensor_to_vonmises(Tensor t)
-{
-    real txy = t(XX, XX)-t(YY, YY);
-    real tyz = t(YY, YY)-t(ZZ, ZZ);
-    real tzx = t(ZZ, ZZ)-t(XX, XX);
-    return std::sqrt(0.5 * (txy*txy + tyz*tyz + tzx*tzx
-                     + 6 * (t(XX, YY)*t(XX, YY) + t(XX, ZZ)*t(XX, ZZ) + t(YY, ZZ)*t(YY, ZZ))));
-}
 
 template <>
 void FDABase<Atom>::write_virial_sum_von_mises()

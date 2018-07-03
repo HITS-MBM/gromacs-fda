@@ -8,6 +8,7 @@
 #ifndef SRC_GROMACS_FDA_FDABASE_H_
 #define SRC_GROMACS_FDA_FDABASE_H_
 
+#include <cmath>
 #include <iostream>
 #include <fstream>
 #include <vector>
@@ -116,6 +117,16 @@ private:
     friend class ::FDA;
 
     void write_frame_number(int nsteps);
+
+    /// Convert a tensor to von Mises scalar value
+    real tensor_to_vonmises(Tensor t) const
+    {
+        real txy = t(XX, XX)-t(YY, YY);
+        real tyz = t(YY, YY)-t(ZZ, ZZ);
+        real tzx = t(ZZ, ZZ)-t(XX, XX);
+        return std::sqrt(0.5 * (txy*txy + tyz*tyz + tzx*tzx
+                         + 6 * (t(XX, YY)*t(XX, YY) + t(XX, ZZ)*t(XX, ZZ) + t(YY, ZZ)*t(YY, ZZ))));
+    }
 
     /// Result type
     ResultType result_type;
