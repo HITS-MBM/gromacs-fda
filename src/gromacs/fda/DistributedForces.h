@@ -59,7 +59,11 @@ public:
 
     void write_summed_vector(std::ostream& os) const;
 
+    void write_summed_vector_binary(std::ostream& os) const;
+
     void write_summed_scalar(std::ostream& os, gmx::HostVector<gmx::RVec> const& x, const matrix box) const;
+
+    void write_summed_scalar_binary(std::ostream& os, gmx::HostVector<gmx::RVec> const& x, const matrix box) const;
 
     void write_scalar(std::ostream& os) const;
 
@@ -82,6 +86,9 @@ private:
 
     friend class ::FDA;
     template <class Base> friend class FDABase;
+
+    template <class T>
+    int number_of_nonempty_entries(std::vector<T> const& v) const;
 
     /// Total number of atoms/residues in the system
     int syslen;
