@@ -111,69 +111,67 @@ void DistributedForces::write_detailed_scalar(std::ostream& os, gmx::HostVector<
 
 void DistributedForces::write_summed_vector(std::ostream& os) const
 {
-    for (size_t i = 0; i != summed.size(); ++i) {
-        auto const& summed_i = summed[i];
-        auto const& indices_i = indices[i];
-        for (size_t p = 0; p != summed_i.size(); ++p) {
-            size_t j = indices_i[p];
-            auto const& summed_j = summed_i[p];
-            Vector const& force = summed_j.force;
-            os << i << " " << j << " "
-               << force[XX] << " " << force[YY] << " " << force[ZZ] << " "
-               << summed_j.type << std::endl;
-        }
-    }
-}
-
-void DistributedForces::write_summed_vector_binary(std::ostream& os) const
-{
-	uint num = number_of_nonempty_entries(summed);
-    os.write(reinterpret_cast<char*>(&num), sizeof(uint));
-    for (uint i = 0; i != summed.size(); ++i) {
-    	if (summed[i].empty()) continue;
-        os.write(reinterpret_cast<char*>(&i), sizeof(uint));
-        uint num_j = summed[i].size();
-        os.write(reinterpret_cast<char*>(&num_j), sizeof(uint));
-		for (uint p = 0; p != num_j; ++p) {
-			uint j = indices[i][p];
-	        os.write(reinterpret_cast<char*>(&j), sizeof(uint));
-	        os.write(reinterpret_cast<const char*>(summed[i][p].force.get_pointer()), 3*sizeof(real));
-	        os.write(reinterpret_cast<const char*>(&summed[i][p].type), sizeof(uint));
+    if (fda_settings.binary_result_file) {
+		uint num = number_of_nonempty_entries(summed);
+		os.write(reinterpret_cast<char*>(&num), sizeof(uint));
+		for (uint i = 0; i != summed.size(); ++i) {
+			if (summed[i].empty()) continue;
+			os.write(reinterpret_cast<char*>(&i), sizeof(uint));
+			uint num_j = summed[i].size();
+			os.write(reinterpret_cast<char*>(&num_j), sizeof(uint));
+			for (uint p = 0; p != num_j; ++p) {
+				uint j = indices[i][p];
+				os.write(reinterpret_cast<char*>(&j), sizeof(uint));
+				os.write(reinterpret_cast<const char*>(summed[i][p].force.get_pointer()), 3*sizeof(real));
+				os.write(reinterpret_cast<const char*>(&summed[i][p].type), sizeof(uint));
+			}
+		}
+    } else {
+		for (size_t i = 0; i != summed.size(); ++i) {
+			auto const& summed_i = summed[i];
+			auto const& indices_i = indices[i];
+			for (size_t p = 0; p != summed_i.size(); ++p) {
+				size_t j = indices_i[p];
+				auto const& summed_j = summed_i[p];
+				Vector const& force = summed_j.force;
+				os << i << " " << j << " "
+				   << force[XX] << " " << force[YY] << " " << force[ZZ] << " "
+				   << summed_j.type << std::endl;
+			}
 		}
     }
 }
 
 void DistributedForces::write_summed_scalar(std::ostream& os, gmx::HostVector<gmx::RVec> const& x, const matrix box) const
 {
-    for (size_t i = 0; i != summed.size(); ++i) {
-        auto const& summed_i = summed[i];
-        auto const& indices_i = indices[i];
-        for (size_t p = 0; p != summed_i.size(); ++p) {
-            size_t j = indices_i[p];
-            auto const& summed_j = summed_i[p];
-            os << i << " " << j << " "
-               << vector2signedscalar(summed_j.force.get_pointer(), x[i], x[j], box, fda_settings.v2s) << " "
-               << summed_j.type << std::endl;
+    if (fda_settings.binary_result_file) {
+        uint num = number_of_nonempty_entries(summed);
+        os.write(reinterpret_cast<char*>(&num), sizeof(uint));
+        for (uint i = 0; i != summed.size(); ++i) {
+            if (summed[i].empty()) continue;
+            os.write(reinterpret_cast<char*>(&i), sizeof(uint));
+            uint num_j = summed[i].size();
+            os.write(reinterpret_cast<char*>(&num_j), sizeof(uint));
+            for (uint p = 0; p != num_j; ++p) {
+                uint j = indices[i][p];
+                os.write(reinterpret_cast<char*>(&j), sizeof(uint));
+                real scalar = vector2signedscalar(summed[i][p].force.get_pointer(), x[i], x[j], box, fda_settings.v2s);
+                os.write(reinterpret_cast<const char*>(&scalar), sizeof(real));
+                os.write(reinterpret_cast<const char*>(&summed[i][p].type), sizeof(uint));
+            }
         }
-    }
-}
-
-void DistributedForces::write_summed_scalar_binary(std::ostream& os, gmx::HostVector<gmx::RVec> const& x, const matrix box) const
-{
-	uint num = number_of_nonempty_entries(summed);
-    os.write(reinterpret_cast<char*>(&num), sizeof(uint));
-    for (uint i = 0; i != summed.size(); ++i) {
-    	if (summed[i].empty()) continue;
-        os.write(reinterpret_cast<char*>(&i), sizeof(uint));
-        uint num_j = summed[i].size();
-        os.write(reinterpret_cast<char*>(&num_j), sizeof(uint));
-		for (uint p = 0; p != num_j; ++p) {
-			uint j = indices[i][p];
-	        os.write(reinterpret_cast<char*>(&j), sizeof(uint));
-	        real scalar = vector2signedscalar(summed[i][p].force.get_pointer(), x[i], x[j], box, fda_settings.v2s);
-	        os.write(reinterpret_cast<const char*>(&scalar), sizeof(real));
-	        os.write(reinterpret_cast<const char*>(&summed[i][p].type), sizeof(uint));
-		}
+    } else {
+        for (size_t i = 0; i != summed.size(); ++i) {
+            auto const& summed_i = summed[i];
+            auto const& indices_i = indices[i];
+            for (size_t p = 0; p != summed_i.size(); ++p) {
+                size_t j = indices_i[p];
+                auto const& summed_j = summed_i[p];
+                os << i << " " << j << " "
+                   << vector2signedscalar(summed_j.force.get_pointer(), x[i], x[j], box, fda_settings.v2s) << " "
+                   << summed_j.type << std::endl;
+            }
+        }
     }
 }
 
@@ -454,7 +452,7 @@ void DistributedForces::summed_merge_to_scalar(gmx::HostVector<gmx::RVec> const&
 template <class T>
 int DistributedForces::number_of_nonempty_entries(std::vector<T> const& v) const
 {
-	int number_of_nonempty_entries = 0;
+    int number_of_nonempty_entries = 0;
     for (size_t i = 0; i != v.size(); ++i) {
         if (v[i].size() != 0) ++number_of_nonempty_entries;
     }

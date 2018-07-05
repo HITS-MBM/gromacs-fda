@@ -59,11 +59,7 @@ public:
 
     void write_summed_vector(std::ostream& os) const;
 
-    void write_summed_vector_binary(std::ostream& os) const;
-
     void write_summed_scalar(std::ostream& os, gmx::HostVector<gmx::RVec> const& x, const matrix box) const;
-
-    void write_summed_scalar_binary(std::ostream& os, gmx::HostVector<gmx::RVec> const& x, const matrix box) const;
 
     void write_scalar(std::ostream& os) const;
 
