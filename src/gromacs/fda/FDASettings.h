@@ -41,7 +41,8 @@ struct FDASettings
        index_group1(-1),
        index_group2(-1),
        groups(nullptr),
-       groupnames(nullptr)
+       groupnames(nullptr),
+	   threshold(1e-10)
     {}
 
     /// Construction by input file
@@ -171,6 +172,9 @@ struct FDASettings
 
     /// groupnames defined in pfn-file
     char** groupnames;
+
+    /// Forces lower than threshold will not be considered
+    real threshold;
 
 };
 

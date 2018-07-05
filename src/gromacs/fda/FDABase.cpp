@@ -96,7 +96,7 @@ void FDABase<Base>::write_frame(gmx::HostVector<gmx::RVec> const& x, const matri
 template <class Base>
 void FDABase<Base>::write_frame_detailed(gmx::HostVector<gmx::RVec> const& x, const matrix box, bool print_vector, int nsteps)
 {
-    result_file << "frame " << nsteps << std::endl;
+	write_frame_number(nsteps);
     if (print_vector)
         distributed_forces.write_detailed_vector(result_file);
     else
@@ -106,7 +106,7 @@ void FDABase<Base>::write_frame_detailed(gmx::HostVector<gmx::RVec> const& x, co
 template <class Base>
 void FDABase<Base>::write_frame_summed(gmx::HostVector<gmx::RVec> const& x, const matrix box, bool print_vector, int nsteps)
 {
-    result_file << "frame " << nsteps << std::endl;
+	write_frame_number(nsteps);
     if (print_vector)
         distributed_forces.write_summed_vector(result_file);
     else
@@ -116,7 +116,7 @@ void FDABase<Base>::write_frame_summed(gmx::HostVector<gmx::RVec> const& x, cons
 template <class Base>
 void FDABase<Base>::write_frame_scalar(int nsteps)
 {
-    result_file << "frame " << nsteps << std::endl;
+	write_frame_number(nsteps);
     distributed_forces.write_scalar(result_file);
 }
 

@@ -33,12 +33,6 @@
  * the research papers on the package. Check out http://www.gromacs.org.
  */
 
-#ifndef GMX_DOUBLE
-#define PF_TINY_REAL_NUMBER 1.0e-7f
-#else
-#define PF_TINY_REAL_NUMBER 1.0e-14
-#endif
-
 /* When calculating RF or Ewald interactions we calculate the electrostatic
  * forces and energies on excluded atom pairs here in the non-bonded loops.
  */
@@ -368,16 +362,12 @@
 
 #ifdef CALC_ENERGIES
                 /* pairwise forces */
-				if (fabs(fcoul) > PF_TINY_REAL_NUMBER && fabs(fvdw) > PF_TINY_REAL_NUMBER) {
+				if (fabs(fcoul) > fda->get_settings().threshold && fabs(fvdw) > fda->get_settings().threshold) {
 					fda->add_nonbonded(cellInv[ai], cellInv[aj], fcoul, fvdw, dx, dy, dz);
-					//printf("Add vdw and coulomb %i %i %15.8f %15.8f\n",
-					//	ai, aj, fcoul, fvdw); fflush(stdout);
-				} else if (fabs(fcoul) > PF_TINY_REAL_NUMBER) {fda->add_nonbonded_single(cellInv[ai], cellInv[aj], fda::InteractionType_COULOMB, fcoul, dx, dy, dz);
-
-					//printf("Add coulomb %i %i %15.8f\n", ai, aj, fcoul); fflush(stdout);
-				} else if (fabs(fvdw) > PF_TINY_REAL_NUMBER) {
+				} else if (fabs(fcoul) > fda->get_settings().threshold) {
+					fda->add_nonbonded_single(cellInv[ai], cellInv[aj], fda::InteractionType_COULOMB, fcoul, dx, dy, dz);
+				} else if (fabs(fvdw) > fda->get_settings().threshold) {
 					fda->add_nonbonded_single(cellInv[ai], cellInv[aj], fda::InteractionType_LJ, fscal, dx, dy, dz);
-					//printf("Add vdw %i %i %15.8f\n", ai, aj, fscal); fflush(stdout);
 				}
 #endif
             }
@@ -388,9 +378,8 @@
 
 #ifdef CALC_ENERGIES
 				/* pairwise forces */
-				if (fabs(fcoul) > PF_TINY_REAL_NUMBER) {
+				if (fabs(fcoul) > fda->get_settings().threshold) {
 					fda->add_nonbonded_single(cellInv[ai], cellInv[aj], fda::InteractionType_COULOMB, fcoul, dx, dy, dz);
-					//printf("Add coulomb %i %i %15.8f\n", ai, aj, fcoul); fflush(stdout);
 				}
 #endif
             }
@@ -400,9 +389,8 @@
 
 #ifdef CALC_ENERGIES
             /* pairwise forces */
-            if (fabs(fscal) > PF_TINY_REAL_NUMBER) {
+            if (fabs(fscal) > fda->get_settings().threshold) {
             	fda->add_nonbonded_single(cellInv[ai], cellInv[aj], fda::InteractionType_LJ, fscal, dx, dy, dz);
-                //printf("Add vdw %i %i %15.8f\n", ai, aj, fscal); fflush(stdout);
             }
 #endif
 #endif
