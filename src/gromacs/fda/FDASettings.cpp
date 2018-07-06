@@ -229,6 +229,7 @@ FDASettings::FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *mtop, bool
 
     // Binary result file
     binary_result_file = strcasecmp(get_estr(&ninp, &inp, "binary_result_file", "no"), "no");
+    std::cout << "Binary mode: " << binary_result_file << std::endl;
 
     // Read threshold
     threshold = get_ereal(&ninp, &inp, "threshold", 1e-10, wi);

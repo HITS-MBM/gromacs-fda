@@ -362,11 +362,11 @@
 
 #ifdef CALC_ENERGIES
                 /* pairwise forces */
-				if (fabs(fcoul) > fda->get_settings().threshold && fabs(fvdw) > fda->get_settings().threshold) {
+				if (fabs(fcoul) > fda_threshold && fabs(fvdw) > fda_threshold) {
 					fda->add_nonbonded(cellInv[ai], cellInv[aj], fcoul, fvdw, dx, dy, dz);
-				} else if (fabs(fcoul) > fda->get_settings().threshold) {
+				} else if (fabs(fcoul) > fda_threshold) {
 					fda->add_nonbonded_single(cellInv[ai], cellInv[aj], fda::InteractionType_COULOMB, fcoul, dx, dy, dz);
-				} else if (fabs(fvdw) > fda->get_settings().threshold) {
+				} else if (fabs(fvdw) > fda_threshold) {
 					fda->add_nonbonded_single(cellInv[ai], cellInv[aj], fda::InteractionType_LJ, fscal, dx, dy, dz);
 				}
 #endif
@@ -378,7 +378,7 @@
 
 #ifdef CALC_ENERGIES
 				/* pairwise forces */
-				if (fabs(fcoul) > fda->get_settings().threshold) {
+				if (fabs(fcoul) > fda_threshold) {
 					fda->add_nonbonded_single(cellInv[ai], cellInv[aj], fda::InteractionType_COULOMB, fcoul, dx, dy, dz);
 				}
 #endif
@@ -389,7 +389,7 @@
 
 #ifdef CALC_ENERGIES
             /* pairwise forces */
-            if (fabs(fscal) > fda->get_settings().threshold) {
+            if (fabs(fscal) > fda_threshold) {
             	fda->add_nonbonded_single(cellInv[ai], cellInv[aj], fda::InteractionType_LJ, fscal, dx, dy, dz);
             }
 #endif
