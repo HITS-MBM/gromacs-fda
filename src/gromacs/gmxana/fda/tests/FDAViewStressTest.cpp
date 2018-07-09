@@ -111,56 +111,56 @@ TEST_P(FDAViewStress, Basic)
 INSTANTIATE_TEST_CASE_P(AllFDAViewStress, FDAViewStress, ::testing::Values(
     TestDataStructure(
         "glycine_trimer",
-        {"-f", "punctual_stress.psr", "-frame", "all"},
+        {"-i", "punctual_stress.psr", "-frame", "all"},
         "",
         "result.xpm",
         "FDAViewStress.ref0.xpm"
     ),
     TestDataStructure(
         "glycine_trimer",
-        {"-f", "virial_stress_von_mises.vma", "-frame", "all"},
+        {"-i", "virial_stress_von_mises.vma", "-frame", "all"},
         "",
         "result.xpm",
         "FDAViewStress.ref1.xpm"
     ),
     TestDataStructure(
         "glycine_trimer",
-        {"-f", "punctual_stress.psa", "-frame", "all"},
+        {"-i", "punctual_stress.psa", "-frame", "all"},
         "",
         "result.xpm",
         "FDAViewStress.ref2.xpm"
     ),
     TestDataStructure(
         "glycine_trimer",
-        {"-f", "punctual_stress.psa", "-frame", "skip 3"},
+        {"-i", "punctual_stress.psa", "-frame", "skip 3"},
         "",
         "result.xpm",
         "FDAViewStress.ref3.xpm"
     ),
     TestDataStructure(
         "glycine_trimer",
-        {"-f", "punctual_stress.psa", "-frame", "average 3"},
+        {"-i", "punctual_stress.psa", "-frame", "average 3"},
         "",
         "result.xpm",
         "FDAViewStress.ref4.xpm"
     ),
     TestDataStructure(
         "glycine_trimer",
-        {"-f", "punctual_stress.psa", "-s", "glycine_trimer.pdb", "-frame", "0"},
+        {"-i", "punctual_stress.psa", "-s", "glycine_trimer.pdb", "-frame", "0"},
         "",
         "result.pdb",
         "FDAViewStress.ref5.pdb"
     ),
     TestDataStructure(
         "glycine_trimer",
-        {"-f", "punctual_stress.psa", "-frame", "3"},
+        {"-i", "punctual_stress.psa", "-frame", "3"},
         "",
         "result.xpm",
         "FDAViewStress.ref6.xpm"
     ),
     TestDataStructure(
         "glycine_trimer",
-        {"-f", "punctual_stress.psa", "-s", "glycine_trimer.pdb", "-traj", "traj.trr", "-frame", "skip 3"},
+        {"-i", "punctual_stress.psa", "-s", "glycine_trimer.pdb", "-f", "traj.trr", "-frame", "skip 3"},
         "",
         "result.pdb",
         "FDAViewStress.ref7.pdb"

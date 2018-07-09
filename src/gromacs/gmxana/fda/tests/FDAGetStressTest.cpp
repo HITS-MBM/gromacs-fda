@@ -102,7 +102,7 @@ TEST_P(FDAGetStress, Basic)
 INSTANTIATE_TEST_CASE_P(AllFDAGetStress, FDAGetStress, ::testing::Values(
     TestDataStructure(
         "glycine_trimer",
-        {"-ipf", "fda.pfr"},
+        {"-i", "fda.pfr"},
         "result.psr",
         "punctual_stress.psr"
     )

@@ -70,9 +70,9 @@ int gmx_fda_view_stress(int argc, char *argv[])
     };
 
     t_filenm fnm[] = {
-		{ efSTR, NULL, NULL, ffREAD },
+        { efSTR, "-i", NULL, ffREAD },
+        { efTRX, "-f", NULL, ffOPTRD },
         { efTPS, NULL, NULL, ffOPTRD },
-        { efTRX, "-traj", NULL, ffOPTRD },
         { efNDX, NULL, NULL, ffOPTRD },
         { efVST, "-o", "result", ffWRITE }
     };
@@ -85,66 +85,66 @@ int gmx_fda_view_stress(int argc, char *argv[])
         return 0;
     }
 
-	StressType stressType = PUNCTUAL;
-	ParticleType particleType = ATOM;
-    if (fn2ftp(opt2fn("-f", NFILE, fnm)) == efPSA) {
+    StressType stressType = PUNCTUAL;
+    ParticleType particleType = ATOM;
+    if (fn2ftp(opt2fn("-i", NFILE, fnm)) == efPSA) {
         stressType = PUNCTUAL;
         particleType = ATOM;
-    } else if (fn2ftp(opt2fn("-f", NFILE, fnm)) == efPSR) {
+    } else if (fn2ftp(opt2fn("-i", NFILE, fnm)) == efPSR) {
         stressType = PUNCTUAL;
         particleType = RESIDUE;
-    } else if (fn2ftp(opt2fn("-f", NFILE, fnm)) == efVMA) {
+    } else if (fn2ftp(opt2fn("-i", NFILE, fnm)) == efVMA) {
         stressType = VIRIAL_VON_MISES;
         particleType = ATOM;
     } else {
-    	gmx_fatal(FARGS, "Unkown stress or particle type of stress file.");
+        gmx_fatal(FARGS, "Unkown stress or particle type of stress file.");
     }
 
     int frameValue = 0;
     FrameType frameType = getFrameTypeAndSkipValue(frameString, frameValue);
 
     int nbFrames, nbParticles;
-    std::vector<real> stressMatrix = readStress(opt2fn("-f", NFILE, fnm), nbFrames, nbParticles);
+    std::vector<real> stressMatrix = readStress(opt2fn("-i", NFILE, fnm), nbFrames, nbParticles);
 
     // Interactive input of group name for residue model points
     int isize = 0;
     int *index;
     char *grpname;
     if (ftp2fn_null(efNDX, NFILE, fnm)) {
-		fprintf(stderr, "\nSelect group for residue model points:\n");
-		rd_index(ftp2fn(efNDX, NFILE, fnm), 1, &isize, &index, &grpname);
+        fprintf(stderr, "\nSelect group for residue model points:\n");
+        rd_index(ftp2fn(efNDX, NFILE, fnm), 1, &isize, &index, &grpname);
         if (isize != nbParticles) gmx_fatal(FARGS, "Number of atoms in group does not match number of FDA points.");
     }
 
-	#ifdef PRINT_DEBUG
-	    std::cerr << "stress filename = " << opt2fn("-f", NFILE, fnm) << std::endl;
+    #ifdef PRINT_DEBUG
+        std::cerr << "stress filename = " << opt2fn("-i", NFILE, fnm) << std::endl;
         std::cerr << "result filename = " << opt2fn("-o", NFILE, fnm) << std::endl;
-	    std::cerr << "frameType = " << EnumParser<FrameType>()(frameType) << std::endl;
-		std::cerr << "frameValue = " << frameValue << std::endl;
-	    std::cerr << "stressType = " << EnumParser<StressType>()(stressType) << std::endl;
-	    std::cerr << "particleType = " << EnumParser<ParticleType>()(particleType) << std::endl;
-	    std::cerr << "convert = " << convert << std::endl;
+        std::cerr << "frameType = " << EnumParser<FrameType>()(frameType) << std::endl;
+        std::cerr << "frameValue = " << frameValue << std::endl;
+        std::cerr << "stressType = " << EnumParser<StressType>()(stressType) << std::endl;
+        std::cerr << "particleType = " << EnumParser<ParticleType>()(particleType) << std::endl;
+        std::cerr << "convert = " << convert << std::endl;
     #endif
 
     if (fn2ftp(opt2fn("-o", NFILE, fnm)) == efPDB and !ftp2fn_null(efTPS, NFILE, fnm)) gmx_fatal(FARGS, "Input structure is missing.");
     if (stressType != PUNCTUAL and convert) gmx_fatal(FARGS, "Option -convert makes only sense for punctual stress.");
 
-	for (auto & elem : stressMatrix) elem = std::abs(elem);
+    for (auto & elem : stressMatrix) elem = std::abs(elem);
 
-	// Convert from kJ/mol/nm into pN
-	if (convert) for (auto & elem : stressMatrix) elem *= 1.66;
+    // Convert from kJ/mol/nm into pN
+    if (convert) for (auto & elem : stressMatrix) elem *= 1.66;
 
-	std::string title;
-	if (stressType == PUNCTUAL) title += "Punctual ";
-	else if (stressType == VIRIAL) title += "Virial ";
-	else if (stressType == VIRIAL_VON_MISES) title += "Von Mises virial ";
-	title += "stress";
-	if (particleType == ATOM) title += " over atoms";
-	else if (particleType == RESIDUE) title += " over residues";
+    std::string title;
+    if (stressType == PUNCTUAL) title += "Punctual ";
+    else if (stressType == VIRIAL) title += "Virial ";
+    else if (stressType == VIRIAL_VON_MISES) title += "Von Mises virial ";
+    title += "stress";
+    if (particleType == ATOM) title += " over atoms";
+    else if (particleType == RESIDUE) title += " over residues";
 
-	bool valueToLargeForPDB = false;
+    bool valueToLargeForPDB = false;
 
-	if (fn2ftp(opt2fn("-o", NFILE, fnm)) == efPDB) {
+    if (fn2ftp(opt2fn("-o", NFILE, fnm)) == efPDB) {
 
         rvec *xp;
         t_topology top;
@@ -155,92 +155,92 @@ int gmx_fda_view_stress(int argc, char *argv[])
 
         real currentStress;
 
-		if (frameType == SINGLE) {
+        if (frameType == SINGLE) {
 
-			FILE *fp = gmx_ffopen(opt2fn("-o", NFILE, fnm), "w");
+            FILE *fp = gmx_ffopen(opt2fn("-o", NFILE, fnm), "w");
 
-			for (int i = 0; i < nbParticles; ++i) {
-			    currentStress = stressMatrix[frameValue*nbParticles + i];
-			    if (currentStress > 999.99) {
-			        top.atoms.pdbinfo[i].bfac = 999.99;
-			        valueToLargeForPDB = true;
-			    }
-			    else top.atoms.pdbinfo[i].bfac = currentStress;
-			}
+            for (int i = 0; i < nbParticles; ++i) {
+                currentStress = stressMatrix[frameValue*nbParticles + i];
+                if (currentStress > 999.99) {
+                    top.atoms.pdbinfo[i].bfac = 999.99;
+                    valueToLargeForPDB = true;
+                }
+                else top.atoms.pdbinfo[i].bfac = currentStress;
+            }
 
-			write_pdbfile(fp, title.c_str(), &top.atoms, xp, ePBC, box, ' ', 0, NULL, TRUE);
-			gmx_ffclose(fp);
+            write_pdbfile(fp, title.c_str(), &top.atoms, xp, ePBC, box, ' ', 0, NULL, TRUE);
+            gmx_ffclose(fp);
 
-		} else {
+        } else {
 
-		    // Read trajectory coordinates
-	        t_trxstatus *status;
-	        real time;
-	        rvec *coord_traj;
-	        matrix box;
-	        read_first_x(oenv, &status, opt2fn("-traj", NFILE, fnm), &time, &coord_traj, box);
+            // Read trajectory coordinates
+            t_trxstatus *status;
+            real time;
+            rvec *coord_traj;
+            matrix box;
+            read_first_x(oenv, &status, opt2fn("-f", NFILE, fnm), &time, &coord_traj, box);
 
-	        for (int frame = 0; frame < nbFrames; ++frame)
-	        {
+            for (int frame = 0; frame < nbFrames; ++frame)
+            {
                 read_next_x(oenv, status, &time, coord_traj, box);
-	            if (frame%frameValue) continue;
+                if (frame%frameValue) continue;
 
-	            FILE *fp = NULL;
-	            if (frame) fp = gmx_ffopen(opt2fn("-o", NFILE, fnm), "a");
-	            else fp = gmx_ffopen(opt2fn("-o", NFILE, fnm), "w");
+                FILE *fp = NULL;
+                if (frame) fp = gmx_ffopen(opt2fn("-o", NFILE, fnm), "a");
+                else fp = gmx_ffopen(opt2fn("-o", NFILE, fnm), "w");
 
-	            for (int i = 0; i < nbParticles; ++i) {
-	                currentStress = stressMatrix[frameValue*nbParticles + i];
-	                top.atoms.pdbinfo[i].bfac = currentStress;
-	                if (currentStress > 999.99) {
-	                    valueToLargeForPDB = true;
-	                }
-	            }
+                for (int i = 0; i < nbParticles; ++i) {
+                    currentStress = stressMatrix[frameValue*nbParticles + i];
+                    top.atoms.pdbinfo[i].bfac = currentStress;
+                    if (currentStress > 999.99) {
+                        valueToLargeForPDB = true;
+                    }
+                }
 
-	            write_pdbfile(fp, title.c_str(), &top.atoms, coord_traj, ePBC, box, ' ', 0, NULL, TRUE);
-	            gmx_ffclose(fp);
-	        }
-	        close_trx(status);
-		}
-	} else if (fn2ftp(opt2fn("-o", NFILE, fnm)) == efXPM) {
+                write_pdbfile(fp, title.c_str(), &top.atoms, coord_traj, ePBC, box, ' ', 0, NULL, TRUE);
+                gmx_ffclose(fp);
+            }
+            close_trx(status);
+        }
+    } else if (fn2ftp(opt2fn("-o", NFILE, fnm)) == efXPM) {
 
-	    // Reorder stressMatrix for writing xpm
-	    real **stressMatrix2 = NULL;
-	    snew(stressMatrix2, nbParticles);
-	    real minValue = std::numeric_limits<real>::max();
-	    real maxValue = 0;
-	    int nbFramesForOutput = 1;
-	    if (frameType == SINGLE) {
-	        for (int i = 0; i < nbParticles; ++i) {
-	            snew(stressMatrix2[i], nbFramesForOutput);
-	            real value = stressMatrix[frameValue*nbParticles + i];
-	            stressMatrix2[i][0] = value;
-	            if (value < minValue) minValue = value;
-	            if (value > maxValue) maxValue = value;
-	        }
-	    } else {
-	        nbFramesForOutput = ceil(static_cast<real>(nbFrames) / frameValue);
-	        for (int i = 0; i < nbParticles; ++i) {
-	            snew(stressMatrix2[i], nbFramesForOutput);
-	            if (frameType == AVERAGE) {
-	                for (int j = 0, js = 0; j < nbFramesForOutput; ++j) {
-	                    real value = 0.0;
-	                    for (int k = 0; k < frameValue and js < nbFrames; ++k, ++js) value += stressMatrix[js*nbParticles + i];
-	                    value /= frameValue;
-	                    stressMatrix2[i][j] = value;
-	                    if (value < minValue) minValue = value;
-	                    if (value > maxValue) maxValue = value;
-	                }
-	            } else {
-	                for (int j = 0, js = 0; j < nbFramesForOutput; ++j, js += frameValue) {
-	                    real value = stressMatrix[js*nbParticles + i];
-	                    stressMatrix2[i][j] = value;
-	                    if (value < minValue) minValue = value;
-	                    if (value > maxValue) maxValue = value;
-	                }
-	            }
-	        }
-	    }
+        // Reorder stressMatrix for writing xpm
+        real **stressMatrix2 = NULL;
+        snew(stressMatrix2, nbParticles);
+        real minValue = std::numeric_limits<real>::max();
+        real maxValue = 0;
+        int nbFramesForOutput = 1;
+        if (frameType == SINGLE) {
+            for (int i = 0; i < nbParticles; ++i) {
+                snew(stressMatrix2[i], nbFramesForOutput);
+                real value = stressMatrix[frameValue*nbParticles + i];
+                stressMatrix2[i][0] = value;
+                if (value < minValue) minValue = value;
+                if (value > maxValue) maxValue = value;
+            }
+        } else {
+            nbFramesForOutput = ceil(static_cast<real>(nbFrames) / frameValue);
+            for (int i = 0; i < nbParticles; ++i) {
+                snew(stressMatrix2[i], nbFramesForOutput);
+                if (frameType == AVERAGE) {
+                    for (int j = 0, js = 0; j < nbFramesForOutput; ++j) {
+                        real value = 0.0;
+                        for (int k = 0; k < frameValue and js < nbFrames; ++k, ++js) value += stressMatrix[js*nbParticles + i];
+                        value /= frameValue;
+                        stressMatrix2[i][j] = value;
+                        if (value < minValue) minValue = value;
+                        if (value > maxValue) maxValue = value;
+                    }
+                } else {
+                    for (int j = 0, js = 0; j < nbFramesForOutput; ++j, js += frameValue) {
+                        real value = stressMatrix[js*nbParticles + i];
+                        stressMatrix2[i][j] = value;
+                        if (value < minValue) minValue = value;
+                        if (value > maxValue) maxValue = value;
+                    }
+                }
+            }
+        }
 
         FILE *out = gmx_ffopen(opt2fn("-o", NFILE, fnm), "w");
         t_rgb rlo = {1, 1, 1}, rhi = {0, 0, 0};
@@ -248,7 +248,7 @@ int gmx_fda_view_stress(int argc, char *argv[])
             NULL, NULL, stressMatrix2, minValue, maxValue, rlo, rhi, &nbColors);
         gmx_ffclose(out);
 
-	} else gmx_fatal(FARGS, "Missing output filename -opdb or -oxpm.");
+    } else gmx_fatal(FARGS, "Missing output filename -opdb or -oxpm.");
 
     if (valueToLargeForPDB)
         gmx_warning("Stress values larger than 999.99 are detected. Therefore, the general PDB format of the b-factor column of Real(6.2) is broken. "
