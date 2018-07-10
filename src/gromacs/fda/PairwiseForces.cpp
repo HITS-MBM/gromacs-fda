@@ -21,6 +21,7 @@ PairwiseForces<ForceType>::PairwiseForces(std::string const& filename)
     PairwiseForceList pairwise_forces;
     std::ifstream is(filename);
     std::string token;
+    is >> token;
     while (is >> token)
     {
         if (token == "frame") {

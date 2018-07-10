@@ -126,7 +126,7 @@ int gmx_fda_graph(int argc, char *argv[])
         std::cerr << "onlyBiggestNetwork = " << onlyBiggestNetwork << std::endl;
         std::cerr << "convert = " << convert << std::endl;
         std::cerr << "pfx filename = " << opt2fn("-i", NFILE, fnm) << std::endl;
-        if (opt2bSet("-idiff", NFILE, fnm)) std::cerr << "diff filename = " << opt2fn("-diff", NFILE, fnm) << std::endl;
+        if (opt2bSet("-diff", NFILE, fnm)) std::cerr << "diff filename = " << opt2fn("-diff", NFILE, fnm) << std::endl;
         std::cerr << "structure filename = " << opt2fn("-s", NFILE, fnm) << std::endl;
         std::cerr << "result filename = " << opt2fn("-o", NFILE, fnm) << std::endl;
         std::cerr << "result format = " << EnumParser<ResultFormat>()(resultFormat) << std::endl;

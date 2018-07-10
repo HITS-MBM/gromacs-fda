@@ -25,8 +25,14 @@ FDABase<Base>::FDABase(ResultType result_type, int syslen, std::string const& re
 {
     result_file << std::scientific << std::setprecision(6);
     if (PF_or_PS_mode()) make_backup(result_filename.c_str());
-    if (fda_settings.binary_result_file) result_file.open(result_filename, std::ifstream::binary);
-    else result_file.open(result_filename);
+    if (fda_settings.binary_result_file) {
+    	result_file.open(result_filename, std::ifstream::binary);
+    	char b = 'b';
+		result_file.write(&b, 1);
+    } else {
+    	result_file.open(result_filename);
+    	result_file << result_type << std::endl;
+    }
     write_compat_header(1);
 }
 

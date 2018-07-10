@@ -37,7 +37,7 @@ struct TestDataStructure
         std::string const& trajectoryFilename = "traj.trr",
         bool is_vector = false,
         bool must_die = false,
-		bool is_binary = false
+        bool is_binary = false
     )
       : testDirectory(testDirectory),
         atomFileExtension(atomFileExtension),
@@ -45,7 +45,7 @@ struct TestDataStructure
         trajectoryFilename(trajectoryFilename),
         is_vector(is_vector),
         must_die(must_die),
-		is_binary(is_binary)
+        is_binary(is_binary)
     {}
 
     std::string testDirectory;
@@ -102,40 +102,42 @@ TEST_P(FDATest, Basic)
     if (GetParam().must_die) {
         EXPECT_EXIT(gmx_mdrun(callRerun.argc(), callRerun.argv()), ::testing::ExitedWithCode(1), "");
     } else {
-    	if (!GetParam().is_binary) {
-			ASSERT_FALSE(gmx_mdrun(callRerun.argc(), callRerun.argv()));
+        ASSERT_FALSE(gmx_mdrun(callRerun.argc(), callRerun.argv()));
+        if (GetParam().is_binary) {
 
-			const double error_factor = 1e4;
-			const bool weight_by_magnitude = true;
-			const bool ignore_sign = false;
+        } else {
 
-			LogicallyEqualComparer<weight_by_magnitude, ignore_sign> comparer(error_factor);
+            const double error_factor = 1e4;
+            const bool weight_by_magnitude = true;
+            const bool ignore_sign = false;
 
-			// Check results
-			if (!GetParam().atomFileExtension.empty()) {
-				if (GetParam().atomFileExtension == "pfa")
-					if (GetParam().is_vector)
-						EXPECT_TRUE((fda::PairwiseForces<fda::Force<fda::Vector>>(atomFilename).equal(
-							fda::PairwiseForces<fda::Force<fda::Vector>>(atomReference), comparer)));
-					else
-						EXPECT_TRUE((fda::PairwiseForces<fda::Force<real>>(atomFilename).equal(
-							fda::PairwiseForces<fda::Force<real>>(atomReference), comparer)));
-				else
-					EXPECT_TRUE((equal(TextSplitter(atomFilename), TextSplitter(atomReference), comparer)));
-			}
-			if (!GetParam().residueFileExtension.empty()) {
-				if (GetParam().residueFileExtension == "pfr")
-					if (GetParam().is_vector)
-						EXPECT_TRUE((fda::PairwiseForces<fda::Force<fda::Vector>>(residueFilename).equal(
-							fda::PairwiseForces<fda::Force<fda::Vector>>(residueReference), comparer)));
-					else
-						EXPECT_TRUE((fda::PairwiseForces<fda::Force<real>>(residueFilename).equal(
-							fda::PairwiseForces<fda::Force<real>>(residueReference), comparer)));
-				else
-					EXPECT_TRUE((equal(TextSplitter(residueFilename), TextSplitter(residueReference), comparer)));
-			}
-			gmx_chdir(cwd.c_str());
-    	}
+            LogicallyEqualComparer<weight_by_magnitude, ignore_sign> comparer(error_factor);
+
+            // Check results
+            if (!GetParam().atomFileExtension.empty()) {
+                if (GetParam().atomFileExtension == "pfa")
+                    if (GetParam().is_vector)
+                        EXPECT_TRUE((fda::PairwiseForces<fda::Force<fda::Vector>>(atomFilename).equal(
+                            fda::PairwiseForces<fda::Force<fda::Vector>>(atomReference), comparer)));
+                    else
+                        EXPECT_TRUE((fda::PairwiseForces<fda::Force<real>>(atomFilename).equal(
+                            fda::PairwiseForces<fda::Force<real>>(atomReference), comparer)));
+                else
+                    EXPECT_TRUE((equal(TextSplitter(atomFilename), TextSplitter(atomReference), comparer)));
+            }
+            if (!GetParam().residueFileExtension.empty()) {
+                if (GetParam().residueFileExtension == "pfr")
+                    if (GetParam().is_vector)
+                        EXPECT_TRUE((fda::PairwiseForces<fda::Force<fda::Vector>>(residueFilename).equal(
+                            fda::PairwiseForces<fda::Force<fda::Vector>>(residueReference), comparer)));
+                    else
+                        EXPECT_TRUE((fda::PairwiseForces<fda::Force<real>>(residueFilename).equal(
+                            fda::PairwiseForces<fda::Force<real>>(residueReference), comparer)));
+                else
+                    EXPECT_TRUE((equal(TextSplitter(residueFilename), TextSplitter(residueReference), comparer)));
+            }
+            gmx_chdir(cwd.c_str());
+        }
     }
 }
 
