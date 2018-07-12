@@ -100,8 +100,10 @@ private:
         ForceType force;
     };
 
+    /// List of pairwise forces
     typedef typename std::vector<PairwiseForce> PairwiseForceList;
 
+    /// List of frames
     std::vector<PairwiseForceList> all_pairwise_forces;
 };
 

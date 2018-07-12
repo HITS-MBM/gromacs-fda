@@ -20,8 +20,8 @@ std::vector<double> parseScalarFileFormat(std::string const& filename,
     int nbParticles2 = nbParticles * nbParticles;
 
     std::vector<double> array(nbParticles2, 0.0);
-    std::ifstream pfFile(filename);
-    if (!pfFile) gmx_fatal(FARGS, "Error opening file.");
+    std::ifstream file(filename);
+    if (!file) gmx_fatal(FARGS, "Error opening file.");
 
     std::string line;
     bool foundFrame = false;
@@ -30,7 +30,10 @@ std::vector<double> parseScalarFileFormat(std::string const& filename,
     int i, j;
     double value;
 
-    while (getline(pfFile, line))
+    getline(file, line);
+    if (line != "pairwise_forces_scalar") gmx_fatal(FARGS, "Wrong file type.");
+
+    while (getline(file, line))
 	{
 		if (line.find("frame") != std::string::npos)
 		{
@@ -58,8 +61,8 @@ std::vector<double> parseScalarFileFormat(std::string const& filename,
 std::vector<double> getAveragedForcematrix(std::string const& filename,
     int nbParticles)
 {
-    std::ifstream pfFile(filename);
-    if (!pfFile) gmx_fatal(FARGS, "Error opening file.");
+    std::ifstream file(filename);
+    if (!file) gmx_fatal(FARGS, "Error opening file.");
 
     int nbParticles2 = nbParticles * nbParticles;
     std::vector<double> forcematrix(nbParticles2, 0.0);
@@ -70,7 +73,10 @@ std::vector<double> getAveragedForcematrix(std::string const& filename,
     int i, j;
     double value;
 
-    while (getline(pfFile, line))
+    getline(file, line);
+    if (line != "pairwise_forces_scalar") gmx_fatal(FARGS, "Wrong file type.");
+
+    while (getline(file, line))
 	{
 		if (line.find("frame") != std::string::npos) {
 			++numberOfFrames;
@@ -100,6 +106,9 @@ std::vector<real> readStress(std::string const& filename, int& nbFrames,
     nbFrames = 0;
     nbParticles = 0;
 
+    getline(file, line);
+    if (line != "punctual_stress" and line != "virial_stress_von_mises") gmx_fatal(FARGS, "Wrong file type.");
+
     if (getline(file, line))
     {
 		std::stringstream ss(line);
@@ -126,13 +135,16 @@ std::vector<real> readStress(std::string const& filename, int& nbFrames,
 
 size_t getNumberOfFrames(std::string const& filename)
 {
-    std::ifstream pfFile(filename);
-    if (!pfFile) gmx_fatal(FARGS, "Error opening file.");
+    std::ifstream file(filename);
+    if (!file) gmx_fatal(FARGS, "Error opening file.");
 
     std::string line;
     int numberOfFrames = 0;
 
-    while (getline(pfFile, line))
+    getline(file, line);
+    if (line != "pairwise_forces_scalar") gmx_fatal(FARGS, "Wrong file type.");
+
+    while (getline(file, line))
 	{
 		if (line.find("frame") != std::string::npos) {
 			++numberOfFrames;
@@ -144,15 +156,18 @@ size_t getNumberOfFrames(std::string const& filename)
 
 size_t getMaxIndexSecondColumnFirstFrame(std::string const& filename)
 {
-    std::ifstream pfFile(filename);
-    if (!pfFile) gmx_fatal(FARGS, "Error opening file.");
+    std::ifstream file(filename);
+    if (!file) gmx_fatal(FARGS, "Error opening file.");
 
     std::string line;
     int i, j, maxIndex = 0;
 
-    getline(pfFile, line); // skip first line
+    getline(file, line);
+    if (line != "pairwise_forces_scalar") gmx_fatal(FARGS, "Wrong file type.");
 
-    while (getline(pfFile, line))
+    getline(file, line); // skip frame line
+
+    while (getline(file, line))
 	{
 		if (line.find("frame") != std::string::npos) break;
 

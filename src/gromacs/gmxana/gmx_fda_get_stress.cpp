@@ -80,7 +80,8 @@ int gmx_fda_get_stress(int argc, char *argv[])
 
     std::ofstream opsFile(opt2fn("-o", NFILE, fnm));
     if (!opsFile) gmx_fatal(FARGS, "Error opening file", opt2fn("-o", NFILE, fnm));
-    opsFile << std::scientific << std::setprecision(6);
+    opsFile << std::scientific << std::setprecision(6)
+            << "punctual_stress\n";
 
     for (size_t frame = 0; frame != nbFrames; ++frame)
     {

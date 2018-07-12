@@ -19,6 +19,7 @@
 #include "gmx_ana.h"
 #include "gromacs/commandline/filenm.h"
 #include "gromacs/commandline/pargs.h"
+#include "gromacs/fda/PairwiseForces.h"
 #include "gromacs/fileio/confio.h"
 #include "gromacs/fileio/oenv.h"
 #include "gromacs/fileio/pdbio.h"
@@ -154,6 +155,9 @@ int gmx_fda_graph(int argc, char *argv[])
         pmlFile << "spectrum segi, blue_white_red, network" << std::endl;
         molecularTrajectoryFile = gmx_ffopen(molecularTrajectoryFilename.c_str(), "w");
     }
+
+    // Open pairwise forces file
+    fda::PairwiseForces<fda::Force<real>> pairwise_forces(opt2fn("-i", NFILE, fnm));
 
     if (frameType == SINGLE) {
 
