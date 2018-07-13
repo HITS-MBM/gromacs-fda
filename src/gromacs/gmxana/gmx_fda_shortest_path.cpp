@@ -20,6 +20,7 @@
 #include "gmx_ana.h"
 #include "gromacs/commandline/filenm.h"
 #include "gromacs/commandline/pargs.h"
+#include "gromacs/fda/PairwiseForces.h"
 #include "gromacs/fileio/confio.h"
 #include "gromacs/fileio/pdbio.h"
 #include "gromacs/fileio/tpxio.h"
@@ -94,8 +95,12 @@ int gmx_fda_shortest_path(int argc, char *argv[])
     if (fn2ftp(opt2fn("-i", NFILE, fnm)) == efPFR and !opt2bSet("-n", NFILE, fnm))
         gmx_fatal(FARGS, "Index file is needed for residuebased pairwise forces.");
 
+    // Open pairwise forces file
+    fda::PairwiseForces<fda::Force<real>> pairwise_forces(opt2fn("-i", NFILE, fnm));
+    fda::PairwiseForces<fda::Force<real>> pairwise_forces_diff(opt2fn("-diff", NFILE, fnm));
+
     // Get number of particles
-    int nbParticles = getMaxIndexSecondColumnFirstFrame(opt2fn("-i", NFILE, fnm)) + 1;
+    int nbParticles = pairwise_forces.get_max_index_second_column_first_frame() + 1;
     int nbParticles2 = nbParticles * nbParticles;
 
     // Interactive input of group name for residue model points
@@ -150,9 +155,9 @@ int gmx_fda_shortest_path(int argc, char *argv[])
     if (frameType == SINGLE) {
 
         int frame = atoi(frameString);
-        forceMatrix = parseScalarFileFormat(opt2fn("-i", NFILE, fnm), nbParticles, frame);
+        forceMatrix = pairwise_forces.get_forcematrix_of_frame(nbParticles, frame);
         if (opt2bSet("-diff", NFILE, fnm)) {
-            forceMatrix2 = parseScalarFileFormat(opt2fn("-diff", NFILE, fnm), nbParticles, frame);
+            forceMatrix2 = pairwise_forces_diff.get_forcematrix_of_frame(nbParticles, frame);
             for (int i = 0; i < nbParticles2; ++i) forceMatrix[i] -= forceMatrix2[i];
         }
 
@@ -174,7 +179,7 @@ int gmx_fda_shortest_path(int argc, char *argv[])
         rvec *coord_traj;
         matrix box;
 
-        int nbFrames = getNumberOfFrames(opt2fn("-i", NFILE, fnm));
+        int nbFrames = pairwise_forces.get_number_of_frames();
         for (int frame = 0; frame < nbFrames; ++frame)
         {
             if (frame == 0) read_first_x(oenv, &status, opt2fn("-f", NFILE, fnm), &time, &coord_traj, box);
@@ -182,9 +187,9 @@ int gmx_fda_shortest_path(int argc, char *argv[])
 
             if (frameType == SKIP and frame%frameValue) continue;
 
-            forceMatrix = parseScalarFileFormat(opt2fn("-i", NFILE, fnm), nbParticles, frame);
+            forceMatrix = pairwise_forces.get_forcematrix_of_frame(nbParticles, frame);
             if (opt2bSet("-diff", NFILE, fnm)) {
-                forceMatrix2 = parseScalarFileFormat(opt2fn("-diff", NFILE, fnm), nbParticles, frame);
+                forceMatrix2 = pairwise_forces_diff.get_forcematrix_of_frame(nbParticles, frame);
                 for (int i = 0; i < nbParticles2; ++i) forceMatrix[i] -= forceMatrix2[i];
             }
             for (auto & f : forceMatrix) f = std::abs(f);
@@ -196,9 +201,9 @@ int gmx_fda_shortest_path(int argc, char *argv[])
                 for (int frameAvg = 0; frameAvg < frameValue - 1; ++frameAvg)
                 {
                     std::vector<double> forceMatrixAvg, forceMatrixAvg2;
-                    forceMatrixAvg = parseScalarFileFormat(opt2fn("-i", NFILE, fnm), nbParticles, frame);
+                    forceMatrixAvg = pairwise_forces.get_forcematrix_of_frame(nbParticles, frame);
                     if (opt2bSet("-diff", NFILE, fnm)) {
-                        forceMatrixAvg2 = parseScalarFileFormat(opt2fn("-diff", NFILE, fnm), nbParticles, frame);
+                        forceMatrixAvg2 = pairwise_forces_diff.get_forcematrix_of_frame(nbParticles, frame);
                         for (int i = 0; i < nbParticles2; ++i) forceMatrixAvg[i] -= forceMatrixAvg2[i];
                     }
 

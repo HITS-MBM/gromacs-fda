@@ -8,17 +8,53 @@
 #include <algorithm>
 #include <fstream>
 #include <iostream>
+#include <sstream>
 #include <stdexcept>
+#include "gromacs/utility/fatalerror.h"
 #include "PairwiseForces.h"
 
 namespace fda {
 
 template <typename ForceType>
-PairwiseForces<ForceType>::PairwiseForces(std::string const& filename)
+void PairwiseForces<ForceType>::sort() const
+{
+//	std::sort(pairwise_forces.begin(), pairwise_forces.end(),
+//		[](PairwiseForce const& pf1, PairwiseForce const& pf2) {
+//			return pf1.i < pf2.i or
+//				  (pf1.i == pf2.i and pf1.j < pf2.j) or
+//				  (pf1.i == pf2.i and pf1.j == pf2.j and pf1.force.type < pf2.force.type);
+//		});
+}
+
+template <typename ForceType>
+size_t PairwiseForces<ForceType>::get_number_of_frames() const
+{
+    std::ifstream file(filename);
+    if (!file) gmx_fatal(FARGS, "Error opening file.");
+
+    std::string line;
+    size_t number_of_frames = 0;
+
+    getline(file, line);
+    if (line != "pairwise_forces_scalar") gmx_fatal(FARGS, "Wrong file type.");
+
+    while (getline(file, line))
+	{
+		if (line.find("frame") != std::string::npos) {
+			++number_of_frames;
+		}
+	}
+
+    return number_of_frames;
+}
+
+template <typename ForceType>
+std::vector<std::vector<PairwiseForce<ForceType>>> PairwiseForces<ForceType>::get_all_pairwise_forces() const
 {
     int i, j;
     ForceType force;
-    PairwiseForceList pairwise_forces;
+    std::vector<PairwiseForce<ForceType>> pairwise_forces;
+    std::vector<std::vector<PairwiseForce<ForceType>>> all_pairwise_forces;
     std::ifstream is(filename);
     std::string token;
     is >> token;
@@ -30,7 +66,7 @@ PairwiseForces<ForceType>::PairwiseForces(std::string const& filename)
             if (frame) {
                 // Sort by i, j, and type
                 std::sort(pairwise_forces.begin(), pairwise_forces.end(),
-                    [](PairwiseForce const& pf1, PairwiseForce const& pf2) {
+                    [](PairwiseForce<ForceType> const& pf1, PairwiseForce<ForceType> const& pf2) {
                         return pf1.i < pf2.i or
                               (pf1.i == pf2.i and pf1.j < pf2.j) or
                               (pf1.i == pf2.i and pf1.j == pf2.j and pf1.force.type < pf2.force.type);
@@ -54,18 +90,119 @@ PairwiseForces<ForceType>::PairwiseForces(std::string const& filename)
         }
 
         is >> j >> force;
-        pairwise_forces.push_back(PairwiseForce(i,j,force));
+        pairwise_forces.push_back(PairwiseForce<ForceType>(i,j,force));
     }
-
-    // Don't forget to push the last frame
-    // Sort by i, j, and type
-    std::sort(pairwise_forces.begin(), pairwise_forces.end(),
-        [](PairwiseForce const& pf1, PairwiseForce const& pf2) {
-            return pf1.i < pf2.i or
-                  (pf1.i == pf2.i and pf1.j < pf2.j) or
-                  (pf1.i == pf2.i and pf1.j == pf2.j and pf1.force.type < pf2.force.type);
-        });
     all_pairwise_forces.push_back(pairwise_forces);
+
+    return all_pairwise_forces;
+}
+
+template <typename ForceType>
+size_t PairwiseForces<ForceType>::get_max_index_second_column_first_frame() const
+{
+    std::ifstream file(filename);
+    if (!file) gmx_fatal(FARGS, "Error opening file.");
+
+    std::string line;
+    size_t i, j, maxIndex = 0;
+
+    getline(file, line);
+    if (line != "pairwise_forces_scalar") gmx_fatal(FARGS, "Wrong file type.");
+
+    getline(file, line); // skip frame line
+
+    while (getline(file, line))
+	{
+		if (line.find("frame") != std::string::npos) break;
+
+		std::stringstream ss(line);
+		ss >> i >> j;
+
+		if (j > maxIndex) maxIndex = j;
+	}
+
+    return maxIndex;
+}
+
+template <typename ForceType>
+std::vector<double> PairwiseForces<ForceType>::get_forcematrix_of_frame(int nbParticles, int frame) const
+{
+    int nbParticles2 = nbParticles * nbParticles;
+
+    std::vector<double> array(nbParticles2, 0.0);
+    std::ifstream file(filename);
+    if (!file) gmx_fatal(FARGS, "Error opening file.");
+
+    std::string line;
+    bool foundFrame = false;
+    int frameNumber;
+    std::string tmp;
+    int i, j;
+    double value;
+
+    getline(file, line);
+    if (line != "pairwise_forces_scalar") gmx_fatal(FARGS, "Wrong file type.");
+
+    while (getline(file, line))
+	{
+		if (line.find("frame") != std::string::npos)
+		{
+			if (foundFrame) break;
+			std::istringstream iss(line);
+			iss >> tmp >> frameNumber;
+			if (frameNumber != frame) continue;
+	        foundFrame = true;
+	        continue;
+		}
+		if (foundFrame) {
+			std::istringstream iss(line);
+            iss >> i >> j >> value;
+            if (i >= nbParticles or j >= nbParticles)
+            	gmx_fatal(FARGS, "Index is larger than dimension.");
+            array[i*nbParticles+j] = value;
+            array[j*nbParticles+i] = value;
+		}
+	}
+
+    if (!foundFrame) gmx_fatal(FARGS, "Frame not found.");
+    return array;
+}
+
+template <typename ForceType>
+std::vector<double> PairwiseForces<ForceType>::get_averaged_forcematrix(int nbParticles) const
+{
+    std::ifstream file(filename);
+    if (!file) gmx_fatal(FARGS, "Error opening file.");
+
+    int nbParticles2 = nbParticles * nbParticles;
+    std::vector<double> forcematrix(nbParticles2, 0.0);
+
+    std::string line;
+    int numberOfFrames = 0;
+    std::string tmp;
+    int i, j;
+    double value;
+
+    getline(file, line);
+    if (line != "pairwise_forces_scalar") gmx_fatal(FARGS, "Wrong file type.");
+
+    while (getline(file, line))
+	{
+		if (line.find("frame") != std::string::npos) {
+			++numberOfFrames;
+			continue;
+		}
+		std::istringstream iss(line);
+		iss >> i >> j >> value;
+		if (i < 0 or i >= nbParticles or j < 0 or j >= nbParticles)
+			gmx_fatal(FARGS, "Index error in getAveragedForcematrix.");
+		forcematrix[i*nbParticles+j] = value;
+	}
+
+    if (!numberOfFrames) gmx_fatal(FARGS, "No frame found.");
+    for (auto & elem : forcematrix) elem /= numberOfFrames;
+
+    return forcematrix;
 }
 
 /// template instantiation

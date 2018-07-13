@@ -19,6 +19,7 @@
 #include "gmx_ana.h"
 #include "gromacs/commandline/filenm.h"
 #include "gromacs/commandline/pargs.h"
+#include "gromacs/fda/PairwiseForces.h"
 #include "gromacs/fileio/oenv.h"
 #include "gromacs/fileio/tpxio.h"
 #include "gromacs/fileio/trxio.h"
@@ -60,14 +61,18 @@ int gmx_fda_get_stress(int argc, char *argv[])
     if (!parse_common_args(&argc, argv, PCA_CAN_TIME,
         NFILE, fnm, asize(pa), pa, asize(desc), desc, 0, NULL, &oenv)) return 0;
 
-    size_t nbFrames = getNumberOfFrames(opt2fn("-i", NFILE, fnm));
-    size_t nbParticles = getMaxIndexSecondColumnFirstFrame(opt2fn("-i", NFILE, fnm)) + 1;
+    // Open pairwise forces file
+    fda::PairwiseForces<fda::Force<real>> pairwise_forces(opt2fn("-i", NFILE, fnm));
+    fda::PairwiseForces<fda::Force<real>> pairwise_forces_diff(opt2fn("-diff", NFILE, fnm));
+
+    size_t nbFrames = pairwise_forces.get_number_of_frames();
+    size_t nbParticles = pairwise_forces.get_max_index_second_column_first_frame() + 1;
     size_t nbParticles2 = nbParticles * nbParticles;
 
     if (opt2bSet("-diff", NFILE, fnm) and (fn2ftp(opt2fn("-diff", NFILE, fnm)) != fn2ftp(opt2fn("-i", NFILE, fnm))))
         gmx_fatal(FARGS, "Type of the file (-diff) does not match the type of the file (-i).");
 
-    if (opt2bSet("-diff", NFILE, fnm) and getNumberOfFrames(opt2fn("-diff", NFILE, fnm)) != nbFrames)
+    if (opt2bSet("-diff", NFILE, fnm) and pairwise_forces_diff.get_number_of_frames() != nbFrames)
         gmx_fatal(FARGS, "Number of frames is not identical between the two pairwise force files.");
 
 #ifdef PRINT_DEBUG
@@ -85,9 +90,9 @@ int gmx_fda_get_stress(int argc, char *argv[])
 
     for (size_t frame = 0; frame != nbFrames; ++frame)
     {
-        std::vector<double> forceMatrix = parseScalarFileFormat(opt2fn("-i", NFILE, fnm), nbParticles, frame);
+        std::vector<double> forceMatrix = pairwise_forces.get_forcematrix_of_frame(nbParticles, frame);
         if (opt2bSet("-diff", NFILE, fnm)) {
-            std::vector<double> forceMatrix2 = parseScalarFileFormat(opt2fn("-diff", NFILE, fnm), nbParticles, frame);
+            std::vector<double> forceMatrix2 = pairwise_forces_diff.get_forcematrix_of_frame(nbParticles, frame);
             for (size_t i = 0; i < nbParticles2; ++i) forceMatrix[i] -= forceMatrix2[i];
         }
 

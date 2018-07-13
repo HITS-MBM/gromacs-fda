@@ -16,31 +16,58 @@
 
 namespace fda {
 
+template <typename ForceType>
+struct PairwiseForce
+{
+	PairwiseForce(int i, int j, ForceType force)
+	 : i(i), j(j), force(force)
+	{}
+
+	bool operator == (PairwiseForce const& other) const {
+		return i == other.i and j == other.j and force == other.force;
+	}
+
+	bool operator != (PairwiseForce const& other) const {
+		return !operator == (other);
+	}
+
+	template <class Comparer>
+	bool equal(PairwiseForce const& other, Comparer const& comparer) const {
+		return i == other.i and j == other.j and force.equal(other.force, comparer);
+	}
+
+	int i;
+	int j;
+	ForceType force;
+};
+
 /**
  * Read pairwise forces from file into arrays and compare.
  */
 template <typename ForceType>
-class PairwiseForces
+struct PairwiseForces
 {
-public:
-
-    /// Constructor reading files
-    PairwiseForces(std::string const& filename);
+    PairwiseForces(std::string const& filename)
+     : filename(filename)
+    {}
 
     template <class Comparer>
     bool equal(PairwiseForces const& other, Comparer const& comparer) const
     {
-        if (all_pairwise_forces.size() != other.all_pairwise_forces.size()) return false;
+    	std::vector<std::vector<PairwiseForce<ForceType>>> pfl1 = this->get_all_pairwise_forces();
+    	std::vector<std::vector<PairwiseForce<ForceType>>> pfl2 = other.get_all_pairwise_forces();
+
+        if (pfl1.size() != pfl2.size()) return false;
 
         // std::zip would be nice; avoid boost::zip as boost was ejected by gromacs
-        for (size_t frame = 0; frame !=  all_pairwise_forces.size(); ++frame) {
-            auto pairwise_forces = all_pairwise_forces[frame];
-            auto other_pairwise_forces = other.all_pairwise_forces[frame];
-            if (pairwise_forces.size() != other_pairwise_forces.size()) return false;
+        for (size_t frame = 0; frame != pfl1.size(); ++frame) {
+            auto pf1 = pfl1[frame];
+            auto pf2 = pfl2[frame];
+            if (pf1.size() != pf2.size()) return false;
 
-            for (size_t i = 0; i !=  pairwise_forces.size(); ++i) {
-                auto pairwise_force = pairwise_forces[i];
-                auto other_pairwise_force = other_pairwise_forces[i];
+            for (size_t i = 0; i != pf1.size(); ++i) {
+                auto pairwise_force = pf1[i];
+                auto other_pairwise_force = pf2[i];
                 if (!pairwise_force.equal(other_pairwise_force, comparer)) {
                     std::cout << "i (actual, expected) = " << pairwise_force.i << " " << other_pairwise_force.i << std::endl;
                     std::cout << "j (actual, expected) = " << pairwise_force.j << " " << other_pairwise_force.j << std::endl;
@@ -52,56 +79,45 @@ public:
         return true;
     }
 
-private:
+    /// Sorting the pairwise forces by i, j, and type
+    void sort() const;
 
-    friend class PairwiseForcesTest_DefaultConstructor_Test;
-    friend class PairwiseForcesTest_ReadFile1_Test;
-    friend class PairwiseForcesTest_ReadFile2_Test;
-    friend class PairwiseForcesTest_ReadFile3_Test;
+    /// Return the number of frames within a pfr-file
+    size_t get_number_of_frames() const;
+
+    /// Return pairwise forces of all frames
+    std::vector<std::vector<PairwiseForce<ForceType>>> get_all_pairwise_forces() const;
+
+    /// Return the maximum index number of the second column and the first frame.
+    size_t get_max_index_second_column_first_frame() const;
+
+    /// Parse a file in the scalar format which contains a given number of
+    /// atom/residues. Can read a single frame given by the argument frame.
+    std::vector<double> get_forcematrix_of_frame(int nbParticles, int frame) const;
+
+    /// Parse a file in the scalar format which contains a given number of
+    /// atom/residues. Returns average over all frames.
+    std::vector<double> get_averaged_forcematrix(int nbParticles) const;
+
+private:
 
     /// Output stream
     friend std::ostream& operator << (std::ostream& os, PairwiseForces const& pf)
     {
-      for (size_t i = 0; i != pf.all_pairwise_forces.size(); ++i) {
-        os << "frame " << i << std::endl;
-        for (auto const& e : pf.all_pairwise_forces[i]) {
-            os << e.i << " "
-               << e.j << " "
-               << e.force << std::endl;
+    	std::vector<std::vector<PairwiseForce<ForceType>>> all_pairwise_forces = pf.get_all_pairwise_forces();
+        for (size_t i = 0; i != all_pairwise_forces.size(); ++i) {
+            os << "frame " << i << std::endl;
+            for (auto const& e : all_pairwise_forces[i]) {
+                os << e.i << " "
+                   << e.j << " "
+                   << e.force << std::endl;
+            }
         }
-      }
-      return os;
+        return os;
     }
 
-    struct PairwiseForce {
+    std::string filename;
 
-        PairwiseForce(int i, int j, ForceType force)
-         : i(i), j(j), force(force)
-        {}
-
-        bool operator == (PairwiseForce const& other) const {
-            return i == other.i and j == other.j and force == other.force;
-        }
-
-        bool operator != (PairwiseForce const& other) const {
-            return !operator == (other);
-        }
-
-        template <class Comparer>
-        bool equal(PairwiseForce const& other, Comparer const& comparer) const {
-            return i == other.i and j == other.j and force.equal(other.force, comparer);
-        }
-
-        int i;
-        int j;
-        ForceType force;
-    };
-
-    /// List of pairwise forces
-    typedef typename std::vector<PairwiseForce> PairwiseForceList;
-
-    /// List of frames
-    std::vector<PairwiseForceList> all_pairwise_forces;
 };
 
 } // namespace fda
