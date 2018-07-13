@@ -24,9 +24,6 @@ class PairwiseForces
 {
 public:
 
-    /// Default constructor
-    PairwiseForces() {}
-
     /// Constructor reading files
     PairwiseForces(std::string const& filename);
 

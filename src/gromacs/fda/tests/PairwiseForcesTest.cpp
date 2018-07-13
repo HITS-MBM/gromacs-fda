@@ -18,12 +18,6 @@ namespace fda
 class PairwiseForcesTest : public gmx::test::CommandLineTestBase
 {};
 
-TEST_F(PairwiseForcesTest, DefaultConstructor)
-{
-    PairwiseForces<real> pf;
-    EXPECT_TRUE(pf.all_pairwise_forces.empty());
-}
-
 TEST_F(PairwiseForcesTest, ReadFile1)
 {
     std::string data_path = std::string(fileManager().getInputDataDirectory()) + "/data";
