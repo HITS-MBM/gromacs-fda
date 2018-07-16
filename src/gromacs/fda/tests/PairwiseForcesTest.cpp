@@ -23,7 +23,7 @@ TEST_F(PairwiseForcesTest, ReadFile1)
     std::string data_path = std::string(fileManager().getInputDataDirectory()) + "/data";
 
     PairwiseForces<Force<real>> pf(data_path + "/test1.pfa");
-    auto pf_all = pf.get_all_pairwise_forces();
+    auto pf_all = pf.get_all_pairwise_forces(true);
 
     double abs_error_float = 1e-6;
 
@@ -44,7 +44,7 @@ TEST_F(PairwiseForcesTest, ReadFile2)
     std::string data_path = std::string(fileManager().getInputDataDirectory()) + "/data";
 
     PairwiseForces<Force<real>> pf(data_path + "/test2.pfa");
-    auto pf_all = pf.get_all_pairwise_forces();
+    auto pf_all = pf.get_all_pairwise_forces(true);
 
     EXPECT_EQ(11, pf_all.size());
     EXPECT_EQ(142, pf_all[0].size());
@@ -57,7 +57,7 @@ TEST_F(PairwiseForcesTest, ReadFile3)
     std::string data_path = std::string(fileManager().getInputDataDirectory()) + "/data";
 
     PairwiseForces<Force<Vector>> pf(data_path + "/test3.pfa");
-    auto pf_all = pf.get_all_pairwise_forces();
+    auto pf_all = pf.get_all_pairwise_forces(true);
 
     EXPECT_EQ(11, pf_all.size());
     EXPECT_EQ(0, pf_all[8][5].i);

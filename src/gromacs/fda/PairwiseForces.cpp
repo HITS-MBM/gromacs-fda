@@ -16,17 +16,6 @@
 namespace fda {
 
 template <typename ForceType>
-void PairwiseForces<ForceType>::sort() const
-{
-//	std::sort(pairwise_forces.begin(), pairwise_forces.end(),
-//		[](PairwiseForce const& pf1, PairwiseForce const& pf2) {
-//			return pf1.i < pf2.i or
-//				  (pf1.i == pf2.i and pf1.j < pf2.j) or
-//				  (pf1.i == pf2.i and pf1.j == pf2.j and pf1.force.type < pf2.force.type);
-//		});
-}
-
-template <typename ForceType>
 size_t PairwiseForces<ForceType>::get_number_of_frames() const
 {
     std::ifstream file(filename);
@@ -49,7 +38,7 @@ size_t PairwiseForces<ForceType>::get_number_of_frames() const
 }
 
 template <typename ForceType>
-std::vector<std::vector<PairwiseForce<ForceType>>> PairwiseForces<ForceType>::get_all_pairwise_forces() const
+std::vector<std::vector<PairwiseForce<ForceType>>> PairwiseForces<ForceType>::get_all_pairwise_forces(bool sort) const
 {
     int i, j;
     ForceType force;
@@ -64,13 +53,6 @@ std::vector<std::vector<PairwiseForce<ForceType>>> PairwiseForces<ForceType>::ge
             size_t frame;
             is >> frame;
             if (frame) {
-                // Sort by i, j, and type
-                std::sort(pairwise_forces.begin(), pairwise_forces.end(),
-                    [](PairwiseForce<ForceType> const& pf1, PairwiseForce<ForceType> const& pf2) {
-                        return pf1.i < pf2.i or
-                              (pf1.i == pf2.i and pf1.j < pf2.j) or
-                              (pf1.i == pf2.i and pf1.j == pf2.j and pf1.force.type < pf2.force.type);
-                    });
                 all_pairwise_forces.push_back(pairwise_forces);
                 pairwise_forces.clear();
             }
@@ -94,7 +76,22 @@ std::vector<std::vector<PairwiseForce<ForceType>>> PairwiseForces<ForceType>::ge
     }
     all_pairwise_forces.push_back(pairwise_forces);
 
+    if (sort) {
+    	for (auto & e : all_pairwise_forces) this->sort(e);
+    }
+
     return all_pairwise_forces;
+}
+
+template <typename ForceType>
+void PairwiseForces<ForceType>::sort(std::vector<PairwiseForce<ForceType>>& pairwise_forces) const
+{
+	std::sort(pairwise_forces.begin(), pairwise_forces.end(),
+		[](PairwiseForce<ForceType> const& pf1, PairwiseForce<ForceType> const& pf2) {
+			return pf1.i < pf2.i or
+				  (pf1.i == pf2.i and pf1.j < pf2.j) or
+				  (pf1.i == pf2.i and pf1.j == pf2.j and pf1.force.type < pf2.force.type);
+		});
 }
 
 template <typename ForceType>

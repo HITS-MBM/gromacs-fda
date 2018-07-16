@@ -79,14 +79,14 @@ struct PairwiseForces
         return true;
     }
 
-    /// Sorting the pairwise forces by i, j, and type
-    void sort() const;
-
     /// Return the number of frames within a pfr-file
     size_t get_number_of_frames() const;
 
     /// Return pairwise forces of all frames
-    std::vector<std::vector<PairwiseForce<ForceType>>> get_all_pairwise_forces() const;
+    std::vector<std::vector<PairwiseForce<ForceType>>> get_all_pairwise_forces(bool sort = false) const;
+
+    /// Sorting the pairwise forces by i, j, and type
+    void sort(std::vector<PairwiseForce<ForceType>>& pairwise_forces) const;
 
     /// Return the maximum index number of the second column and the first frame.
     size_t get_max_index_second_column_first_frame() const;
