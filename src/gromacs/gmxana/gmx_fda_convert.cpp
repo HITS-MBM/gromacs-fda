@@ -1,5 +1,5 @@
 /*
- * fda_convert.cpp
+ * gmx_fda_convert.cpp
  *
  *  Created on: Jul 16, 2018
  *      Author: Bernd Doser, HITS gGmbH <bernd.doser@h-its.org>
@@ -22,7 +22,7 @@
 
 using namespace fda;
 
-int main(int argc, char *argv[])
+int gmx_fda_convert(int argc, char *argv[])
 {
     std::cout << "FDA convert" << std::endl;
 
