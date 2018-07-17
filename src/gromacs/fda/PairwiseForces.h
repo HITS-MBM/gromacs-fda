@@ -99,6 +99,12 @@ struct PairwiseForces
     /// atom/residues. Returns average over all frames.
     std::vector<double> get_averaged_forcematrix(int nbParticles) const;
 
+    /// Write all pairwise forces to file
+    void write(std::string const& filename, bool binary = false) const;
+
+    /// Returns true if the format is binary
+    bool is_binary() const;
+
 private:
 
     /// Output stream
