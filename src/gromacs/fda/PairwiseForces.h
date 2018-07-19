@@ -19,26 +19,26 @@ namespace fda {
 template <typename ForceType>
 struct PairwiseForce
 {
-	PairwiseForce(int i, int j, ForceType force)
-	 : i(i), j(j), force(force)
-	{}
+    PairwiseForce(int i, int j, ForceType force)
+     : i(i), j(j), force(force)
+    {}
 
-	bool operator == (PairwiseForce const& other) const {
-		return i == other.i and j == other.j and force == other.force;
-	}
+    bool operator == (PairwiseForce const& other) const {
+        return i == other.i and j == other.j and force == other.force;
+    }
 
-	bool operator != (PairwiseForce const& other) const {
-		return !operator == (other);
-	}
+    bool operator != (PairwiseForce const& other) const {
+        return !operator == (other);
+    }
 
-	template <class Comparer>
-	bool equal(PairwiseForce const& other, Comparer const& comparer) const {
-		return i == other.i and j == other.j and force.equal(other.force, comparer);
-	}
+    template <class Comparer>
+    bool equal(PairwiseForce const& other, Comparer const& comparer) const {
+        return i == other.i and j == other.j and force.equal(other.force, comparer);
+    }
 
-	int i;
-	int j;
-	ForceType force;
+    int i;
+    int j;
+    ForceType force;
 };
 
 /**
@@ -54,8 +54,8 @@ struct PairwiseForces
     template <class Comparer>
     bool equal(PairwiseForces const& other, Comparer const& comparer) const
     {
-    	std::vector<std::vector<PairwiseForce<ForceType>>> pfl1 = this->get_all_pairwise_forces();
-    	std::vector<std::vector<PairwiseForce<ForceType>>> pfl2 = other.get_all_pairwise_forces();
+        std::vector<std::vector<PairwiseForce<ForceType>>> pfl1 = this->get_all_pairwise_forces();
+        std::vector<std::vector<PairwiseForce<ForceType>>> pfl2 = other.get_all_pairwise_forces();
 
         if (pfl1.size() != pfl2.size()) return false;
 
@@ -107,10 +107,16 @@ struct PairwiseForces
 
 private:
 
+    std::vector<PairwiseForce<ForceType>> get_pairwise_forces(std::ifstream& is) const;
+    std::vector<PairwiseForce<ForceType>> get_pairwise_forces_binary(std::ifstream& is) const;
+
+    void write_pairwise_forces(std::ofstream& os) const;
+    void write_pairwise_forces_binary(std::ofstream& os) const;
+
     /// Output stream
     friend std::ostream& operator << (std::ostream& os, PairwiseForces const& pf)
     {
-    	std::vector<std::vector<PairwiseForce<ForceType>>> all_pairwise_forces = pf.get_all_pairwise_forces();
+        std::vector<std::vector<PairwiseForce<ForceType>>> all_pairwise_forces = pf.get_all_pairwise_forces();
         for (size_t i = 0; i != all_pairwise_forces.size(); ++i) {
             os << "frame " << i << std::endl;
             for (auto const& e : all_pairwise_forces[i]) {

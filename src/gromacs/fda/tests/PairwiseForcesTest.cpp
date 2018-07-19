@@ -23,7 +23,8 @@ TEST_F(PairwiseForcesTest, ReadFile1)
     std::string data_path = std::string(fileManager().getInputDataDirectory()) + "/data";
 
     PairwiseForces<Force<real>> pf(data_path + "/test1.pfa");
-    auto pf_all = pf.get_all_pairwise_forces(true);
+    auto&& pf_all = pf.get_all_pairwise_forces(true);
+	std::cout << pf << std::endl;
 
     double abs_error_float = 1e-6;
 
