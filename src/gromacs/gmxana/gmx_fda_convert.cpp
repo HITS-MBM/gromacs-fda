@@ -50,7 +50,7 @@ int gmx_fda_convert(int argc, char *argv[])
         std::cout << "output file = " << opt2fn("-o", NFILE, fnm) << std::endl;
 #endif
 
-    // Open pairwise forces file
+    // Convert pairwise force file from text into binary or vice versa
     fda::PairwiseForces<fda::Force<real>> pairwise_forces(opt2fn("-i", NFILE, fnm));
     pairwise_forces.write(opt2fn("-o", NFILE, fnm), pairwise_forces.is_binary());
 

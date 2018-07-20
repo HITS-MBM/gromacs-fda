@@ -110,8 +110,8 @@ private:
     std::vector<PairwiseForce<ForceType>> get_pairwise_forces(std::ifstream& is) const;
     std::vector<PairwiseForce<ForceType>> get_pairwise_forces_binary(std::ifstream& is) const;
 
-    void write_pairwise_forces(std::ofstream& os) const;
-    void write_pairwise_forces_binary(std::ofstream& os) const;
+    void write_pairwise_forces(std::ofstream& os, std::vector<PairwiseForce<ForceType>> const& pairwise_forces) const;
+    void write_pairwise_forces_binary(std::ofstream& os, std::vector<PairwiseForce<ForceType>> const& pairwise_forces) const;
 
     /// Output stream
     friend std::ostream& operator << (std::ostream& os, PairwiseForces const& pf)

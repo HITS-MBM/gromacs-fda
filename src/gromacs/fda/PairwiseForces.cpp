@@ -189,8 +189,14 @@ void PairwiseForces<ForceType>::write(std::string const& out_filename, bool out_
         std::ofstream os(out_filename);
         if (!os) gmx_fatal(FARGS, "Error opening file.");
 
-        auto&& pairwise_forces = get_pairwise_forces(is);
-        write_pairwise_forces_binary(os);
+        std::string token;
+        for (int i = 0; i != 3; ++i) is >> token;
+        for (;;)
+        {
+        	auto&& pairwise_forces = get_pairwise_forces(is);
+        	if (pairwise_forces.empty()) break;
+            write_pairwise_forces_binary(os, pairwise_forces);
+        }
     } else {
         gmx_fatal(FARGS, "Wrong binary mode in PairwiseForces<ForceType>::write");
     }
@@ -238,27 +244,30 @@ std::vector<PairwiseForce<ForceType>> PairwiseForces<ForceType>::get_pairwise_fo
 {}
 
 template <typename ForceType>
-void PairwiseForces<ForceType>::write_pairwise_forces(std::ofstream& os) const
+void PairwiseForces<ForceType>::write_pairwise_forces(std::ofstream& os, std::vector<PairwiseForce<ForceType>> const& pairwise_forces) const
 {}
 
 template <typename ForceType>
-void PairwiseForces<ForceType>::write_pairwise_forces_binary(std::ofstream& os) const
+void PairwiseForces<ForceType>::write_pairwise_forces_binary(std::ofstream& os, std::vector<PairwiseForce<ForceType>> const& pairwise_forces) const
 {
-//    uint num = number_of_nonempty_entries(summed);
-//    os.write(reinterpret_cast<char*>(&num), sizeof(uint));
-//    for (uint i = 0; i != summed.size(); ++i) {
-//        if (summed[i].empty()) continue;
-//        os.write(reinterpret_cast<char*>(&i), sizeof(uint));
-//        uint num_j = summed[i].size();
-//        os.write(reinterpret_cast<char*>(&num_j), sizeof(uint));
-//        for (uint p = 0; p != num_j; ++p) {
-//            uint j = indices[i][p];
-//            os.write(reinterpret_cast<char*>(&j), sizeof(uint));
-//            real scalar = vector2signedscalar(summed[i][p].force.get_pointer(), x[i], x[j], box, fda_settings.v2s);
-//            os.write(reinterpret_cast<const char*>(&scalar), sizeof(real));
-//            os.write(reinterpret_cast<const char*>(&summed[i][p].type), sizeof(uint));
-//        }
-//    }
+	uint nb_interaction = pairwise_forces.size();
+    os.write(reinterpret_cast<char*>(&nb_interaction), sizeof(uint));
+    auto&& iter_end = pairwise_forces.end();
+    for (auto&& iter = pairwise_forces.begin(); iter != iter_end; ++iter) {
+        os.write(reinterpret_cast<const char*>(&(iter->i)), sizeof(uint));
+        uint nb_interactions_of_i = 0;
+        auto&& iter2 = iter + 1;
+        for (; iter2 != iter_end; ++iter2) {
+        	++nb_interactions_of_i;
+        	if (iter2->i != iter->i) break;
+        }
+        os.write(reinterpret_cast<char*>(&nb_interactions_of_i), sizeof(uint));
+        for (; iter != iter2; ++iter) {
+            os.write(reinterpret_cast<const char*>(&iter->j), sizeof(uint));
+            os.write(reinterpret_cast<const char*>(&iter->force.force), sizeof(real));
+            os.write(reinterpret_cast<const char*>(&iter->force.type), sizeof(uint));
+        }
+    }
 }
 
 /// template instantiation
