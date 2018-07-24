@@ -47,10 +47,10 @@ std::vector<std::vector<PairwiseForce<ForceType>>> PairwiseForces<ForceType>::ge
     is >> token >> token; // skip first frame
     for (;;)
     {
-    	auto&& pairwise_forces = get_pairwise_forces(is);
-    	if (pairwise_forces.empty()) break;
-    	if (sort) this->sort(pairwise_forces);
-    	all_pairwise_forces.push_back(pairwise_forces);
+        auto&& pairwise_forces = get_pairwise_forces(is);
+        if (pairwise_forces.empty()) break;
+        if (sort) this->sort(pairwise_forces);
+        all_pairwise_forces.push_back(pairwise_forces);
     }
     return all_pairwise_forces;
 }
@@ -178,23 +178,50 @@ template <typename ForceType>
 void PairwiseForces<ForceType>::write(std::string const& out_filename, bool out_binary) const
 {
     if (this->is_binary() == true and out_binary == false) {
-        std::ifstream file(filename, std::ifstream::binary);
-        if (!file) gmx_fatal(FARGS, "Error opening file.");
-        std::ofstream ofile(out_filename);
-        if (!ofile) gmx_fatal(FARGS, "Error opening file.");
-
-    } else if (this->is_binary() == false and out_binary == true) {
         std::ifstream is(filename, std::ifstream::binary);
         if (!is) gmx_fatal(FARGS, "Error opening file.");
+
+        // get length of file:
+        is.seekg (0, is.end);
+        int length = is.tellg();
+        is.seekg (0, is.beg);
+
         std::ofstream os(out_filename);
         if (!os) gmx_fatal(FARGS, "Error opening file.");
 
-        std::string token;
-        for (int i = 0; i != 3; ++i) is >> token;
+        char first_character;
+        is.read(&first_character, 1);
+        if (first_character != 'b') gmx_fatal(FARGS, "Wrong file type in PairwiseForces<ForceType>::write");
+
+        os << "pairwise_forces_scalar\n";
+
+        int frame = 0;
         for (;;)
         {
-        	auto&& pairwise_forces = get_pairwise_forces(is);
-        	if (pairwise_forces.empty()) break;
+            auto&& pairwise_forces = get_pairwise_forces_binary(is);
+            write_pairwise_forces(os, pairwise_forces, frame);
+            if (is.tellg() == length) break;
+            ++frame;
+        }
+    } else if (this->is_binary() == false and out_binary == true) {
+        std::ifstream is(filename);
+        if (!is) gmx_fatal(FARGS, "Error opening file.");
+
+        std::ofstream os(out_filename, std::ifstream::binary);
+        if (!os) gmx_fatal(FARGS, "Error opening file.");
+
+        std::string token;
+        is >> token;
+        if (token != "pairwise_forces_scalar") gmx_fatal(FARGS, "Wrong file type in PairwiseForces<ForceType>::write");
+        is >> token >> token;
+
+    	char b = 'b';
+		os.write(&b, 1);
+
+        for (;;)
+        {
+            auto&& pairwise_forces = get_pairwise_forces(is);
+            if (pairwise_forces.empty()) break;
             write_pairwise_forces_binary(os, pairwise_forces);
         }
     } else {
@@ -241,25 +268,47 @@ std::vector<PairwiseForce<ForceType>> PairwiseForces<ForceType>::get_pairwise_fo
 
 template <typename ForceType>
 std::vector<PairwiseForce<ForceType>> PairwiseForces<ForceType>::get_pairwise_forces_binary(std::ifstream& is) const
-{}
+{
+    int i, j, nb_interaction, nb_interactions_of_i, type;
+    real force;
+    std::vector<PairwiseForce<ForceType>> pairwise_forces;
+    is.read(reinterpret_cast<char*>(&nb_interaction), sizeof(uint));
+    for (int n = 0; n != nb_interaction;) {
+        is.read(reinterpret_cast<char*>(&i), sizeof(uint));
+        is.read(reinterpret_cast<char*>(&nb_interactions_of_i), sizeof(uint));
+        for (int m = 0; m != nb_interactions_of_i; ++m, ++n) {
+            is.read(reinterpret_cast<char*>(&j), sizeof(uint));
+            is.read(reinterpret_cast<char*>(&force), sizeof(real));
+            is.read(reinterpret_cast<char*>(&type), sizeof(uint));
+            pairwise_forces.push_back(PairwiseForce<ForceType>(i, j, ForceType(force, type)));
+        }
+    }
+    return pairwise_forces;
+}
 
 template <typename ForceType>
-void PairwiseForces<ForceType>::write_pairwise_forces(std::ofstream& os, std::vector<PairwiseForce<ForceType>> const& pairwise_forces) const
-{}
+void PairwiseForces<ForceType>::write_pairwise_forces(std::ofstream& os, std::vector<PairwiseForce<ForceType>> const& pairwise_forces, int frame) const
+{
+    os << "frame " << frame << "\n";
+    for (auto&& pf : pairwise_forces) {
+        os << pf.i << " " << pf.j << " " << pf.force << "\n";
+    }
+    os << std::flush;
+}
 
 template <typename ForceType>
 void PairwiseForces<ForceType>::write_pairwise_forces_binary(std::ofstream& os, std::vector<PairwiseForce<ForceType>> const& pairwise_forces) const
 {
-	uint nb_interaction = pairwise_forces.size();
+    uint nb_interaction = pairwise_forces.size();
     os.write(reinterpret_cast<char*>(&nb_interaction), sizeof(uint));
     auto&& iter_end = pairwise_forces.end();
     for (auto&& iter = pairwise_forces.begin(); iter != iter_end; ++iter) {
         os.write(reinterpret_cast<const char*>(&(iter->i)), sizeof(uint));
-        uint nb_interactions_of_i = 0;
+        uint nb_interactions_of_i = 1;
         auto&& iter2 = iter + 1;
         for (; iter2 != iter_end; ++iter2) {
-        	++nb_interactions_of_i;
-        	if (iter2->i != iter->i) break;
+            if (iter2->i != iter->i) break;
+            ++nb_interactions_of_i;
         }
         os.write(reinterpret_cast<char*>(&nb_interactions_of_i), sizeof(uint));
         for (; iter != iter2; ++iter) {
@@ -267,6 +316,7 @@ void PairwiseForces<ForceType>::write_pairwise_forces_binary(std::ofstream& os, 
             os.write(reinterpret_cast<const char*>(&iter->force.force), sizeof(real));
             os.write(reinterpret_cast<const char*>(&iter->force.type), sizeof(uint));
         }
+        --iter;
     }
 }
 

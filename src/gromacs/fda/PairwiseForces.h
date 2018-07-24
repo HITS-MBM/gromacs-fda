@@ -41,6 +41,18 @@ struct PairwiseForce
     ForceType force;
 };
 
+/// Output stream
+template <typename ForceType>
+std::ostream& operator << (std::ostream& os, std::vector<PairwiseForce<ForceType>> const& pairwise_forces)
+{
+	for (auto&& e : pairwise_forces) {
+		os << e.i << " "
+		   << e.j << " "
+		   << e.force << std::endl;
+	}
+    return os;
+}
+
 /**
  * Read pairwise forces from file into arrays and compare.
  */
@@ -110,7 +122,7 @@ private:
     std::vector<PairwiseForce<ForceType>> get_pairwise_forces(std::ifstream& is) const;
     std::vector<PairwiseForce<ForceType>> get_pairwise_forces_binary(std::ifstream& is) const;
 
-    void write_pairwise_forces(std::ofstream& os, std::vector<PairwiseForce<ForceType>> const& pairwise_forces) const;
+    void write_pairwise_forces(std::ofstream& os, std::vector<PairwiseForce<ForceType>> const& pairwise_forces, int frame) const;
     void write_pairwise_forces_binary(std::ofstream& os, std::vector<PairwiseForce<ForceType>> const& pairwise_forces) const;
 
     /// Output stream
