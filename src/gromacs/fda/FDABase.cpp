@@ -126,10 +126,16 @@ void FDABase<Base>::write_frame_scalar(int nsteps)
     distributed_forces.write_scalar(result_file);
 }
 
-template <class Base>
-void FDABase<Base>::write_total_forces(gmx::HostVector<gmx::RVec> const& x)
+template <>
+void FDABase<Atom>::write_total_forces(gmx::HostVector<gmx::RVec> const& x)
 {
     distributed_forces.write_total_forces(result_file, x);
+}
+
+template <>
+void FDABase<Residue>::write_total_forces(gmx::HostVector<gmx::RVec> const& x)
+{
+    distributed_forces.write_total_forces(result_file, x, fda_settings.normalize_psr);
 }
 
 template <class Base>

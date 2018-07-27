@@ -63,7 +63,7 @@ public:
 
     void write_scalar(std::ostream& os) const;
 
-    void write_total_forces(std::ostream& os, gmx::HostVector<gmx::RVec> const& x) const;
+    void write_total_forces(std::ostream& os, gmx::HostVector<gmx::RVec> const& x, bool normalize_psr = false) const;
 
     void write_scalar_compat_ascii(std::ostream& os) const;
 

@@ -190,7 +190,7 @@ void DistributedForces::write_scalar(std::ostream& os) const
     }
 }
 
-void DistributedForces::write_total_forces(std::ostream& os, gmx::HostVector<gmx::RVec> const& x) const
+void DistributedForces::write_total_forces(std::ostream& os, gmx::HostVector<gmx::RVec> const& x, bool normalize_psr) const
 {
     std::vector<real> total_forces(syslen, 0.0);
     for (size_t i = 0; i != summed.size(); ++i) {
@@ -227,6 +227,7 @@ void DistributedForces::write_total_forces(std::ostream& os, gmx::HostVector<gmx
     // j holds the index of first zero item or the length of force
     bool first_on_line = true;
     for (int i = 0; i < j; ++i) {
+    	if (normalize_psr and std::abs(total_forces[i]) != 0.0) total_forces[i] /= fda_settings.residue_size[i];
         if (first_on_line) {
             os << total_forces[i];
             first_on_line = false;

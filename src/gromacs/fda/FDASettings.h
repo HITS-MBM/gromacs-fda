@@ -149,6 +149,9 @@ struct FDASettings
     /// Stores the residue number for each atom; array of length syslen; only initialized if ResidueBased is non-zero
     std::vector<int> atom_2_residue;
 
+    /// Stores the number of atoms for each residue; only initialized if ResidueBased is non-zero
+    std::vector<int> residue_size;
+
     /// Version of force matrix implementation (compat mode)
     static const std::string compat_fm_version;
 
@@ -175,6 +178,9 @@ struct FDASettings
 
     /// Forces lower than threshold will not be considered
     real threshold;
+
+    /// Normalize punctual stress per residue (default: off)
+    bool normalize_psr;
 
 };
 

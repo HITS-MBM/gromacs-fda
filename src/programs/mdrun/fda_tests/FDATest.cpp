@@ -148,6 +148,8 @@ INSTANTIATE_TEST_CASE_P(AllFDATests, FDATest, ::testing::Values(
     TestDataStructure("alagly_pairwise_forces_scalar_detailed_no_residue_based", "pfa", ""),
     TestDataStructure("alagly_pairwise_forces_vector", "pfa", "pfr", "traj.trr", true),
     TestDataStructure("alagly_punctual_stress", "psa", "psr"),
+    TestDataStructure("alagly_punctual_stress_normalized", "psa", "psr"),
+    TestDataStructure("alagly_punctual_stress_normalized_renumbered", "psa", "psr"),
     TestDataStructure("alagly_pairwise_forces_scalar_detailed_nonbonded", "pfa", "pfr"),
     TestDataStructure("alagly_pairwise_forces_vector_detailed_nonbonded", "pfa", "pfr", "traj.trr", true),
     TestDataStructure("alagly_verlet_summed_scalar", "pfa", "pfr"),
