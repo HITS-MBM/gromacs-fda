@@ -59,9 +59,7 @@ std::ostream& operator << (std::ostream& os, std::vector<PairwiseForce<ForceType
 template <typename ForceType>
 struct PairwiseForces
 {
-    PairwiseForces(std::string const& filename)
-     : filename(filename)
-    {}
+    PairwiseForces(std::string const& filename);
 
     template <class Comparer>
     bool equal(PairwiseForces const& other, Comparer const& comparer) const
@@ -71,7 +69,6 @@ struct PairwiseForces
 
         if (pfl1.size() != pfl2.size()) return false;
 
-        // std::zip would be nice; avoid boost::zip as boost was ejected by gromacs
         for (size_t frame = 0; frame != pfl1.size(); ++frame) {
             auto pf1 = pfl1[frame];
             auto pf2 = pfl2[frame];
@@ -115,7 +112,7 @@ struct PairwiseForces
     void write(std::string const& filename, bool binary = false) const;
 
     /// Returns true if the format is binary
-    bool is_binary() const;
+    bool get_is_binary() const { return is_binary; }
 
 private:
 
@@ -141,6 +138,8 @@ private:
     }
 
     std::string filename;
+
+    bool is_binary;
 
 };
 

@@ -88,8 +88,6 @@ public:
 
     void write_frame_scalar(int nsteps);
 
-    void sum_total_forces(gmx::HostVector<gmx::RVec> const& x);
-
     void write_total_forces(gmx::HostVector<gmx::RVec> const& x);
 
     /**

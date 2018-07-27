@@ -112,7 +112,7 @@ void DistributedForces::write_detailed_scalar(std::ostream& os, gmx::HostVector<
 void DistributedForces::write_summed_vector(std::ostream& os) const
 {
     if (fda_settings.binary_result_file) {
-		uint num = number_of_nonempty_entries(summed);
+		uint num = number_of_interactions(summed);
 		os.write(reinterpret_cast<char*>(&num), sizeof(uint));
 		for (uint i = 0; i != summed.size(); ++i) {
 			if (summed[i].empty()) continue;
@@ -145,7 +145,7 @@ void DistributedForces::write_summed_vector(std::ostream& os) const
 void DistributedForces::write_summed_scalar(std::ostream& os, gmx::HostVector<gmx::RVec> const& x, const matrix box) const
 {
     if (fda_settings.binary_result_file) {
-        uint num = number_of_nonempty_entries(summed);
+        uint num = number_of_interactions(summed);
         os.write(reinterpret_cast<char*>(&num), sizeof(uint));
         for (uint i = 0; i != summed.size(); ++i) {
             if (summed[i].empty()) continue;
@@ -451,13 +451,11 @@ void DistributedForces::summed_merge_to_scalar(gmx::HostVector<gmx::RVec> const&
 }
 
 template <class T>
-int DistributedForces::number_of_nonempty_entries(std::vector<T> const& v) const
+int DistributedForces::number_of_interactions(std::vector<T> const& v) const
 {
-    int number_of_nonempty_entries = 0;
-    for (size_t i = 0; i != v.size(); ++i) {
-        if (v[i].size() != 0) ++number_of_nonempty_entries;
-    }
-    return number_of_nonempty_entries;
+    int number_of_interactions = 0;
+    for (auto&& e : v) number_of_interactions += e.size();
+    return number_of_interactions;
 }
 
 } // namespace fda

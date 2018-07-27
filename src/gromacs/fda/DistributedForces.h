@@ -84,7 +84,7 @@ private:
     template <class Base> friend class FDABase;
 
     template <class T>
-    int number_of_nonempty_entries(std::vector<T> const& v) const;
+    int number_of_interactions(std::vector<T> const& v) const;
 
     /// Total number of atoms/residues in the system
     int syslen;

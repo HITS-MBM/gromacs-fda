@@ -16,6 +16,18 @@
 namespace fda {
 
 template <typename ForceType>
+PairwiseForces<ForceType>::PairwiseForces(std::string const& filename)
+ : filename(filename),
+   is_binary(false)
+{
+    std::ifstream file(filename);
+    if (!file) gmx_fatal(FARGS, "Error opening file.");
+    char first_character;
+    file.read(&first_character, 1);
+    if (first_character == 'b') is_binary = true;
+}
+
+template <typename ForceType>
 size_t PairwiseForces<ForceType>::get_number_of_frames() const
 {
     std::ifstream file(filename);
@@ -41,16 +53,42 @@ template <typename ForceType>
 std::vector<std::vector<PairwiseForce<ForceType>>> PairwiseForces<ForceType>::get_all_pairwise_forces(bool sort) const
 {
     std::vector<std::vector<PairwiseForce<ForceType>>> all_pairwise_forces;
-    std::ifstream is(filename);
-    std::string token;
-    is >> token; // skip file type
-    is >> token >> token; // skip first frame
-    for (;;)
-    {
-        auto&& pairwise_forces = get_pairwise_forces(is);
-        if (pairwise_forces.empty()) break;
-        if (sort) this->sort(pairwise_forces);
-        all_pairwise_forces.push_back(pairwise_forces);
+    if (this->is_binary == true) {
+        std::ifstream is(filename, std::ifstream::binary);
+        if (!is) gmx_fatal(FARGS, "Error opening file.");
+
+        // get length of file:
+        is.seekg (0, is.end);
+        int length = is.tellg();
+        is.seekg (0, is.beg);
+
+        char first_character;
+        is.read(&first_character, 1);
+        if (first_character != 'b') gmx_fatal(FARGS, "Wrong file type in PairwiseForces<ForceType>::get_all_pairwise_forces");
+
+        for (;;)
+        {
+            auto&& pairwise_forces = get_pairwise_forces_binary(is);
+            if (sort) this->sort(pairwise_forces);
+            all_pairwise_forces.push_back(pairwise_forces);
+            if (is.tellg() == length) break;
+        }
+    } else {
+        std::ifstream is(filename);
+        if (!is) gmx_fatal(FARGS, "Error opening file.");
+
+        std::string token;
+        is >> token;
+        if (token != "pairwise_forces_scalar" and token != "pairwise_forces_vector") gmx_fatal(FARGS, "Wrong file type in PairwiseForces<ForceType>::get_all_pairwise_forces");
+        is >> token >> token;
+
+        for (;;)
+        {
+            auto&& pairwise_forces = get_pairwise_forces(is);
+            if (pairwise_forces.empty()) break;
+            if (sort) this->sort(pairwise_forces);
+            all_pairwise_forces.push_back(pairwise_forces);
+        }
     }
     return all_pairwise_forces;
 }
@@ -177,7 +215,7 @@ std::vector<double> PairwiseForces<ForceType>::get_averaged_forcematrix(int nbPa
 template <typename ForceType>
 void PairwiseForces<ForceType>::write(std::string const& out_filename, bool out_binary) const
 {
-    if (this->is_binary() == true and out_binary == false) {
+    if (this->is_binary == true and out_binary == false) {
         std::ifstream is(filename, std::ifstream::binary);
         if (!is) gmx_fatal(FARGS, "Error opening file.");
 
@@ -203,7 +241,7 @@ void PairwiseForces<ForceType>::write(std::string const& out_filename, bool out_
             if (is.tellg() == length) break;
             ++frame;
         }
-    } else if (this->is_binary() == false and out_binary == true) {
+    } else if (this->is_binary == false and out_binary == true) {
         std::ifstream is(filename);
         if (!is) gmx_fatal(FARGS, "Error opening file.");
 
@@ -227,16 +265,6 @@ void PairwiseForces<ForceType>::write(std::string const& out_filename, bool out_
     } else {
         gmx_fatal(FARGS, "Wrong binary mode in PairwiseForces<ForceType>::write");
     }
-}
-
-template <typename ForceType>
-bool PairwiseForces<ForceType>::is_binary() const
-{
-    std::ifstream file(filename);
-    if (!file) gmx_fatal(FARGS, "Error opening file.");
-    char first_character;
-    file.read(&first_character, 1);
-    return first_character == 'b';
 }
 
 template <typename ForceType>
