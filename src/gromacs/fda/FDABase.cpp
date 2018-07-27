@@ -29,6 +29,9 @@ FDABase<Base>::FDABase(ResultType result_type, int syslen, std::string const& re
     	result_file.open(result_filename, std::ifstream::binary);
     	char b = 'b';
 		result_file.write(&b, 1);
+	    if (result_type == ResultType::PUNCTUAL_STRESS) {
+	    	result_file.write(reinterpret_cast<char*>(&syslen), sizeof(uint));
+	    }
     } else {
     	result_file.open(result_filename);
     	result_file << result_type << std::endl;

@@ -112,33 +112,33 @@ void DistributedForces::write_detailed_scalar(std::ostream& os, gmx::HostVector<
 void DistributedForces::write_summed_vector(std::ostream& os) const
 {
     if (fda_settings.binary_result_file) {
-		uint num = number_of_interactions(summed);
-		os.write(reinterpret_cast<char*>(&num), sizeof(uint));
-		for (uint i = 0; i != summed.size(); ++i) {
-			if (summed[i].empty()) continue;
-			os.write(reinterpret_cast<char*>(&i), sizeof(uint));
-			uint num_j = summed[i].size();
-			os.write(reinterpret_cast<char*>(&num_j), sizeof(uint));
-			for (uint p = 0; p != num_j; ++p) {
-				uint j = indices[i][p];
-				os.write(reinterpret_cast<char*>(&j), sizeof(uint));
-				os.write(reinterpret_cast<const char*>(summed[i][p].force.get_pointer()), 3*sizeof(real));
-				os.write(reinterpret_cast<const char*>(&summed[i][p].type), sizeof(uint));
-			}
-		}
+        uint num = number_of_interactions(summed);
+        os.write(reinterpret_cast<char*>(&num), sizeof(uint));
+        for (uint i = 0; i != summed.size(); ++i) {
+            if (summed[i].empty()) continue;
+            os.write(reinterpret_cast<char*>(&i), sizeof(uint));
+            uint num_j = summed[i].size();
+            os.write(reinterpret_cast<char*>(&num_j), sizeof(uint));
+            for (uint p = 0; p != num_j; ++p) {
+                uint j = indices[i][p];
+                os.write(reinterpret_cast<char*>(&j), sizeof(uint));
+                os.write(reinterpret_cast<const char*>(summed[i][p].force.get_pointer()), 3*sizeof(real));
+                os.write(reinterpret_cast<const char*>(&summed[i][p].type), sizeof(uint));
+            }
+        }
     } else {
-		for (size_t i = 0; i != summed.size(); ++i) {
-			auto const& summed_i = summed[i];
-			auto const& indices_i = indices[i];
-			for (size_t p = 0; p != summed_i.size(); ++p) {
-				size_t j = indices_i[p];
-				auto const& summed_j = summed_i[p];
-				Vector const& force = summed_j.force;
-				os << i << " " << j << " "
-				   << force[XX] << " " << force[YY] << " " << force[ZZ] << " "
-				   << summed_j.type << std::endl;
-			}
-		}
+        for (size_t i = 0; i != summed.size(); ++i) {
+            auto const& summed_i = summed[i];
+            auto const& indices_i = indices[i];
+            for (size_t p = 0; p != summed_i.size(); ++p) {
+                size_t j = indices_i[p];
+                auto const& summed_j = summed_i[p];
+                Vector const& force = summed_j.force;
+                os << i << " " << j << " "
+                   << force[XX] << " " << force[YY] << " " << force[ZZ] << " "
+                   << summed_j.type << std::endl;
+            }
+        }
     }
 }
 
@@ -177,15 +177,32 @@ void DistributedForces::write_summed_scalar(std::ostream& os, gmx::HostVector<gm
 
 void DistributedForces::write_scalar(std::ostream& os) const
 {
-    for (size_t i = 0; i != scalar.size(); ++i) {
-        auto const& scalar_i = scalar[i];
-        auto const& scalar_indices_i = scalar_indices[i];
-        for (size_t p = 0; p != scalar_i.size(); ++p) {
-            size_t j = scalar_indices_i[p];
-            auto const& scalar_j = scalar_i[p];
-            os << i << " " << j << " "
-               << scalar_j.force << " "
-               << scalar_j.type << std::endl;
+    if (fda_settings.binary_result_file) {
+        uint num = number_of_interactions(scalar);
+        os.write(reinterpret_cast<char*>(&num), sizeof(uint));
+        for (uint i = 0; i != scalar.size(); ++i) {
+            if (scalar[i].empty()) continue;
+            os.write(reinterpret_cast<char*>(&i), sizeof(uint));
+            uint num_j = scalar[i].size();
+            os.write(reinterpret_cast<char*>(&num_j), sizeof(uint));
+            for (uint p = 0; p != num_j; ++p) {
+                uint j = indices[i][p];
+                os.write(reinterpret_cast<char*>(&j), sizeof(uint));
+                os.write(reinterpret_cast<const char*>(&scalar[i][p].force), sizeof(real));
+                os.write(reinterpret_cast<const char*>(&scalar[i][p].type), sizeof(uint));
+            }
+        }
+    } else {
+        for (size_t i = 0; i != scalar.size(); ++i) {
+            auto const& scalar_i = scalar[i];
+            auto const& scalar_indices_i = scalar_indices[i];
+            for (size_t p = 0; p != scalar_i.size(); ++p) {
+                size_t j = scalar_indices_i[p];
+                auto const& scalar_j = scalar_i[p];
+                os << i << " " << j << " "
+                   << scalar_j.force << " "
+                   << scalar_j.type << std::endl;
+            }
         }
     }
 }
@@ -218,24 +235,35 @@ void DistributedForces::write_total_forces(std::ostream& os, gmx::HostVector<gmx
 
     int j = total_forces.size();
     // Detect the last non-zero item
+    // j holds the index of first zero item or the length of force
     if (fda_settings.no_end_zeros) {
         for (; j > 0; --j)
             if (total_forces[j - 1] != 0.0)
                 break;
     }
 
-    // j holds the index of first zero item or the length of force
-    bool first_on_line = true;
-    for (int i = 0; i < j; ++i) {
-    	if (normalize_psr and std::abs(total_forces[i]) != 0.0) total_forces[i] /= fda_settings.residue_size[i];
-        if (first_on_line) {
-            os << total_forces[i];
-            first_on_line = false;
-        } else {
-            os << " " << total_forces[i];
+    if (normalize_psr) {
+        for (int i = 0; i < j; ++i) {
+            if (std::abs(total_forces[i]) != 0.0) total_forces[i] /= fda_settings.residue_size[i];
         }
     }
-    os << std::endl;
+
+    if (fda_settings.binary_result_file) {
+        for (int i = 0; i < j; ++i) {
+            os.write(reinterpret_cast<const char*>(&total_forces[i]), sizeof(real));
+        }
+    } else {
+        bool first_on_line = true;
+        for (int i = 0; i < j; ++i) {
+            if (first_on_line) {
+                os << total_forces[i];
+                first_on_line = false;
+            } else {
+                os << " " << total_forces[i];
+            }
+        }
+        os << std::endl;
+    }
 }
 
 void DistributedForces::write_scalar_compat_ascii(std::ostream& os) const

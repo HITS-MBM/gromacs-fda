@@ -36,16 +36,14 @@ struct TestDataStructure
         std::string const& residueFileExtension,
         std::string const& trajectoryFilename = "traj.trr",
         bool is_vector = false,
-        bool must_die = false,
-        bool is_binary = false
+        bool must_die = false
     )
       : testDirectory(testDirectory),
         atomFileExtension(atomFileExtension),
         residueFileExtension(residueFileExtension),
         trajectoryFilename(trajectoryFilename),
         is_vector(is_vector),
-        must_die(must_die),
-        is_binary(is_binary)
+        must_die(must_die)
     {}
 
     std::string testDirectory;
@@ -54,7 +52,6 @@ struct TestDataStructure
     std::string trajectoryFilename;
     bool is_vector;
     bool must_die;
-    bool is_binary;
 };
 
 //! Test fixture for FDA
@@ -144,13 +141,14 @@ INSTANTIATE_TEST_CASE_P(AllFDATests, FDATest, ::testing::Values(
     TestDataStructure("alagly_pairwise_forces_scalar_detailed_no_residue_based", "pfa", ""),
     TestDataStructure("alagly_pairwise_forces_vector", "pfa", "pfr", "traj.trr", true),
     TestDataStructure("alagly_punctual_stress", "psa", "psr"),
+    //TestDataStructure("alagly_punctual_stress_binary", "psa", "psr"),
     TestDataStructure("alagly_punctual_stress_normalized", "psa", "psr"),
     TestDataStructure("alagly_punctual_stress_normalized_renumbered", "psa", "psr"),
     TestDataStructure("alagly_pairwise_forces_scalar_detailed_nonbonded", "pfa", "pfr"),
     TestDataStructure("alagly_pairwise_forces_vector_detailed_nonbonded", "pfa", "pfr", "traj.trr", true),
     TestDataStructure("alagly_verlet_summed_scalar", "pfa", "pfr"),
     TestDataStructure("alagly_verlet_pbc_summed_scalar", "pfa", "pfr"),
-    TestDataStructure("alagly_verlet_pbc_summed_scalar_binary", "pfa", "pfr", "traj.trr", false, false, true),
+    TestDataStructure("alagly_verlet_pbc_summed_scalar_binary", "pfa", "pfr", "traj.trr", false, false),
     TestDataStructure("alagly_group_excl", "pfa", "pfr"),
     TestDataStructure("alagly_group_excl_uncomplete_cgs", "pfa", "pfr"),
     TestDataStructure("alagly_pairwise_forces_scalar_all", "pfa", "pfr"),
