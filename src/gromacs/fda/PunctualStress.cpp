@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <fstream>
 #include <iostream>
+#include <iomanip>
 #include <sstream>
 #include <stdexcept>
 #include "gromacs/utility/fatalerror.h"
@@ -46,7 +47,8 @@ void PunctualStress::write(std::string const& out_filename, bool out_binary) con
         std::ofstream os(out_filename);
         if (!os) gmx_fatal(FARGS, "Error opening file.");
 
-    	os << ResultType::PUNCTUAL_STRESS << std::endl;
+    	os << std::scientific << std::setprecision(6)
+           << ResultType::PUNCTUAL_STRESS << std::endl;
 
         for (auto&& stress : stress_all_frames) {
             if (stress.size() > 0) os << stress[0];
@@ -86,14 +88,13 @@ PunctualStress::PunctualStressFrameArrayType PunctualStress::get_stress() const
         std::ifstream is(filename);
         if (!is) gmx_fatal(FARGS, "Error opening file.");
 
-        std::string token;
-        is >> token;
-        if (token != "punctual_stress") gmx_fatal(FARGS, "Wrong file type in PunctualStress::get_stress");
-        PunctualStressType stress;
-
         std::string line;
+        getline(is, line);
+        if (line != "punctual_stress") gmx_fatal(FARGS, "Wrong file type in PunctualStress::get_stress");
+
         if (getline(is, line))
         {
+            PunctualStressType stress;
             std::stringstream ss(line);
             real value;
             while(ss >> value) {
@@ -104,6 +105,7 @@ PunctualStress::PunctualStressFrameArrayType PunctualStress::get_stress() const
 
         while (getline(is, line))
         {
+            PunctualStressType stress;
             std::stringstream ss(line);
             real value;
             while(ss >> value) {

@@ -10,6 +10,7 @@
 #include "gromacs/commandline/filenm.h"
 #include "gromacs/commandline/pargs.h"
 #include "gromacs/fda/PairwiseForces.h"
+#include "gromacs/fda/PunctualStress.h"
 #include "gromacs/fileio/oenv.h"
 #include "gromacs/fileio/tpxio.h"
 #include "gromacs/fileio/trxio.h"
@@ -38,8 +39,8 @@ int gmx_fda_convert(int argc, char *argv[])
     t_pargs pa[] = {};
 
     t_filenm fnm[] = {
-        { efPFX, "-i", NULL, ffREAD },
-        { efPFX, "-o", NULL, ffWRITE }
+        { efFDACON, "-i", NULL, ffREAD },
+        { efFDACON, "-o", NULL, ffWRITE }
     };
 
 #define NFILE asize(fnm)
@@ -52,9 +53,13 @@ int gmx_fda_convert(int argc, char *argv[])
         std::cout << "output file = " << opt2fn("-o", NFILE, fnm) << std::endl;
 #endif
 
-    // Convert pairwise force file from text into binary or vice versa
-    fda::PairwiseForces<fda::Force<real>> pairwise_forces(opt2fn("-i", NFILE, fnm));
-    pairwise_forces.write(opt2fn("-o", NFILE, fnm), !pairwise_forces.get_is_binary());
+    if (fn2ftp(opt2fn("-i", NFILE, fnm)) == efPFA or fn2ftp(opt2fn("-i", NFILE, fnm)) == efPFR) {
+        fda::PairwiseForces<fda::Force<real>> pairwise_forces(opt2fn("-i", NFILE, fnm));
+        pairwise_forces.write(opt2fn("-o", NFILE, fnm), !pairwise_forces.get_is_binary());
+    } else if (fn2ftp(opt2fn("-i", NFILE, fnm)) == efPSA or fn2ftp(opt2fn("-i", NFILE, fnm)) == efPSR) {
+        fda::PunctualStress punctual_stress(opt2fn("-i", NFILE, fnm));
+        punctual_stress.write(opt2fn("-o", NFILE, fnm), !punctual_stress.get_is_binary());
+    }
 
     std::cout << "All done." << std::endl;
     return 0;
