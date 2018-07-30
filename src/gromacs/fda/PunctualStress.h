@@ -19,15 +19,16 @@ namespace fda {
  */
 struct PunctualStress
 {
-	typedef std::vector<std::vector<real>> PunctualStressArray;
+	typedef std::vector<real> PunctualStressType;
+	typedef std::vector<PunctualStressType> PunctualStressFrameArrayType;
 
     PunctualStress(std::string const& filename);
 
     template <class Comparer>
     bool equal(PunctualStress const& other, Comparer const& comparer) const
     {
-    	PunctualStressArray stress_array1 = this->get_stress();
-    	PunctualStressArray stress_array2 = other.get_stress();
+    	PunctualStressFrameArrayType stress_array1 = this->get_stress();
+    	PunctualStressFrameArrayType stress_array2 = other.get_stress();
 
         if (stress_array1.size() != stress_array2.size()) return false;
 
@@ -44,14 +45,14 @@ struct PunctualStress
     }
 
     /// Write punctual stress to file
-    void write(std::string const& filename, bool binary = false) const;
+    void write(std::string const& out_filename, bool out_binary = false) const;
 
     /// Returns true if the format is binary
     bool get_is_binary() const { return is_binary; }
 
 private:
 
-    PunctualStressArray get_stress() const;
+    PunctualStressFrameArrayType get_stress() const;
 
     std::string filename;
 

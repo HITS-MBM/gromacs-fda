@@ -27,45 +27,92 @@ PunctualStress::PunctualStress(std::string const& filename)
     if (first_character == 'b') is_binary = true;
 }
 
-void PunctualStress::write(std::string const& filename, bool binary = false) const
+void PunctualStress::write(std::string const& out_filename, bool out_binary) const
 {
-	auto&& stress = get_stress();
-    if (binary == false) {
+    auto&& stress_all_frames = get_stress();
+    if (out_binary) {
+        std::ofstream os(out_filename, std::ifstream::binary);
+        if (!os) gmx_fatal(FARGS, "Error opening file.");
+
+        char b = 'b';
+        os.write(&b, 1);
+
+        uint nb_atoms = stress_all_frames[0].size();
+        os.write(reinterpret_cast<char*>(&nb_atoms), sizeof(uint));
+        for (auto&& stress : stress_all_frames) {
+            os.write(reinterpret_cast<char*>(&stress[0]), nb_atoms * sizeof(real));
+        }
     } else {
+        std::ofstream os(out_filename);
+        if (!os) gmx_fatal(FARGS, "Error opening file.");
+
+    	os << ResultType::PUNCTUAL_STRESS << std::endl;
+
+        for (auto&& stress : stress_all_frames) {
+            if (stress.size() > 0) os << stress[0];
+            for (uint i = 1; i < stress.size(); ++i) {
+                os << " " << stress[i];
+            }
+            os << std::endl;
+        }
     }
 }
 
-PunctualStress::PunctualStressArray PunctualStress::get_stress() const
+PunctualStress::PunctualStressFrameArrayType PunctualStress::get_stress() const
 {
-	PunctualStressArray stress;
+    PunctualStressFrameArrayType stress_all_frames;
     if (this->is_binary) {
-    	std::ifstream is(filename, std::ifstream::binary);
-		if (!is) gmx_fatal(FARGS, "Error opening file.");
+        std::ifstream is(filename, std::ifstream::binary);
+        if (!is) gmx_fatal(FARGS, "Error opening file.");
 
-		// get length of file:
-		is.seekg (0, is.end);
-		int length = is.tellg();
-		is.seekg (0, is.beg);
+        // get length of file:
+        is.seekg (0, is.end);
+        int length = is.tellg();
+        is.seekg (0, is.beg);
 
-		char first_character;
-		is.read(&first_character, 1);
-		if (first_character != 'b') gmx_fatal(FARGS, "Wrong file type in PunctualStress::write");
+        char first_character;
+        is.read(&first_character, 1);
+        if (first_character != 'b') gmx_fatal(FARGS, "Wrong file type in PunctualStress::write");
 
-    	uint syslen;
-		is.read(reinterpret_cast<char*>(&syslen), sizeof(uint));
-		stress.resize(syslen);
-		for (;;) {
-			is.read(reinterpret_cast<char*>(&i), sizeof(uint));
-			is.read(reinterpret_cast<char*>(&nb_interactions_of_i), sizeof(uint));
-			for (int m = 0; m != syslen; ++m, ++n) {
-				is.read(reinterpret_cast<char*>(&stress), sizeof(real));
-				pairwise_forces.push_back(PairwiseForce<ForceType>(i, j, ForceType(force, type)));
-			}
-		}
+        uint syslen;
+        is.read(reinterpret_cast<char*>(&syslen), sizeof(uint));
+        PunctualStressType stress(syslen);
+        for (;;) {
+            is.read(reinterpret_cast<char*>(&stress[0]), syslen * sizeof(real));
+            stress_all_frames.push_back(stress);
+            if (is.tellg() == length) break;
+        }
     } else {
+        std::ifstream is(filename);
+        if (!is) gmx_fatal(FARGS, "Error opening file.");
 
+        std::string token;
+        is >> token;
+        if (token != "punctual_stress") gmx_fatal(FARGS, "Wrong file type in PunctualStress::get_stress");
+        PunctualStressType stress;
+
+        std::string line;
+        if (getline(is, line))
+        {
+            std::stringstream ss(line);
+            real value;
+            while(ss >> value) {
+               stress.push_back(value);
+            }
+            stress_all_frames.push_back(stress);
+        }
+
+        while (getline(is, line))
+        {
+            std::stringstream ss(line);
+            real value;
+            while(ss >> value) {
+               stress.push_back(value);
+            }
+            stress_all_frames.push_back(stress);
+        }
     }
-    return stress;
+    return stress_all_frames;
 }
 
 } // namespace fda

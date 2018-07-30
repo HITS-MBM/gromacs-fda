@@ -233,28 +233,31 @@ void DistributedForces::write_total_forces(std::ostream& os, gmx::HostVector<gmx
         }
     }
 
-    int j = total_forces.size();
     // Detect the last non-zero item
-    // j holds the index of first zero item or the length of force
+    // nb_non_zero_forces holds the index of first zero item or the length of force
+    uint nb_non_zero_forces = total_forces.size();
     if (fda_settings.no_end_zeros) {
-        for (; j > 0; --j)
-            if (total_forces[j - 1] != 0.0)
+        for (; nb_non_zero_forces > 0; --nb_non_zero_forces)
+            if (total_forces[nb_non_zero_forces - 1] != 0.0)
                 break;
     }
 
     if (normalize_psr) {
-        for (int i = 0; i < j; ++i) {
+        for (uint i = 0; i < nb_non_zero_forces; ++i) {
             if (std::abs(total_forces[i]) != 0.0) total_forces[i] /= fda_settings.residue_size[i];
         }
     }
 
     if (fda_settings.binary_result_file) {
-        for (int i = 0; i < j; ++i) {
-            os.write(reinterpret_cast<const char*>(&total_forces[i]), sizeof(real));
+    	static bool was_called = false;
+        if (was_called) {
+        	os.write(reinterpret_cast<char*>(&nb_non_zero_forces), sizeof(uint));
+        	was_called = true;
         }
+        os.write(reinterpret_cast<char*>(&total_forces[0]), nb_non_zero_forces * sizeof(real));
     } else {
         bool first_on_line = true;
-        for (int i = 0; i < j; ++i) {
+        for (uint i = 0; i < nb_non_zero_forces; ++i) {
             if (first_on_line) {
                 os << total_forces[i];
                 first_on_line = false;
