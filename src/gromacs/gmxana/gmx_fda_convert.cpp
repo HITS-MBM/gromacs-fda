@@ -10,7 +10,7 @@
 #include "gromacs/commandline/filenm.h"
 #include "gromacs/commandline/pargs.h"
 #include "gromacs/fda/PairwiseForces.h"
-#include "gromacs/fda/PunctualStress.h"
+#include <gromacs/fda/Stress.h>
 #include "gromacs/fileio/oenv.h"
 #include "gromacs/fileio/tpxio.h"
 #include "gromacs/fileio/trxio.h"
@@ -62,8 +62,8 @@ int gmx_fda_convert(int argc, char *argv[])
         pairwise_forces.write(opt2fn("-o", NFILE, fnm), !pairwise_forces.get_is_binary());
     } else if (fn2ftp(opt2fn("-i", NFILE, fnm)) == efPSA or fn2ftp(opt2fn("-i", NFILE, fnm)) == efPSR
         or fn2ftp(opt2fn("-i", NFILE, fnm)) == efVSA or fn2ftp(opt2fn("-i", NFILE, fnm)) == efVMA) {
-        fda::PunctualStress punctual_stress(opt2fn("-i", NFILE, fnm));
-        punctual_stress.write(opt2fn("-o", NFILE, fnm), !punctual_stress.get_is_binary());
+        fda::Stress stress(opt2fn("-i", NFILE, fnm));
+        stress.write(opt2fn("-o", NFILE, fnm), !stress.get_is_binary());
     }
 
     std::cout << "All done." << std::endl;

@@ -14,44 +14,6 @@
 
 namespace fda_analysis {
 
-std::vector<real> readStress(std::string const& filename, int& nbFrames,
-    int& nbParticles)
-{
-    std::ifstream file(filename);
-    if (!file) gmx_fatal(FARGS, "Error opening file %s.", filename.c_str());
-
-    std::string line;
-    std::vector<real> stress;
-    nbFrames = 0;
-    nbParticles = 0;
-
-    getline(file, line);
-    if (line != "punctual_stress" and line != "virial_stress_von_mises") gmx_fatal(FARGS, "Wrong file type.");
-
-    if (getline(file, line))
-    {
-		std::stringstream ss(line);
-		real value;
-		while(ss >> value) {
-		   stress.push_back(value);
-			++nbParticles;
-		}
-		++nbFrames;
-    }
-
-    while (getline(file, line))
-    {
-		std::stringstream ss(line);
-		real value;
-		while(ss >> value) {
-		   stress.push_back(value);
-		}
-		++nbFrames;
-    }
-
-    return stress;
-}
-
 bool isInteger(std::string const& str)
 {
 	for (auto c : str) if (!std::isdigit(c)) return false;

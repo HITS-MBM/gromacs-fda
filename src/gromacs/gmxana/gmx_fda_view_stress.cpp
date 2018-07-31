@@ -19,6 +19,7 @@
 #include "gmx_ana.h"
 #include "gromacs/commandline/filenm.h"
 #include "gromacs/commandline/pargs.h"
+#include "gromacs/fda/Stress.h"
 #include "gromacs/fileio/confio.h"
 #include "gromacs/fileio/matio.h"
 #include "gromacs/fileio/pdbio.h"
@@ -103,8 +104,10 @@ int gmx_fda_view_stress(int argc, char *argv[])
     int frameValue = 0;
     FrameType frameType = getFrameTypeAndSkipValue(frameString, frameValue);
 
-    int nbFrames, nbParticles;
-    std::vector<real> stressMatrix = readStress(opt2fn("-i", NFILE, fnm), nbFrames, nbParticles);
+    fda::Stress stress_reader(opt2fn("-i", NFILE, fnm));
+    auto&& stress = stress_reader.get_stress();
+    int nbFrames = stress.size();
+    int nbParticles = stress[0].size();
 
     // Interactive input of group name for residue model points
     int isize = 0;
@@ -129,10 +132,13 @@ int gmx_fda_view_stress(int argc, char *argv[])
     if (fn2ftp(opt2fn("-o", NFILE, fnm)) == efPDB and !ftp2fn_null(efTPS, NFILE, fnm)) gmx_fatal(FARGS, "Input structure is missing.");
     if (stressType != PUNCTUAL and convert) gmx_fatal(FARGS, "Option -convert makes only sense for punctual stress.");
 
-    for (auto & elem : stressMatrix) elem = std::abs(elem);
-
-    // Convert from kJ/mol/nm into pN
-    if (convert) for (auto & elem : stressMatrix) elem *= 1.66;
+    for (auto&& frame : stress) {
+        for (auto&& elem : frame) {
+        	elem = std::abs(elem);
+            // Convert from kJ/mol/nm into pN
+        	if (convert) elem *= 1.66;
+        }
+    }
 
     std::string title;
     if (stressType == PUNCTUAL) title += "Punctual ";
@@ -160,7 +166,7 @@ int gmx_fda_view_stress(int argc, char *argv[])
             FILE *fp = gmx_ffopen(opt2fn("-o", NFILE, fnm), "w");
 
             for (int i = 0; i < nbParticles; ++i) {
-                currentStress = stressMatrix[frameValue*nbParticles + i];
+                currentStress = stress[frameValue][i];
                 if (currentStress > 999.99) {
                     top.atoms.pdbinfo[i].bfac = 999.99;
                     valueToLargeForPDB = true;
@@ -190,7 +196,7 @@ int gmx_fda_view_stress(int argc, char *argv[])
                 else fp = gmx_ffopen(opt2fn("-o", NFILE, fnm), "w");
 
                 for (int i = 0; i < nbParticles; ++i) {
-                    currentStress = stressMatrix[frameValue*nbParticles + i];
+                    currentStress = stress[frameValue][i];
                     top.atoms.pdbinfo[i].bfac = currentStress;
                     if (currentStress > 999.99) {
                         valueToLargeForPDB = true;
@@ -213,7 +219,7 @@ int gmx_fda_view_stress(int argc, char *argv[])
         if (frameType == SINGLE) {
             for (int i = 0; i < nbParticles; ++i) {
                 snew(stressMatrix2[i], nbFramesForOutput);
-                real value = stressMatrix[frameValue*nbParticles + i];
+                real value = stress[frameValue][i];
                 stressMatrix2[i][0] = value;
                 if (value < minValue) minValue = value;
                 if (value > maxValue) maxValue = value;
@@ -225,7 +231,7 @@ int gmx_fda_view_stress(int argc, char *argv[])
                 if (frameType == AVERAGE) {
                     for (int j = 0, js = 0; j < nbFramesForOutput; ++j) {
                         real value = 0.0;
-                        for (int k = 0; k < frameValue and js < nbFrames; ++k, ++js) value += stressMatrix[js*nbParticles + i];
+                        for (int k = 0; k < frameValue and js < nbFrames; ++k, ++js) value += stress[js][i];
                         value /= frameValue;
                         stressMatrix2[i][j] = value;
                         if (value < minValue) minValue = value;
@@ -233,7 +239,7 @@ int gmx_fda_view_stress(int argc, char *argv[])
                     }
                 } else {
                     for (int j = 0, js = 0; j < nbFramesForOutput; ++j, js += frameValue) {
-                        real value = stressMatrix[js*nbParticles + i];
+                        real value = stress[js][i];
                         stressMatrix2[i][j] = value;
                         if (value < minValue) minValue = value;
                         if (value > maxValue) maxValue = value;

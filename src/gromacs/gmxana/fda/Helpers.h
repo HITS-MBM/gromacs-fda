@@ -17,12 +17,6 @@
 namespace fda_analysis {
 
 /**
- * Return stress matrix as vector.
- */
-std::vector<real> readStress(std::string const& filename, int& nbFrames,
-    int& nbParticles);
-
-/**
  * Return true if string is an integer.
  */
 bool isInteger(std::string const& str);

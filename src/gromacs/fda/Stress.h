@@ -1,12 +1,12 @@
 /*
- *  PunctualStress.h
+ *  Stress.h
  *
  *  Created on: Jul 27, 2018
  *      Author: Bernd Doser, HITS gGmbH <bernd.doser@h-its.org>
  */
 
-#ifndef SRC_GROMACS_FDA_PUNCTUALSTRESS_H_
-#define SRC_GROMACS_FDA_PUNCTUALSTRESS_H_
+#ifndef SRC_GROMACS_FDA_STRESS_H_
+#define SRC_GROMACS_FDA_STRESS_H_
 
 #include <string>
 #include <vector>
@@ -14,21 +14,19 @@
 
 namespace fda {
 
-/**
- * Read pairwise forces from file into arrays and compare.
- */
-struct PunctualStress
+/// Read and write punctual and virial stress files
+struct Stress
 {
-	typedef std::vector<real> PunctualStressType;
-	typedef std::vector<PunctualStressType> PunctualStressFrameArrayType;
+	typedef std::vector<real> StressType;
+	typedef std::vector<StressType> StressFrameArrayType;
 
-    PunctualStress(std::string const& filename);
+    Stress(std::string const& filename);
 
     template <class Comparer>
-    bool equal(PunctualStress const& other, Comparer const& comparer) const
+    bool equal(Stress const& other, Comparer const& comparer) const
     {
-    	PunctualStressFrameArrayType stress_array1 = this->get_stress();
-    	PunctualStressFrameArrayType stress_array2 = other.get_stress();
+    	StressFrameArrayType stress_array1 = this->get_stress();
+    	StressFrameArrayType stress_array2 = other.get_stress();
 
         if (stress_array1.size() != stress_array2.size()) return false;
 
@@ -44,15 +42,16 @@ struct PunctualStress
         return true;
     }
 
-    /// Write punctual stress to file
+    /// Read stress from file
+    StressFrameArrayType get_stress() const;
+
+    /// Write stress to file
     void write(std::string const& out_filename, bool out_binary = false) const;
 
     /// Returns true if the format is binary
     bool get_is_binary() const { return is_binary; }
 
 private:
-
-    PunctualStressFrameArrayType get_stress() const;
 
     std::string filename;
 
@@ -62,4 +61,4 @@ private:
 
 } // namespace fda
 
-#endif /* SRC_GROMACS_FDA_PUNCTUALSTRESS_H_ */
+#endif /* SRC_GROMACS_FDA_STRESS_H_ */

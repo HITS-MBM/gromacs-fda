@@ -1,5 +1,5 @@
 /*
- *  PunctualStress.h
+ *  Stress.h
  *
  *  Created on: Jul 27, 2018
  *      Author: Bernd Doser, HITS gGmbH <bernd.doser@h-its.org>
@@ -13,12 +13,12 @@
 #include <stdexcept>
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/gmxana/fda/Helpers.h"
-#include "PunctualStress.h"
 #include "ResultType.h"
+#include "Stress.h"
 
 namespace fda {
 
-PunctualStress::PunctualStress(std::string const& filename)
+Stress::Stress(std::string const& filename)
  : filename(filename),
    is_binary(false)
 {
@@ -29,7 +29,7 @@ PunctualStress::PunctualStress(std::string const& filename)
     if (first_character == 'b') is_binary = true;
 }
 
-void PunctualStress::write(std::string const& out_filename, bool out_binary) const
+void Stress::write(std::string const& out_filename, bool out_binary) const
 {
     auto&& stress_all_frames = get_stress();
     if (out_binary) {
@@ -66,9 +66,9 @@ void PunctualStress::write(std::string const& out_filename, bool out_binary) con
     }
 }
 
-PunctualStress::PunctualStressFrameArrayType PunctualStress::get_stress() const
+Stress::StressFrameArrayType Stress::get_stress() const
 {
-    PunctualStressFrameArrayType stress_all_frames;
+    StressFrameArrayType stress_all_frames;
     if (this->is_binary) {
         std::ifstream is(filename, std::ifstream::binary);
         if (!is) gmx_fatal(FARGS, "Error opening file.");
@@ -80,11 +80,11 @@ PunctualStress::PunctualStressFrameArrayType PunctualStress::get_stress() const
 
         char first_character;
         is.read(&first_character, 1);
-        if (first_character != 'b') gmx_fatal(FARGS, "Wrong file type in PunctualStress::write");
+        if (first_character != 'b') gmx_fatal(FARGS, "Wrong file type in Stress::write");
 
         uint syslen;
         is.read(reinterpret_cast<char*>(&syslen), sizeof(uint));
-        PunctualStressType stress(syslen);
+        StressType stress(syslen);
         for (;;) {
             is.read(reinterpret_cast<char*>(&stress[0]), syslen * sizeof(real));
             stress_all_frames.push_back(stress);
@@ -97,11 +97,11 @@ PunctualStress::PunctualStressFrameArrayType PunctualStress::get_stress() const
         std::string line;
         getline(is, line);
         if (line != "punctual_stress" and line != "virial_stress" and line != "virial_stress_von_mises")
-        	gmx_fatal(FARGS, "Wrong file type in PunctualStress::get_stress");
+        	gmx_fatal(FARGS, "Wrong file type in Stress::get_stress");
 
         if (getline(is, line))
         {
-            PunctualStressType stress;
+            StressType stress;
             std::stringstream ss(line);
             real value;
             while(ss >> value) {
@@ -112,7 +112,7 @@ PunctualStress::PunctualStressFrameArrayType PunctualStress::get_stress() const
 
         while (getline(is, line))
         {
-            PunctualStressType stress;
+            StressType stress;
             std::stringstream ss(line);
             real value;
             while(ss >> value) {
