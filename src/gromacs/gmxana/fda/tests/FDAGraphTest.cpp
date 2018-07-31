@@ -92,9 +92,9 @@ struct FDAGraphTest : public ::testing::WithParamInterface<TestDataStructure>,
 
         ASSERT_FALSE(gmx_fda_graph(caller.argc(), caller.argv()));
 
-        const double error_factor = 1.0e4;
+        const double error_factor = 1e4;
         const bool weight_by_magnitude = false;
-        const bool ignore_sign = true;
+        const bool ignore_sign = false;
 
         LogicallyEqualComparer<weight_by_magnitude,ignore_sign> comparer(error_factor);
 
@@ -112,7 +112,7 @@ TEST_P(FDAGraphTest, text)
     run(GetParam().testDirectory);
 }
 
-TEST_P(FDAGraphTest, DISABLED_binary)
+TEST_P(FDAGraphTest, binary)
 {
     run(GetParam().testDirectory + "_binary");
 }

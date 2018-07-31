@@ -111,7 +111,7 @@ TEST_P(FDAShortestPathTest, text)
     run(GetParam().testDirectory);
 }
 
-TEST_P(FDAShortestPathTest, DISABLED_binary)
+TEST_P(FDAShortestPathTest, binary)
 {
     run(GetParam().testDirectory + "_binary");
 }
@@ -119,7 +119,7 @@ TEST_P(FDAShortestPathTest, DISABLED_binary)
 INSTANTIATE_TEST_CASE_P(AllFDAShortestPathTests, FDAShortestPathTest, ::testing::Values(
     TestDataStructure(
         "glycine_trimer",
-        {"-i", "fda.pfr", "-s", "glycine_trimer.pdb", "-n", "index.ndx", "-frame", "0", "-source", "0", "-dest", "2", "-nk", "2"},
+        {"-i", "fda.pfr", "-s", "glycine_trimer.pdb", "-n", "index.ndx", "-frame", "0", "-source", "0", "-dest", "2", "-nk", "2", "-noconvert"},
         "C-alpha",
         "result.pdb",
         "FDAShortestPathTest.ref0.pdb"
