@@ -113,7 +113,7 @@ TEST_P(FDAViewStress, text)
     run(GetParam().testDirectory);
 }
 
-TEST_P(FDAViewStress, DISABLED_binary)
+TEST_P(FDAViewStress, binary)
 {
     run(GetParam().testDirectory + "_binary");
 }

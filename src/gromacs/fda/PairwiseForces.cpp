@@ -30,22 +30,37 @@ PairwiseForces<ForceType>::PairwiseForces(std::string const& filename)
 template <typename ForceType>
 size_t PairwiseForces<ForceType>::get_number_of_frames() const
 {
-    std::ifstream file(filename);
-    if (!file) gmx_fatal(FARGS, "Error opening file.");
-
-    std::string line;
     size_t number_of_frames = 0;
+    if (this->is_binary) {
+        std::ifstream is(filename, std::ifstream::binary);
+        if (!is) gmx_fatal(FARGS, "Error opening file.");
 
-    getline(file, line);
-    if (line != "pairwise_forces_scalar") gmx_fatal(FARGS, "Wrong file type.");
+        // get length of file:
+        is.seekg (0, is.end);
+        int length = is.tellg();
+        is.seekg (0, is.beg);
 
-    while (getline(file, line))
-    {
-        if (line.find("frame") != std::string::npos) {
+        for (;;)
+        {
+            get_pairwise_forces_binary(is);
             ++number_of_frames;
+            if (is.tellg() == length) break;
+        }
+    } else {
+        std::ifstream file(filename);
+        if (!file) gmx_fatal(FARGS, "Error opening file.");
+
+        std::string line;
+        getline(file, line);
+        if (line != "pairwise_forces_scalar") gmx_fatal(FARGS, "Wrong file type.");
+
+        while (getline(file, line))
+        {
+            if (line.find("frame") != std::string::npos) {
+                ++number_of_frames;
+            }
         }
     }
-
     return number_of_frames;
 }
 
@@ -53,7 +68,7 @@ template <typename ForceType>
 std::vector<std::vector<PairwiseForce<ForceType>>> PairwiseForces<ForceType>::get_all_pairwise_forces(bool sort) const
 {
     std::vector<std::vector<PairwiseForce<ForceType>>> all_pairwise_forces;
-    if (this->is_binary == true) {
+    if (this->is_binary) {
         std::ifstream is(filename, std::ifstream::binary);
         if (!is) gmx_fatal(FARGS, "Error opening file.");
 
@@ -107,107 +122,172 @@ void PairwiseForces<ForceType>::sort(std::vector<PairwiseForce<ForceType>>& pair
 template <typename ForceType>
 size_t PairwiseForces<ForceType>::get_max_index_second_column_first_frame() const
 {
-    std::ifstream file(filename);
-    if (!file) gmx_fatal(FARGS, "Error opening file.");
+    int max_index = 0;
+    if (this->is_binary) {
+        std::ifstream is(filename, std::ifstream::binary);
+        if (!is) gmx_fatal(FARGS, "Error opening file.");
 
-    std::string line;
-    size_t i, j, maxIndex = 0;
+        // get length of file:
+        is.seekg (0, is.end);
+        int length = is.tellg();
+        is.seekg (0, is.beg);
 
-    getline(file, line);
-    if (line != "pairwise_forces_scalar") gmx_fatal(FARGS, "Wrong file type.");
+        char first_character;
+        is.read(&first_character, 1);
+        if (first_character != 'b') gmx_fatal(FARGS, "Wrong file type in PairwiseForces<ForceType>::get_all_pairwise_forces");
 
-    getline(file, line); // skip frame line
+        for (;;)
+        {
+            auto&& pairwise_forces = get_pairwise_forces_binary(is);
+            for (auto&& pf : pairwise_forces)
+            	if (pf.j > max_index) max_index = pf.j;
+            if (is.tellg() == length) break;
+        }
+    } else {
+        std::ifstream file(filename);
+        if (!file) gmx_fatal(FARGS, "Error opening file.");
 
-    while (getline(file, line))
-    {
-        if (line.find("frame") != std::string::npos) break;
+        std::string line;
+        int i, j;
 
-        std::stringstream ss(line);
-        ss >> i >> j;
+        getline(file, line);
+        if (line != "pairwise_forces_scalar") gmx_fatal(FARGS, "Wrong file type.");
 
-        if (j > maxIndex) maxIndex = j;
+        getline(file, line); // skip frame line
+
+        while (getline(file, line))
+        {
+            if (line.find("frame") != std::string::npos) break;
+
+            std::stringstream ss(line);
+            ss >> i >> j;
+
+            if (j > max_index) max_index = j;
+        }
     }
-
-    return maxIndex;
+    return max_index;
 }
 
 template <typename ForceType>
 std::vector<double> PairwiseForces<ForceType>::get_forcematrix_of_frame(int nbParticles, int frame) const
 {
-    int nbParticles2 = nbParticles * nbParticles;
+    std::vector<double> forcematrix(nbParticles * nbParticles, 0.0);
+    if (this->is_binary) {
+        std::ifstream is(filename, std::ifstream::binary);
+        if (!is) gmx_fatal(FARGS, "Error opening file.");
 
-    std::vector<double> array(nbParticles2, 0.0);
-    std::ifstream file(filename);
-    if (!file) gmx_fatal(FARGS, "Error opening file.");
+        // get length of file:
+        is.seekg (0, is.end);
+        int length = is.tellg();
+        is.seekg (0, is.beg);
 
-    std::string line;
-    bool foundFrame = false;
-    int frameNumber;
-    std::string tmp;
-    int i, j;
-    double value;
+        char first_character;
+        is.read(&first_character, 1);
+        if (first_character != 'b') gmx_fatal(FARGS, "Wrong file type in PairwiseForces<ForceType>::get_all_pairwise_forces");
 
-    getline(file, line);
-    if (line != "pairwise_forces_scalar") gmx_fatal(FARGS, "Wrong file type.");
-
-    while (getline(file, line))
-    {
-        if (line.find("frame") != std::string::npos)
+        for (;;)
         {
-            if (foundFrame) break;
-            std::istringstream iss(line);
-            iss >> tmp >> frameNumber;
-            if (frameNumber != frame) continue;
-            foundFrame = true;
-            continue;
-        }
-        if (foundFrame) {
-            std::istringstream iss(line);
-            iss >> i >> j >> value;
-            if (i >= nbParticles or j >= nbParticles)
-                gmx_fatal(FARGS, "Index is larger than dimension.");
-            array[i*nbParticles+j] = value;
-            array[j*nbParticles+i] = value;
-        }
-    }
+            auto&& pairwise_forces = get_pairwise_forces_binary(is);
 
-    if (!foundFrame) gmx_fatal(FARGS, "Frame not found.");
-    return array;
+
+
+            if (is.tellg() == length) break;
+        }
+    } else {
+        std::ifstream is(filename);
+        if (!is) gmx_fatal(FARGS, "Error opening file.");
+
+        std::string token;
+        is >> token;
+        if (token != "pairwise_forces_scalar" and token != "pairwise_forces_vector")
+        	gmx_fatal(FARGS, "Wrong file type in PairwiseForces<ForceType>::get_all_pairwise_forces");
+
+        std::string line;
+        bool foundFrame = false;
+        int frameNumber;
+        int i, j;
+        real value;
+
+        while (getline(is, line))
+        {
+            if (line.find("frame") != std::string::npos)
+            {
+                if (foundFrame) break;
+                std::istringstream iss(line);
+                iss >> token >> frameNumber;
+                if (frameNumber != frame) continue;
+                foundFrame = true;
+                continue;
+            }
+            if (foundFrame) {
+                std::istringstream iss(line);
+                iss >> i >> j >> value;
+                if (i >= nbParticles or j >= nbParticles)
+                    gmx_fatal(FARGS, "Index is larger than dimension.");
+                forcematrix[i*nbParticles+j] = value;
+                forcematrix[j*nbParticles+i] = value;
+            }
+        }
+        if (!foundFrame) gmx_fatal(FARGS, "Frame not found.");
+    }
+    return forcematrix;
 }
 
 template <typename ForceType>
 std::vector<double> PairwiseForces<ForceType>::get_averaged_forcematrix(int nbParticles) const
 {
-    std::ifstream file(filename);
-    if (!file) gmx_fatal(FARGS, "Error opening file.");
+    std::vector<double> forcematrix(nbParticles * nbParticles, 0.0);
+    if (this->is_binary) {
+        std::ifstream is(filename, std::ifstream::binary);
+        if (!is) gmx_fatal(FARGS, "Error opening file.");
 
-    int nbParticles2 = nbParticles * nbParticles;
-    std::vector<double> forcematrix(nbParticles2, 0.0);
+        // get length of file:
+        is.seekg (0, is.end);
+        int length = is.tellg();
+        is.seekg (0, is.beg);
 
-    std::string line;
-    int numberOfFrames = 0;
-    std::string tmp;
-    int i, j;
-    double value;
+        char first_character;
+        is.read(&first_character, 1);
+        if (first_character != 'b') gmx_fatal(FARGS, "Wrong file type in PairwiseForces<ForceType>::get_all_pairwise_forces");
 
-    getline(file, line);
-    if (line != "pairwise_forces_scalar") gmx_fatal(FARGS, "Wrong file type.");
+        for (;;)
+        {
+            auto&& pairwise_forces = get_pairwise_forces_binary(is);
 
-    while (getline(file, line))
-    {
-        if (line.find("frame") != std::string::npos) {
-            ++numberOfFrames;
-            continue;
+
+
+            if (is.tellg() == length) break;
         }
-        std::istringstream iss(line);
-        iss >> i >> j >> value;
-        if (i < 0 or i >= nbParticles or j < 0 or j >= nbParticles)
-            gmx_fatal(FARGS, "Index error in getAveragedForcematrix.");
-        forcematrix[i*nbParticles+j] = value;
-    }
+    } else {
+        std::ifstream is(filename);
+        if (!is) gmx_fatal(FARGS, "Error opening file.");
 
-    if (!numberOfFrames) gmx_fatal(FARGS, "No frame found.");
-    for (auto & elem : forcematrix) elem /= numberOfFrames;
+        std::string token;
+        is >> token;
+        if (token != "pairwise_forces_scalar" and token != "pairwise_forces_vector")
+        	gmx_fatal(FARGS, "Wrong file type in PairwiseForces<ForceType>::get_all_pairwise_forces");
+
+        std::string line;
+        int numberOfFrames = 0;
+        int i, j;
+        real value;
+
+		while (getline(is, line))
+		{
+			if (line.find("frame") != std::string::npos) {
+				++numberOfFrames;
+				continue;
+			}
+			std::istringstream iss(line);
+			iss >> i >> j >> value;
+			if (i < 0 or i >= nbParticles or j < 0 or j >= nbParticles)
+				gmx_fatal(FARGS, "Index error in getAveragedForcematrix.");
+			forcematrix[i*nbParticles+j] = value;
+		}
+
+		if (!numberOfFrames) gmx_fatal(FARGS, "No frame found.");
+		for (auto & elem : forcematrix) elem /= numberOfFrames;
+    }
 
     return forcematrix;
 }
@@ -253,8 +333,8 @@ void PairwiseForces<ForceType>::write(std::string const& out_filename, bool out_
         if (token != "pairwise_forces_scalar") gmx_fatal(FARGS, "Wrong file type in PairwiseForces<ForceType>::write");
         is >> token >> token;
 
-    	char b = 'b';
-		os.write(&b, 1);
+        char b = 'b';
+        os.write(&b, 1);
 
         for (;;)
         {
