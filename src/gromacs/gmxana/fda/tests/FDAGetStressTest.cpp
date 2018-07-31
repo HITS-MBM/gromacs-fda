@@ -104,7 +104,7 @@ TEST_P(FDAGetStress, text)
     run(GetParam().testDirectory);
 }
 
-TEST_P(FDAGetStress, DISABLED_binary)
+TEST_P(FDAGetStress, binary)
 {
     run(GetParam().testDirectory + "_binary");
 }
@@ -114,7 +114,7 @@ INSTANTIATE_TEST_CASE_P(AllFDAGetStress, FDAGetStress, ::testing::Values(
         "glycine_trimer",
         {"-i", "fda.pfr"},
         "result.psr",
-        "punctual_stress.psr"
+        "punctual_stress_text.psr"
     )
 ));
 

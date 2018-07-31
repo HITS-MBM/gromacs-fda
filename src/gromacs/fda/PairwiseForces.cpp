@@ -40,6 +40,10 @@ size_t PairwiseForces<ForceType>::get_number_of_frames() const
         int length = is.tellg();
         is.seekg (0, is.beg);
 
+        char first_character;
+        is.read(&first_character, 1);
+        if (first_character != 'b') gmx_fatal(FARGS, "Wrong file type in PairwiseForces<ForceType>::write");
+
         for (;;)
         {
             get_pairwise_forces_binary(is);
@@ -168,8 +172,8 @@ size_t PairwiseForces<ForceType>::get_max_index_second_column_first_frame() cons
     return max_index;
 }
 
-template <typename ForceType>
-std::vector<double> PairwiseForces<ForceType>::get_forcematrix_of_frame(int nbParticles, int frame) const
+template <>
+std::vector<double> PairwiseForces<Force<real>>::get_forcematrix_of_frame(int nbParticles, int frame) const
 {
     std::vector<double> forcematrix(nbParticles * nbParticles, 0.0);
     if (this->is_binary) {
@@ -185,14 +189,23 @@ std::vector<double> PairwiseForces<ForceType>::get_forcematrix_of_frame(int nbPa
         is.read(&first_character, 1);
         if (first_character != 'b') gmx_fatal(FARGS, "Wrong file type in PairwiseForces<ForceType>::get_all_pairwise_forces");
 
+        int cur_frame = 0;
+        bool foundFrame = false;
+
         for (;;)
         {
             auto&& pairwise_forces = get_pairwise_forces_binary(is);
-
-
-
+            if (cur_frame == frame) {
+				for (auto&& pf : pairwise_forces) {
+					forcematrix[pf.i*nbParticles + pf.j] = pf.force.force;
+					forcematrix[pf.j*nbParticles + pf.i] = pf.force.force;
+				}
+                foundFrame = true;
+            }
+            ++cur_frame;
             if (is.tellg() == length) break;
         }
+        if (!foundFrame) gmx_fatal(FARGS, "Frame not found.");
     } else {
         std::ifstream is(filename);
         if (!is) gmx_fatal(FARGS, "Error opening file.");
