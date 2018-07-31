@@ -30,7 +30,8 @@ int gmx_fda_convert(int argc, char *argv[])
     std::cout << "FDA convert" << std::endl;
 
     const char *desc[] = {
-        "[THISMODULE] converts pairwise forces and punctual stress from text- into binary-format and vice versa."
+        "[THISMODULE] converts pairwise forces, punctual, and virial stress files"
+    	"from text- into binary-format and vice versa."
         "If the input is binary format the output will be text-based and vice versa."
     };
 
@@ -53,10 +54,14 @@ int gmx_fda_convert(int argc, char *argv[])
         std::cout << "output file = " << opt2fn("-o", NFILE, fnm) << std::endl;
 #endif
 
+    if (fn2ftp(opt2fn("-i", NFILE, fnm)) != fn2ftp(opt2fn("-o", NFILE, fnm)))
+        gmx_fatal(FARGS, "Input and output file type must be identical.");
+
     if (fn2ftp(opt2fn("-i", NFILE, fnm)) == efPFA or fn2ftp(opt2fn("-i", NFILE, fnm)) == efPFR) {
         fda::PairwiseForces<fda::Force<real>> pairwise_forces(opt2fn("-i", NFILE, fnm));
         pairwise_forces.write(opt2fn("-o", NFILE, fnm), !pairwise_forces.get_is_binary());
-    } else if (fn2ftp(opt2fn("-i", NFILE, fnm)) == efPSA or fn2ftp(opt2fn("-i", NFILE, fnm)) == efPSR) {
+    } else if (fn2ftp(opt2fn("-i", NFILE, fnm)) == efPSA or fn2ftp(opt2fn("-i", NFILE, fnm)) == efPSR
+        or fn2ftp(opt2fn("-i", NFILE, fnm)) == efVSA or fn2ftp(opt2fn("-i", NFILE, fnm)) == efVMA) {
         fda::PunctualStress punctual_stress(opt2fn("-i", NFILE, fnm));
         punctual_stress.write(opt2fn("-o", NFILE, fnm), !punctual_stress.get_is_binary());
     }

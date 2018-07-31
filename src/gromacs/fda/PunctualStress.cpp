@@ -12,6 +12,7 @@
 #include <sstream>
 #include <stdexcept>
 #include "gromacs/utility/fatalerror.h"
+#include "gromacs/gmxana/fda/Helpers.h"
 #include "PunctualStress.h"
 #include "ResultType.h"
 
@@ -47,9 +48,14 @@ void PunctualStress::write(std::string const& out_filename, bool out_binary) con
         std::ofstream os(out_filename);
         if (!os) gmx_fatal(FARGS, "Error opening file.");
 
-    	os << std::scientific << std::setprecision(6)
-           << ResultType::PUNCTUAL_STRESS << std::endl;
+        if (fda_analysis::hasExtension(out_filename, "psa") or fda_analysis::hasExtension(out_filename, "psr"))
+            os << ResultType::PUNCTUAL_STRESS << std::endl;
+        else if (fda_analysis::hasExtension(out_filename, "vsa"))
+            os << ResultType::VIRIAL_STRESS << std::endl;
+        else if (fda_analysis::hasExtension(out_filename, "vma"))
+            os << ResultType::VIRIAL_STRESS_VON_MISES << std::endl;
 
+        os << std::scientific << std::setprecision(6);
         for (auto&& stress : stress_all_frames) {
             if (stress.size() > 0) os << stress[0];
             for (uint i = 1; i < stress.size(); ++i) {
@@ -90,7 +96,8 @@ PunctualStress::PunctualStressFrameArrayType PunctualStress::get_stress() const
 
         std::string line;
         getline(is, line);
-        if (line != "punctual_stress") gmx_fatal(FARGS, "Wrong file type in PunctualStress::get_stress");
+        if (line != "punctual_stress" and line != "virial_stress" and line != "virial_stress_von_mises")
+        	gmx_fatal(FARGS, "Wrong file type in PunctualStress::get_stress");
 
         if (getline(is, line))
         {
