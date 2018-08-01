@@ -97,6 +97,13 @@ static const int tpss[] =
 };
 #define NTPSS asize(tpss)
 
+// FDA conversion file type
+static const int tfdacon[] =
+{
+    efPFA, efPFR, efPSA, efPSR, efVSA, efVMA
+};
+#define NTFDACON asize(tfdacon)
+
 // FDA scalar stress type
 static const int tstrs[] =
 {
@@ -198,6 +205,7 @@ static const t_deffile deffile[efNR] =
     { eftASC, ".psr", "fda", NULL, "FDA punctual stress output residue-based matrix file" },
     { eftASC, ".vsa", "fda", NULL, "FDA virial stress output atom-based matrix file" },
     { eftASC, ".vma", "fda", NULL, "FDA von Mises virial stress output atom-based matrix file" },
+    { eftGEN, ".???", "fda", "-i", "FDA paired force, punctual or virial stress", NTFDACON, tfdacon },
     { eftGEN, ".???", "fda", "-f", "FDA punctual or virial stress", NTSTRS, tstrs },
     { eftGEN, ".???", "fda", "-f", "FDA atomic or residue based force pairs", NTPFX, tpfx },
     { eftGEN, ".???", "fda", "-o", "FDA resulting networks (pdb or dimacs)", NTGRX, tgrx },

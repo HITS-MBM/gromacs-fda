@@ -19,6 +19,7 @@
 #include "gmx_ana.h"
 #include "gromacs/commandline/filenm.h"
 #include "gromacs/commandline/pargs.h"
+#include "gromacs/fda/PairwiseForces.h"
 #include "gromacs/fileio/oenv.h"
 #include "gromacs/fileio/tpxio.h"
 #include "gromacs/fileio/trxio.h"
@@ -41,7 +42,7 @@ int gmx_fda_get_stress(int argc, char *argv[])
 {
     const char *desc[] = {
         "[THISMODULE] calculate the punctual stress by pairwise forces. "
-        "If the optional file [TT]-ipf-diff[tt] is used "
+        "If the optional file [TT]-diff[tt] is used "
         "the differences of the pairwise forces will be taken."
     };
 
@@ -50,8 +51,8 @@ int gmx_fda_get_stress(int argc, char *argv[])
     t_pargs pa[] = {};
 
     t_filenm fnm[] = {
-        { efPFX, "-ipf", NULL, ffREAD },
-        { efPFX, "-ipf-diff", NULL, ffOPTRD },
+        { efPFX, "-i", NULL, ffREAD },
+        { efPFX, "-diff", NULL, ffOPTRD },
         { efPSX, "-o", NULL, ffWRITE }
     };
 
@@ -60,38 +61,43 @@ int gmx_fda_get_stress(int argc, char *argv[])
     if (!parse_common_args(&argc, argv, PCA_CAN_TIME,
         NFILE, fnm, asize(pa), pa, asize(desc), desc, 0, NULL, &oenv)) return 0;
 
-    size_t nbFrames = getNumberOfFrames(opt2fn("-ipf", NFILE, fnm));
-    size_t nbParticles = getMaxIndexSecondColumnFirstFrame(opt2fn("-ipf", NFILE, fnm)) + 1;
+    // Open pairwise forces file
+    fda::PairwiseForces<fda::Force<real>> pairwise_forces(opt2fn("-i", NFILE, fnm));
+    fda::PairwiseForces<fda::Force<real>> pairwise_forces_diff(opt2fn("-diff", NFILE, fnm));
+
+    size_t nbFrames = pairwise_forces.get_number_of_frames();
+    size_t nbParticles = pairwise_forces.get_max_index_second_column_first_frame() + 1;
     size_t nbParticles2 = nbParticles * nbParticles;
 
-    if (opt2bSet("-ipf-diff", NFILE, fnm) and (fn2ftp(opt2fn("-ipf-diff", NFILE, fnm)) != fn2ftp(opt2fn("-ipf", NFILE, fnm))))
-        gmx_fatal(FARGS, "Type of the file (-ipf-diff) does not match the type of the file (-ipf).");
+    if (opt2bSet("-diff", NFILE, fnm) and (fn2ftp(opt2fn("-diff", NFILE, fnm)) != fn2ftp(opt2fn("-i", NFILE, fnm))))
+        gmx_fatal(FARGS, "Type of the file (-diff) does not match the type of the file (-i).");
 
-    if (opt2bSet("-ipf-diff", NFILE, fnm) and getNumberOfFrames(opt2fn("-ipf-diff", NFILE, fnm)) != nbFrames)
+    if (opt2bSet("-diff", NFILE, fnm) and pairwise_forces_diff.get_number_of_frames() != nbFrames)
         gmx_fatal(FARGS, "Number of frames is not identical between the two pairwise force files.");
 
-	#ifdef PRINT_DEBUG
-        std::cout << "pfx filename = " << opt2fn("-ipf", NFILE, fnm) << std::endl;
-        if (opt2bSet("-ipf-diff", NFILE, fnm)) std::cout << "pfx-diff filename = " << opt2fn("-ipf-diff", NFILE, fnm) << std::endl;
+#ifdef PRINT_DEBUG
+        std::cout << "pfx filename = " << opt2fn("-i", NFILE, fnm) << std::endl;
+        if (opt2bSet("-diff", NFILE, fnm)) std::cout << "pfx-diff filename = " << opt2fn("-diff", NFILE, fnm) << std::endl;
         std::cout << "result filename = " << opt2fn("-o", NFILE, fnm) << std::endl;
-		std::cout << "nbFrames = " << nbFrames << std::endl;
-		std::cout << "nbParticles = " << nbParticles << std::endl;
-	#endif
+        std::cout << "nbFrames = " << nbFrames << std::endl;
+        std::cout << "nbParticles = " << nbParticles << std::endl;
+#endif
 
     std::ofstream opsFile(opt2fn("-o", NFILE, fnm));
     if (!opsFile) gmx_fatal(FARGS, "Error opening file", opt2fn("-o", NFILE, fnm));
-    opsFile << std::scientific << std::setprecision(6);
+    opsFile << std::scientific << std::setprecision(6)
+            << "punctual_stress\n";
 
     for (size_t frame = 0; frame != nbFrames; ++frame)
     {
-        std::vector<double> forceMatrix = parseScalarFileFormat(opt2fn("-ipf", NFILE, fnm), nbParticles, frame);
-        if (opt2bSet("-ipf-diff", NFILE, fnm)) {
-        	std::vector<double> forceMatrix2 = parseScalarFileFormat(opt2fn("-ipf-diff", NFILE, fnm), nbParticles, frame);
+        std::vector<double> forceMatrix = pairwise_forces.get_forcematrix_of_frame(nbParticles, frame);
+        if (opt2bSet("-diff", NFILE, fnm)) {
+            std::vector<double> forceMatrix2 = pairwise_forces_diff.get_forcematrix_of_frame(nbParticles, frame);
             for (size_t i = 0; i < nbParticles2; ++i) forceMatrix[i] -= forceMatrix2[i];
         }
 
         for (size_t i = 0; i < nbParticles; ++i) {
-        	real value = 0.0;
+        real value = 0.0;
             for (size_t j = 0; j < nbParticles; ++j) value += std::abs(forceMatrix[i*nbParticles + j]);
             opsFile << value << " ";
         }

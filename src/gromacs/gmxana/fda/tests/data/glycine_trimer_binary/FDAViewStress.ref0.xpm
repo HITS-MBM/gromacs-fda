@@ -1,0 +1,36 @@
+/* XPM */
+/* Created by: */
+/* GROMACS:      fda-graph-test, VERSION 5.0 */
+/* Executable:   /fast/doserbd/git/mbm_fda/gromacs-5.0/build_release/bin/fda-graph-test */
+/* Library dir:  /fast/doserbd/git/mbm_fda/gromacs-5.0/share/top */
+/* Command line: */
+/*   fda-graph-test --gtest_color=no --gtest_filter=* */
+/* This file can be converted to EPS by the GROMACS program xpm2ps */
+/* title:   "Punctual stress" */
+/* legend:  "" */
+/* x-label: "Particle" */
+/* y-label: "Frame" */
+/* type:    "Continuous" */
+static char *gromacs_xpm[] = {
+"3 11   10 1",
+"A  c #FFFFFF " /* "1.18e+03" */,
+"B  c #E3E3E3 " /* "1.27e+03" */,
+"C  c #C6C6C6 " /* "1.36e+03" */,
+"D  c #AAAAAA " /* "1.45e+03" */,
+"E  c #8E8E8E " /* "1.54e+03" */,
+"F  c #717171 " /* "1.64e+03" */,
+"G  c #555555 " /* "1.73e+03" */,
+"H  c #393939 " /* "1.82e+03" */,
+"I  c #1C1C1C " /* "1.91e+03" */,
+"J  c #000000 " /* "2.01e+03" */,
+"AJI",
+"AIH",
+"AIH",
+"AHH",
+"AHH",
+"AHH",
+"AHH",
+"AIH",
+"AIH",
+"AIH",
+"AIH"

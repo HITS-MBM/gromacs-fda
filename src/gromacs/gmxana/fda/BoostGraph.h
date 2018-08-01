@@ -30,30 +30,30 @@ public:
     typedef std::vector<int> Path;
     typedef std::vector<Path> PathList;
 
-	BoostGraph() {};
+    BoostGraph() {};
 
-	//! Build graph by adjacency matrix
-	BoostGraph(std::vector<double> const& forceMatrix);
+    //! Build graph by adjacency matrix
+    BoostGraph(std::vector<double> const& forceMatrix);
 
-	//! Use Dijkstra algorithm to find the shortest path.
-	Path findShortestPath(size_t source, size_t dest) const;
+    //! Use Dijkstra algorithm to find the shortest path.
+    Path findShortestPath(size_t source, size_t dest) const;
 
-	//! Yen's algorithm to find the k shortest paths.
-	PathList findKShortestPaths(size_t source, size_t dest, size_t num) const;
+    //! Yen's algorithm to find the k shortest paths.
+    PathList findKShortestPaths(size_t source, size_t dest, size_t num) const;
 
-	//! Determine the sum of weights (distance) of a graph.
+    //! Determine the sum of weights (distance) of a graph.
     double distance(Path const& path) const;
 
 private:
 
-	//! Calculate the spur path from source to dest.
-	Path dijkstra(Vertex source, Vertex dest, Graph const& graph) const;
+    //! Calculate the spur path from source to dest.
+    Path dijkstra(Vertex source, Vertex dest, Graph const& graph) const;
 
-	//! Print graph for debugging
-	void print(Graph const& graph) const;
+    //! Print graph for debugging
+    void print(Graph const& graph) const;
 
-	//! Print path for debugging
-	void print(Path const& path) const;
+    //! Print path for debugging
+    void print(Path const& path) const;
 
     //! Undirected graph connecting atoms or residues weighted by the force between both.
     Graph graph_;

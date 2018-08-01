@@ -10,6 +10,7 @@ declare -a arr=(
   "alagly_pairwise_forces_scalar_detailed_nonbonded"
   "alagly_pairwise_forces_vector_detailed_nonbonded"
   "alagly_verlet_summed_scalar"
+  "alagly_verlet_pbc_summed_scalar"
   "alagly_group_excl"
   "alagly_group_excl_uncomplete_cgs"
   "alagly_pairwise_forces_scalar_all"
@@ -43,7 +44,7 @@ for i in "${arr[@]}"
 do
   for j in "${files[@]}"
   do
-    echo "cp -n $1/*/$i/fda.$j $2/$i/fda.$j.ref"
+    echo "cp $1/*/$i/fda.$j $2/$i/fda.$j.ref"
     cp $1/*/$i/fda.$j $2/$i/fda.$j.ref
   done
 done

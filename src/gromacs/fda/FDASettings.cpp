@@ -40,7 +40,8 @@ FDASettings::FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *mtop, bool
    index_group1(-1),
    index_group2(-1),
    groups(nullptr),
-   groupnames(nullptr)
+   groupnames(nullptr),
+   normalize_psr(false)
 {
     /// Parallel execution not implemented yet
     if (parallel_execution)
@@ -141,6 +142,10 @@ FDASettings::FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *mtop, bool
     // Map atoms to residues
     fill_atom2residue(mtop);
 
+    // Stores the number of atoms for each residue
+    residue_size.resize(syslen_residues);
+    for (auto&& res : atom_2_residue) ++residue_size[res];
+
     // Set sys_in_group arrays
     for (int i = 0; i != groups->nr; ++i) {
         std::vector<int> group_atoms;
@@ -226,6 +231,20 @@ FDASettings::FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *mtop, bool
     // Energy groups exclusions
     nonbonded_exclusion_on = strcasecmp(get_estr(&ninp, &inp, "energy_grp_exclusion", "yes"), "no");
     bonded_exclusion_on = strcasecmp(get_estr(&ninp, &inp, "bonded_exclusion", "yes"), "no");
+
+    // Binary result file
+    binary_result_file = strcasecmp(get_estr(&ninp, &inp, "binary_result_file", "no"), "no");
+    std::cout << "Binary mode: " << binary_result_file << std::endl;
+
+    // Read threshold
+    threshold = get_ereal(&ninp, &inp, "threshold", 1e-10, wi);
+    if (threshold < 0.0)
+        gmx_fatal(FARGS, "Invalid value for threshold: %d\n", threshold);
+    std::cout << "Threshold: " << threshold << std::endl;
+
+    // Normalize punctual stress per residue
+    normalize_psr = strcasecmp(get_estr(&ninp, &inp, "normalize_punctual_stress_per_residue", "no"), "no");
+    std::cout << "Normalize punctual stress per residue: " << normalize_psr << std::endl;
 }
 
 std::vector<int> FDASettings::groupatoms2residues(std::vector<int> const& group_atoms) const

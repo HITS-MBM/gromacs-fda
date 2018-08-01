@@ -27,6 +27,7 @@ struct FDASettings
     FDASettings()
      : atom_based_result_type(ResultType::NO),
        residue_based_result_type(ResultType::NO),
+	   binary_result_file(false),
        one_pair(OnePair::DETAILED),
        v2s(Vector2Scalar::NORM),
        residues_renumber(ResiduesRenumber::AUTO),
@@ -40,7 +41,8 @@ struct FDASettings
        index_group1(-1),
        index_group2(-1),
        groups(nullptr),
-       groupnames(nullptr)
+       groupnames(nullptr),
+	   threshold(1e-10)
     {}
 
     /// Construction by input file
@@ -91,6 +93,9 @@ struct FDASettings
 
     /// ResultType for residue based forces
     ResultType residue_based_result_type;
+
+    /// If true, the result files will be written in binary format
+    bool binary_result_file;
 
     /// OnePair defines the way the interactions between the same pair of atoms are stored
     OnePair one_pair;
@@ -144,6 +149,9 @@ struct FDASettings
     /// Stores the residue number for each atom; array of length syslen; only initialized if ResidueBased is non-zero
     std::vector<int> atom_2_residue;
 
+    /// Stores the number of atoms for each residue; only initialized if ResidueBased is non-zero
+    std::vector<int> residue_size;
+
     /// Version of force matrix implementation (compat mode)
     static const std::string compat_fm_version;
 
@@ -167,6 +175,12 @@ struct FDASettings
 
     /// groupnames defined in pfn-file
     char** groupnames;
+
+    /// Forces lower than threshold will not be considered
+    real threshold;
+
+    /// Normalize punctual stress per residue (default: off)
+    bool normalize_psr;
 
 };
 

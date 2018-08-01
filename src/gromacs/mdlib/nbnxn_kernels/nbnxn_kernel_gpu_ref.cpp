@@ -58,14 +58,6 @@
 static const int c_numClPerSupercl = c_nbnxnGpuNumClusterPerSupercluster;
 static const int c_clSize          = c_nbnxnGpuClusterSize;
 
-#ifdef BUILD_WITH_FDA
-#ifndef GMX_DOUBLE
-static const real fda_tiny = 1e-7f;
-#else
-static const real fda_tiny = 1e-14;
-#endif
-#endif
-
 void
 nbnxn_kernel_gpu_ref(const nbnxn_pairlist_t     *nbl,
                      const nbnxn_atomdata_t     *nbat,
@@ -308,7 +300,7 @@ nbnxn_kernel_gpu_ref(const nbnxn_pairlist_t     *nbl,
                                     }
                                 }
 #ifdef BUILD_WITH_FDA
-                                if (std::abs(fscal) > fda_tiny) {
+                                if (fabs(fscal) > fda->get_settings().threshold) {
                                     fda->add_nonbonded_single(cellInv[ia], cellInv[ja], fda::InteractionType_COULOMB, fscal, dx, dy, dz);
                                 }
 #endif
@@ -326,7 +318,7 @@ nbnxn_kernel_gpu_ref(const nbnxn_pairlist_t     *nbl,
 #ifdef BUILD_WITH_FDA
                                     fvdw      = (Vvdw_rep - Vvdw_disp)*rinvsq;
                                     fscal    += fvdw;
-                                    if (std::abs(fvdw) > fda_tiny) {
+                                    if (fabs(fvdw) > fda->get_settings().threshold) {
                                         fda->add_nonbonded_single(cellInv[ia], cellInv[ja], fda::InteractionType_LJ, fvdw, dx, dy, dz);
                                     }
 #else

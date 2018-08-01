@@ -5,7 +5,6 @@
  *      Author: Bernd Doser, HITS gGmbH <bernd.doser@h-its.org>
  */
 
-#include <cmath>
 #include <iomanip>
 #include <iostream>
 #include "FDABase.h"
@@ -22,11 +21,21 @@ FDABase<Base>::FDABase(ResultType result_type, int syslen, std::string const& re
    result_type(result_type),
    syslen(syslen),
    distributed_forces(syslen, fda_settings),
-   result_file(result_filename),
    fda_settings(fda_settings)
 {
     result_file << std::scientific << std::setprecision(6);
     if (PF_or_PS_mode()) make_backup(result_filename.c_str());
+    if (fda_settings.binary_result_file) {
+    	result_file.open(result_filename, std::ifstream::binary);
+    	char b = 'b';
+		result_file.write(&b, 1);
+	    if (result_type == ResultType::PUNCTUAL_STRESS) {
+	    	result_file.write(reinterpret_cast<char*>(&syslen), sizeof(uint));
+	    }
+    } else {
+    	result_file.open(result_filename);
+    	result_file << result_type << std::endl;
+    }
     write_compat_header(1);
 }
 
@@ -96,7 +105,7 @@ void FDABase<Base>::write_frame(gmx::HostVector<gmx::RVec> const& x, const matri
 template <class Base>
 void FDABase<Base>::write_frame_detailed(gmx::HostVector<gmx::RVec> const& x, const matrix box, bool print_vector, int nsteps)
 {
-    result_file << "frame " << nsteps << std::endl;
+	write_frame_number(nsteps);
     if (print_vector)
         distributed_forces.write_detailed_vector(result_file);
     else
@@ -106,7 +115,7 @@ void FDABase<Base>::write_frame_detailed(gmx::HostVector<gmx::RVec> const& x, co
 template <class Base>
 void FDABase<Base>::write_frame_summed(gmx::HostVector<gmx::RVec> const& x, const matrix box, bool print_vector, int nsteps)
 {
-    result_file << "frame " << nsteps << std::endl;
+	write_frame_number(nsteps);
     if (print_vector)
         distributed_forces.write_summed_vector(result_file);
     else
@@ -116,14 +125,20 @@ void FDABase<Base>::write_frame_summed(gmx::HostVector<gmx::RVec> const& x, cons
 template <class Base>
 void FDABase<Base>::write_frame_scalar(int nsteps)
 {
-    result_file << "frame " << nsteps << std::endl;
+	write_frame_number(nsteps);
     distributed_forces.write_scalar(result_file);
 }
 
-template <class Base>
-void FDABase<Base>::write_total_forces(gmx::HostVector<gmx::RVec> const& x)
+template <>
+void FDABase<Atom>::write_total_forces(gmx::HostVector<gmx::RVec> const& x)
 {
     distributed_forces.write_total_forces(result_file, x);
+}
+
+template <>
+void FDABase<Residue>::write_total_forces(gmx::HostVector<gmx::RVec> const& x)
+{
+    distributed_forces.write_total_forces(result_file, x, fda_settings.normalize_psr);
 }
 
 template <class Base>
@@ -192,15 +207,6 @@ template <>
 void FDABase<Residue>::write_virial_sum()
 {}
 
-real tensor_to_vonmises(Tensor t)
-{
-    real txy = t(XX, XX)-t(YY, YY);
-    real tyz = t(YY, YY)-t(ZZ, ZZ);
-    real tzx = t(ZZ, ZZ)-t(XX, XX);
-    return std::sqrt(0.5 * (txy*txy + tyz*tyz + tzx*tzx
-                     + 6 * (t(XX, YY)*t(XX, YY) + t(XX, ZZ)*t(XX, ZZ) + t(YY, ZZ)*t(YY, ZZ))));
-}
-
 template <>
 void FDABase<Atom>::write_virial_sum_von_mises()
 {
@@ -216,6 +222,12 @@ void FDABase<Atom>::write_virial_sum_von_mises()
 template <>
 void FDABase<Residue>::write_virial_sum_von_mises()
 {}
+
+template <class Base>
+void FDABase<Base>::write_frame_number(int nsteps)
+{
+	if (!fda_settings.binary_result_file) result_file << "frame " << nsteps << std::endl;
+}
 
 /// template instantiation
 template class FDABase<Atom>;

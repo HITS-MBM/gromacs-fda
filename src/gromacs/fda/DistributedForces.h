@@ -63,7 +63,7 @@ public:
 
     void write_scalar(std::ostream& os) const;
 
-    void write_total_forces(std::ostream& os, gmx::HostVector<gmx::RVec> const& x) const;
+    void write_total_forces(std::ostream& os, gmx::HostVector<gmx::RVec> const& x, bool normalize_psr = false) const;
 
     void write_scalar_compat_ascii(std::ostream& os) const;
 
@@ -82,6 +82,9 @@ private:
 
     friend class ::FDA;
     template <class Base> friend class FDABase;
+
+    template <class T>
+    int number_of_interactions(std::vector<T> const& v) const;
 
     /// Total number of atoms/residues in the system
     int syslen;

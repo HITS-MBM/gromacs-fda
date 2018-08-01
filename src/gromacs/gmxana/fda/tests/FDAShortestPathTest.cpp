@@ -53,91 +53,101 @@ struct TestDataStructure
 };
 
 //! Test fixture for FDA
-class FDAShortestPathTest : public ::testing::WithParamInterface<TestDataStructure>,
-                            public CommandLineTestBase
-{};
+struct FDAShortestPathTest : public ::testing::WithParamInterface<TestDataStructure>,
+                             public CommandLineTestBase
+{
+    void run(std::string const& test_directory)
+    {
+        std::string cwd = gmx::Path::getWorkingDirectory();
+        std::string dataPath = std::string(fileManager().getInputDataDirectory()) + "/data";
+        std::string testPath = fileManager().getTemporaryFilePath("/" + test_directory);
+
+        std::string cmd = "mkdir -p " + testPath;
+        ASSERT_FALSE(system(cmd.c_str()));
+
+        cmd = "cp -r " + dataPath + "/" + test_directory + "/* " + testPath;
+        ASSERT_FALSE(system(cmd.c_str()));
+
+        gmx_chdir(testPath.c_str());
+
+        ::gmx::test::CommandLine caller;
+        caller.append("gmx_fda fda_shortest_path");
+        for (std::vector<std::string>::const_iterator iterCur(GetParam().cmdline.begin()), iterNext(GetParam().cmdline.begin() + 1),
+            iterEnd(GetParam().cmdline.end()); iterCur != iterEnd; ++iterCur, ++iterNext)
+        {
+            if (iterNext == iterEnd or iterNext->substr(0,1) == "-") caller.append(*iterCur);
+            else {
+                caller.addOption(iterCur->c_str(), iterNext->c_str());
+                ++iterCur, ++iterNext;
+            }
+        }
+        caller.addOption("-o", GetParam().result);
+
+        std::cout << caller.toString() << std::endl;
+
+        if (!GetParam().groupname.empty()) {
+            StdioTestHelper stdioHelper(&fileManager());
+            stdioHelper.redirectStringToStdin((GetParam().groupname + "\n").c_str());
+        }
+
+        ASSERT_FALSE(gmx_fda_shortest_path(caller.argc(), caller.argv()));
+
+        const double error_factor = 1.0e4;
+        const bool weight_by_magnitude = false;
+        const bool ignore_sign = true;
+
+        LogicallyEqualComparer<weight_by_magnitude,ignore_sign> comparer(error_factor);
+
+        // compare atom pairs
+        EXPECT_TRUE((equal(TextSplitter(GetParam().reference), TextSplitter(GetParam().result), comparer)));
+
+        gmx_chdir(cwd.c_str());
+    }
+};
 
 //! Test body for FDA
-TEST_P(FDAShortestPathTest, Basic)
+TEST_P(FDAShortestPathTest, text)
 {
-    std::string cwd = gmx::Path::getWorkingDirectory();
-    std::string dataPath = std::string(fileManager().getInputDataDirectory()) + "/data";
-    std::string testPath = fileManager().getTemporaryFilePath("/" + GetParam().testDirectory);
+    run(GetParam().testDirectory);
+}
 
-    std::string cmd = "mkdir -p " + testPath;
-    ASSERT_FALSE(system(cmd.c_str()));
-
-    cmd = "cp -r " + dataPath + "/" + GetParam().testDirectory + "/* " + testPath;
-    ASSERT_FALSE(system(cmd.c_str()));
-
-    gmx_chdir(testPath.c_str());
-
-    ::gmx::test::CommandLine caller;
-    caller.append("gmx_fda fda_shortest_path");
-    for (std::vector<std::string>::const_iterator iterCur(GetParam().cmdline.begin()), iterNext(GetParam().cmdline.begin() + 1),
-        iterEnd(GetParam().cmdline.end()); iterCur != iterEnd; ++iterCur, ++iterNext)
-    {
-        if (iterNext == iterEnd or iterNext->substr(0,1) == "-") caller.append(*iterCur);
-        else {
-            caller.addOption(iterCur->c_str(), iterNext->c_str());
-            ++iterCur, ++iterNext;
-        }
-    }
-    caller.addOption("-o", GetParam().result);
-
-    std::cout << caller.toString() << std::endl;
-
-    if (!GetParam().groupname.empty()) {
-        StdioTestHelper stdioHelper(&fileManager());
-        stdioHelper.redirectStringToStdin((GetParam().groupname + "\n").c_str());
-    }
-
-    ASSERT_FALSE(gmx_fda_shortest_path(caller.argc(), caller.argv()));
-
-    const double error_factor = 1.0e4;
-    const bool weight_by_magnitude = false;
-    const bool ignore_sign = true;
-
-    LogicallyEqualComparer<weight_by_magnitude,ignore_sign> comparer(error_factor);
-
-    // compare atom pairs
-    EXPECT_TRUE((equal(TextSplitter(GetParam().reference), TextSplitter(GetParam().result), comparer)));
-
-    gmx_chdir(cwd.c_str());
+TEST_P(FDAShortestPathTest, binary)
+{
+    run(GetParam().testDirectory + "_binary");
 }
 
 INSTANTIATE_TEST_CASE_P(AllFDAShortestPathTests, FDAShortestPathTest, ::testing::Values(
     TestDataStructure(
         "glycine_trimer",
-        {"-ipf", "fda.pfr", "-s", "glycine_trimer.pdb", "-n", "index.ndx", "-frame", "0", "-source", "0", "-dest", "2", "-nk", "2"},
+        {"-i", "fda.pfr", "-s", "glycine_trimer.pdb", "-n", "index.ndx", "-frame", "0", "-source", "0", "-dest", "2", "-nk", "2", "-noconvert"},
         "C-alpha",
         "result.pdb",
         "FDAShortestPathTest.ref0.pdb"
     ),
     TestDataStructure(
         "glycine_trimer",
-        {"-ipf", "fda.pfr", "-s", "glycine_trimer.pdb", "-n", "index.ndx", "-frame", "average 3", "-source", "0", "-dest", "2", "-nk", "2", "-pymol", "result.pml"},
+        {"-i", "fda.pfr", "-s", "glycine_trimer.pdb", "-n", "index.ndx", "-frame", "average 3", "-source", "0", "-dest", "2", "-nk", "2", "-pymol", "result.pml"},
         "C-alpha",
         "result.pdb",
         "FDAShortestPathTest.ref1.pdb"
     ),
     TestDataStructure(
         "glycine_trimer",
-        {"-ipf", "fda.pfr", "-s", "glycine_trimer.pdb", "-n", "index.ndx", "-frame", "average 3", "-source", "0", "-dest", "2", "-nk", "2", "-convert", "-pymol", "result.pml"},
+        {"-i", "fda.pfr", "-s", "glycine_trimer.pdb", "-n", "index.ndx", "-frame", "average 3", "-source", "0", "-dest", "2", "-nk", "2", "-convert", "-pymol", "result.pml"},
         "C-alpha",
         "result.pdb",
         "FDAShortestPathTest.ref2.pdb"
     ),
     TestDataStructure(
         "glycine_trimer",
-        {"-ipf", "fda.pfr", "-s", "glycine_trimer.pdb", "-n", "index.ndx", "-frame", "all", "-source", "0", "-dest", "2", "-nk", "2", "-pymol", "result.pml"},
+        {"-i", "fda.pfr", "-s", "glycine_trimer.pdb", "-n", "index.ndx", "-frame", "all", "-source", "0", "-dest", "2", "-nk", "2", "-pymol", "result.pml"},
         "C-alpha",
         "result.pdb",
         "FDAShortestPathTest.ref3.pdb"
     ),
     TestDataStructure(
         "glycine_trimer",
-        {"-ipf", "fda.pfr", "-s", "glycine_trimer.pdb", "-n", "index.ndx", "-frame", "skip 3", "-source", "0", "-dest", "2", "-nk", "2", "-pymol", "result.pml"},
+        {"-i", "fda.pfr", "-s", "glycine_trimer.pdb", "-n", "index.ndx", "-frame", "skip 3", "-source", "0", "-dest", "2", "-nk", "2", "-pymol", "result.pml"},
         "C-alpha",
         "result.pdb",
         "FDAShortestPathTest.ref4.pdb"

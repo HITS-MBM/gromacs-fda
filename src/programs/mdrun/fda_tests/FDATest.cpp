@@ -101,36 +101,36 @@ TEST_P(FDATest, Basic)
     } else {
         ASSERT_FALSE(gmx_mdrun(callRerun.argc(), callRerun.argv()));
 
-        const double error_factor = 1e4;
-        const bool weight_by_magnitude = true;
-        const bool ignore_sign = false;
+		const double error_factor = 1e4;
+		const bool weight_by_magnitude = true;
+		const bool ignore_sign = false;
 
-        LogicallyEqualComparer<weight_by_magnitude, ignore_sign> comparer(error_factor);
+		LogicallyEqualComparer<weight_by_magnitude, ignore_sign> comparer(error_factor);
 
-        // Check results
-        if (!GetParam().atomFileExtension.empty()) {
-            if (GetParam().atomFileExtension == "pfa")
-                if (GetParam().is_vector)
-                    EXPECT_TRUE((fda::PairwiseForces<fda::Force<fda::Vector>>(atomFilename).equal(
-                        fda::PairwiseForces<fda::Force<fda::Vector>>(atomReference), comparer)));
-                else
-                    EXPECT_TRUE((fda::PairwiseForces<fda::Force<real>>(atomFilename).equal(
-                        fda::PairwiseForces<fda::Force<real>>(atomReference), comparer)));
-            else
-                EXPECT_TRUE((equal(TextSplitter(atomFilename), TextSplitter(atomReference), comparer)));
-        }
-        if (!GetParam().residueFileExtension.empty()) {
-            if (GetParam().residueFileExtension == "pfr")
-                if (GetParam().is_vector)
-                    EXPECT_TRUE((fda::PairwiseForces<fda::Force<fda::Vector>>(residueFilename).equal(
-                        fda::PairwiseForces<fda::Force<fda::Vector>>(residueReference), comparer)));
-                else
-                    EXPECT_TRUE((fda::PairwiseForces<fda::Force<real>>(residueFilename).equal(
-                        fda::PairwiseForces<fda::Force<real>>(residueReference), comparer)));
-            else
-                EXPECT_TRUE((equal(TextSplitter(residueFilename), TextSplitter(residueReference), comparer)));
-        }
-        gmx_chdir(cwd.c_str());
+		// Check results
+		if (!GetParam().atomFileExtension.empty()) {
+			if (GetParam().atomFileExtension == "pfa")
+				if (GetParam().is_vector)
+					EXPECT_TRUE((fda::PairwiseForces<fda::Force<fda::Vector>>(atomFilename).equal(
+						fda::PairwiseForces<fda::Force<fda::Vector>>(atomReference), comparer)));
+				else
+					EXPECT_TRUE((fda::PairwiseForces<fda::Force<real>>(atomFilename).equal(
+						fda::PairwiseForces<fda::Force<real>>(atomReference), comparer)));
+			else
+				EXPECT_TRUE((equal(TextSplitter(atomFilename), TextSplitter(atomReference), comparer)));
+		}
+		if (!GetParam().residueFileExtension.empty()) {
+			if (GetParam().residueFileExtension == "pfr")
+				if (GetParam().is_vector)
+					EXPECT_TRUE((fda::PairwiseForces<fda::Force<fda::Vector>>(residueFilename).equal(
+						fda::PairwiseForces<fda::Force<fda::Vector>>(residueReference), comparer)));
+				else
+					EXPECT_TRUE((fda::PairwiseForces<fda::Force<real>>(residueFilename).equal(
+						fda::PairwiseForces<fda::Force<real>>(residueReference), comparer)));
+			else
+				EXPECT_TRUE((equal(TextSplitter(residueFilename), TextSplitter(residueReference), comparer)));
+		}
+		gmx_chdir(cwd.c_str());
     }
 }
 
@@ -141,10 +141,14 @@ INSTANTIATE_TEST_CASE_P(AllFDATests, FDATest, ::testing::Values(
     TestDataStructure("alagly_pairwise_forces_scalar_detailed_no_residue_based", "pfa", ""),
     TestDataStructure("alagly_pairwise_forces_vector", "pfa", "pfr", "traj.trr", true),
     TestDataStructure("alagly_punctual_stress", "psa", "psr"),
+    //TestDataStructure("alagly_punctual_stress_binary", "psa", "psr"),
+    TestDataStructure("alagly_punctual_stress_normalized", "psa", "psr"),
+    TestDataStructure("alagly_punctual_stress_normalized_renumbered", "psa", "psr"),
     TestDataStructure("alagly_pairwise_forces_scalar_detailed_nonbonded", "pfa", "pfr"),
     TestDataStructure("alagly_pairwise_forces_vector_detailed_nonbonded", "pfa", "pfr", "traj.trr", true),
     TestDataStructure("alagly_verlet_summed_scalar", "pfa", "pfr"),
     TestDataStructure("alagly_verlet_pbc_summed_scalar", "pfa", "pfr"),
+    TestDataStructure("alagly_verlet_pbc_summed_scalar_binary", "pfa", "pfr", "traj.trr", false, false),
     TestDataStructure("alagly_group_excl", "pfa", "pfr"),
     TestDataStructure("alagly_group_excl_uncomplete_cgs", "pfa", "pfr"),
     TestDataStructure("alagly_pairwise_forces_scalar_all", "pfa", "pfr"),

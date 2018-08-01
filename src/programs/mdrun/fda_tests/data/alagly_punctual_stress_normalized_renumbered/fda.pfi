@@ -1,0 +1,21 @@
+onepair = summed
+
+; group1 and group2 as defined in the -pfn file
+; if not defined, defaults to 'Protein'
+group1 = ala
+group2 = gly
+
+atombased = punctual_stress
+residuebased = punctual_stress
+
+; interactions type could be one of more of:
+; bond angle dihedral polar coulomb lj nb14 bonded nonbonded all
+type = all
+
+; FDA energy group exclusion
+energy_grp_exclusion = no
+
+; Normalize punctual stress per residue
+normalize_punctual_stress_per_residue = yes
+
+residuesrenumber = yes

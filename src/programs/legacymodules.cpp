@@ -371,6 +371,8 @@ void registerLegacyModules(gmx::CommandLineModuleManager *manager)
                    "Plot punctual and von Mises virial stress as xpm or pdb");
     registerModule(manager, &gmx_fda_shortest_path, "fda_shortest_path",
                    "Generate the k-shortest paths of a FDA force network as pdb-graph");
+    registerModule(manager, &gmx_fda_convert, "fda_convert",
+                   "Convert FDA files");
 
     {
         gmx::CommandLineModuleGroup group =

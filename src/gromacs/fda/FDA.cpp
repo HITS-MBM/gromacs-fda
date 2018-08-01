@@ -120,6 +120,9 @@ void FDA::add_bonded(int i, int j, fda::InteractionType type, rvec force)
     // leave early if the interaction is not interesting
     if (!(fda_settings.type & type)) return;
     if (!fda_settings.atoms_in_groups(i, j)) return;
+    if (!(std::abs(force[0]) > fda_settings.threshold or
+          std::abs(force[1]) > fda_settings.threshold or
+          std::abs(force[2]) > fda_settings.threshold)) return;
 
     add_bonded_nocheck(i, j, type, force);
 }
@@ -412,7 +415,7 @@ void FDA::save_and_write_scalar_time_averages(gmx::HostVector<gmx::RVec> const& 
         if (atom_based.PF_or_PS_mode())
             atom_based.distributed_forces.summed_merge_to_scalar(x, box);
         if (residue_based.PF_or_PS_mode()) {
-        	gmx::HostVector<gmx::RVec> com = get_residues_com(x, mtop);
+            gmx::HostVector<gmx::RVec> com = get_residues_com(x, mtop);
             residue_based.distributed_forces.summed_merge_to_scalar(com, box);
             for (int i = 0; i != fda_settings.syslen_residues; ++i) {
                 rvec_inc(time_averaging_com[i], com[i]);
