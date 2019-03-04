@@ -21,7 +21,7 @@ PairwiseForces<ForceType>::PairwiseForces(std::string const& filename)
    is_binary(false)
 {
     std::ifstream file(filename);
-    if (!file) gmx_fatal(FARGS, "Error opening file.");
+    if (!file) gmx_fatal(FARGS, "Error opening file %s", filename.c_str());
     char first_character;
     file.read(&first_character, 1);
     if (first_character == 'b') is_binary = true;
@@ -33,7 +33,7 @@ size_t PairwiseForces<ForceType>::get_number_of_frames() const
     size_t number_of_frames = 0;
     if (this->is_binary) {
         std::ifstream is(filename, std::ifstream::binary);
-        if (!is) gmx_fatal(FARGS, "Error opening file.");
+        if (!is) gmx_fatal(FARGS, "Error opening file %s", filename.c_str());
 
         // get length of file:
         is.seekg (0, is.end);
@@ -52,7 +52,7 @@ size_t PairwiseForces<ForceType>::get_number_of_frames() const
         }
     } else {
         std::ifstream file(filename);
-        if (!file) gmx_fatal(FARGS, "Error opening file.");
+        if (!file) gmx_fatal(FARGS, "Error opening file %s", filename.c_str());
 
         std::string line;
         getline(file, line);
@@ -74,7 +74,7 @@ std::vector<std::vector<PairwiseForce<ForceType>>> PairwiseForces<ForceType>::ge
     std::vector<std::vector<PairwiseForce<ForceType>>> all_pairwise_forces;
     if (this->is_binary) {
         std::ifstream is(filename, std::ifstream::binary);
-        if (!is) gmx_fatal(FARGS, "Error opening file.");
+        if (!is) gmx_fatal(FARGS, "Error opening file %s", filename.c_str());
 
         // get length of file:
         is.seekg (0, is.end);
@@ -94,7 +94,7 @@ std::vector<std::vector<PairwiseForce<ForceType>>> PairwiseForces<ForceType>::ge
         }
     } else {
         std::ifstream is(filename);
-        if (!is) gmx_fatal(FARGS, "Error opening file.");
+        if (!is) gmx_fatal(FARGS, "Error opening file %s", filename.c_str());
 
         std::string token;
         is >> token;
@@ -129,7 +129,7 @@ size_t PairwiseForces<ForceType>::get_max_index_second_column_first_frame() cons
     int max_index = 0;
     if (this->is_binary) {
         std::ifstream is(filename, std::ifstream::binary);
-        if (!is) gmx_fatal(FARGS, "Error opening file.");
+        if (!is) gmx_fatal(FARGS, "Error opening file %s", filename.c_str());
 
         // get length of file:
         is.seekg (0, is.end);
@@ -149,7 +149,7 @@ size_t PairwiseForces<ForceType>::get_max_index_second_column_first_frame() cons
         }
     } else {
         std::ifstream file(filename);
-        if (!file) gmx_fatal(FARGS, "Error opening file.");
+        if (!file) gmx_fatal(FARGS, "Error opening file %s", filename.c_str());
 
         std::string line;
         int i, j;
@@ -178,7 +178,7 @@ std::vector<double> PairwiseForces<Force<real>>::get_forcematrix_of_frame(int nb
     std::vector<double> forcematrix(nbParticles * nbParticles, 0.0);
     if (this->is_binary) {
         std::ifstream is(filename, std::ifstream::binary);
-        if (!is) gmx_fatal(FARGS, "Error opening file.");
+        if (!is) gmx_fatal(FARGS, "Error opening file %s", filename.c_str());
 
         // get length of file:
         is.seekg (0, is.end);
@@ -208,7 +208,7 @@ std::vector<double> PairwiseForces<Force<real>>::get_forcematrix_of_frame(int nb
         if (!foundFrame) gmx_fatal(FARGS, "Frame not found.");
     } else {
         std::ifstream is(filename);
-        if (!is) gmx_fatal(FARGS, "Error opening file.");
+        if (!is) gmx_fatal(FARGS, "Error opening file %s", filename.c_str());
 
         std::string token;
         is >> token;
@@ -252,7 +252,7 @@ std::vector<double> PairwiseForces<ForceType>::get_averaged_forcematrix(int nbPa
     std::vector<double> forcematrix(nbParticles * nbParticles, 0.0);
     if (this->is_binary) {
         std::ifstream is(filename, std::ifstream::binary);
-        if (!is) gmx_fatal(FARGS, "Error opening file.");
+        if (!is) gmx_fatal(FARGS, "Error opening file %s", filename.c_str());
 
         // get length of file:
         is.seekg (0, is.end);
@@ -273,7 +273,7 @@ std::vector<double> PairwiseForces<ForceType>::get_averaged_forcematrix(int nbPa
         }
     } else {
         std::ifstream is(filename);
-        if (!is) gmx_fatal(FARGS, "Error opening file.");
+        if (!is) gmx_fatal(FARGS, "Error opening file %s", filename.c_str());
 
         std::string token;
         is >> token;
@@ -310,7 +310,7 @@ void PairwiseForces<ForceType>::write(std::string const& out_filename, bool out_
 {
     if (this->is_binary == true and out_binary == false) {
         std::ifstream is(filename, std::ifstream::binary);
-        if (!is) gmx_fatal(FARGS, "Error opening file.");
+        if (!is) gmx_fatal(FARGS, "Error opening file %s", filename.c_str());
 
         // get length of file:
         is.seekg (0, is.end);
@@ -318,7 +318,7 @@ void PairwiseForces<ForceType>::write(std::string const& out_filename, bool out_
         is.seekg (0, is.beg);
 
         std::ofstream os(out_filename);
-        if (!os) gmx_fatal(FARGS, "Error opening file.");
+        if (!os) gmx_fatal(FARGS, "Error opening file %s", filename.c_str());
 
         char first_character;
         is.read(&first_character, 1);
@@ -336,10 +336,10 @@ void PairwiseForces<ForceType>::write(std::string const& out_filename, bool out_
         }
     } else if (this->is_binary == false and out_binary == true) {
         std::ifstream is(filename);
-        if (!is) gmx_fatal(FARGS, "Error opening file.");
+        if (!is) gmx_fatal(FARGS, "Error opening file %s", filename.c_str());
 
         std::ofstream os(out_filename, std::ifstream::binary);
-        if (!os) gmx_fatal(FARGS, "Error opening file.");
+        if (!os) gmx_fatal(FARGS, "Error opening file %s", filename.c_str());
 
         std::string token;
         is >> token;
