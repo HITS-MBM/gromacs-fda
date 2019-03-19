@@ -145,7 +145,7 @@ int gmx_fda_graph(int argc, char *argv[])
     matrix box;
     read_tps_conf(ftp2fn(efTPS, NFILE, fnm), &top, &ePBC, &coord, NULL, box, TRUE);
 
-    if (fn2ftp(opt2fn("-s", NFILE, fnm)) == efPDB) {
+    if (fn2ftp(opt2fn("-s", NFILE, fnm)) == efGRO) {
         // Convert from nm to Angstrom
         for (int i = 0; i < top.atoms.nr; ++i) {
             coord[i][0] *= 10.0;
@@ -202,7 +202,7 @@ int gmx_fda_graph(int argc, char *argv[])
             if (frame == 0) read_first_x(oenv, &status, opt2fn("-f", NFILE, fnm), &time, &coord_traj, box);
             else read_next_x(oenv, status, &time, coord_traj, box);
 
-            if (fn2ftp(opt2fn("-s", NFILE, fnm)) == efPDB) {
+            if (fn2ftp(opt2fn("-s", NFILE, fnm)) == efGRO) {
                 // Convert from nm to Angstrom
                 for (int i = 0; i < top.atoms.nr; ++i) {
                     coord_traj[i][0] *= 10.0;
