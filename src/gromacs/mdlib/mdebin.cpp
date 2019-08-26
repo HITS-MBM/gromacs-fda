@@ -275,7 +275,8 @@ t_mdebin *init_mdebin(ener_file_t       fp_ene,
         }
         else if (i == F_COM_PULL)
         {
-            md->bEner[i] = (ir->bPull && pull_have_potential(ir->pull_work));
+            md->bEner[i] = ((ir->bPull && pull_have_potential(ir->pull_work)) ||
+                            ir->bRot);
         }
         else if (i == F_ECONSERVED)
         {
@@ -1554,6 +1555,8 @@ void restore_energyhistory_from_state(t_mdebin              * mdebin,
                                       const energyhistory_t * enerhist)
 {
     unsigned int nener = static_cast<unsigned int>(mdebin->ebin->nener);
+
+    GMX_RELEASE_ASSERT(enerhist, "Need valid history to restore");
 
     if ((enerhist->nsum     > 0 && nener != enerhist->ener_sum.size()) ||
         (enerhist->nsum_sim > 0 && nener != enerhist->ener_sum_sim.size()))

@@ -126,6 +126,7 @@
 #include "gromacs/utility/logger.h"
 #include "gromacs/utility/real.h"
 #include "gromacs/utility/smalloc.h"
+#include "gromacs/utility/stringutil.h"
 
 #include "deform.h"
 #include "membed.h"
@@ -316,6 +317,19 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, const gmx::MDLogger &mdlog,
                   gmx_membed_t *membed,
                   gmx_walltime_accounting_t walltime_accounting)
 {
+    /* Workaround for 2 bugs in release-2018.
+     * NOTE: Proper fix is in release-2019, do not merge this change there.
+     */
+    if (ir->bExpanded && (EI_VV(ir->eI) ||
+                          ir->expandedvals->nstexpanded % ir->nstcalcenergy != 0))
+    {
+        ir->nstcalcenergy = 1;
+        std::string note =
+            gmx::formatString("NOTE: There are issues with expanded ensemble and certain combination of nstexpanded and nstcalcenergy, setting nstcalcenergy to %d",
+                              ir->nstcalcenergy);
+        GMX_LOG(mdlog.warning).asParagraph().appendText(note);
+    }
+
     gmx_mdoutf_t    outf = nullptr;
     gmx_int64_t     step, step_rel;
     double          elapsed_time;
@@ -593,9 +607,15 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, const gmx::MDLogger &mdlog,
             /* Update mdebin with energy history if appending to output files */
             if (continuationOptions.appendFiles)
             {
-                restore_energyhistory_from_state(mdebin, observablesHistory->energyHistory.get());
+                /* If no history is available (because a checkpoint is from before
+                 * it was written) make a new one later, otherwise restore it.
+                 */
+                if (observablesHistory->energyHistory)
+                {
+                    restore_energyhistory_from_state(mdebin, observablesHistory->energyHistory.get());
+                }
             }
-            else if (observablesHistory->energyHistory.get() != nullptr)
+            else if (observablesHistory->energyHistory)
             {
                 /* We might have read an energy history from checkpoint.
                  * As we are not appending, we want to restart the statistics.
@@ -604,7 +624,7 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, const gmx::MDLogger &mdlog,
                 observablesHistory->energyHistory = {};
             }
         }
-        if (observablesHistory->energyHistory.get() == nullptr)
+        if (!observablesHistory->energyHistory)
         {
             observablesHistory->energyHistory = std::unique_ptr<energyhistory_t>(new energyhistory_t {});
         }

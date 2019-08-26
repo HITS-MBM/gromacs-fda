@@ -1,7 +1,7 @@
 #
 # This file is part of the GROMACS molecular simulation package.
 #
-# Copyright (c) 2014,2015,2016,2017,2018, by the GROMACS development team, led by
+# Copyright (c) 2014,2015,2016,2017,2018,2019, by the GROMACS development team, led by
 # Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
 # and including many others, as listed in the AUTHORS file in the
 # top-level source directory and at http://www.gromacs.org.
@@ -125,6 +125,11 @@ if (SPHINX_FOUND)
         fragments/doxygen-links.rst
         install-guide/index.rst
         release-notes/index.rst
+        release-notes/2018/2018.7.rst
+        release-notes/2018/2018.6.rst
+        release-notes/2018/2018.5.rst
+        release-notes/2018/2018.4.rst
+        release-notes/2018/2018.3.rst
         release-notes/2018/2018.2.rst
         release-notes/2018/2018.1.rst
         release-notes/2018/major/highlights.rst
@@ -164,6 +169,7 @@ if (SPHINX_FOUND)
         user-guide/file-formats.rst
         user-guide/cmdline.rst
         user-guide/environment-variables.rst
+        user-guide/security.rst
         user-guide/terminology.rst
         user-guide/plotje.gif
         user-guide/xvgr.gif
