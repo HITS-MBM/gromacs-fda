@@ -62,6 +62,7 @@
 #include "gromacs/essentialdynamics/edsam.h"
 #include "gromacs/ewald/pme.h"
 #include "gromacs/ewald/pme-load-balancing.h"
+#include "gromacs/fda/FDA.h"
 #include "gromacs/fileio/trxio.h"
 #include "gromacs/gmxlib/network.h"
 #include "gromacs/gmxlib/nrnb.h"
@@ -315,6 +316,10 @@ void gmx::Integrator::do_md()
     }
     else
     {
+
+        fda::FDASettings fda_settings = fr->fda->get_settings();
+        top = gmx_mtop_generate_local_top(top_global, ir->efep != efepNO, &fda_settings);
+
         state_change_natoms(state_global, state_global->natoms);
         f.resizeWithPadding(state_global->natoms);
         /* Copy the pointer to the global state */
@@ -1029,6 +1034,10 @@ void gmx::Integrator::do_md()
 
         /* ########  END FIRST UPDATE STEP  ############## */
         /* ########  If doing VV, we now have v(dt) ###### */
+
+        // FDA
+        fr->fda->save_and_write_scalar_time_averages(state->x, state->box, top_global);
+
         if (bDoExpanded)
         {
             /* perform extended ensemble sampling in lambda - we don't
@@ -1484,6 +1493,9 @@ void gmx::Integrator::do_md()
 
     /* Stop measuring walltime */
     walltime_accounting_end_time(walltime_accounting);
+
+    // FDA
+    fr->fda->write_scalar_time_averages();
 
     if (!thisRankHasDuty(cr, DUTY_PME))
     {

@@ -549,6 +549,11 @@ int Mdrunner::mdrunner()
 
     std::unique_ptr<t_state> globalState;
 
+#ifdef BUILD_WITH_FDA
+    std::shared_ptr<fda::FDASettings> ptr_fda_settings;
+    std::shared_ptr<FDA> ptr_fda;
+#endif
+
     if (SIMMASTER(cr))
     {
         /* Only the master rank has the global state */
@@ -570,6 +575,12 @@ int Mdrunner::mdrunner()
             }
             globalState->flags &= ~(1 << estV);
         }
+
+#ifdef BUILD_WITH_FDA
+        ptr_fda_settings = std::make_shared<fda::FDASettings>(nfile, fnm, mtop, PAR(cr));
+        ptr_fda = std::make_shared<FDA>(*ptr_fda_settings);
+        ptr_fda->modify_energy_group_exclusions(mtop, inputrec);
+#endif
 
         if (inputrec->cutoff_scheme != ecutsVERLET)
         {
@@ -1237,6 +1248,10 @@ int Mdrunner::mdrunner()
                       useGpuForBonded,
                       FALSE,
                       pforce);
+
+#ifdef BUILD_WITH_FDA
+        fr->fda = ptr_fda.get();
+#endif
 
         /* Initialize the mdAtoms structure.
          * mdAtoms is not filled with atom data,

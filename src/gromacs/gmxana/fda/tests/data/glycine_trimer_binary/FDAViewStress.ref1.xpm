@@ -1,0 +1,36 @@
+/* XPM */
+/* Created by: */
+/* GROMACS:      fda-graph-test, VERSION 5.0 */
+/* Executable:   /fast/doserbd/git/mbm_fda/gromacs-5.0/build_debug/bin/fda-graph-test */
+/* Library dir:  /fast/doserbd/git/mbm_fda/gromacs-5.0/share/top */
+/* Command line: */
+/*   fda-graph-test --gtest_color=no --gtest_filter=* */
+/* This file can be converted to EPS by the GROMACS program xpm2ps */
+/* title:   "Stress" */
+/* legend:  "" */
+/* x-label: "Particle" */
+/* y-label: "Frame" */
+/* type:    "Continuous" */
+static char *gromacs_xpm[] = {
+"30 11   10 1",
+"A  c #FFFFFF " /* "7.95" */,
+"B  c #E3E3E3 " /* "242" */,
+"C  c #C6C6C6 " /* "476" */,
+"D  c #AAAAAA " /* "710" */,
+"E  c #8E8E8E " /* "943" */,
+"F  c #717171 " /* "1.18e+03" */,
+"G  c #555555 " /* "1.41e+03" */,
+"H  c #393939 " /* "1.65e+03" */,
+"I  c #1C1C1C " /* "1.88e+03" */,
+"J  c #000000 " /* "2.11e+03" */,
+"ECECFBBFEECBCCBBBJIGCBBBEBBFFD",
+"DCECEBCFECBBCCBCBIHGCBBBDBBFFD",
+"DCECEBCFEBBBBBCCBIGGBBBBCBCFEE",
+"DCDCDBCFEBBBCBCCBHFGBBBBCBCFDF",
+"DCDCDBBFEDBBCBCBBHEGBBBBCACFCF",
+"DBCCCABFEDBBCBBBAHDGBBBACBBFBF",
+"CBCCCABFDEBBCBBABHDGBBBACBAFBF",
+"CBBBCBBFDEBBBACBBGCGABAACCAFBF",
+"BBBBCBBECDAABACBBFCFAAAACBBEBE",
+"BAAABBBDBCAAAABBBDBDAAAACBBDBD",
+"AAAABBBBBBAAAABBBCBCAAAABBBBAC"

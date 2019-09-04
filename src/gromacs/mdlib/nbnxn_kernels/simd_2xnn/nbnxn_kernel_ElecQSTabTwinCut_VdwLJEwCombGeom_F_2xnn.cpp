@@ -62,6 +62,14 @@
 #include "gromacs/mdlib/nbnxn_kernels/simd_2xnn/nbnxn_kernel_simd_2xnn_common.h"
 #endif /* GMX_NBNXN_SIMD_2XNN */
 
+#include "gromacs/fda/FDA.h"
+
+#ifndef GMX_DOUBLE
+#define PF_TINY_REAL_NUMBER 1.0e-7f
+#else
+#define PF_TINY_REAL_NUMBER 1.0e-14
+#endif
+
 #ifdef CALC_ENERGIES
 void
 nbnxn_kernel_ElecQSTabTwinCut_VdwLJEwCombGeom_F_2xnn(const nbnxn_pairlist_t    gmx_unused *nbl,
@@ -70,6 +78,8 @@ nbnxn_kernel_ElecQSTabTwinCut_VdwLJEwCombGeom_F_2xnn(const nbnxn_pairlist_t    g
                                                      rvec                      gmx_unused *shift_vec,
                                                      real                      gmx_unused *f,
                                                      real                      gmx_unused *fshift,
+                                                     FDA                       gmx_unused *fda,
+                                                     int                       gmx_unused *cellInv,
                                                      real                      gmx_unused *Vvdw,
                                                      real                      gmx_unused *Vc)
 #else /* CALC_ENERGIES */
@@ -79,7 +89,9 @@ nbnxn_kernel_ElecQSTabTwinCut_VdwLJEwCombGeom_F_2xnn(const nbnxn_pairlist_t    g
                                                      const interaction_const_t gmx_unused *ic,
                                                      rvec                      gmx_unused *shift_vec,
                                                      real                      gmx_unused *f,
-                                                     real                      gmx_unused *fshift)
+                                                     real                      gmx_unused *fshift,
+                                                     FDA                       gmx_unused *fda,
+                                                     int                       gmx_unused *cellInv)
 #endif /* CALC_ENERGIES */
 #ifdef GMX_NBNXN_SIMD_2XNN
 #include "gromacs/mdlib/nbnxn_kernels/simd_2xnn/nbnxn_kernel_simd_2xnn_outer.h"

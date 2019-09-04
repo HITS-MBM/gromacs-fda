@@ -38,8 +38,10 @@ gmx_install_headers(
     gstat.h
     )
 
-set(LIBGROMACS_SOURCES ${LIBGROMACS_SOURCES} ${GMXANA_SOURCES} PARENT_SCOPE)
+add_subdirectory(fda)
 
+set(LIBGROMACS_SOURCES ${LIBGROMACS_SOURCES} ${GMXANA_SOURCES} ${LIB_FDA_ANA_SOURCES} PARENT_SCOPE)
+    
 if(BUILD_TESTING)
     add_subdirectory(tests)
 endif()

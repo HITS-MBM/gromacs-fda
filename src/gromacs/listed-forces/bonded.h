@@ -47,7 +47,17 @@
 #ifndef GMX_LISTED_FORCES_BONDED_H
 #define GMX_LISTED_FORCES_BONDED_H
 
+#include <cstdio>
+
+#include "gromacs/fda/FDA.h"
+#include "gromacs/gmxlib/nrnb.h"
+#include "gromacs/math/vec.h"
 #include "gromacs/math/vectypes.h"
+#include "gromacs/mdtypes/fcdata.h"
+#include "gromacs/mdtypes/forcerec.h"
+#include "gromacs/mdtypes/interaction_const.h"
+#include "gromacs/mdtypes/mdatom.h"
+#include "gromacs/topology/idef.h"
 #include "gromacs/topology/ifunc.h"
 #include "gromacs/utility/basedefinitions.h"
 
@@ -89,7 +99,7 @@ real
               const struct t_pbc *pbc, const struct t_graph *g,
               real gmx_unused lambda, real gmx_unused *dvdlambda,
               const t_mdatoms gmx_unused *md, t_fcdata gmx_unused *fcd,
-              int  gmx_unused *global_atom_index);
+              int  gmx_unused *global_atom_index, FDA *fda);
 
 //! \cond
 /*************************************************************************

@@ -43,6 +43,7 @@
 
 #include <algorithm>
 
+#include "gromacs/fda/FDA.h"
 #include "gromacs/math/functions.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/mdlib/gmx_omp_nthreads.h"

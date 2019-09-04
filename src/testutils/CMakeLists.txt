@@ -56,6 +56,7 @@ set(TESTUTILS_SOURCES
     testinit.cpp
     testmatchers.cpp
     testoptions.cpp
+    TextSplitter.cpp
     textblockmatchers.cpp
     xvgtest.cpp
     )

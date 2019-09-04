@@ -211,7 +211,7 @@ static void check_viol(FILE *log,
         snew(fshift, SHIFTS);
         ta_disres(n, &forceatoms[i], forceparams,
                   x, f, fshift,
-                  pbc, g, lam, &dvdl, nullptr, fcd, nullptr);
+                  pbc, g, lam, &dvdl, nullptr, fcd, nullptr, nullptr);
         sfree(fshift);
         viol = fcd->disres.sumviol;
 

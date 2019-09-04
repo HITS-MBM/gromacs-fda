@@ -1,0 +1,22 @@
+version: "3"
+services:
+
+  eclipse:
+    build:
+      context: .
+      dockerfile: Dockerfile-gcc-4.9-eclipse
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:ro 
+      - /etc/localtime:/etc/localtime:ro
+      - home:/home/${USER_NAME}
+      - ..:/home/${USER_NAME}/git/${PROJECT}
+    environment:
+      - DISPLAY
+      - USER_ID=${USER_ID}
+      - GROUP_ID=${GROUP_ID}
+      - USER_NAME=${USER_NAME}
+      - GROUP_NAME=${GROUP_NAME}
+    privileged: true
+
+volumes:
+  home:

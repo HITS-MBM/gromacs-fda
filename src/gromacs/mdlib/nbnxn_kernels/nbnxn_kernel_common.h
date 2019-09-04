@@ -44,6 +44,7 @@
 #ifndef _nbnxn_kernel_common_h
 #define _nbnxn_kernel_common_h
 
+#include "gromacs/fda/FDA.h"
 #include "gromacs/math/vectypes.h"
 /* nbnxn_atomdata_t and nbnxn_pairlist_t could be forward declared, but that requires modifications in all SIMD kernel files */
 #include "gromacs/mdlib/nbnxn_atomdata.h"
@@ -60,6 +61,8 @@ typedef void (nbk_func_ener)(const nbnxn_pairlist_t     *nbl,
                              rvec                       *shift_vec,
                              real                       *f,
                              real                       *fshift,
+                             FDA                        *fda,
+                             int                        *cellInv,
                              real                       *Vvdw,
                              real                       *Vc);
 
@@ -74,7 +77,9 @@ typedef void (nbk_func_noener)(const nbnxn_pairlist_t     *nbl,
                                const interaction_const_t  *ic,
                                rvec                       *shift_vec,
                                real                       *f,
-                               real                       *fshift);
+                               real                       *fshift,
+                               FDA                        *fda,
+                               int                        *cellInv);
 
 /*! \brief Pointer to \p nbk_func_noener.
  */

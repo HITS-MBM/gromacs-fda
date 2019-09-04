@@ -42,6 +42,7 @@
 
 #include <algorithm>
 
+#include "gromacs/fda/FDA.h"
 #include "gromacs/math/functions.h"
 #include "gromacs/math/utilities.h"
 #include "gromacs/math/vec.h"
@@ -64,10 +65,12 @@ nbnxn_kernel_gpu_ref(const nbnxn_pairlist_t     *nbl,
                      rvec                       *shift_vec,
                      int                         force_flags,
                      int                         clearF,
-                     real  *                     f,
-                     real  *                     fshift,
-                     real  *                     Vc,
-                     real  *                     Vvdw)
+                     real                       *f,
+                     real                       *fshift,
+                     real                       *Vc,
+                     real                       *Vvdw,
+                     FDA                        *fda,
+                     int                        *cellInv)
 {
     const nbnxn_sci_t  *nbln;
     const real         *x;
@@ -109,6 +112,10 @@ nbnxn_kernel_gpu_ref(const nbnxn_pairlist_t     *nbl,
 
     int                 npair_tot, npair;
     int                 nhwu, nhwu_pruned;
+
+#ifdef BUILD_WITH_FDA
+    real                fvdw;
+#endif
 
     if (nbl->na_ci != c_clSize)
     {
@@ -294,7 +301,11 @@ nbnxn_kernel_gpu_ref(const nbnxn_pairlist_t     *nbl,
                                         vcoul = qq*((int_bit - std::erf(iconst->ewaldcoeff_q*r))*rinv - int_bit*iconst->sh_ewald);
                                     }
                                 }
-
+#ifdef BUILD_WITH_FDA
+                                if (fabs(fscal) > fda->get_settings().threshold) {
+                                    fda->add_nonbonded_single(cellInv[ia], cellInv[ja], fda::InteractionType_COULOMB, fscal, dx, dy, dz);
+                                }
+#endif
                                 if (rsq < rvdw2)
                                 {
                                     tj        = nti + 2*type[ja];
@@ -306,8 +317,15 @@ nbnxn_kernel_gpu_ref(const nbnxn_pairlist_t     *nbl,
                                     rinvsix   = int_bit*rinvsq*rinvsq*rinvsq;
                                     Vvdw_disp = c6*rinvsix;
                                     Vvdw_rep  = c12*rinvsix*rinvsix;
+#ifdef BUILD_WITH_FDA
+                                    fvdw      = (Vvdw_rep - Vvdw_disp)*rinvsq;
+                                    fscal    += fvdw;
+                                    if (fabs(fvdw) > fda->get_settings().threshold) {
+                                        fda->add_nonbonded_single(cellInv[ia], cellInv[ja], fda::InteractionType_LJ, fvdw, dx, dy, dz);
+                                    }
+#else
                                     fscal    += (Vvdw_rep - Vvdw_disp)*rinvsq;
-
+#endif
                                     if (bEner)
                                     {
                                         vctot   += vcoul;

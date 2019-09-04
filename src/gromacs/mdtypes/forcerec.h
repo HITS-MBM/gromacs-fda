@@ -40,6 +40,7 @@
 #include <array>
 #include <vector>
 
+#include "gromacs/fda/FDA.h"
 #include "gromacs/math/vectypes.h"
 #include "gromacs/mdtypes/interaction_const.h"
 #include "gromacs/mdtypes/md_enums.h"
@@ -296,6 +297,9 @@ struct t_forcerec { // NOLINT (clang-analyzer-optin.performance.Padding)
 
     /* Limit for printing large forces, negative is don't print */
     real print_force;
+
+    /* FDA */
+    struct FDA *fda;
 
     /* coarse load balancing time measurement */
     double t_fnbf;

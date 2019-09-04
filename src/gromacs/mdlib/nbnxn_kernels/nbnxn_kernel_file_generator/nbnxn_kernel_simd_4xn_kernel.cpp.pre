@@ -54,6 +54,14 @@
 #include "gromacs/mdlib/nbnxn_kernels/simd_4xn/nbnxn_kernel_simd_4xn_common.h"
 #endif /* {0} */
 
+#include "gromacs/fda/FDA.h"
+
+#ifndef GMX_DOUBLE
+#define PF_TINY_REAL_NUMBER 1.0e-7f
+#else
+#define PF_TINY_REAL_NUMBER 1.0e-14
+#endif
+
 #ifdef CALC_ENERGIES
 void
 {5}(const nbnxn_pairlist_t    gmx_unused *nbl,
@@ -62,6 +70,8 @@ void
 {6}rvec                      gmx_unused *shift_vec,
 {6}real                      gmx_unused *f,
 {6}real                      gmx_unused *fshift,
+{6}FDA                       gmx_unused *fda,
+{6}int                       gmx_unused *cellInv,
 {6}real                      gmx_unused *Vvdw,
 {6}real                      gmx_unused *Vc)
 #else /* CALC_ENERGIES */
@@ -71,7 +81,9 @@ void
 {6}const interaction_const_t gmx_unused *ic,
 {6}rvec                      gmx_unused *shift_vec,
 {6}real                      gmx_unused *f,
-{6}real                      gmx_unused *fshift)
+{6}real                      gmx_unused *fshift,
+{6}FDA                       gmx_unused *fda,
+{6}int                       gmx_unused *cellInv)
 #endif /* CALC_ENERGIES */
 #ifdef {0}
 #include "gromacs/mdlib/nbnxn_kernels/simd_4xn/nbnxn_kernel_simd_4xn_outer.h"
