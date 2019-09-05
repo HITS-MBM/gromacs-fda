@@ -290,9 +290,5 @@ gmx_fda_shortest_path(int argc, char *argv[]);
 int
 gmx_fda_convert(int argc, char *argv[]);
 
-#ifdef __cplusplus
-}
-#endif
-
 #endif
 /* _gmx_ana_h */

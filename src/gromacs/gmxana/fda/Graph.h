@@ -25,7 +25,7 @@ class Graph
 {
 public:
 
-	Graph() {};
+	Graph() {}
 
 	//! Build graph by adjacency matrix
 	Graph(std::vector<double> const& forceMatrix, rvec *coord, int *index, int isize);

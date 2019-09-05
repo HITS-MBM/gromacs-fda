@@ -79,6 +79,6 @@ nbnxn_kernel_cpu(nonbonded_verlet_group_t  *nbvg,
                  real                      *vCoulomb,
                  real                      *vVdw,
                  FDA                       *fda,
-		         int                       *cellInv);
+				 std::vector<int>           cellInv);
 
 #endif

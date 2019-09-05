@@ -60,9 +60,8 @@ FDASettings::FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *mtop, bool
     // Use GROMACS function to read lines of form key = value from input file
     const char *pf_file_in = opt2fn("-pfi", nfile, fnm);
     warninp_t wi = init_warning(FALSE, 0);
-    int ninp;
     gmx::TextInputFile stream(pf_file_in);
-    t_inpfile *inp = read_inpfile(&stream, pf_file_in, &ninp, wi);
+    auto inp = read_inpfile(&stream, pf_file_in, wi);
 
     // Check for deprecated keywords
     std::vector<std::pair<std::string, std::string>> deprecated_keywords{
@@ -78,33 +77,33 @@ FDASettings::FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *mtop, bool
         {"pf_no_end_zeros", "no_end_zeros"}
     };
     for (auto const& pair : deprecated_keywords) {
-        if (search_einp(ninp, inp, pair.first.c_str()) != -1) {
+        if (search_einp(inp, pair.first.c_str()) != -1) {
                 std::string message = "Deprecated keyword '" + pair.first + "' was used, please use '" + pair.second + "' instead.\n";
-            gmx_fatal(FARGS, message.c_str());
+            gmx_fatal(FARGS, "%s", message.c_str());
         }
     }
 
     // Read result types
-    std::stringstream(get_estr(&ninp, &inp, "atombased", "no")) >> atom_based_result_type;
-    std::stringstream(get_estr(&ninp, &inp, "residuebased", "no")) >> residue_based_result_type;
+    std::stringstream(get_estr(&inp, "atombased", "no")) >> atom_based_result_type;
+    std::stringstream(get_estr(&inp, "residuebased", "no")) >> residue_based_result_type;
 
     // OnePair has to be initialized before the atoms/residues are initialized
     // because the data structures used for storing atoms/residues depend on it
-    std::stringstream(get_estr(&ninp, &inp, "onepair", "detailed")) >> one_pair;
+    std::stringstream(get_estr(&inp, "onepair", "detailed")) >> one_pair;
 
-    std::stringstream(get_estr(&ninp, &inp, "residuesrenumber", "auto")) >> residues_renumber;
+    std::stringstream(get_estr(&inp, "residuesrenumber", "auto")) >> residues_renumber;
     std::cout << "ResidueRenumber: " << residues_renumber << std::endl;
 
-    std::stringstream(get_estr(&ninp, &inp, "vector2scalar", "norm")) >> v2s;
+    std::stringstream(get_estr(&inp, "vector2scalar", "norm")) >> v2s;
     std::cout << "Vector2Scalar: " << v2s << std::endl;
 
-    no_end_zeros = strcasecmp(get_estr(&ninp, &inp, "no_end_zeros", "no"), "no");
+    no_end_zeros = strcasecmp(get_estr(&inp, "no_end_zeros", "no"), "no");
 
     if ((compatibility_mode(atom_based_result_type) or compatibility_mode(residue_based_result_type)) and v2s != Vector2Scalar::NORM)
         gmx_fatal(FARGS, "When using compat mode, pf_vector2scalar should be set to norm.\n");
 
     std::string type_string;
-    std::stringstream(get_estr(&ninp, &inp, "type", "all")) >> type_string;
+    std::stringstream(get_estr(&inp, "type", "all")) >> type_string;
     type = from_string(type_string);
     std::cout << "Pairwise interactions selected: " << type_string << std::endl;
 
@@ -113,8 +112,8 @@ FDASettings::FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *mtop, bool
 
     // Read group names
     std::string name_group1, name_group2;
-    std::stringstream(get_estr(&ninp, &inp, "group1", "Protein")) >> name_group1;
-    std::stringstream(get_estr(&ninp, &inp, "group2", "Protein")) >> name_group2;
+    std::stringstream(get_estr(&inp, "group1", "Protein")) >> name_group1;
+    std::stringstream(get_estr(&inp, "group2", "Protein")) >> name_group2;
     std::cout << "Pairwise forces for groups: " << name_group1 << " and " << name_group2 << std::endl;
 
     // Get atom indices of groups defined in pfn-file
@@ -167,7 +166,7 @@ FDASettings::FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *mtop, bool
     }
 
     // Read time averaging period
-    time_averaging_period = get_eint(&ninp, &inp, "time_averages_period", 1, wi);
+    time_averaging_period = get_eint(&inp, "time_averages_period", 1, wi);
     if (time_averaging_period < 0)
         gmx_fatal(FARGS, "Invalid value for time_averages_period: %d\n", time_averaging_period);
 
@@ -229,21 +228,21 @@ FDASettings::FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *mtop, bool
         gmx_fatal(FARGS, "Per atom data can only be computed from summed interactions.\n");
 
     // Energy groups exclusions
-    nonbonded_exclusion_on = strcasecmp(get_estr(&ninp, &inp, "energy_grp_exclusion", "yes"), "no");
-    bonded_exclusion_on = strcasecmp(get_estr(&ninp, &inp, "bonded_exclusion", "yes"), "no");
+    nonbonded_exclusion_on = strcasecmp(get_estr(&inp, "energy_grp_exclusion", "yes"), "no");
+    bonded_exclusion_on = strcasecmp(get_estr(&inp, "bonded_exclusion", "yes"), "no");
 
     // Binary result file
-    binary_result_file = strcasecmp(get_estr(&ninp, &inp, "binary_result_file", "no"), "no");
+    binary_result_file = strcasecmp(get_estr(&inp, "binary_result_file", "no"), "no");
     std::cout << "Binary mode: " << binary_result_file << std::endl;
 
     // Read threshold
-    threshold = get_ereal(&ninp, &inp, "threshold", 1e-10, wi);
+    threshold = get_ereal(&inp, "threshold", 1e-10, wi);
     if (threshold < 0.0)
-        gmx_fatal(FARGS, "Invalid value for threshold: %d\n", threshold);
+        gmx_fatal(FARGS, "Invalid value for threshold: %f\n", threshold);
     std::cout << "Threshold: " << threshold << std::endl;
 
     // Normalize punctual stress per residue
-    normalize_psr = strcasecmp(get_estr(&ninp, &inp, "normalize_punctual_stress_per_residue", "no"), "no");
+    normalize_psr = strcasecmp(get_estr(&inp, "normalize_punctual_stress_per_residue", "no"), "no");
     std::cout << "Normalize punctual stress per residue: " << normalize_psr << std::endl;
 }
 
@@ -258,7 +257,6 @@ void FDASettings::fill_atom2residue(gmx_mtop_t *mtop)
 {
     t_atoms *atoms;
     t_atom *atom_info;
-    gmx_molblock_t *mb;
 
     // atom 2 residue correspondence tables, both are filled, one will be used in the end
     std::vector<int> a2r_resnr(syslen_atoms);
@@ -274,10 +272,10 @@ void FDASettings::fill_atom2residue(gmx_mtop_t *mtop)
     int atom_global_index = 0;
     int renum = 0; //< renumbered residue nr.; increased monotonically, so could theoretically be as large as the nr. of atoms => type int
     bool bResnrCollision = false;
-    for (int moltype_index = 0; moltype_index < mtop->nmolblock; ++moltype_index) {
-        mb = &mtop->molblock[moltype_index];
-        for (int mol_index = 0; mol_index < mb->nmol; ++mol_index) {
-            atoms = &mtop->moltype[mb->type].atoms;
+
+    for (auto const& mb : mtop->molblock) {
+        for (int mol_index = 0; mol_index < mb.nmol; ++mol_index) {
+            atoms = &mtop->moltype[mb.type].atoms;
             for (int atom_index = 0; atom_index < atoms->nr; ++atom_index) {
                 atom_info = &atoms->atom[atom_index];
                 int resnr = atoms->resinfo[atom_info->resind].nr;
@@ -328,7 +326,7 @@ int FDASettings::get_global_residue_number(gmx_mtop_t *mtop, int atnr_global) co
 {
     int mb;
     int a_start, a_end, maxresnr, at_loc;
-    t_atoms *atoms=NULL;
+    t_atoms *atoms = nullptr;
 
     mb = -1;
     a_end = 0;

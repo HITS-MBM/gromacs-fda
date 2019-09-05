@@ -142,7 +142,7 @@ nbnxn_kernel_cpu(nonbonded_verlet_group_t  *nbvg,
                  real                      *vCoulomb,
                  real                      *vVdw,
                  FDA                       *fda,
-                 int                       *cellInv)
+                 std::vector<int>           cellInv)
 {
 
     int                      coulkt;
@@ -265,7 +265,7 @@ nbnxn_kernel_cpu(nonbonded_verlet_group_t  *nbvg,
                                                            out->f,
                                                            fshift_p,
                                                            fda,
-                                                           cellInv);
+                                                           &cellInv[0]);
                     break;
 #ifdef GMX_NBNXN_SIMD_2XNN
                 case nbnxnk4xN_SIMD_2xNN:
@@ -275,7 +275,7 @@ nbnxn_kernel_cpu(nonbonded_verlet_group_t  *nbvg,
                                                                  out->f,
                                                                  fshift_p,
                                                                  fda,
-                                                                 cellInv);
+                                                                 &cellInv[0]);
                     break;
 #endif
 #ifdef GMX_NBNXN_SIMD_4XN
@@ -286,7 +286,7 @@ nbnxn_kernel_cpu(nonbonded_verlet_group_t  *nbvg,
                                                                 out->f,
                                                                 fshift_p,
                                                                 fda,
-                                                                cellInv);
+                                                                &cellInv[0]);
                     break;
 #endif
                 default:
@@ -308,7 +308,7 @@ nbnxn_kernel_cpu(nonbonded_verlet_group_t  *nbvg,
                                                          out->f,
                                                          fshift_p,
                                                          fda,
-                                                         cellInv,
+                                                         &cellInv[0],
                                                          out->Vvdw,
                                                          out->Vc);
                     break;
@@ -320,7 +320,7 @@ nbnxn_kernel_cpu(nonbonded_verlet_group_t  *nbvg,
                                                                out->f,
                                                                fshift_p,
                                                                fda,
-                                                               cellInv,
+                                                               &cellInv[0],
                                                                out->Vvdw,
                                                                out->Vc);
                     break;
@@ -333,7 +333,7 @@ nbnxn_kernel_cpu(nonbonded_verlet_group_t  *nbvg,
                                                               out->f,
                                                               fshift_p,
                                                               fda,
-                                                              cellInv,
+                                                              &cellInv[0],
                                                               out->Vvdw,
                                                               out->Vc);
                     break;
@@ -359,7 +359,7 @@ nbnxn_kernel_cpu(nonbonded_verlet_group_t  *nbvg,
                                                             out->f,
                                                             fshift_p,
                                                             fda,
-                                                            cellInv,
+                                                            &cellInv[0],
                                                             out->Vvdw,
                                                             out->Vc);
                     break;
@@ -372,7 +372,7 @@ nbnxn_kernel_cpu(nonbonded_verlet_group_t  *nbvg,
                                                                   out->f,
                                                                   fshift_p,
                                                                   fda,
-                                                                  cellInv,
+                                                                  &cellInv[0],
                                                                   out->VSvdw,
                                                                   out->VSc);
                     break;
@@ -386,7 +386,7 @@ nbnxn_kernel_cpu(nonbonded_verlet_group_t  *nbvg,
                                                                  out->f,
                                                                  fshift_p,
                                                                  fda,
-                                                                 cellInv,
+                                                                 &cellInv[0],
                                                                  out->VSvdw,
                                                                  out->VSc);
                     break;

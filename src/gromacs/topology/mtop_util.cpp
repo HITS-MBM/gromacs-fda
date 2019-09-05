@@ -773,8 +773,13 @@ static void ilistcat(int                    ftype,
     }
 }
 
-static void pf_ilistcat(int ftype, t_ilist *dest, t_ilist *src, int copies,
-                        int dnum, int snum, fda::FDASettings const& fda_settings)
+static void pf_ilistcat(int                     ftype,
+		                t_ilist                *dest,
+						const InteractionList  &src,
+						int                     copies,
+                        int                     dnum,
+						int                     snum,
+						fda::FDASettings const &fda_settings)
 {
 	// Return if no bonded interaction is needed.
 	if (!(fda_settings.type & (fda::InteractionType_BONDED + fda::InteractionType_NB14))) return;
@@ -785,24 +790,24 @@ static void pf_ilistcat(int ftype, t_ilist *dest, t_ilist *src, int copies,
     nral = NRAL(ftype);
 
     t_iatom *tmp;
-    snew(tmp,copies*src->nr);
+    snew(tmp, copies*src.size());
     int len = 0;
 
     int *g1atomsBeg = fda_settings.groups->a + fda_settings.groups->index[fda_settings.index_group1];
     int *g1atomsEnd = fda_settings.groups->a + fda_settings.groups->index[fda_settings.index_group1 + 1];
-    int *g1atomsCur = NULL;
+    int *g1atomsCur = nullptr;
     int *g2atomsBeg = fda_settings.groups->a + fda_settings.groups->index[fda_settings.index_group2];
     int *g2atomsEnd = fda_settings.groups->a + fda_settings.groups->index[fda_settings.index_group2 + 1];
-    int *g2atomsCur = NULL;
+    int *g2atomsCur = nullptr;
 
     for (c = 0; c < copies; c++)
     {
-        for (i = 0; i < src->nr; )
+        for (i = 0; i < src.size(); )
         {
             needed = 0;
             for (a = 0; a < nral; a++)
             {
-            	atomIdx = dnum + src->iatoms[i+a+1];
+            	atomIdx = dnum + src.iatoms[i+a+1];
         		for (g1atomsCur = g1atomsBeg; g1atomsCur < g1atomsEnd; ++g1atomsCur) {
         			if (atomIdx == *g1atomsCur) needed = 1;
         		}
@@ -811,8 +816,8 @@ static void pf_ilistcat(int ftype, t_ilist *dest, t_ilist *src, int copies,
         		}
             }
             if (needed) {
-                tmp[len++] = src->iatoms[i];
-                for (a = 0; a < nral; a++) tmp[len++] = dnum + src->iatoms[i+a+1];
+                tmp[len++] = src.iatoms[i];
+                for (a = 0; a < nral; a++) tmp[len++] = dnum + src.iatoms[i+a+1];
 
                 #ifdef FDA_BONDEXCL_PRINT_DEBUG_ON
 					fprintf(stderr, "=== DEBUG === bonded interaction %i", ftype);
@@ -930,7 +935,8 @@ static void set_fbposres_params(t_idef *idef, const gmx_molblock_t *molb,
 static void copyIdefFromMtop(const gmx_mtop_t &mtop,
                              t_idef           *idef,
                              bool              freeEnergyInteractionsAtEnd,
-                             bool              mergeConstr)
+                             bool              mergeConstr,
+							 fda::FDASettings *ptr_fda_settings)
 {
     const gmx_ffparams_t   *ffp = &mtop.ffparams;
 
@@ -1189,10 +1195,11 @@ static void addMimicExclusions(t_blocka                      *excls,
 static void gen_local_top(const gmx_mtop_t  &mtop,
                           bool               freeEnergyInteractionsAtEnd,
                           bool               bMergeConstr,
-                          gmx_localtop_t    *top)
+                          gmx_localtop_t    *top,
+						  fda::FDASettings  *ptr_fda_settings)
 {
     copyAtomtypesFromMtop(mtop, &top->atomtypes);
-    copyIdefFromMtop(mtop, &top->idef, freeEnergyInteractionsAtEnd, bMergeConstr);
+    copyIdefFromMtop(mtop, &top->idef, freeEnergyInteractionsAtEnd, bMergeConstr, ptr_fda_settings);
     copyCgsFromMtop(mtop, &top->cgs);
     copyExclsFromMtop(mtop, &top->excls);
     if (!mtop.intermolecularExclusionGroup.empty())
@@ -1278,7 +1285,7 @@ static void gen_t_topology(const gmx_mtop_t &mtop,
                            t_topology       *top)
 {
     copyAtomtypesFromMtop(mtop, &top->atomtypes);
-    copyIdefFromMtop(mtop, &top->idef, freeEnergyInteractionsAtEnd, bMergeConstr);
+    copyIdefFromMtop(mtop, &top->idef, freeEnergyInteractionsAtEnd, bMergeConstr, nullptr);
     copyCgsFromMtop(mtop, &top->cgs);
     copyExclsFromMtop(mtop, &top->excls);
 

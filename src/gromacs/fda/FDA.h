@@ -187,22 +187,22 @@ extern "C" {
  * forces are passed as scalars along with the distance vector (as dx, dy, dz) from which the vector forces are
  * computed, the same way it's done in the nonbonded kernels
  */
-void fda_add_nonbonded(struct FDA *fda, int i, int j, real pf_coul, real pf_lj, real dx, real dy, real dz);
+void fda_add_nonbonded(class FDA *fda, int i, int j, real pf_coul, real pf_lj, real dx, real dy, real dz);
 
 /**
  * Add coulomb part of nonbonded interaction
  */
-void fda_add_nonbonded_coulomb(struct FDA *fda, int i, int j, real force, real dx, real dy, real dz);
+void fda_add_nonbonded_coulomb(class FDA *fda, int i, int j, real force, real dx, real dy, real dz);
 
 /**
  * Add lennard-jones part of nonbonded interaction
  */
-void fda_add_nonbonded_lj(struct FDA *fda, int i, int j, real force, real dx, real dy, real dz);
+void fda_add_nonbonded_lj(class FDA *fda, int i, int j, real force, real dx, real dy, real dz);
 
 /**
  * Origin on j, but for 2 atoms it doesn't matter.
  */
-void fda_virial_bond(struct FDA *fda, int ai, int aj, real fbond, real dx, real dy, real dz);
+void fda_virial_bond(class FDA *fda, int ai, int aj, real fbond, real dx, real dy, real dz);
 
 #ifdef __cplusplus
 }

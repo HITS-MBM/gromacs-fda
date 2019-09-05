@@ -73,10 +73,8 @@ void PDB::writePaths(std::string const& filename, std::vector< std::vector<int> 
     if (!pdb) gmx_fatal(FARGS, "Error opening pdb file.");
 
     std::stringstream connections;
-    int i, j;
     int numAtom = 1;
     int numNetwork = 0;
-    std::vector<int>::const_iterator i1, i2;
 	int dim = std::sqrt(forceMatrix.size());
 
     real currentForce;
@@ -86,8 +84,8 @@ void PDB::writePaths(std::string const& filename, std::vector< std::vector<int> 
     {
 		for (size_t n = 0; n < path.size() - 1; ++n)
 		{
-			i = path[n];
-			j = path[n+1];
+			int i = path[n];
+			int j = path[n+1];
 
             currentForce = forceMatrix[i*dim+j];
             if (currentForce > 999.99) valueToLargeForPDB = true;

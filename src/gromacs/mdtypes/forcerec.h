@@ -299,7 +299,7 @@ struct t_forcerec { // NOLINT (clang-analyzer-optin.performance.Padding)
     real print_force;
 
     /* FDA */
-    struct FDA *fda;
+    class FDA *fda;
 
     /* coarse load balancing time measurement */
     double t_fnbf;

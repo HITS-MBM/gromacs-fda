@@ -70,7 +70,7 @@ nbnxn_kernel_gpu_ref(const nbnxn_pairlist_t     *nbl,
                      real                       *Vc,
                      real                       *Vvdw,
                      FDA                        *fda,
-                     int                        *cellInv)
+                     std::vector<int>            cellInv)
 {
     const nbnxn_sci_t  *nbln;
     const real         *x;

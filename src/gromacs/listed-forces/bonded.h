@@ -112,210 +112,210 @@ real bonds(int nfa, const t_iatom forceatoms[], const t_iparams ip[],
            const t_pbc *pbc, const t_graph *g,
            real lambda, real *dvdlambda,
            const t_mdatoms *md, t_fcdata *fcd,
-           int *global_atom_index);
+           int *global_atom_index, FDA *fda);
 
 real g96bonds(int nfa, const t_iatom forceatoms[], const t_iparams ip[],
               const rvec x[], rvec4 f[], rvec fshift[],
               const t_pbc *pbc, const t_graph *g,
               real lambda, real *dvdlambda,
               const t_mdatoms *md, t_fcdata *fcd,
-              int *global_atom_index);
+              int *global_atom_index, FDA *fda);
 
 real morse_bonds(int nfa, const t_iatom forceatoms[], const t_iparams ip[],
                  const rvec x[], rvec4 f[], rvec fshift[],
                  const t_pbc *pbc, const t_graph *g,
                  real lambda, real *dvdlambda,
                  const t_mdatoms *md, t_fcdata *fcd,
-                 int *global_atom_index);
+                 int *global_atom_index, FDA *fda);
 
 real cubic_bonds(int nfa, const t_iatom forceatoms[], const t_iparams ip[],
                  const rvec x[], rvec4 f[], rvec fshift[],
                  const t_pbc *pbc, const t_graph *g,
                  real lambda, real *dvdlambda,
                  const t_mdatoms *md, t_fcdata *fcd,
-                 int *global_atom_index);
+                 int *global_atom_index, FDA *fda);
 
 real FENE_bonds(int nfa, const t_iatom forceatoms[], const t_iparams ip[],
                 const rvec x[], rvec4 f[], rvec fshift[],
                 const t_pbc *pbc, const t_graph *g,
                 real lambda, real *dvdlambda,
                 const t_mdatoms *md, t_fcdata *fcd,
-                int *global_atom_index);
+                int *global_atom_index, FDA *fda);
 
 real restraint_bonds(int nfa, const t_iatom forceatoms[], const t_iparams ip[],
                      const rvec x[], rvec4 f[], rvec fshift[],
                      const t_pbc *pbc, const t_graph *g,
                      real lambda, real *dvdlambda,
                      const t_mdatoms *md, t_fcdata *fcd,
-                     int *global_atom_index);
+                     int *global_atom_index, FDA *fda);
 
 real angles(int nfa, const t_iatom forceatoms[], const t_iparams ip[],
             const rvec x[], rvec4 f[], rvec fshift[],
             const t_pbc *pbc, const t_graph *g,
             real lambda, real *dvdlambda,
             const t_mdatoms *md, t_fcdata *fcd,
-            int *global_atom_index);
+            int *global_atom_index, FDA *fda);
 
 real g96angles(int nfa, const t_iatom forceatoms[], const t_iparams ip[],
                const rvec x[], rvec4 f[], rvec fshift[],
                const t_pbc *pbc, const t_graph *g,
                real lambda, real *dvdlambda,
                const t_mdatoms *md, t_fcdata *fcd,
-               int *global_atom_index);
+               int *global_atom_index, FDA *fda);
 
 real cross_bond_bond(int nfa, const t_iatom forceatoms[], const t_iparams ip[],
                      const rvec x[], rvec4 f[], rvec fshift[],
                      const t_pbc *pbc, const t_graph *g,
                      real lambda, real *dvdlambda,
                      const t_mdatoms *md, t_fcdata *fcd,
-                     int *global_atom_index);
+                     int *global_atom_index, FDA *fda);
 
 real cross_bond_angle(int nfa, const t_iatom forceatoms[], const t_iparams ip[],
                       const rvec x[], rvec4 f[], rvec fshift[],
                       const t_pbc *pbc, const t_graph *g,
                       real lambda, real *dvdlambda,
                       const t_mdatoms *md, t_fcdata *fcd,
-                      int *global_atom_index);
+                      int *global_atom_index, FDA *fda);
 
 real urey_bradley(int nfa, const t_iatom forceatoms[], const t_iparams ip[],
                   const rvec x[], rvec4 f[], rvec fshift[],
                   const t_pbc *pbc, const t_graph *g,
                   real lambda, real *dvdlambda,
                   const t_mdatoms *md, t_fcdata *fcd,
-                  int *global_atom_index);
+                  int *global_atom_index, FDA *fda);
 
 real quartic_angles(int nfa, const t_iatom forceatoms[], const t_iparams ip[],
                     const rvec x[], rvec4 f[], rvec fshift[],
                     const t_pbc *pbc, const t_graph *g,
                     real lambda, real *dvdlambda,
                     const t_mdatoms *md, t_fcdata *fcd,
-                    int *global_atom_index);
+                    int *global_atom_index, FDA *fda);
 
 real linear_angles(int nfa, const t_iatom forceatoms[], const t_iparams ip[],
                    const rvec x[], rvec4 f[], rvec fshift[],
                    const t_pbc *pbc, const t_graph *g,
                    real lambda, real *dvdlambda,
                    const t_mdatoms *md, t_fcdata *fcd,
-                   int *global_atom_index);
+                   int *global_atom_index, FDA *fda);
 
 real restrangles(int nfa, const t_iatom forceatoms[], const t_iparams ip[],
                  const rvec x[], rvec4 f[], rvec fshift[],
                  const t_pbc *pbc, const t_graph *g,
                  real lambda, real *dvdlambda,
                  const t_mdatoms *md, t_fcdata *fcd,
-                 int *global_atom_index);
+                 int *global_atom_index, FDA *fda);
 
 real pdihs(int nfa, const t_iatom forceatoms[], const t_iparams ip[],
            const rvec x[], rvec4 f[], rvec fshift[],
            const t_pbc *pbc, const t_graph *g,
            real lambda, real *dvdlambda,
            const t_mdatoms *md, t_fcdata *fcd,
-           int *global_atom_index);
+           int *global_atom_index, FDA *fda);
 
 real idihs(int nfa, const t_iatom forceatoms[], const t_iparams ip[],
            const rvec x[], rvec4 f[], rvec fshift[],
            const t_pbc *pbc, const t_graph *g,
            real lambda, real *dvdlambda,
            const t_mdatoms *md, t_fcdata *fcd,
-           int *global_atom_index);
+           int *global_atom_index, FDA *fda);
 
 real rbdihs(int nfa, const t_iatom forceatoms[], const t_iparams ip[],
             const rvec x[], rvec4 f[], rvec fshift[],
             const t_pbc *pbc, const t_graph *g,
             real lambda, real *dvdlambda,
             const t_mdatoms *md, t_fcdata *fcd,
-            int *global_atom_index);
+            int *global_atom_index, FDA *fda);
 
 real restrdihs(int nfa, const t_iatom forceatoms[], const t_iparams ip[],
                const rvec x[], rvec4 f[], rvec fshift[],
                const t_pbc *pbc, const t_graph *g,
                real lambda, real *dvdlambda,
                const t_mdatoms *md, t_fcdata *fcd,
-               int *global_atom_index);
+               int *global_atom_index, FDA *fda);
 
 real cbtdihs(int nfa, const t_iatom forceatoms[], const t_iparams ip[],
              const rvec x[], rvec4 f[], rvec fshift[],
              const t_pbc *pbc, const t_graph *g,
              real lambda, real *dvdlambda,
              const t_mdatoms *md, t_fcdata *fcd,
-             int *global_atom_index);
+             int *global_atom_index, FDA *fda);
 
 real tab_bonds(int nfa, const t_iatom forceatoms[], const t_iparams ip[],
                const rvec x[], rvec4 f[], rvec fshift[],
                const t_pbc *pbc, const t_graph *g,
                real lambda, real *dvdlambda,
                const t_mdatoms *md, t_fcdata *fcd,
-               int *global_atom_index);
+               int *global_atom_index, FDA *fda);
 
 real tab_angles(int nfa, const t_iatom forceatoms[], const t_iparams ip[],
                 const rvec x[], rvec4 f[], rvec fshift[],
                 const t_pbc *pbc, const t_graph *g,
                 real lambda, real *dvdlambda,
                 const t_mdatoms *md, t_fcdata *fcd,
-                int *global_atom_index);
+                int *global_atom_index, FDA *fda);
 
 real tab_dihs(int nfa, const t_iatom forceatoms[], const t_iparams ip[],
               const rvec x[], rvec4 f[], rvec fshift[],
               const t_pbc *pbc, const t_graph *g,
               real lambda, real *dvdlambda,
               const t_mdatoms *md, t_fcdata *fcd,
-              int *global_atom_index);
+              int *global_atom_index, FDA *fda);
 
 real polarize(int nfa, const t_iatom forceatoms[], const t_iparams ip[],
               const rvec x[], rvec4 f[], rvec fshift[],
               const t_pbc *pbc, const t_graph *g,
               real lambda, real *dvdlambda,
               const t_mdatoms *md, t_fcdata *fcd,
-              int *global_atom_index);
+              int *global_atom_index, FDA *fda);
 
 real anharm_polarize(int nfa, const t_iatom forceatoms[], const t_iparams ip[],
                      const rvec x[], rvec4 f[], rvec fshift[],
                      const t_pbc *pbc, const t_graph *g,
                      real lambda, real *dvdlambda,
                      const t_mdatoms *md, t_fcdata *fcd,
-                     int *global_atom_index);
+                     int *global_atom_index, FDA *fda);
 
 real water_pol(int nfa, const t_iatom forceatoms[], const t_iparams ip[],
                const rvec x[], rvec4 f[], rvec fshift[],
                const t_pbc *pbc, const t_graph *g,
                real lambda, real *dvdlambda,
                const t_mdatoms *md, t_fcdata *fcd,
-               int *global_atom_index);
+               int *global_atom_index, FDA *fda);
 
 real thole_pol(int nfa, const t_iatom forceatoms[], const t_iparams ip[],
                const rvec x[], rvec4 f[], rvec fshift[],
                const t_pbc *pbc, const t_graph *g,
                real lambda, real *dvdlambda,
                const t_mdatoms *md, t_fcdata *fcd,
-               int *global_atom_index);
+               int *global_atom_index, FDA *fda);
 
 real angres(int nfa, const t_iatom forceatoms[], const t_iparams ip[],
             const rvec x[], rvec4 f[], rvec fshift[],
             const t_pbc *pbc, const t_graph *g,
             real lambda, real *dvdlambda,
             const t_mdatoms *md, t_fcdata *fcd,
-            int *global_atom_index);
+            int *global_atom_index, FDA *fda);
 
 real angresz(int nfa, const t_iatom forceatoms[], const t_iparams ip[],
              const rvec x[], rvec4 f[], rvec fshift[],
              const t_pbc *pbc, const t_graph *g,
              real lambda, real *dvdlambda,
              const t_mdatoms *md, t_fcdata *fcd,
-             int *global_atom_index);
+             int *global_atom_index, FDA *fda);
 
 real dihres(int nfa, const t_iatom forceatoms[], const t_iparams ip[],
             const rvec x[], rvec4 f[], rvec fshift[],
             const t_pbc *pbc, const t_graph *g,
             real lambda, real *dvdlambda,
             const t_mdatoms *md, t_fcdata *fcd,
-            int *global_atom_index);
+            int *global_atom_index, FDA *fda);
 
 real unimplemented(int nfa, const t_iatom forceatoms[], const t_iparams ip[],
                    const rvec x[], rvec4 f[], rvec fshift[],
                    const t_pbc *pbc, const t_graph *g,
                    real lambda, real *dvdlambda,
                    const t_mdatoms *md, t_fcdata *fcd,
-                   int *global_atom_index);
+                   int *global_atom_index, FDA *fda);
 
 
 /* As pdihs(), but without calculating energies and shift forces */

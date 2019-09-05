@@ -690,11 +690,10 @@ void FDA::modify_energy_group_exclusions(gmx_mtop_t *mtop, t_inputrec *inputrec)
 
 gmx::HostVector<gmx::RVec> FDA::get_residues_com(gmx::HostVector<gmx::RVec> const& x, gmx_mtop_t *mtop) const
 {
-    int moltype_index, mol_index, d;
+    int mol_index, d;
     int i, atom_index, atom_global_index, residue_global_index;
     t_atoms *atoms;
     t_atom *atom_info;
-    gmx_molblock_t *mb;
     rvec r;
 
     std::vector<real> mass(fda_settings.syslen_residues);
@@ -707,10 +706,9 @@ gmx::HostVector<gmx::RVec> FDA::get_residues_com(gmx::HostVector<gmx::RVec> cons
     }
 
     atom_global_index = 0;
-    for (moltype_index = 0; moltype_index < mtop->nmolblock; moltype_index++) {
-        mb = &mtop->molblock[moltype_index];
-        for (mol_index = 0; mol_index < mb->nmol; mol_index++) {
-        atoms = &mtop->moltype[mb->type].atoms;
+    for (auto const& mb : mtop->molblock) {
+        for (mol_index = 0; mol_index < mb.nmol; mol_index++) {
+        atoms = &mtop->moltype[mb.type].atoms;
             for(atom_index = 0; atom_index < atoms->nr; atom_index++) {
                 if (fda_settings.atom_in_groups(atom_global_index)) {
                     residue_global_index = fda_settings.atom_2_residue[atom_global_index];
@@ -751,33 +749,32 @@ int FDA::add_name_to_energygrp(char const* name, gmx_groups_t* groups) const
 
 void FDA::respect_charge_groups(unsigned char* array, gmx_mtop_t const* mtop) const
 {
-    bool found_FDA1, found_FDA2, found_REST;
-    int i, j, k, l, length;
     int nbMolecules = 0;
     int molTypeIndex = 0;
     int nbChargeGroups = 0;
-    int *chargeGroupsIndex = NULL;
+    int *chargeGroupsIndex = nullptr;
     unsigned char* p = array;
 
-    for (i = 0; i < mtop->nmolblock; ++i) {
-
-        nbMolecules = mtop->molblock[i].nmol;
-        molTypeIndex = mtop->molblock[i].type;
+    for (auto const& mb : mtop->molblock) {
+        nbMolecules = mb.nmol;
+        molTypeIndex = mb.type;
         nbChargeGroups = mtop->moltype[molTypeIndex].cgs.nr;
         chargeGroupsIndex = mtop->moltype[molTypeIndex].cgs.index;
 
-        for (j = 0; j < nbMolecules; ++j) {
-            for (k = 0; k < nbChargeGroups; ++k) {
-               length = chargeGroupsIndex[k+1] - chargeGroupsIndex[k];
-               found_FDA1 = false; found_FDA2 = false; found_REST = false;
-               for (l = 0; l < length; ++l) {
+        for (int j = 0; j < nbMolecules; ++j) {
+            for (int k = 0; k < nbChargeGroups; ++k) {
+               int length = chargeGroupsIndex[k+1] - chargeGroupsIndex[k];
+               bool found_FDA1 = false;
+               bool found_FDA2 = false;
+               bool found_REST = false;
+               for (int l = 0; l < length; ++l) {
                    if (p[l] == FDA_GROUP_IDX_FDA1) found_FDA1 = true;
                    if (p[l] == FDA_GROUP_IDX_FDA2) found_FDA2 = true;
                    if (p[l] == FDA_GROUP_IDX_REST) found_REST = true;
                }
-               if (found_FDA1 && found_FDA2) for (l = 0; l < length; ++l) p[l] = FDA_GROUP_IDX_FDA12;
-               else if (found_FDA1 && found_REST) for (l = 0; l < length; ++l) p[l] = FDA_GROUP_IDX_FDA1;
-               else if (found_FDA2 && found_REST) for (l = 0; l < length; ++l) p[l] = FDA_GROUP_IDX_FDA2;
+               if (found_FDA1 && found_FDA2) for (int l = 0; l < length; ++l) p[l] = FDA_GROUP_IDX_FDA12;
+               else if (found_FDA1 && found_REST) for (int l = 0; l < length; ++l) p[l] = FDA_GROUP_IDX_FDA1;
+               else if (found_FDA2 && found_REST) for (int l = 0; l < length; ++l) p[l] = FDA_GROUP_IDX_FDA2;
                p += length;
             }
         }

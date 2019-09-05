@@ -30,7 +30,7 @@ public:
     typedef std::vector<int> Path;
     typedef std::vector<Path> PathList;
 
-    BoostGraph() {};
+    BoostGraph() {}
 
     //! Build graph by adjacency matrix
     BoostGraph(std::vector<double> const& forceMatrix);

@@ -71,17 +71,17 @@ int gmx_fda_view_stress(int argc, char *argv[])
     };
 
     t_filenm fnm[] = {
-        { efSTR, "-i", NULL, ffREAD },
-        { efTRX, "-f", NULL, ffOPTRD },
-        { efTPS, NULL, NULL, ffOPTRD },
-        { efNDX, NULL, NULL, ffOPTRD },
+        { efSTR, "-i", nullptr, ffREAD },
+        { efTRX, "-f", nullptr, ffOPTRD },
+        { efTPS, nullptr, nullptr, ffOPTRD },
+        { efNDX, nullptr, nullptr, ffOPTRD },
         { efVST, "-o", "result", ffWRITE }
     };
 
 #define NFILE asize(fnm)
 
     if (!parse_common_args(&argc, argv, PCA_CAN_TIME,
-        NFILE, fnm, asize(pa), pa, asize(desc), desc, 0, NULL, &oenv))
+        NFILE, fnm, asize(pa), pa, asize(desc), desc, 0, nullptr, &oenv))
     {
         return 0;
     }
@@ -157,7 +157,7 @@ int gmx_fda_view_stress(int argc, char *argv[])
         int ePBC;
         matrix box;
 
-        read_tps_conf(ftp2fn(efTPS, NFILE, fnm), &top, &ePBC, &xp, NULL, box, TRUE);
+        read_tps_conf(ftp2fn(efTPS, NFILE, fnm), &top, &ePBC, &xp, nullptr, box, TRUE);
 
         real currentStress;
 
@@ -174,7 +174,7 @@ int gmx_fda_view_stress(int argc, char *argv[])
                 else top.atoms.pdbinfo[i].bfac = currentStress;
             }
 
-            write_pdbfile(fp, title.c_str(), &top.atoms, xp, ePBC, box, ' ', 0, NULL, TRUE);
+            write_pdbfile(fp, title.c_str(), &top.atoms, xp, ePBC, box, ' ', 0, nullptr, TRUE);
             gmx_ffclose(fp);
 
         } else {
@@ -191,7 +191,7 @@ int gmx_fda_view_stress(int argc, char *argv[])
                 read_next_x(oenv, status, &time, coord_traj, box);
                 if (frame%frameValue) continue;
 
-                FILE *fp = NULL;
+                FILE *fp = nullptr;
                 if (frame) fp = gmx_ffopen(opt2fn("-o", NFILE, fnm), "a");
                 else fp = gmx_ffopen(opt2fn("-o", NFILE, fnm), "w");
 
@@ -203,7 +203,7 @@ int gmx_fda_view_stress(int argc, char *argv[])
                     }
                 }
 
-                write_pdbfile(fp, title.c_str(), &top.atoms, coord_traj, ePBC, box, ' ', 0, NULL, TRUE);
+                write_pdbfile(fp, title.c_str(), &top.atoms, coord_traj, ePBC, box, ' ', 0, nullptr, TRUE);
                 gmx_ffclose(fp);
             }
             close_trx(status);
@@ -211,7 +211,7 @@ int gmx_fda_view_stress(int argc, char *argv[])
     } else if (fn2ftp(opt2fn("-o", NFILE, fnm)) == efXPM) {
 
         // Reorder stressMatrix for writing xpm
-        real **stressMatrix2 = NULL;
+        real **stressMatrix2 = nullptr;
         snew(stressMatrix2, nbParticles);
         real minValue = std::numeric_limits<real>::max();
         real maxValue = 0;
@@ -251,7 +251,7 @@ int gmx_fda_view_stress(int argc, char *argv[])
         FILE *out = gmx_ffopen(opt2fn("-o", NFILE, fnm), "w");
         t_rgb rlo = {1, 1, 1}, rhi = {0, 0, 0};
         write_xpm(out, 0, title.c_str(), "", "Particle", "Frame", nbParticles, nbFramesForOutput,
-            NULL, NULL, stressMatrix2, minValue, maxValue, rlo, rhi, &nbColors);
+            nullptr, nullptr, stressMatrix2, minValue, maxValue, rlo, rhi, &nbColors);
         gmx_ffclose(out);
 
     } else gmx_fatal(FARGS, "Missing output filename -opdb or -oxpm.");

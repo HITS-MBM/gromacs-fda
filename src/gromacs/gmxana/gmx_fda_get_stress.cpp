@@ -48,18 +48,16 @@ int gmx_fda_get_stress(int argc, char *argv[])
 
     gmx_output_env_t *oenv;
 
-    t_pargs pa[] = {};
-
     t_filenm fnm[] = {
-        { efPFX, "-i", NULL, ffREAD },
-        { efPFX, "-diff", NULL, ffOPTRD },
-        { efPSX, "-o", NULL, ffWRITE }
+        { efPFX, "-i", nullptr, ffREAD },
+        { efPFX, "-diff", nullptr, ffOPTRD },
+        { efPSX, "-o", nullptr, ffWRITE }
     };
 
 #define NFILE asize(fnm)
 
     if (!parse_common_args(&argc, argv, PCA_CAN_TIME,
-        NFILE, fnm, asize(pa), pa, asize(desc), desc, 0, NULL, &oenv)) return 0;
+        NFILE, fnm, 0, nullptr, asize(desc), desc, 0, nullptr, &oenv)) return 0;
 
     // Open pairwise forces file
     fda::PairwiseForces<fda::Force<real>> pairwise_forces(opt2fn("-i", NFILE, fnm));
@@ -84,7 +82,7 @@ int gmx_fda_get_stress(int argc, char *argv[])
 #endif
 
     std::ofstream opsFile(opt2fn("-o", NFILE, fnm));
-    if (!opsFile) gmx_fatal(FARGS, "Error opening file", opt2fn("-o", NFILE, fnm));
+    if (!opsFile) gmx_fatal(FARGS, "Error opening file %s", opt2fn("-o", NFILE, fnm));
     opsFile << std::scientific << std::setprecision(6)
             << "punctual_stress\n";
 

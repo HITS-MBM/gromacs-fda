@@ -46,6 +46,7 @@
 
 #include <cstdio>
 
+#include "gromacs/fda/FDA.h"
 #include "gromacs/topology/ifunc.h"
 #include "gromacs/utility/basedefinitions.h"
 
@@ -88,7 +89,7 @@ real ta_disres(int nfa, const t_iatom forceatoms[], const t_iparams ip[],
                const t_pbc *pbc, const t_graph *g,
                real lambda, real *dvdlambda,
                const t_mdatoms *md, t_fcdata *fcd,
-               int *global_atom_index);
+               int *global_atom_index, FDA *fda);
 
 //! Copies the new time averages that have been calculated in calc_disres_R_6.
 void update_disres_history(const t_fcdata *fcd, history_t *hist);

@@ -256,21 +256,15 @@ std::vector<double> PairwiseForces<ForceType>::get_averaged_forcematrix(int nbPa
 
         // get length of file:
         is.seekg (0, is.end);
-        int length = is.tellg();
+        //int length = is.tellg();
         is.seekg (0, is.beg);
 
         char first_character;
         is.read(&first_character, 1);
         if (first_character != 'b') gmx_fatal(FARGS, "Wrong file type in PairwiseForces<ForceType>::get_all_pairwise_forces");
 
-        for (;;)
-        {
-            auto&& pairwise_forces = get_pairwise_forces_binary(is);
+        gmx_fatal(FARGS, "Not implemented yet");
 
-
-
-            if (is.tellg() == length) break;
-        }
     } else {
         std::ifstream is(filename);
         if (!is) gmx_fatal(FARGS, "Error opening file %s", filename.c_str());
@@ -442,7 +436,7 @@ void PairwiseForces<ForceType>::write_pairwise_forces_binary(std::ofstream& os, 
 }
 
 /// template instantiation
-template class PairwiseForces<Force<real>>;
-template class PairwiseForces<Force<Vector>>;
+template struct PairwiseForces<Force<real>>;
+template struct PairwiseForces<Force<Vector>>;
 
 } // namespace fda
