@@ -85,7 +85,7 @@ void do_dih_fup(int i, int j, int k, int l, real ddphi,
                 rvec r_ij, rvec r_kj, rvec r_kl,
                 rvec m, rvec n, rvec4 f[], rvec fshift[],
                 const struct t_pbc *pbc, const struct t_graph *g,
-                const rvec *x, int t1, int t2, int t3);
+                const rvec *x, int t1, int t2, int t3, FDA *fda);
 
 /*! \brief Make a dihedral fall in the range (-pi,pi) */
 void make_dp_periodic(real *dp);

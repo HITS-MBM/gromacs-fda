@@ -75,11 +75,11 @@ int gmx_fda_shortest_path(int argc, char *argv[])
     };
 
     t_filenm fnm[] = {
-        { efPFX, "-i", NULL, ffREAD },
-        { efPFX, "-diff", NULL, ffOPTRD },
-        { efTPS, NULL, NULL, ffREAD },
-        { efTRX, "-f", NULL, ffOPTRD },
-        { efNDX, NULL, NULL, ffOPTRD },
+        { efPFX, "-i", nullptr, ffREAD },
+        { efPFX, "-diff", nullptr, ffOPTRD },
+        { efTPS, nullptr, nullptr, ffREAD },
+        { efTRX, "-f", nullptr, ffOPTRD },
+        { efNDX, nullptr, nullptr, ffOPTRD },
         { efPDB, "-o", "result", ffWRITE },
         { efPML, "-pymol", "result", ffOPTWR }
     };
@@ -87,7 +87,7 @@ int gmx_fda_shortest_path(int argc, char *argv[])
 #define NFILE asize(fnm)
 
     if (!parse_common_args(&argc, argv, PCA_CAN_TIME,
-        NFILE, fnm, asize(pa), pa, asize(desc), desc, 0, NULL, &oenv)) return 0;
+        NFILE, fnm, asize(pa), pa, asize(desc), desc, 0, nullptr, &oenv)) return 0;
 
     if (opt2bSet("-diff", NFILE, fnm) and (fn2ftp(opt2fn("-diff", NFILE, fnm)) != fn2ftp(opt2fn("-i", NFILE, fnm))))
         gmx_fatal(FARGS, "Type of the file (-diff) does not match the type of the file (-i).");
@@ -134,7 +134,7 @@ int gmx_fda_shortest_path(int argc, char *argv[])
     t_topology top;
     int ePBC;
     matrix box;
-    read_tps_conf(ftp2fn(efTPS, NFILE, fnm), &top, &ePBC, &coord, NULL, box, TRUE);
+    read_tps_conf(ftp2fn(efTPS, NFILE, fnm), &top, &ePBC, &coord, nullptr, box, TRUE);
 
     PDB pdb(opt2fn("-s", NFILE, fnm), std::vector<int>(index, index + isize));
 
@@ -142,7 +142,7 @@ int gmx_fda_shortest_path(int argc, char *argv[])
 
     // Pymol pml-file
     std::string molecularTrajectoryFilename = "traj.pdb";
-    FILE *molecularTrajectoryFile = NULL;
+    FILE *molecularTrajectoryFile = nullptr;
     if (opt2bSet("-pymol", NFILE, fnm)) {
         std::ofstream pmlFile(opt2fn("-pymol", NFILE, fnm));
         pmlFile << "load " << molecularTrajectoryFilename << ", object=trajectory" << std::endl;
@@ -225,7 +225,7 @@ int gmx_fda_shortest_path(int argc, char *argv[])
 
             // Write moleculare trajectory for pymol script
             if (opt2bSet("-pymol", NFILE, fnm))
-                write_pdbfile(molecularTrajectoryFile, "FDA trajectory for Pymol visualization", &top.atoms, coord_traj, ePBC, box, ' ', 0, NULL, TRUE);
+                write_pdbfile(molecularTrajectoryFile, "FDA trajectory for Pymol visualization", &top.atoms, coord_traj, ePBC, box, ' ', 0, nullptr, TRUE);
 
             if (frameType == AVERAGE) {
                 frame += frameValue - 1;

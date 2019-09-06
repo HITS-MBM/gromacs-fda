@@ -78,11 +78,11 @@ int gmx_fda_graph(int argc, char *argv[])
     };
 
     t_filenm fnm[] = {
-        { efPFX, "-i", NULL, ffREAD },
-        { efPFX, "-diff", NULL, ffOPTRD },
-        { efTPS, NULL, NULL, ffREAD },
-        { efTRX, "-f", NULL, ffOPTRD },
-        { efNDX, NULL, NULL, ffOPTRD },
+        { efPFX, "-i", nullptr, ffREAD },
+        { efPFX, "-diff", nullptr, ffOPTRD },
+        { efTPS, nullptr, nullptr, ffREAD },
+        { efTRX, "-f", nullptr, ffOPTRD },
+        { efNDX, nullptr, nullptr, ffOPTRD },
         { efGRX, "-o", "result", ffWRITE },
         { efPML, "-pymol", "result", ffOPTWR }
     };
@@ -90,7 +90,7 @@ int gmx_fda_graph(int argc, char *argv[])
 #define NFILE asize(fnm)
 
     if (!parse_common_args(&argc, argv, PCA_CAN_TIME,
-        NFILE, fnm, asize(pa), pa, asize(desc), desc, 0, NULL, &oenv)) return 0;
+        NFILE, fnm, asize(pa), pa, asize(desc), desc, 0, nullptr, &oenv)) return 0;
 
     if (opt2bSet("-diff", NFILE, fnm) and (fn2ftp(opt2fn("-diff", NFILE, fnm)) != fn2ftp(opt2fn("-i", NFILE, fnm))))
         gmx_fatal(FARGS, "Type of the file (-diff) does not match the type of the file (-i).");
@@ -111,7 +111,7 @@ int gmx_fda_graph(int argc, char *argv[])
 
     // Interactive input of group name for residue model points
     int isize = 0;
-    int *index = NULL;
+    int *index = nullptr;
     char *grpname;
     if (ftp2bSet(efNDX, NFILE, fnm)) {
         fprintf(stderr, "\nSelect group for residue model points:\n");
@@ -147,7 +147,7 @@ int gmx_fda_graph(int argc, char *argv[])
     t_topology top;
     int ePBC;
     matrix box;
-    read_tps_conf(ftp2fn(efTPS, NFILE, fnm), &top, &ePBC, &coord, NULL, box, TRUE);
+    read_tps_conf(ftp2fn(efTPS, NFILE, fnm), &top, &ePBC, &coord, nullptr, box, TRUE);
 
     if (fn2ftp(opt2fn("-s", NFILE, fnm)) == efGRO) {
         // Convert from nm to Angstrom
@@ -162,7 +162,7 @@ int gmx_fda_graph(int argc, char *argv[])
 
     // Pymol pml-file
     std::string molecularTrajectoryFilename = "traj.pdb";
-    FILE *molecularTrajectoryFile = NULL;
+    FILE *molecularTrajectoryFile = nullptr;
     if (opt2bSet("-pymol", NFILE, fnm)) {
         if (resultFormat != PDB) gmx_fatal(FARGS, "Pymol result file makes only sense using pdb output format.");
         std::ofstream pmlFile(opt2fn("-pymol", NFILE, fnm));
@@ -254,7 +254,7 @@ int gmx_fda_graph(int argc, char *argv[])
 
             // Write moleculare trajectory for pymol script
             if (opt2bSet("-pymol", NFILE, fnm))
-                write_pdbfile(molecularTrajectoryFile, "FDA trajectory for Pymol visualization", &top.atoms, coord_traj, ePBC, box, ' ', 0, NULL, TRUE);
+                write_pdbfile(molecularTrajectoryFile, "FDA trajectory for Pymol visualization", &top.atoms, coord_traj, ePBC, box, ' ', 0, nullptr, TRUE);
 
             if (frameType == AVERAGE) {
                 frame += frameValue - 1;
