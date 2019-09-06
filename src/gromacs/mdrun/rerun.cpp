@@ -62,6 +62,7 @@
 #include "gromacs/essentialdynamics/edsam.h"
 #include "gromacs/ewald/pme.h"
 #include "gromacs/ewald/pme-load-balancing.h"
+#include "gromacs/fda/FDA.h"
 #include "gromacs/fileio/trxio.h"
 #include "gromacs/gmxlib/network.h"
 #include "gromacs/gmxlib/nrnb.h"
@@ -357,6 +358,9 @@ void gmx::Integrator::do_rerun()
     }
     else
     {
+        fda::FDASettings fda_settings = fr->fda->get_settings();
+        top = gmx_mtop_generate_local_top(top_global, ir->efep != efepNO, &fda_settings);
+
         state_change_natoms(state_global, state_global->natoms);
         /* We need to allocate one element extra, since we might use
          * (unaligned) 4-wide SIMD loads to access rvec entries.
@@ -589,6 +593,9 @@ void gmx::Integrator::do_rerun()
                      ddOpenBalanceRegion, ddCloseBalanceRegion);
         }
 
+        // FDA
+        fr->fda->save_and_write_scalar_time_averages(state->x, state->box, top_global);
+
         /* Now we have the energies and forces corresponding to the
          * coordinates at time t.
          */
@@ -749,6 +756,9 @@ void gmx::Integrator::do_rerun()
 
     /* Stop measuring walltime */
     walltime_accounting_end_time(walltime_accounting);
+
+    // FDA
+    fr->fda->write_scalar_time_averages();
 
     if (MASTER(cr))
     {
