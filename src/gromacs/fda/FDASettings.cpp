@@ -41,7 +41,8 @@ FDASettings::FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *mtop, bool
    index_group2(-1),
    groups(nullptr),
    groupnames(nullptr),
-   normalize_psr(false)
+   normalize_psr(false),
+   ignore_missing_potentials(false)
 {
     /// Parallel execution not implemented yet
     if (parallel_execution)
@@ -245,6 +246,10 @@ FDASettings::FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *mtop, bool
     // Normalize punctual stress per residue
     normalize_psr = strcasecmp(get_estr(&ninp, &inp, "normalize_punctual_stress_per_residue", "no"), "no");
     std::cout << "Normalize punctual stress per residue: " << normalize_psr << std::endl;
+
+    // Ignore missing potentials
+    ignore_missing_potentials = strcasecmp(get_estr(&ninp, &inp, "ignore_missing_potentials", "no"), "no");
+    std::cout << "Ignore missing potentials: " << ignore_missing_potentials << std::endl;
 }
 
 std::vector<int> FDASettings::groupatoms2residues(std::vector<int> const& group_atoms) const

@@ -2414,7 +2414,7 @@ static real low_angres(int nbonds,
     real st, sth, nrij2, nrkl2, c, cij, ckl;
     ivec dt;
 
-    if (fda)
+    if (fda and !fda->get_settings().ignore_missing_potentials)
         gmx_fatal(FARGS, "FDA is not supporting low_angres.");
 
     t2 = 0; /* avoid warning with gcc-3.3. It is never used uninitialized */
@@ -2648,7 +2648,7 @@ real restrangles(int nbonds,
     real prefactor, ratio_ante, ratio_post;
     rvec delta_ante, delta_post, vec_temp;
 
-    if (fda)
+    if (fda and !fda->get_settings().ignore_missing_potentials)
         gmx_fatal(FARGS, "FDA is not supporting restrangles.");
 
     vtot = 0.0;
@@ -2760,7 +2760,7 @@ real restrdihs(int nbonds,
     real prefactor_phi;
 
 
-    if (fda)
+    if (fda and !fda->get_settings().ignore_missing_potentials)
         gmx_fatal(FARGS, "FDA is not supporting restrdihs.");
 
     vtot = 0.0;
@@ -2870,7 +2870,7 @@ real cbtdihs(int nbonds,
     rvec f_theta_post_aj, f_theta_post_ak, f_theta_post_al;
 
 
-    if (fda)
+    if (fda and !fda->get_settings().ignore_missing_potentials)
         gmx_fatal(FARGS, "FDA is not supporting cbtdihs.");
 
     vtot = 0.0;
@@ -3154,7 +3154,7 @@ cmap_dihs(int nbonds,
         {3, 7, 11, 15}
     };
 
-	if (fda)
+	if (fda and !fda->get_settings().ignore_missing_potentials)
     	gmx_fatal(FARGS, "FDA is not supporting cmap_dihs.");
 
     /* Total CMAP energy */
