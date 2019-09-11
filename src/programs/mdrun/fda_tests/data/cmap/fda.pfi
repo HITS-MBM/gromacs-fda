@@ -1,0 +1,9 @@
+onepair = summed
+group1 = Protein
+group2 = Protein
+type = all
+atombased = no
+residuebased = punctual_stress
+residuesrenumber = yes
+time_averages_period = 1
+no_end_zeros yes
