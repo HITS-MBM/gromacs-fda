@@ -9,6 +9,8 @@
 #include <string>
 #include <vector>
 #include <gtest/gtest.h>
+
+#include "config.h"
 #include "gromacs/fda/PairwiseForces.h"
 #include "gromacs/options/filenameoption.h"
 #include "gromacs/utility/futil.h"
@@ -135,6 +137,7 @@ TEST_P(FDATest, Basic)
 }
 
 INSTANTIATE_TEST_CASE_P(AllFDATests, FDATest, ::testing::Values(
+#if GMX_SIMD_REFERENCE
     TestDataStructure("alagly_pairwise_forces_scalar", "pfa", "pfr"),
     TestDataStructure("alagly_pairwise_forces_scalar_atom_based", "pfa", ""),
     TestDataStructure("alagly_pairwise_forces_scalar_no_residue_based", "pfa", ""),
@@ -146,9 +149,6 @@ INSTANTIATE_TEST_CASE_P(AllFDATests, FDATest, ::testing::Values(
     TestDataStructure("alagly_punctual_stress_normalized_renumbered", "psa", "psr"),
     TestDataStructure("alagly_pairwise_forces_scalar_detailed_nonbonded", "pfa", "pfr"),
     TestDataStructure("alagly_pairwise_forces_vector_detailed_nonbonded", "pfa", "pfr", "traj.trr", true),
-    TestDataStructure("alagly_verlet_summed_scalar", "pfa", "pfr"),
-    TestDataStructure("alagly_verlet_pbc_summed_scalar", "pfa", "pfr"),
-    TestDataStructure("alagly_verlet_pbc_summed_scalar_binary", "pfa", "pfr", "traj.trr", false, false),
     TestDataStructure("alagly_group_excl", "pfa", "pfr"),
     TestDataStructure("alagly_group_excl_uncomplete_cgs", "pfa", "pfr"),
     TestDataStructure("alagly_pairwise_forces_scalar_all", "pfa", "pfr"),
@@ -167,6 +167,10 @@ INSTANTIATE_TEST_CASE_P(AllFDATests, FDATest, ::testing::Values(
     TestDataStructure("vwf_a2_domain_nframes1_punctual_stress", "psa", "psr", "traj.xtc"),
     TestDataStructure("vwf_a2_domain_nframes10_pairwise_forces_scalar", "pfa", "pfr", "traj.xtc"),
     TestDataStructure("vwf_a2_domain_nframes10_punctual_stress", "psa", "psr", "traj.xtc"),
+#endif
+    TestDataStructure("alagly_verlet_summed_scalar", "pfa", "pfr"),
+    TestDataStructure("alagly_verlet_pbc_summed_scalar", "pfa", "pfr"),
+    TestDataStructure("alagly_verlet_pbc_summed_scalar_binary", "pfa", "pfr", "traj.trr", false, false),
     TestDataStructure("cmap_ignore_missing_potentials", "", "psr", "traj.xtc"),
     TestDataStructure("cmap", "", "psr", "traj.xtc", false, true)
 ));
