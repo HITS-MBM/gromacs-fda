@@ -182,6 +182,11 @@ struct FDASettings
     /// Normalize punctual stress per residue (default: off)
     bool normalize_psr;
 
+    /// If true unsupported potentials will be ignored.
+    /// Be aware that the sum of distributed forces do not agree with the total forces.
+    /// If false the rerun will be stopped if a unsupported potential is used.
+    bool ignore_missing_potentials;
+
 };
 
 } // namespace fda
