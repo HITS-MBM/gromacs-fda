@@ -247,7 +247,7 @@ FDASettings::FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *mtop, bool
     std::cout << "Normalize punctual stress per residue: " << normalize_psr << std::endl;
 
     // Ignore missing potentials
-    ignore_missing_potentials = strcasecmp(get_estr(&ninp, &inp, "ignore_missing_potentials", "no"), "no");
+    ignore_missing_potentials = strcasecmp(get_estr(&inp, "ignore_missing_potentials", "no"), "no");
     std::cout << "Ignore missing potentials: " << ignore_missing_potentials << std::endl;
 }
 
