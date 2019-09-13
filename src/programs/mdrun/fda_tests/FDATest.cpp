@@ -10,7 +10,7 @@
 #include <vector>
 #include <gtest/gtest.h>
 
-#include "config.h"
+#include "gromacs/simd/support.h"
 #include "gromacs/fda/PairwiseForces.h"
 #include "gromacs/options/filenameoption.h"
 #include "gromacs/utility/futil.h"
@@ -136,44 +136,51 @@ TEST_P(FDATest, Basic)
     }
 }
 
-INSTANTIATE_TEST_CASE_P(AllFDATests, FDATest, ::testing::Values(
-#if GMX_SIMD_REFERENCE
-    TestDataStructure("alagly_pairwise_forces_scalar", "pfa", "pfr"),
-    TestDataStructure("alagly_pairwise_forces_scalar_atom_based", "pfa", ""),
-    TestDataStructure("alagly_pairwise_forces_scalar_no_residue_based", "pfa", ""),
-    TestDataStructure("alagly_pairwise_forces_scalar_detailed_no_residue_based", "pfa", ""),
-    TestDataStructure("alagly_pairwise_forces_vector", "pfa", "pfr", "traj.trr", true),
-    TestDataStructure("alagly_punctual_stress", "psa", "psr"),
-    //TestDataStructure("alagly_punctual_stress_binary", "psa", "psr"),
-    TestDataStructure("alagly_punctual_stress_normalized", "psa", "psr"),
-    TestDataStructure("alagly_punctual_stress_normalized_renumbered", "psa", "psr"),
-    TestDataStructure("alagly_pairwise_forces_scalar_detailed_nonbonded", "pfa", "pfr"),
-    TestDataStructure("alagly_pairwise_forces_vector_detailed_nonbonded", "pfa", "pfr", "traj.trr", true),
-    TestDataStructure("alagly_group_excl", "pfa", "pfr"),
-    TestDataStructure("alagly_group_excl_uncomplete_cgs", "pfa", "pfr"),
-    TestDataStructure("alagly_pairwise_forces_scalar_all", "pfa", "pfr"),
-    TestDataStructure("glycine_trimer_group_excl1", "pfa", "pfr"),
-    TestDataStructure("glycine_trimer_group_excl2", "pfa", "pfr"),
-    TestDataStructure("glycine_trimer_group_excl3", "pfa", "pfr"),
-    TestDataStructure("glycine_trimer_group_excl4", "pfa", "pfr"),
-    TestDataStructure("glycine_trimer_group_excl5", "pfa", "pfr"),
-    TestDataStructure("glycine_trimer_group_excl6", "pfa", "pfr"),
-    TestDataStructure("glycine_trimer_group_bonded_excl1", "pfa", "pfr"),
-    TestDataStructure("glycine_trimer_virial_stress", "vsa", ""),
-    TestDataStructure("glycine_trimer_virial_stress_von_mises", "vma", ""),
-    TestDataStructure("alagly_deprecated_keywords", "pfa", "pfr", "", false, true),
-    TestDataStructure("alagly_unknown_option", "pfa", "pfr", "", false, true),
-    TestDataStructure("vwf_a2_domain_nframes1_pairwise_forces_scalar", "pfa", "pfr", "traj.xtc"),
-    TestDataStructure("vwf_a2_domain_nframes1_punctual_stress", "psa", "psr", "traj.xtc"),
-    TestDataStructure("vwf_a2_domain_nframes10_pairwise_forces_scalar", "pfa", "pfr", "traj.xtc"),
-    TestDataStructure("vwf_a2_domain_nframes10_punctual_stress", "psa", "psr", "traj.xtc"),
-#endif
-    TestDataStructure("alagly_verlet_summed_scalar", "pfa", "pfr"),
-    TestDataStructure("alagly_verlet_pbc_summed_scalar", "pfa", "pfr"),
-    TestDataStructure("alagly_verlet_pbc_summed_scalar_binary", "pfa", "pfr", "traj.trr", false, false),
-    TestDataStructure("cmap_ignore_missing_potentials", "", "psr", "traj.xtc"),
-    TestDataStructure("cmap", "", "psr", "traj.xtc", false, true)
-));
+std::vector<TestDataStructure> get_tests()
+{
+	std::vector<TestDataStructure> tests {
+		{"alagly_verlet_summed_scalar", "pfa", "pfr"},
+		{"alagly_verlet_pbc_summed_scalar", "pfa", "pfr"},
+		{"alagly_verlet_pbc_summed_scalar_binary", "pfa", "pfr", "traj.trr", false, false},
+		{"cmap_ignore_missing_potentials", "", "psr", "traj.xtc"},
+		{"cmap", "", "psr", "traj.xtc", false, true}
+	};
+
+	if (simdCompiled() == SimdType::None) {
+		tests.push_back({"alagly_pairwise_forces_scalar", "pfa", "pfr"});
+		tests.push_back({"alagly_pairwise_forces_scalar_atom_based", "pfa", ""});
+		tests.push_back({"alagly_pairwise_forces_scalar_no_residue_based", "pfa", ""});
+		tests.push_back({"alagly_pairwise_forces_scalar_detailed_no_residue_based", "pfa", ""});
+		tests.push_back({"alagly_pairwise_forces_vector", "pfa", "pfr", "traj.trr", true});
+		tests.push_back({"alagly_punctual_stress", "psa", "psr"});
+		tests.push_back({"alagly_punctual_stress_normalized", "psa", "psr"});
+		tests.push_back({"alagly_punctual_stress_normalized_renumbered", "psa", "psr"});
+		tests.push_back({"alagly_pairwise_forces_scalar_detailed_nonbonded", "pfa", "pfr"});
+		tests.push_back({"alagly_pairwise_forces_vector_detailed_nonbonded", "pfa", "pfr", "traj.trr", true});
+		tests.push_back({"alagly_group_excl", "pfa", "pfr"});
+		tests.push_back({"alagly_group_excl_uncomplete_cgs", "pfa", "pfr"});
+		tests.push_back({"alagly_pairwise_forces_scalar_all", "pfa", "pfr"});
+		tests.push_back({"glycine_trimer_group_excl1", "pfa", "pfr"});
+		tests.push_back({"glycine_trimer_group_excl2", "pfa", "pfr"});
+		tests.push_back({"glycine_trimer_group_excl3", "pfa", "pfr"});
+		tests.push_back({"glycine_trimer_group_excl4", "pfa", "pfr"});
+		tests.push_back({"glycine_trimer_group_excl5", "pfa", "pfr"});
+		tests.push_back({"glycine_trimer_group_excl6", "pfa", "pfr"});
+		tests.push_back({"glycine_trimer_group_bonded_excl1", "pfa", "pfr"});
+		tests.push_back({"glycine_trimer_virial_stress", "vsa", ""});
+		tests.push_back({"glycine_trimer_virial_stress_von_mises", "vma", ""});
+		tests.push_back({"alagly_deprecated_keywords", "pfa", "pfr", "", false, true});
+		tests.push_back({"alagly_unknown_option", "pfa", "pfr", "", false, true});
+		tests.push_back({"vwf_a2_domain_nframes1_pairwise_forces_scalar", "pfa", "pfr", "traj.xtc"});
+		tests.push_back({"vwf_a2_domain_nframes1_punctual_stress", "psa", "psr", "traj.xtc"});
+		tests.push_back({"vwf_a2_domain_nframes10_pairwise_forces_scalar", "pfa", "pfr", "traj.xtc"});
+		tests.push_back({"vwf_a2_domain_nframes10_punctual_stress", "psa", "psr", "traj.xtc"});
+	}
+
+	return tests;
+}
+
+INSTANTIATE_TEST_CASE_P(AllFDATests, FDATest, ::testing::ValuesIn(get_tests()));
 
 } // namespace
 } // namespace test
