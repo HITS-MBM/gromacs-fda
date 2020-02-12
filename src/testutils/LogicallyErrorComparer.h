@@ -71,8 +71,6 @@ struct LogicallyEqualComparer<false,false> : public LogicallyEqualComparerBase
     template <class T>
     bool operator () (T a, T b) const
     {
-        const T absA = std::abs(a);
-        const T absB = std::abs(b);
         const T diff = std::abs(a-b);
 
         if (a == b) {
