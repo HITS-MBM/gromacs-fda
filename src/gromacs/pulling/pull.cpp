@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014,2015,2016,2017,2018, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016,2017,2018,2019, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -520,7 +520,11 @@ static void get_pull_coord_dr(struct pull_t *pull,
     PullCoordSpatialData &spatialData = pcrd->spatialData;
 
     double                md2;
-    if (pcrd->params.eGeom == epullgDIRPBC)
+    /* With AWH pulling we allow for periodic pulling with geometry=direction.
+     * TODO: Store a periodicity flag instead of checking for external pull provider.
+     */
+    if (pcrd->params.eGeom == epullgDIRPBC || (pcrd->params.eGeom == epullgDIR &&
+                                               pcrd->params.eType == epullEXTERNAL))
     {
         md2 = -1;
     }
@@ -1598,7 +1602,7 @@ void dd_make_local_pull_groups(const t_commrec *cr, struct pull_t *pull)
 
     for (pull_group_work_t &group : pull->group)
     {
-        if (group.epgrppbc == epgrppbcCOS || !group.globalWeights.empty())
+        if (!group.globalWeights.empty())
         {
             group.localWeights.resize(group.atomSet.numAtomsLocal());
             for (size_t i = 0; i < group.atomSet.numAtomsLocal(); ++i)
