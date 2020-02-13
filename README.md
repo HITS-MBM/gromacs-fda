@@ -1,8 +1,9 @@
+[![Build Status](https://jenkins.h-its.org/buildStatus/icon?job=MBM/HITS-MBM/gromacs-fda/release-2019-fda)](https://jenkins.h-its.org/job/MBM/job/HITS-MBM/job/gromacs-fda/job/release-2019-fda/)
+[![Build Status](https://travis-ci.org/HITS-MBM/gromacs-fda.svg?branch=release-2019-fda)](https://travis-ci.org/HITS-MBM/release-2019-fda)
+
+
 Force Distribution Analysis (FDA)
 =================================
-Jenkins: [![Build Status](https://jenkins.h-its.org/buildStatus/icon?job=MBM/HITS-MBM/gromacs-fda/master-fda)](https://jenkins.h-its.org/job/MBM/job/HITS-MBM/job/gromacs-fda/job/master-fda/)
-
-Travis: [![Build Status](https://api.travis-ci.org/HITS-MBM/gromacs-fda.svg?branch=master-fda)](https://travis-ci.org/HITS-MBM/gromacs-fda)
 
 Background
 ----------
