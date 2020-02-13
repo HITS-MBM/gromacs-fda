@@ -59,6 +59,11 @@ matrix:
       compiler: clang
       env: BUILD_TYPE='Debug' C_COMPILER='clang' CXX_COMPILER='clang++'
 
+    - os: osx
+      osx_image: xcode11.3
+      compiler: clang
+      env: BUILD_TYPE='Debug' C_COMPILER='clang' CXX_COMPILER='clang++'
+
 install:
   - DEPS_DIR="${TRAVIS_BUILD_DIR}/deps"
   - mkdir -p ${DEPS_DIR} && cd ${DEPS_DIR}
