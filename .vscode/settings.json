@@ -9,6 +9,5 @@
         "GMX_SIMD": "NONE",
         "GMX_BUILD_UNITTESTS": "ON"
     },
-    "cmake.generator": "Unix Makefiles",
-    "C_Cpp.default.configurationProvider": "vector-of-bool.cmake-tools"
+    "cmake.generator": "Unix Makefiles"
 }
