@@ -99,8 +99,8 @@ NBK_FUNC_NAME(_VgrpF) // NOLINT(misc-definitions-in-headers)
  rvec                       *shift_vec,
  real                       *f,
  real gmx_unused            *fshift,
- FDA                        *fda,
- int                        *cellInv
+ FDA gmx_unused             *fda,
+ int gmx_unused             *cellInv
 #ifdef CALC_ENERGIES
  ,
  real                       *Vvdw,
