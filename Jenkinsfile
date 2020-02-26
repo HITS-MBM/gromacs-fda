@@ -1,11 +1,18 @@
 #!groovy
 
 pipeline {
+
   agent {
     dockerfile {
       filename 'devel/Dockerfile-gcc-4.9'
     }
   }
+
+  options {
+    timeout(time: 2, unit: 'HOURS')
+    disableConcurrentBuilds()
+  }
+
   stages {
     stage('Build') {
       steps {
