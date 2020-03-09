@@ -1,0 +1,14 @@
+{
+    "cmake.configureSettings": {
+        "GMX_BUILD_OWN_FFTW": "ON",
+        "GMX_BUILD_MDRUN_ONLY": "OFF",
+        "GMX_BUILD_FDA": "ON",
+        "GMX_DEFAULT_SUFFIX": "OFF",
+        "GMX_BINARY_SUFFIX": "_fda",
+        "GMX_SIMD": "NONE",
+        "GMX_BUILD_UNITTESTS": "ON",
+        "BOOST_ROOT": "/home/doserbd/.conan/data/boost/1.71.0/conan/stable/package/63aa18f4c96abf22f1e546119f1f7bbee8e30165"
+    },
+    "cmake.generator": "Unix Makefiles",
+    "clang-format.executable": "/usr/bin/clang-format-7"
+}
