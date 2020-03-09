@@ -76,6 +76,48 @@ static const int stxs[] = { efGRO, efG96, efPDB, efBRK, efENT, efESP, efTPR };
 static const int tpss[] = { efTPR, efGRO, efG96, efPDB, efBRK, efENT };
 #define NTPSS asize(tpss)
 
+// FDA conversion file type
+static const int tfdacon[] =
+{
+    efPFA, efPFR, efPSA, efPSR, efVSA, efVMA
+};
+#define NTFDACON asize(tfdacon)
+
+// FDA scalar stress type
+static const int tstrs[] =
+{
+    efPSA, efPSR, efVMA
+};
+#define NTSTRS asize(tstrs)
+
+// FDA atomic or residue based force pairs
+static const int tpfx[] =
+{
+    efPFA, efPFR
+};
+#define NTPFX asize(tpfx)
+
+// FDA resulting networks (pdb or dimacs)
+static const int tgrx[] =
+{
+    efPDB, efDIM
+};
+#define NTGRX asize(tgrx)
+
+// FDA atomic or residue based punctual stress
+static const int tpsx[] =
+{
+    efPSA, efPSR
+};
+#define NTPSX asize(tpsx)
+
+// FDA view stress format (pdb or xpm)
+static const int tvst[] =
+{
+    efPDB, efXPM
+};
+#define NTVST asize(tvst)
+
 typedef struct // NOLINT(clang-analyzer-optin.performance.Padding)
 {
     int         ftype;
@@ -137,6 +179,21 @@ static const t_deffile deffile[efNR] = {
     { eftASC, ".edi", "sam", nullptr, "ED sampling input" },
     { eftASC, ".cub", "pot", nullptr, "Gaussian cube file" },
     { eftASC, ".xpm", "root", nullptr, "X PixMap compatible matrix file" },
+    { eftASC, ".pfi", "fda", nullptr, "FDA paired force input file" },
+    { eftASC, ".pfa", "fda", nullptr, "FDA paired force output atom-based matrix file" },
+    { eftASC, ".pfr", "fda", nullptr, "FDA paired force output residue-based matrix file" },
+    { eftASC, ".psa", "fda", nullptr, "FDA punctual stress output atom-based matrix file" },
+    { eftASC, ".psr", "fda", nullptr, "FDA punctual stress output residue-based matrix file" },
+    { eftASC, ".vsa", "fda", nullptr, "FDA virial stress output atom-based matrix file" },
+    { eftASC, ".vma", "fda", nullptr, "FDA von Mises virial stress output atom-based matrix file" },
+    { eftGEN, ".???", "fda", "-i", "FDA paired force, punctual or virial stress", NTFDACON, tfdacon },
+    { eftGEN, ".???", "fda", "-f", "FDA punctual or virial stress", NTSTRS, tstrs },
+    { eftGEN, ".???", "fda", "-f", "FDA atomic or residue based force pairs", NTPFX, tpfx },
+    { eftGEN, ".???", "fda", "-o", "FDA resulting networks (pdb or dimacs)", NTGRX, tgrx },
+    { eftASC, ".dmc", "fda", nullptr, "FDA network graph DIMACS" },
+    { eftGEN, ".???", "fda", nullptr, "FDA atomic or residue based punctual stress", NTPSX, tpsx },
+    { eftGEN, ".???", "fda", nullptr, "FDA view stress format (pdb or xpm)", NTVST, tvst },
+    { eftASC, ".pml", "fda", nullptr, "FDA pymol script for pdb-trajectory" },
     { eftASC, "", "rundir", nullptr, "Run directory" }
 };
 

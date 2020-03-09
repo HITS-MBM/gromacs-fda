@@ -41,6 +41,7 @@
 #include <memory>
 #include <vector>
 
+#include "gromacs/fda/FDA.h"
 #include "gromacs/math/vectypes.h"
 #include "gromacs/mdtypes/interaction_const.h"
 #include "gromacs/mdtypes/md_enums.h"
@@ -261,6 +262,9 @@ struct t_forcerec
 
     /* Limit for printing large forces, negative is don't print */
     real print_force = 0;
+
+    /* FDA */
+    class FDA* fda = nullptr;
 
     /* User determined parameters, copied from the inputrec */
     int  userint1  = 0;

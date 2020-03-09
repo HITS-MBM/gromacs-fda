@@ -1,0 +1,16 @@
+pf_onepair = summed
+
+; group1 and group2 as defined in the -pfn file
+; if not defined, defaults to 'Protein'
+pf_group1 = all
+pf_group2 = all
+
+atombased = pairwise_forces_scalar
+residuebased = pairwise_forces_scalar
+
+; interactions type could be one of more of:
+; bond angle dihedral polar coulomb lj nb14 bonded nonbonded all
+pf_type = all
+
+; FDA energy group exclusion
+pf_energy_grp_exclusion = no

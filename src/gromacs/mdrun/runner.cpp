@@ -772,6 +772,11 @@ int Mdrunner::mdrunner()
     t_inputrec*              inputrec = nullptr;
     std::unique_ptr<t_state> globalState;
 
+#ifdef BUILD_WITH_FDA
+    std::shared_ptr<fda::FDASettings> ptr_fda_settings;
+    std::shared_ptr<FDA> ptr_fda;
+#endif
+
     auto partialDeserializedTpr = std::make_unique<PartialDeserializedTprFile>();
 
     if (isSimulationMasterRank)
@@ -785,6 +790,13 @@ int Mdrunner::mdrunner()
         *partialDeserializedTpr = read_tpx_state(ftp2fn(efTPR, filenames.size(), filenames.data()),
                                                  &inputrecInstance, globalState.get(), &mtop);
         inputrec                = &inputrecInstance;
+
+#ifdef BUILD_WITH_FDA
+        ptr_fda_settings = std::make_shared<fda::FDASettings>(filenames.size(), filenames.data(), &mtop, PAR(cr));
+        ptr_fda = std::make_shared<FDA>(*ptr_fda_settings);
+        ptr_fda->modify_energy_group_exclusions(&mtop, inputrec);
+#endif
+
     }
 
     /* Check and update the hardware options for internal consistency */
@@ -1369,6 +1381,10 @@ int Mdrunner::mdrunner()
             cr->dd->gpuHaloExchange = std::make_unique<GpuHaloExchange>(
                     cr->dd, cr->mpi_comm_mysim, streamLocal, streamNonLocal);
         }
+
+#ifdef BUILD_WITH_FDA
+        fr->fda = ptr_fda.get();
+#endif
 
         /* Initialize the mdAtoms structure.
          * mdAtoms is not filled with atom data,

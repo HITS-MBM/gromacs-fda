@@ -1,0 +1,9 @@
+onepair = summed
+group1 = Protein
+group2 = Protein
+type = all
+atombased = pairwise_forces_scalar
+residuebased = pairwise_forces_scalar
+residuesrenumber = yes
+time_averages_period = 0
+no_end_zeros = yes

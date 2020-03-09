@@ -1,0 +1,16 @@
+onepair = detailed
+
+; group1 and group2 as defined in the -pfn file
+; if not defined, defaults to 'Protein'
+group1 = g1
+group2 = g2
+
+atombased = pairwise_forces_scalar
+residuebased = pairwise_forces_scalar
+
+; interactions type could be one of more of:
+; bond angle dihedral polar coulomb lj nb14 bonded nonbonded all
+type = nonbonded
+
+; FDA energy group exclusion
+energy_grp_exclusion = yes

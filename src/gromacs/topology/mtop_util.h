@@ -41,6 +41,7 @@
 
 #include <vector>
 
+#include "gromacs/fda/FDASettings.h"
 #include "gromacs/topology/topology.h"
 #include "gromacs/utility/basedefinitions.h"
 
@@ -54,6 +55,8 @@ enum struct GmxQmmmMode;
 // TODO All of the functions taking a const gmx_mtop * are deprecated
 // and should be replaced by versions taking const gmx_mtop & when
 // their callers are refactored similarly.
+
+int gmx_mtop_maxresnr(const struct gmx_mtop_t *mtop, int maxres_renum);
 
 /* Should be called after generating or reading mtop,
  * to set some compute intesive variables to avoid
@@ -257,7 +260,8 @@ t_atoms gmx_mtop_global_atoms(const gmx_mtop_t* mtop);
  * \param[in,out] top                         New local topology populated from global \p mtop.
  * \param[in]     freeEnergyInteractionsAtEnd If free energy interactions will be sorted.
  */
-void gmx_mtop_generate_local_top(const gmx_mtop_t& mtop, gmx_localtop_t* top, bool freeEnergyInteractionsAtEnd);
+void gmx_mtop_generate_local_top(const gmx_mtop_t& mtop, gmx_localtop_t* top, bool freeEnergyInteractionsAtEnd
+                                 fda::FDASettings* ptr_fda_settings = nullptr);
 
 
 /*!\brief Creates and returns a struct with begin/end atom indices of all molecules

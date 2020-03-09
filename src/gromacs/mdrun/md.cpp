@@ -1100,6 +1100,7 @@ void gmx::LegacySimulator::do_md()
 
         /* ########  END FIRST UPDATE STEP  ############## */
         /* ########  If doing VV, we now have v(dt) ###### */
+
         if (bDoExpanded)
         {
             /* perform extended ensemble sampling in lambda - we don't

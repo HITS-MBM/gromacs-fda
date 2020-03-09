@@ -325,6 +325,18 @@ void registerLegacyModules(gmx::CommandLineModuleManager* manager)
     registerModule(manager, &gmx_wheel, "wheel", "Plot helical wheels");
     registerModuleNoNice(manager, &gmx_view, "view", "View a trajectory on an X-Windows terminal");
 
+    // FDA section
+    registerModule(manager, &gmx_fda_graph, "fda_graph",
+                   "Convert a FDA force network as pdb-graph");
+    registerModule(manager, &gmx_fda_get_stress, "fda_get_stress",
+                   "Calculate punctual stress using pairwise forces");
+    registerModule(manager, &gmx_fda_view_stress, "fda_view_stress",
+                   "Plot punctual and von Mises virial stress as xpm or pdb");
+    registerModule(manager, &gmx_fda_shortest_path, "fda_shortest_path",
+                   "Generate the k-shortest paths of a FDA force network as pdb-graph");
+    registerModule(manager, &gmx_fda_convert, "fda_convert",
+                   "Convert FDA files");
+
     {
         gmx::CommandLineModuleGroup group =
                 manager->addModuleGroup("Generating topologies and coordinates");
