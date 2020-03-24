@@ -260,7 +260,7 @@ t_atoms gmx_mtop_global_atoms(const gmx_mtop_t* mtop);
  * \param[in,out] top                         New local topology populated from global \p mtop.
  * \param[in]     freeEnergyInteractionsAtEnd If free energy interactions will be sorted.
  */
-void gmx_mtop_generate_local_top(const gmx_mtop_t& mtop, gmx_localtop_t* top, bool freeEnergyInteractionsAtEnd
+void gmx_mtop_generate_local_top(const gmx_mtop_t& mtop, gmx_localtop_t* top, bool freeEnergyInteractionsAtEnd,
                                  fda::FDASettings* ptr_fda_settings = nullptr);
 
 
