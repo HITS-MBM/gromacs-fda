@@ -733,7 +733,7 @@ gmx::HostVector<gmx::RVec> FDA::get_residues_com(gmx::HostVector<gmx::RVec> cons
     return com;
 }
 
-int FDA::add_name_to_energygrp(char const* name, gmx_groups_t* groups) const
+int FDA::add_name_to_energygrp(char const* name, SimulationGroups* groups) const
 {
     int index = groups->ngrpname;
     if (index == 255)
@@ -781,7 +781,7 @@ void FDA::respect_charge_groups(unsigned char* array, gmx_mtop_t const* mtop) co
     }
 }
 
-int FDA::get_index_in_energygrp(char const* name, gmx_groups_t const* groups) const
+int FDA::get_index_in_energygrp(char const* name, SimulationGroups const* groups) const
 {
     int i, index = -1;
     for (i = 0; i < groups->ngrpname; ++i) {
