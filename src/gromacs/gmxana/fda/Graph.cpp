@@ -84,17 +84,19 @@ void Graph::updateCoordinates(rvec *coord, int *index, int isize)
             if (iterFind == indices_.end()) gmx_fatal(FARGS, "Error in insertPDBInfo.");
             int pos = std::distance(indices_.begin(), iterFind);
 
-            nodes_[pos].x_ = coord[index[i]][0];
-            nodes_[pos].y_ = coord[index[i]][1];
-            nodes_[pos].z_ = coord[index[i]][2];
+            /// Values will be converted from nm into Angstrom.
+            nodes_[pos].x_ = coord[index[i]][0] * 10.0;
+            nodes_[pos].y_ = coord[index[i]][1] * 10.0;
+            nodes_[pos].z_ = coord[index[i]][2] * 10.0;
         }
     // atomic-based
     } else {
         for (size_t i = 0; i != indices_.size(); ++i)
         {
-            nodes_[i].x_ = coord[indices_[i]][0];
-            nodes_[i].y_ = coord[indices_[i]][1];
-            nodes_[i].z_ = coord[indices_[i]][2];
+            /// Values will be converted from nm into Angstrom.
+            nodes_[i].x_ = coord[indices_[i]][0] * 10.0;
+            nodes_[i].y_ = coord[indices_[i]][1] * 10.0;
+            nodes_[i].z_ = coord[indices_[i]][2] * 10.0;
         }
     }
 }
