@@ -174,7 +174,7 @@ int gmx_fda_view_stress(int argc, char *argv[])
                 else top.atoms.pdbinfo[i].bfac = currentStress;
             }
 
-            write_pdbfile(fp, title.c_str(), &top.atoms, xp, ePBC, box, ' ', 0, nullptr, TRUE);
+            write_pdbfile(fp, title.c_str(), &top.atoms, xp, ePBC, box, ' ', 0, nullptr);
             gmx_ffclose(fp);
 
         } else {
@@ -203,7 +203,7 @@ int gmx_fda_view_stress(int argc, char *argv[])
                     }
                 }
 
-                write_pdbfile(fp, title.c_str(), &top.atoms, coord_traj, ePBC, box, ' ', 0, nullptr, TRUE);
+                write_pdbfile(fp, title.c_str(), &top.atoms, coord_traj, ePBC, box, ' ', 0, nullptr);
                 gmx_ffclose(fp);
             }
             close_trx(status);

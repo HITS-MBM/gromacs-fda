@@ -254,7 +254,7 @@ int gmx_fda_graph(int argc, char *argv[])
 
             // Write moleculare trajectory for pymol script
             if (opt2bSet("-pymol", NFILE, fnm))
-                write_pdbfile(molecularTrajectoryFile, "FDA trajectory for Pymol visualization", &top.atoms, coord_traj, ePBC, box, ' ', 0, nullptr, TRUE);
+                write_pdbfile(molecularTrajectoryFile, "FDA trajectory for Pymol visualization", &top.atoms, coord_traj, ePBC, box, ' ', 0, nullptr);
 
             if (frameType == AVERAGE) {
                 frame += frameValue - 1;
