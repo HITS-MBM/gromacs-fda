@@ -134,12 +134,9 @@ private:
      */
     gmx::HostVector<gmx::RVec> get_residues_com(gmx::HostVector<gmx::RVec> const& x, gmx_mtop_t *mtop) const;
 
-    /// Append group to energy groups, returns the position index
-    int add_name_to_energygrp(char const* name, SimulationGroups* groups) const;
-
     /// FDA groups must not be defined over complete charge groups.
     /// This group redefine the energy group array with respect to the charge groups.
-    void respect_charge_groups(unsigned char* array, gmx_mtop_t const* mtop) const;
+    void respect_charge_groups(std::vector<unsigned char> energygrp, gmx_mtop_t const* mtop) const;
 
     /// Return position of group in energy groups array, if not found exit with fatal error
     int get_index_in_energygrp(char const* name, SimulationGroups const* groups) const;

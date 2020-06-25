@@ -56,7 +56,7 @@
 #include "gromacs/utility/real.h"
 #include "gromacs/utility/smalloc.h"
 
-static int gmx_mtop_maxresnr(const gmx_mtop_t* mtop, int maxres_renum)
+int gmx_mtop_maxresnr(const gmx_mtop_t* mtop, int maxres_renum)
 {
     int maxresnr = 0;
 
@@ -1108,7 +1108,6 @@ static void gen_local_top(const gmx_mtop_t& mtop,
 {
     copyAtomtypesFromMtop(mtop, &top->atomtypes);
     copyIdefFromMtop(mtop, &top->idef, freeEnergyInteractionsAtEnd, bMergeConstr, ptr_fda_settings);
-    copyCgsFromMtop(mtop, &top->cgs);
     copyExclsFromMtop(mtop, &top->excls);
     if (!mtop.intermolecularExclusionGroup.empty())
     {
@@ -1116,7 +1115,7 @@ static void gen_local_top(const gmx_mtop_t& mtop,
     }
 }
 
-void gmx_mtop_generate_local_top(const gmx_mtop_t& mtop, gmx_localtop_t* top, bool freeEnergyInteractionsAtEnd
+void gmx_mtop_generate_local_top(const gmx_mtop_t& mtop, gmx_localtop_t* top, bool freeEnergyInteractionsAtEnd,
                                  fda::FDASettings* ptr_fda_settings)
 {
     gen_local_top(mtop, freeEnergyInteractionsAtEnd, true, top, ptr_fda_settings);

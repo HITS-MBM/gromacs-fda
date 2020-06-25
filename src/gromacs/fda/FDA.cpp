@@ -490,49 +490,39 @@ void FDA::modify_energy_group_exclusions(gmx_mtop_t *mtop, t_inputrec *inputrec)
             printf("FDA: No energy groups are defined.\n");
         #endif
 
-        mtop->groups.ngrpnr[egcENER] = mtop->natoms;
-        snew(mtop->groups.grpnr[egcENER],mtop->natoms);
+        mtop->groups.groupNumbers[SimulationAtomGroupType::EnergyOutput].resize(mtop->natoms);
 
         // First set all atoms to energy group "rest" ...
         for (int i = 0; i < mtop->natoms; ++i) {
-            mtop->groups.grpnr[egcENER][i] = FDA_GROUP_IDX_REST;
+            mtop->groups.groupNumbers[SimulationAtomGroupType::EnergyOutput][i] = FDA_GROUP_IDX_REST;
         }
 
         // ... and then overwrite the defined atoms with FDA group 1
         for (int i = fda_settings.groups->index[fda_settings.index_group1]; i < fda_settings.groups->index[fda_settings.index_group1 + 1]; ++i) {
-            mtop->groups.grpnr[egcENER][fda_settings.groups->a[i]] = FDA_GROUP_IDX_FDA1;
+            mtop->groups.groupNumbers[SimulationAtomGroupType::EnergyOutput][fda_settings.groups->a[i]] = FDA_GROUP_IDX_FDA1;
         }
 
         // ... and FDA group 2
         for (int i = fda_settings.groups->index[fda_settings.index_group2]; i < fda_settings.groups->index[fda_settings.index_group2 + 1]; ++i) {
-            if (mtop->groups.grpnr[egcENER][fda_settings.groups->a[i]] == FDA_GROUP_IDX_FDA1)
-                mtop->groups.grpnr[egcENER][fda_settings.groups->a[i]] = FDA_GROUP_IDX_FDA12;
+            if (mtop->groups.groupNumbers[SimulationAtomGroupType::EnergyOutput][fda_settings.groups->a[i]] == FDA_GROUP_IDX_FDA1)
+                mtop->groups.groupNumbers[SimulationAtomGroupType::EnergyOutput][fda_settings.groups->a[i]] = FDA_GROUP_IDX_FDA12;
             else
-                mtop->groups.grpnr[egcENER][fda_settings.groups->a[i]] = FDA_GROUP_IDX_FDA2;
+                mtop->groups.groupNumbers[SimulationAtomGroupType::EnergyOutput][fda_settings.groups->a[i]] = FDA_GROUP_IDX_FDA2;
         }
 
-        respect_charge_groups(mtop->groups.grpnr[egcENER],mtop);
+        respect_charge_groups(mtop->groups.groupNumbers[SimulationAtomGroupType::EnergyOutput], mtop);
 
-        // Search FDA group names in mtop->groups (tpr-file)
-        int mtop_g1idx = add_name_to_energygrp("FDA1", &mtop->groups);
-        int mtop_g2idx = add_name_to_energygrp("FDA2", &mtop->groups);
-        int mtop_g3idx = add_name_to_energygrp("FDA12", &mtop->groups);
-        int mtop_rest_idx = get_index_in_energygrp("rest", &mtop->groups);
-
-        #ifdef FDA_PRINT_DEBUG_ON
-            printf("=== DEBUG === mtop_g1idx = %i\n", mtop_g1idx);
-            printf("=== DEBUG === mtop_g2idx = %i\n", mtop_g2idx);
-            printf("=== DEBUG === mtop_g3idx = %i\n", mtop_g3idx);
-            printf("=== DEBUG === mtop_rest_idx = %i\n", mtop_rest_idx);
-        #endif
+        // Add FDA groups in mtop->groups (tpr-file)
+        mtop->groups.groupNames.emplace_back(put_symtab(&mtop->symtab, "FDA1"));
+        mtop->groups.groupNames.emplace_back(put_symtab(&mtop->symtab, "FDA2"));
+        mtop->groups.groupNames.emplace_back(put_symtab(&mtop->symtab, "FDA12"));
 
         // Lookup table energy group index to group index
-        mtop->groups.grps[egcENER].nr = FDA_GROUP_DIM;
-        snew(mtop->groups.grps[egcENER].nm_ind, FDA_GROUP_DIM);
-        mtop->groups.grps[egcENER].nm_ind[0] = mtop_g1idx;
-        mtop->groups.grps[egcENER].nm_ind[1] = mtop_g2idx;
-        mtop->groups.grps[egcENER].nm_ind[1] = mtop_g3idx;
-        mtop->groups.grps[egcENER].nm_ind[2] = mtop_rest_idx;
+        mtop->groups.groups[SimulationAtomGroupType::EnergyOutput].resize(FDA_GROUP_DIM);
+        mtop->groups.groups[SimulationAtomGroupType::EnergyOutput][0] = get_index_in_energygrp("FDA1", &mtop->groups);
+        mtop->groups.groups[SimulationAtomGroupType::EnergyOutput][1] = get_index_in_energygrp("FDA2", &mtop->groups);
+        mtop->groups.groups[SimulationAtomGroupType::EnergyOutput][1] = get_index_in_energygrp("FDA12", &mtop->groups);
+        mtop->groups.groups[SimulationAtomGroupType::EnergyOutput][2] = get_index_in_energygrp("rest", &mtop->groups);
 
         // Write egp_flags table
         inputrec->opts.ngener = FDA_GROUP_DIM;
@@ -545,8 +535,7 @@ void FDA::modify_energy_group_exclusions(gmx_mtop_t *mtop, t_inputrec *inputrec)
             printf("FDA: %i energy groups are defined.\n", inputrec->opts.ngener);
         #endif
 
-        unsigned char* FDA_eg;
-        snew(FDA_eg,mtop->natoms);
+        std::vector<unsigned char> FDA_eg(mtop->natoms);
 
         // First set all atoms to energy group "rest" ...
         for (int i = 0; i < mtop->natoms; ++i) {
@@ -567,12 +556,11 @@ void FDA::modify_energy_group_exclusions(gmx_mtop_t *mtop, t_inputrec *inputrec)
 
         // new values with prefix c_ for combined groups
         int c_ngener = FDA_GROUP_DIM * inputrec->opts.ngener;
-        unsigned char* c_eg;
-        snew(c_eg, mtop->natoms);
+        std::vector<unsigned char> c_eg(mtop->natoms);
 
         // Generate new energy group indices as combination of original energy groups and FDA groups
         for (int i = 0; i < mtop->natoms; ++i) {
-            c_eg[i] = mtop->groups.grpnr[egcENER][i] * FDA_GROUP_DIM + FDA_eg[i];
+            c_eg[i] = mtop->groups.groupNumbers[SimulationAtomGroupType::EnergyOutput][i] * FDA_GROUP_DIM + FDA_eg[i];
         }
 
         int* c_egp_flags;
@@ -602,8 +590,8 @@ void FDA::modify_energy_group_exclusions(gmx_mtop_t *mtop, t_inputrec *inputrec)
 
         // Determine start index of energy groups
         int startIdx = std::numeric_limits<int>::max();
-        for (int i = 0; i < mtop->groups.grps[egcENER].nr; ++i) {
-            startIdx = std::min(startIdx, mtop->groups.grps[egcENER].nm_ind[i]);
+        for (size_t i = 0; i < mtop->groups.groups[SimulationAtomGroupType::EnergyOutput].size(); ++i) {
+            startIdx = std::min(startIdx, mtop->groups.groups[SimulationAtomGroupType::EnergyOutput][i]);
         }
 
         #ifdef FDA_PRINT_DEBUG_ON
@@ -611,38 +599,29 @@ void FDA::modify_energy_group_exclusions(gmx_mtop_t *mtop, t_inputrec *inputrec)
         #endif
 
         // Rename existing groups
-        char buffer[15];
         for (int i = 0; i < inputrec->opts.ngener; ++i) {
-            sprintf(buffer, "FDA%d", i);
-            char **tmp;
-            snew(tmp,1);
-            tmp[0] = strdup(&buffer[0]);
-            mtop->groups.grpname[i+startIdx] = tmp;
+            mtop->groups.groupNames[i + startIdx] = put_symtab(&mtop->symtab, gmx::formatString("FDA%d", i).c_str());
         }
 
         // Add additional group names
         for (int i = 0; i < inputrec->opts.ngener * (FDA_GROUP_DIM - 1); ++i) {
-            sprintf(buffer, "FDA%d", i + inputrec->opts.ngener);
-            add_name_to_energygrp(buffer, &mtop->groups);
+            mtop->groups.groupNames.emplace_back(put_symtab(&mtop->symtab,
+                gmx::formatString("FDA%d", i + inputrec->opts.ngener).c_str()));
         }
 
         // Update lookup table energy group index to group index
-        mtop->groups.grps[egcENER].nr = c_ngener;
-        srenew(mtop->groups.grps[egcENER].nm_ind, c_ngener);
+        mtop->groups.groups[SimulationAtomGroupType::EnergyOutput].resize(c_ngener);
         for (int i = 0; i < c_ngener; ++i) {
-            mtop->groups.grps[egcENER].nm_ind[i] = i + startIdx;
+            mtop->groups.groups[SimulationAtomGroupType::EnergyOutput][i] = i + startIdx;
         }
 
         // Set new energy group array
-        sfree(mtop->groups.grpnr[egcENER]);
-        mtop->groups.grpnr[egcENER] = c_eg;
+        mtop->groups.groupNumbers[SimulationAtomGroupType::EnergyOutput].resize(c_eg.size());
 
         // Set new egp_flags table
         inputrec->opts.ngener = c_ngener;
         sfree(inputrec->opts.egp_flags);
         inputrec->opts.egp_flags = c_egp_flags;
-
-        sfree(FDA_eg);
     }
 
 #ifdef FDA_PRINT_DEBUG_ON
@@ -656,7 +635,7 @@ void FDA::modify_energy_group_exclusions(gmx_mtop_t *mtop, t_inputrec *inputrec)
         printf("=== DEBUG === mtop->groups.grpname[%i] = %s\n", i, *mtop->groups.grpname[i]);
     }
 
-    printf("=== DEBUG === mtop->groups.ngrpnr[egcENER] = %i\n", mtop->groups.ngrpnr[egcENER]);
+    printf("=== DEBUG === mtop->groups.ngroupNumbers[SimulationAtomGroupType::EnergyOutput] = %i\n", mtop->groups.ngroupNumbers[SimulationAtomGroupType::EnergyOutput]);
 
     for (i = 0; i < mtop->natoms; ++i) {
         printf("=== DEBUG === ggrpnr(&mtop->groups, egcENER, %i) = %i\n", i, (unsigned int)ggrpnr(&mtop->groups, egcENER, i));
@@ -733,27 +712,13 @@ gmx::HostVector<gmx::RVec> FDA::get_residues_com(gmx::HostVector<gmx::RVec> cons
     return com;
 }
 
-int FDA::add_name_to_energygrp(char const* name, SimulationGroups* groups) const
-{
-    int index = groups->ngrpname;
-    if (index == 255)
-        gmx_fatal(FARGS, "FDA error: Limit of energy groups (256) exceeded.");
-    groups->ngrpname += 1;
-    srenew(groups->grpname, groups->ngrpname);
-    char **tmp1;
-    snew(tmp1,1);
-    tmp1[0] = strdup(&name[0]);
-    groups->grpname[index] = tmp1;
-    return index;
-}
-
-void FDA::respect_charge_groups(unsigned char* array, gmx_mtop_t const* mtop) const
+void FDA::respect_charge_groups(std::vector<unsigned char> energygrp, gmx_mtop_t const* mtop) const
 {
     int nbMolecules = 0;
     int molTypeIndex = 0;
     int nbChargeGroups = 0;
     int *chargeGroupsIndex = nullptr;
-    unsigned char* p = array;
+    unsigned char* p = &energygrp[0];
 
     for (auto const& mb : mtop->molblock) {
         nbMolecules = mb.nmol;
@@ -784,15 +749,15 @@ void FDA::respect_charge_groups(unsigned char* array, gmx_mtop_t const* mtop) co
 int FDA::get_index_in_energygrp(char const* name, SimulationGroups const* groups) const
 {
     int i, index = -1;
-    for (i = 0; i < groups->ngrpname; ++i) {
+    for (i = 0; i < groups->groupNames.size(); ++i) {
         if (gmx_strcasecmp(*groups->grpname[i], name) == 0) {
             index = i;
             break;
         }
     }
 
-    if (index == -1)
-        gmx_fatal(FARGS, "FDA error: group \"rest\" not found.");
+    if (index == -1) gmx_fatal(FARGS, "FDA error: group %s not found.", name);
+
     return index;
 }
 
