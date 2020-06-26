@@ -81,7 +81,7 @@ void Graph::updateCoordinates(rvec *coord, int *index, int isize)
         for (int i = 0; i != isize; ++i)
         {
             iterFind = std::find(indices_.begin(), indices_.end(), i);
-            if (iterFind == indices_.end()) gmx_fatal(FARGS, "Error in insertPDBInfo.");
+            if (iterFind == indices_.end()) continue;
             int pos = std::distance(indices_.begin(), iterFind);
 
             /// Values will be converted from nm into Angstrom.
