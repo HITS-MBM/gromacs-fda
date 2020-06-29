@@ -40,7 +40,7 @@ FDABase<Base>::FDABase(ResultType result_type, int syslen, std::string const& re
 }
 
 template <class Base>
-void FDABase<Base>::write_frame(gmx::HostVector<gmx::RVec> const& x, const matrix box, int nsteps)
+void FDABase<Base>::write_frame(gmx::PaddedHostVector<gmx::RVec> const& x, const matrix box, int nsteps)
 {
     switch (fda_settings.one_pair) {
         case OnePair::DETAILED:
@@ -103,7 +103,7 @@ void FDABase<Base>::write_frame(gmx::HostVector<gmx::RVec> const& x, const matri
 }
 
 template <class Base>
-void FDABase<Base>::write_frame_detailed(gmx::HostVector<gmx::RVec> const& x, const matrix box, bool print_vector, int nsteps)
+void FDABase<Base>::write_frame_detailed(gmx::PaddedHostVector<gmx::RVec> const& x, const matrix box, bool print_vector, int nsteps)
 {
 	write_frame_number(nsteps);
     if (print_vector)
@@ -113,7 +113,7 @@ void FDABase<Base>::write_frame_detailed(gmx::HostVector<gmx::RVec> const& x, co
 }
 
 template <class Base>
-void FDABase<Base>::write_frame_summed(gmx::HostVector<gmx::RVec> const& x, const matrix box, bool print_vector, int nsteps)
+void FDABase<Base>::write_frame_summed(gmx::PaddedHostVector<gmx::RVec> const& x, const matrix box, bool print_vector, int nsteps)
 {
 	write_frame_number(nsteps);
     if (print_vector)
@@ -130,13 +130,13 @@ void FDABase<Base>::write_frame_scalar(int nsteps)
 }
 
 template <>
-void FDABase<Atom>::write_total_forces(gmx::HostVector<gmx::RVec> const& x)
+void FDABase<Atom>::write_total_forces(gmx::PaddedHostVector<gmx::RVec> const& x)
 {
     distributed_forces.write_total_forces(result_file, x);
 }
 
 template <>
-void FDABase<Residue>::write_total_forces(gmx::HostVector<gmx::RVec> const& x)
+void FDABase<Residue>::write_total_forces(gmx::PaddedHostVector<gmx::RVec> const& x)
 {
     distributed_forces.write_total_forces(result_file, x, fda_settings.normalize_psr);
 }
@@ -177,7 +177,7 @@ void FDABase<Base>::write_frame_scalar_compat(int nsteps)
 }
 
 template <class Base>
-void FDABase<Base>::write_frame_summed_compat(gmx::HostVector<gmx::RVec> const& x, const matrix box, int nsteps)
+void FDABase<Base>::write_frame_summed_compat(gmx::PaddedHostVector<gmx::RVec> const& x, const matrix box, int nsteps)
 {
     if (result_type == ResultType::COMPAT_ASCII) {
         result_file << "<begin_block>" << std::endl;

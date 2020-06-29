@@ -790,13 +790,6 @@ int Mdrunner::mdrunner()
         *partialDeserializedTpr = read_tpx_state(ftp2fn(efTPR, filenames.size(), filenames.data()),
                                                  &inputrecInstance, globalState.get(), &mtop);
         inputrec                = &inputrecInstance;
-
-#ifdef BUILD_WITH_FDA
-        ptr_fda_settings = std::make_shared<fda::FDASettings>(filenames.size(), filenames.data(), &mtop, PAR(cr));
-        ptr_fda = std::make_shared<FDA>(*ptr_fda_settings);
-        ptr_fda->modify_energy_group_exclusions(&mtop, inputrec);
-#endif
-
     }
 
     /* Check and update the hardware options for internal consistency */
@@ -845,6 +838,11 @@ int Mdrunner::mdrunner()
     CommrecHandle crHandle = init_commrec(communicator, ms);
     t_commrec*    cr       = crHandle.get();
     GMX_RELEASE_ASSERT(cr != nullptr, "Must have valid commrec");
+
+#ifdef BUILD_WITH_FDA
+    ptr_fda_settings = std::make_shared<fda::FDASettings>(filenames.size(), filenames.data(), &mtop, PAR(cr));
+    ptr_fda = std::make_shared<FDA>(*ptr_fda_settings);
+#endif
 
     if (PAR(cr))
     {

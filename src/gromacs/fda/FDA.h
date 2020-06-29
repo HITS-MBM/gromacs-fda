@@ -102,7 +102,7 @@ public:
      * writing because for this fda->atoms would need to be initialized (to get the atom
      * number or to get the sys2ps mapping) which only happens when AtomBased is non-zero
      */
-    void save_and_write_scalar_time_averages(gmx::HostVector<gmx::RVec> const& x, const matrix box, gmx_mtop_t *mtop);
+    void save_and_write_scalar_time_averages(gmx::PaddedHostVector<gmx::RVec> const& x, const matrix box, gmx_mtop_t *mtop);
 
     /**
      * Write scalar time averages; this is similar to pf_write_frame, except that time averages are used
@@ -117,10 +117,7 @@ public:
      */
     void write_scalar_time_averages();
 
-    void write_frame(gmx::HostVector<gmx::RVec> const& x, const matrix box, gmx_mtop_t *mtop);
-
-    /// Main routine for FDA exclusions
-    void modify_energy_group_exclusions(gmx_mtop_t *mtop, t_inputrec *inputrec) const;
+    void write_frame(gmx::PaddedHostVector<gmx::RVec> const& x, const matrix box, gmx_mtop_t *mtop);
 
     fda::FDASettings get_settings() const { return fda_settings; }
 
@@ -132,17 +129,7 @@ private:
      * not express the COM of the whole residue but the COM of the atoms of the residue which
      * are interesting for PF
      */
-    gmx::HostVector<gmx::RVec> get_residues_com(gmx::HostVector<gmx::RVec> const& x, gmx_mtop_t *mtop) const;
-
-    /// FDA groups must not be defined over complete charge groups.
-    /// This group redefine the energy group array with respect to the charge groups.
-    void respect_charge_groups(std::vector<unsigned char> energygrp, gmx_mtop_t const* mtop) const;
-
-    /// Return position of group in energy groups array, if not found exit with fatal error
-    int get_index_in_energygrp(char const* name, SimulationGroups const* groups) const;
-
-    /// Print exclusion table as matrix
-    void print_exclusion_table(int* egp_flags, int dim) const;
+    gmx::PaddedHostVector<gmx::RVec> get_residues_com(gmx::PaddedHostVector<gmx::RVec> const& x, gmx_mtop_t *mtop) const;
 
     /// Settings
     fda::FDASettings const& fda_settings;

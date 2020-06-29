@@ -23,7 +23,7 @@ namespace fda {
  */
 real vector2signedscalar(const rvec v, const rvec xi, const rvec xj, const matrix box, Vector2Scalar v2s);
 
-real vector2unsignedscalar(const rvec v, int i, int j, gmx::HostVector<gmx::RVec> const& x);
+real vector2unsignedscalar(const rvec v, int i, int j, gmx::PaddedHostVector<gmx::RVec> const& x);
 
 } // namespace fda
 

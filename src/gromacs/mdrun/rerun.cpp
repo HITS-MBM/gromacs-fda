@@ -344,7 +344,7 @@ void gmx::LegacySimulator::do_rerun()
     else
     {
         fda::FDASettings fda_settings = fr->fda->get_settings();
-        top = gmx_mtop_generate_local_top(top_global, ir->efep != efepNO, &fda_settings);
+        gmx_mtop_generate_local_top(*top_global, &top, ir->efep != efepNO, &fda_settings);
 
         state_change_natoms(state_global, state_global->natoms);
         /* We need to allocate one element extra, since we might use

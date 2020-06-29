@@ -90,7 +90,7 @@ void DistributedForces::write_detailed_vector(std::ostream& os) const
     }
 }
 
-void DistributedForces::write_detailed_scalar(std::ostream& os, gmx::HostVector<gmx::RVec> const& x, const matrix box) const
+void DistributedForces::write_detailed_scalar(std::ostream& os, gmx::PaddedHostVector<gmx::RVec> const& x, const matrix box) const
 {
     for (size_t i = 0; i != detailed.size(); ++i) {
         auto const& detailed_i = detailed[i];
@@ -142,7 +142,7 @@ void DistributedForces::write_summed_vector(std::ostream& os) const
     }
 }
 
-void DistributedForces::write_summed_scalar(std::ostream& os, gmx::HostVector<gmx::RVec> const& x, const matrix box) const
+void DistributedForces::write_summed_scalar(std::ostream& os, gmx::PaddedHostVector<gmx::RVec> const& x, const matrix box) const
 {
     if (fda_settings.binary_result_file) {
         uint num = number_of_interactions(summed);
@@ -207,7 +207,7 @@ void DistributedForces::write_scalar(std::ostream& os) const
     }
 }
 
-void DistributedForces::write_total_forces(std::ostream& os, gmx::HostVector<gmx::RVec> const& x, bool normalize_psr) const
+void DistributedForces::write_total_forces(std::ostream& os, gmx::PaddedHostVector<gmx::RVec> const& x, bool normalize_psr) const
 {
     std::vector<real> total_forces(syslen, 0.0);
     for (size_t i = 0; i != summed.size(); ++i) {
@@ -314,7 +314,7 @@ void DistributedForces::write_scalar_compat_ascii(std::ostream& os) const
     os << std::endl;
 }
 
-void DistributedForces::write_summed_compat_ascii(std::ostream& os, gmx::HostVector<gmx::RVec> const& x, const matrix box) const
+void DistributedForces::write_summed_compat_ascii(std::ostream& os, gmx::PaddedHostVector<gmx::RVec> const& x, const matrix box) const
 {
     // Print total number of interactions
     int nb_interactions = 0;
@@ -405,7 +405,7 @@ void DistributedForces::write_scalar_compat_bin(std::ostream& os) const
     }
 }
 
-void DistributedForces::write_summed_compat_bin(std::ostream& os, gmx::HostVector<gmx::RVec> const& x, const matrix box) const
+void DistributedForces::write_summed_compat_bin(std::ostream& os, gmx::PaddedHostVector<gmx::RVec> const& x, const matrix box) const
 {
     // Print total number of interactions
     int nb_interactions = 0;
@@ -459,7 +459,7 @@ void DistributedForces::scalar_real_divide(real divisor)
         for (auto& scalar_j : scalar_i) scalar_j.force *= inv;
 }
 
-void DistributedForces::summed_merge_to_scalar(gmx::HostVector<gmx::RVec> const& x, const matrix box)
+void DistributedForces::summed_merge_to_scalar(gmx::PaddedHostVector<gmx::RVec> const& x, const matrix box)
 {
     for (size_t i = 0; i != summed.size(); ++i) {
         auto & scalar_i = scalar[i];
