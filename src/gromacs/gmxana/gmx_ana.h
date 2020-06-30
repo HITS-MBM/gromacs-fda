@@ -170,20 +170,15 @@ int gmx_sans(int argc, char* argv[]);
 
 int gmx_saxs(int argc, char* argv[]);
 
-int
-gmx_fda_graph(int argc, char *argv[]);
+int gmx_fda_graph(int argc, char *argv[]);
 
-int
-gmx_fda_get_stress(int argc, char *argv[]);
+int gmx_fda_get_stress(int argc, char *argv[]);
 
-int
-gmx_fda_view_stress(int argc, char *argv[]);
+int gmx_fda_view_stress(int argc, char *argv[]);
 
-int
-gmx_fda_shortest_path(int argc, char *argv[]);
+int gmx_fda_shortest_path(int argc, char *argv[]);
 
-int
-gmx_fda_convert(int argc, char *argv[]);
+int gmx_fda_convert(int argc, char *argv[]);
 
 #endif
 /* _gmx_ana_h */

@@ -159,7 +159,7 @@ add_library(gmxapi-detail INTERFACE)
 target_include_directories(gmxapi-detail
                            INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
 
-if(BUILD_TESTING)
+if(BUILD_TESTING AND NOT GMX_BUILD_FDA)
     add_subdirectory(tests)
     add_subdirectory(workflow/tests)
 endif()
