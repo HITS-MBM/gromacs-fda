@@ -33,6 +33,8 @@
  * the research papers on the package. Check out http://www.gromacs.org.
  */
 
+#include "gromacs/fda/FDA.h"
+
 #define UNROLLI 4
 #define UNROLLJ 4
 
@@ -97,6 +99,8 @@ void
          const nbnxn_atomdata_t*    nbat,
          const interaction_const_t* ic,
          const rvec*                shift_vec,
+         gmx_unused FDA*            fda,
+         gmx_unused const int*      cellInv,
          nbnxn_atomdata_output_t*   out)
 {
     /* Unpack pointers for output */
@@ -126,6 +130,7 @@ void
     real qi[UNROLLI];
 
 #ifdef CALC_ENERGIES
+    real fda_threshold = fda->get_settings().threshold;
 #    ifndef ENERGY_GROUPS
 
     real Vvdw_ci, Vc_ci;

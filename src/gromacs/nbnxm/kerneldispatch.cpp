@@ -62,6 +62,7 @@
 #include "nbnxm_simd.h"
 #include "pairlistset.h"
 #include "pairlistsets.h"
+#include "pairsearch.h"
 #include "kernels_reference/kernel_gpu_ref.h"
 #define INCLUDE_KERNELFUNCTION_TABLES
 #include "kernels_reference/kernel_ref.h"
@@ -158,7 +159,8 @@ static void nbnxn_kernel_cpu(const PairlistSet&         pairlistSet,
                              real*                      vCoulomb,
                              real*                      vVdw,
                              gmx_wallcycle*             wcycle,
-                             FDA*                       fda)
+                             FDA*                       fda,
+                             gmx::ArrayRef<const int>   cellInv)
 {
 
     int coulkt;
@@ -267,16 +269,16 @@ static void nbnxn_kernel_cpu(const PairlistSet&         pairlistSet,
             switch (kernelSetup.kernelType)
             {
                 case Nbnxm::KernelType::Cpu4x4_PlainC:
-                    nbnxn_kernel_noener_ref[coulkt][vdwkt](pairlist, nbat, &ic, shiftVectors, fda, out);
+                    nbnxn_kernel_noener_ref[coulkt][vdwkt](pairlist, nbat, &ic, shiftVectors, fda, cellInv.data(), out);
                     break;
 #ifdef GMX_NBNXN_SIMD_2XNN
                 case Nbnxm::KernelType::Cpu4xN_Simd_2xNN:
-                    nbnxm_kernel_noener_simd_2xmm[coulkt][vdwkt](pairlist, nbat, &ic, shiftVectors, fda, out);
+                    nbnxm_kernel_noener_simd_2xmm[coulkt][vdwkt](pairlist, nbat, &ic, shiftVectors, fda, cellInv.data(), out);
                     break;
 #endif
 #ifdef GMX_NBNXN_SIMD_4XN
                 case Nbnxm::KernelType::Cpu4xN_Simd_4xN:
-                    nbnxm_kernel_noener_simd_4xm[coulkt][vdwkt](pairlist, nbat, &ic, shiftVectors, fda, out);
+                    nbnxm_kernel_noener_simd_4xm[coulkt][vdwkt](pairlist, nbat, &ic, shiftVectors, fda, cellInv.data(), out);
                     break;
 #endif
                 default: GMX_RELEASE_ASSERT(false, "Unsupported kernel architecture");
@@ -291,16 +293,16 @@ static void nbnxn_kernel_cpu(const PairlistSet&         pairlistSet,
             switch (kernelSetup.kernelType)
             {
                 case Nbnxm::KernelType::Cpu4x4_PlainC:
-                    nbnxn_kernel_ener_ref[coulkt][vdwkt](pairlist, nbat, &ic, shiftVectors, fda, out);
+                    nbnxn_kernel_ener_ref[coulkt][vdwkt](pairlist, nbat, &ic, shiftVectors, fda, cellInv.data(), out);
                     break;
 #ifdef GMX_NBNXN_SIMD_2XNN
                 case Nbnxm::KernelType::Cpu4xN_Simd_2xNN:
-                    nbnxm_kernel_ener_simd_2xmm[coulkt][vdwkt](pairlist, nbat, &ic, shiftVectors, fda, out);
+                    nbnxm_kernel_ener_simd_2xmm[coulkt][vdwkt](pairlist, nbat, &ic, shiftVectors, fda, cellInv.data(), out);
                     break;
 #endif
 #ifdef GMX_NBNXN_SIMD_4XN
                 case Nbnxm::KernelType::Cpu4xN_Simd_4xN:
-                    nbnxm_kernel_ener_simd_4xm[coulkt][vdwkt](pairlist, nbat, &ic, shiftVectors, fda, out);
+                    nbnxm_kernel_ener_simd_4xm[coulkt][vdwkt](pairlist, nbat, &ic, shiftVectors, fda, cellInv.data(), out);
                     break;
 #endif
                 default: GMX_RELEASE_ASSERT(false, "Unsupported kernel architecture");
@@ -317,18 +319,18 @@ static void nbnxn_kernel_cpu(const PairlistSet&         pairlistSet,
             {
                 case Nbnxm::KernelType::Cpu4x4_PlainC:
                     unrollj = c_nbnxnCpuIClusterSize;
-                    nbnxn_kernel_energrp_ref[coulkt][vdwkt](pairlist, nbat, &ic, shiftVectors, fda, out);
+                    nbnxn_kernel_energrp_ref[coulkt][vdwkt](pairlist, nbat, &ic, shiftVectors, fda, cellInv.data(), out);
                     break;
 #ifdef GMX_NBNXN_SIMD_2XNN
                 case Nbnxm::KernelType::Cpu4xN_Simd_2xNN:
                     unrollj = GMX_SIMD_REAL_WIDTH / 2;
-                    nbnxm_kernel_energrp_simd_2xmm[coulkt][vdwkt](pairlist, nbat, &ic, shiftVectors, fda, out);
+                    nbnxm_kernel_energrp_simd_2xmm[coulkt][vdwkt](pairlist, nbat, &ic, shiftVectors, fda, cellInv.data(), out);
                     break;
 #endif
 #ifdef GMX_NBNXN_SIMD_4XN
                 case Nbnxm::KernelType::Cpu4xN_Simd_4xN:
                     unrollj = GMX_SIMD_REAL_WIDTH;
-                    nbnxm_kernel_energrp_simd_4xm[coulkt][vdwkt](pairlist, nbat, &ic, shiftVectors, fda, out);
+                    nbnxm_kernel_energrp_simd_4xm[coulkt][vdwkt](pairlist, nbat, &ic, shiftVectors, fda, cellInv.data(), out);
                     break;
 #endif
                 default: GMX_RELEASE_ASSERT(false, "Unsupported kernel architecture");
@@ -433,7 +435,7 @@ void nonbonded_verlet_t::dispatchNonbondedKernel(gmx::InteractionLocality   iLoc
             nbnxn_kernel_cpu(pairlistSet, kernelSetup(), nbat.get(), ic, fr.shift_vec, stepWork,
                              clearF, enerd->grpp.ener[egCOULSR].data(),
                              fr.bBHAM ? enerd->grpp.ener[egBHAMSR].data() : enerd->grpp.ener[egLJSR].data(),
-                             wcycle_, fr.fda);
+                             wcycle_, fr.fda, fr.nbv->pairSearch_->gridSet().atomIndices());
             break;
 
         case Nbnxm::KernelType::Gpu8x8x8:

@@ -79,6 +79,8 @@
         "future": "cpp",
         "shared_mutex": "cpp",
         "valarray": "cpp",
-        "*.cuh": "cpp"
+        "*.cuh": "cpp",
+        "codecvt": "cpp",
+        "filesystem": "cpp"
     }
 }

@@ -68,6 +68,7 @@ nbnxm_kernel_ElecEwTwinCut_VdwLJCombLB_VF_2xmm(const NbnxnPairlistCpu    gmx_unu
                                                const interaction_const_t gmx_unused *ic,
                                                const rvec                gmx_unused *shift_vec,
                                                FDA                       gmx_unused *fda,
+                                               const int                 gmx_unused *cellInv,
                                                nbnxn_atomdata_output_t   gmx_unused *out)
 #else /* CALC_ENERGIES */
 void
@@ -76,6 +77,7 @@ nbnxm_kernel_ElecEwTwinCut_VdwLJCombLB_VF_2xmm(const NbnxnPairlistCpu    gmx_unu
                                                const interaction_const_t gmx_unused *ic,
                                                const rvec                gmx_unused *shift_vec,
                                                FDA                       gmx_unused *fda,
+                                               const int                 gmx_unused *cellInv,
                                                nbnxn_atomdata_output_t   gmx_unused *out)
 #endif /* CALC_ENERGIES */
 #ifdef GMX_NBNXN_SIMD_2XNN

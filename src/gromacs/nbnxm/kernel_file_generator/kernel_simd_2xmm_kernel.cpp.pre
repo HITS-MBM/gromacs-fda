@@ -61,6 +61,7 @@ void
 {6}const interaction_const_t gmx_unused *ic,
 {6}const rvec                gmx_unused *shift_vec,
 {6}FDA                       gmx_unused *fda,
+{6}const int                 gmx_unused *cellInv,
 {6}nbnxn_atomdata_output_t   gmx_unused *out)
 #else /* CALC_ENERGIES */
 void
@@ -69,6 +70,7 @@ void
 {6}const interaction_const_t gmx_unused *ic,
 {6}const rvec                gmx_unused *shift_vec,
 {6}FDA                       gmx_unused *fda,
+{6}const int                 gmx_unused *cellInv,
 {6}nbnxn_atomdata_output_t   gmx_unused *out)
 #endif /* CALC_ENERGIES */
 #ifdef {0}

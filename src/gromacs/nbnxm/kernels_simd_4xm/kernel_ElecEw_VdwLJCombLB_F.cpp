@@ -67,6 +67,7 @@ nbnxm_kernel_ElecEw_VdwLJCombLB_F_4xm(const NbnxnPairlistCpu    gmx_unused *nbl,
                                       const interaction_const_t gmx_unused *ic,
                                       const rvec                gmx_unused *shift_vec,
                                       FDA                       gmx_unused *fda,
+                                      const int                 gmx_unused *cellInv,
                                       nbnxn_atomdata_output_t   gmx_unused *out)
 #else /* CALC_ENERGIES */
 void
@@ -75,6 +76,7 @@ nbnxm_kernel_ElecEw_VdwLJCombLB_F_4xm(const NbnxnPairlistCpu    gmx_unused *nbl,
                                       const interaction_const_t gmx_unused *ic,
                                       const rvec                gmx_unused *shift_vec,
                                       FDA                       gmx_unused *fda,
+                                      const int                 gmx_unused *cellInv,
                                       nbnxn_atomdata_output_t   gmx_unused *out)
 #endif /* CALC_ENERGIES */
 #ifdef GMX_NBNXN_SIMD_4XN

@@ -64,6 +64,7 @@ typedef void(nbk_func_ener)(const NbnxnPairlistCpu*    nbl,
                             const interaction_const_t* ic,
                             const rvec*                shift_vec,
                             FDA*                       fda,
+                            const int*                 cellInv,
                             nbnxn_atomdata_output_t*   out);
 
 /*! \brief Pointer to \p nbk_func_ener.
@@ -77,6 +78,7 @@ typedef void(nbk_func_noener)(const NbnxnPairlistCpu*    nbl,
                               const interaction_const_t* ic,
                               const rvec*                shift_vec,
                               FDA*                       fda,
+                              const int*                 cellInv,
                               nbnxn_atomdata_output_t*   out);
 
 /*! \brief Pointer to \p nbk_func_noener.

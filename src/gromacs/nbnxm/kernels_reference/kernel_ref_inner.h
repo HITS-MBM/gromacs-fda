@@ -88,6 +88,9 @@
 #    endif
 #endif
             real fscal;
+#ifdef CALC_COULOMB
+            real fvdw;
+#endif
             real fx, fy, fz;
 
             /* A multiply mask used to zero an interaction
@@ -344,17 +347,43 @@
             if (i < UNROLLI / 2)
 #    endif
             {
-                fscal = frLJ * rinvsq + fcoul;
+            	fvdw = frLJ * rinvsq;
+                fscal = fvdw + fcoul;
                 /* 2 flops for scalar LJ+Coulomb force */
+
+#ifdef CALC_ENERGIES
+                /* pairwise forces */
+				if (fabs(fcoul) > fda_threshold && fabs(fvdw) > fda_threshold) {
+					fda->add_nonbonded(cellInv[ai], cellInv[aj], fcoul, fvdw, dx, dy, dz);
+				} else if (fabs(fcoul) > fda_threshold) {
+					fda->add_nonbonded_single(cellInv[ai], cellInv[aj], fda::InteractionType_COULOMB, fcoul, dx, dy, dz);
+				} else if (fabs(fvdw) > fda_threshold) {
+					fda->add_nonbonded_single(cellInv[ai], cellInv[aj], fda::InteractionType_LJ, fscal, dx, dy, dz);
+				}
+#endif
             }
 #    ifdef HALF_LJ
             else
             {
                 fscal = fcoul;
+
+#ifdef CALC_ENERGIES
+				/* pairwise forces */
+				if (fabs(fcoul) > fda_threshold) {
+					fda->add_nonbonded_single(cellInv[ai], cellInv[aj], fda::InteractionType_COULOMB, fcoul, dx, dy, dz);
+				}
+#endif
             }
 #    endif
 #else
             fscal = frLJ * rinvsq;
+
+#ifdef CALC_ENERGIES
+            /* pairwise forces */
+            if (fabs(fscal) > fda_threshold) {
+            	fda->add_nonbonded_single(cellInv[ai], cellInv[aj], fda::InteractionType_LJ, fscal, dx, dy, dz);
+            }
+#endif
 #endif
             fx = fscal * dx;
             fy = fscal * dy;
