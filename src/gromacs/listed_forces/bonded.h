@@ -47,6 +47,7 @@
 #ifndef GMX_LISTED_FORCES_BONDED_H
 #define GMX_LISTED_FORCES_BONDED_H
 
+#include "gromacs/fda/FDA.h"
 #include "gromacs/math/vectypes.h"
 #include "gromacs/topology/ifunc.h"
 #include "gromacs/utility/basedefinitions.h"
@@ -102,7 +103,8 @@ void do_dih_fup(int                   i,
                 const rvec*           x,
                 int                   t1,
                 int                   t2,
-                int                   t3);
+                int                   t3,
+                FDA*                  fda);
 
 /*! \brief Make a dihedral fall in the range (-pi,pi) */
 void make_dp_periodic(real* dp);
@@ -121,7 +123,8 @@ real cmap_dihs(int                   nbonds,
                real gmx_unused* dvdlambda,
                const t_mdatoms gmx_unused* md,
                t_fcdata gmx_unused* fcd,
-               int gmx_unused* global_atom_index);
+               int gmx_unused* global_atom_index,
+               FDA* fda);
 
 /*! \brief For selecting which flavor of bonded kernel is used for simple bonded types */
 enum class BondedKernelFlavor

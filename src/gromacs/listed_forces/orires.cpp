@@ -41,6 +41,7 @@
 #include <climits>
 #include <cmath>
 
+#include "gromacs/fda/FDA.h"
 #include "gromacs/gmxlib/network.h"
 #include "gromacs/linearalgebra/nrjac.h"
 #include "gromacs/math/do_fit.h"
@@ -650,8 +651,9 @@ real orires(int             nfa,
             real gmx_unused lambda,
             real gmx_unused* dvdlambda,
             const t_mdatoms gmx_unused* md,
-            t_fcdata*                   fcd,
-            int gmx_unused* global_atom_index)
+            t_fcdata*       fcd,
+            int gmx_unused* global_atom_index,
+            FDA*            fda)
 {
     int                 ex, power, ki = CENTRAL;
     ivec                dt;
