@@ -176,7 +176,8 @@ real calculateSimpleBond(int                  ftype,
                          const t_mdatoms*                 md,
                          t_fcdata*                        fcd,
                          int gmx_unused*    global_atom_index,
-                         BondedKernelFlavor bondedKernelFlavor);
+                         BondedKernelFlavor bondedKernelFlavor,
+                         FDA*               fda);
 
 //! Getter for finding the flop count for an \c ftype interaction.
 int nrnbIndex(int ftype);

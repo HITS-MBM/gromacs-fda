@@ -4254,12 +4254,13 @@ real calculateSimpleBond(const int            ftype,
                          const t_mdatoms*                 md,
                          t_fcdata*                        fcd,
                          int gmx_unused*          global_atom_index,
-                         const BondedKernelFlavor bondedKernelFlavor)
+                         const BondedKernelFlavor bondedKernelFlavor,
+                         FDA*                     fda)
 {
     const BondedInteractions& bonded = c_bondedInteractionFunctionsPerFlavor[bondedKernelFlavor][ftype];
 
     real v = bonded.function(numForceatoms, forceatoms, forceparams, x, f, fshift, pbc, g, lambda,
-                             dvdlambda, md, fcd, global_atom_index, nullptr);
+                             dvdlambda, md, fcd, global_atom_index, fda);
 
     return v;
 }

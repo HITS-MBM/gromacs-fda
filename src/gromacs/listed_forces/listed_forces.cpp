@@ -357,7 +357,7 @@ real calc_one_bond(int                      thread,
         {
             v = calculateSimpleBond(ftype, nbn, iatoms + nb0, idef->iparams, x, f, fshift, pbc, g,
                                     lambda[efptFTYPE], &(dvdl[efptFTYPE]), md, fcd,
-                                    global_atom_index, flavor);
+                                    global_atom_index, flavor, fr->fda);
         }
     }
     else

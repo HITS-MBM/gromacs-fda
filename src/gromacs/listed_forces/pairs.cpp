@@ -398,6 +398,8 @@ static real do_pairs_general(int                   ftype,
     real     LFC[2], LFV[2], DLF[2], lfac_coul[2], lfac_vdw[2], dlfac_coul[2], dlfac_vdw[2];
     real     qqB, c6B, c12B, sigma2_def, sigma2_min;
 
+    FDA*     fda = fr->fda;
+
     switch (ftype)
     {
         case F_LJ14:
@@ -554,6 +556,8 @@ static real do_pairs_general(int                   ftype,
         /* Add the forces */
         rvec_inc(f[ai], dx);
         rvec_dec(f[aj], dx);
+
+       	fda->add_bonded(ai, aj, fda::InteractionType_NB14, dx);
 
         if (computeVirial(flavor))
         {
