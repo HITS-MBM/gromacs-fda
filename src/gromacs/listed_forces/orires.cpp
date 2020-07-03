@@ -743,11 +743,19 @@ real orires(int             nfa,
             {
                 f[ai][i] += fij[i];
                 f[aj][i] -= fij[i];
+
                 if (fshift)
                 {
                     fshift[ki][i] += fij[i];
                     fshift[CENTRAL][i] -= fij[i];
                 }
+            }
+
+            if (fda) {
+                rvec rij;
+                pbc_dx_aiuc(pbc, x[ai], x[aj], rij);
+                fda->add_bonded(ai, aj, fda::InteractionType_BOND, fij);
+                //fda->add_virial_bond(ai, aj, bondforce, rij[XX], rij[YY], rij[ZZ]);
             }
         }
     }

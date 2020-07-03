@@ -625,9 +625,11 @@ real ta_disres(int             nfa,
                 ki = IVEC2IS(dt);
             }
 
+            rvec pf_forcevector;
             for (int m = 0; m < DIM; m++)
             {
                 fij = fk_scal * dx[m];
+                pf_forcevector[m] = fij;
 
                 f[ai][m] += fij;
                 f[aj][m] -= fij;
@@ -636,6 +638,13 @@ real ta_disres(int             nfa,
                     fshift[ki][m] += fij;
                     fshift[CENTRAL][m] -= fij;
                 }
+            }
+
+            if (fda) {
+                rvec rij;
+                pbc_dx_aiuc(pbc, x[ai], x[aj], rij);
+                fda->add_bonded(ai, aj, fda::InteractionType_POLAR, pf_forcevector);
+                fda->add_virial_bond(ai, aj, f_scal, rij[XX], rij[YY], rij[ZZ]);
             }
         }
     }

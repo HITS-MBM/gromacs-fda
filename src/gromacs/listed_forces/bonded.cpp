@@ -216,7 +216,8 @@ inline void spreadBondForces(const real     bondForce,
                              rvec4*         f,
                              int            shiftIndex,
                              const t_graph* g,
-                             rvec*          fshift)
+                             rvec*          fshift,
+                             FDA*           fda)
 {
     if (computeVirial(flavor) && g)
     {
@@ -225,6 +226,7 @@ inline void spreadBondForces(const real     bondForce,
         shiftIndex = IVEC2IS(dt);
     }
 
+    rvec pf_forcevector;
     for (int m = 0; m < DIM; m++) /*  15          */
     {
         const real fij = bondForce * dx[m];
@@ -235,6 +237,12 @@ inline void spreadBondForces(const real     bondForce,
             fshift[shiftIndex][m] += fij;
             fshift[CENTRAL][m] -= fij;
         }
+        pf_forcevector[m] = fij;
+    }
+
+    if (fda) {
+        fda->add_bonded(ai, aj, fda::InteractionType_BOND, pf_forcevector);
+        fda->add_virial_bond(ai, aj, bondForce, dx[XX], dx[YY], dx[ZZ]);
     }
 }
 
@@ -313,7 +321,7 @@ real morse_bonds(int             nbonds,
         *dvdlambda += (cbB - cbA) * omtemp * omtemp
                       - (2 - 2 * omtemp) * omtemp * cb * ((b0B - b0A) * be - (beB - beA) * (dr - b0)); /* 15 */
 
-        spreadBondForces<flavor>(fbond, dx, ai, aj, f, ki, g, fshift); /* 15 */
+        spreadBondForces<flavor>(fbond, dx, ai, aj, f, ki, g, fshift, fda); /* 15 */
     }                                                                  /*  83 TOTAL    */
     return vtot;
 }
@@ -371,7 +379,7 @@ real cubic_bonds(int             nbonds,
 
         vtot += vbond; /* 21 */
 
-        spreadBondForces<flavor>(fbond, dx, ai, aj, f, ki, g, fshift); /* 15 */
+        spreadBondForces<flavor>(fbond, dx, ai, aj, f, ki, g, fshift, fda); /* 15 */
     }                                                                  /*  54 TOTAL    */
     return vtot;
 }
@@ -432,7 +440,7 @@ real FENE_bonds(int             nbonds,
 
         vtot += vbond; /* 35 */
 
-        spreadBondForces<flavor>(fbond, dx, ai, aj, f, ki, g, fshift); /* 15 */
+        spreadBondForces<flavor>(fbond, dx, ai, aj, f, ki, g, fshift, fda); /* 15 */
     }                                                                  /*  58 TOTAL    */
     return vtot;
 }
@@ -507,7 +515,7 @@ real bonds(int             nbonds,
         vtot += vbond;              /* 1*/
         fbond *= gmx::invsqrt(dr2); /*   6		*/
 
-        spreadBondForces<flavor>(fbond, dx, ai, aj, f, ki, g, fshift); /* 15 */
+        spreadBondForces<flavor>(fbond, dx, ai, aj, f, ki, g, fshift, fda); /* 15 */
     }                                                                  /* 59 TOTAL	*/
     return vtot;
 }
@@ -596,7 +604,7 @@ real restraint_bonds(int             nbonds,
         vtot += vbond;              /* 1*/
         fbond *= gmx::invsqrt(dr2); /*   6		*/
 
-        spreadBondForces<flavor>(fbond, dx, ai, aj, f, ki, g, fshift); /* 15 */
+        spreadBondForces<flavor>(fbond, dx, ai, aj, f, ki, g, fshift, fda); /* 15 */
     }                                                                  /* 59 TOTAL	*/
 
     return vtot;
@@ -644,7 +652,7 @@ real polarize(int              nbonds,
         vtot += vbond;              /* 1*/
         fbond *= gmx::invsqrt(dr2); /*   6		*/
 
-        spreadBondForces<flavor>(fbond, dx, ai, aj, f, ki, g, fshift); /* 15 */
+        spreadBondForces<flavor>(fbond, dx, ai, aj, f, ki, g, fshift, fda); /* 15 */
     }                                                                  /* 59 TOTAL	*/
     return vtot;
 }
@@ -700,7 +708,7 @@ real anharm_polarize(int              nbonds,
         fbond *= gmx::invsqrt(dr2); /*   6		*/
         vtot += vbond;              /* 1*/
 
-        spreadBondForces<flavor>(fbond, dx, ai, aj, f, ki, g, fshift); /* 15 */
+        spreadBondForces<flavor>(fbond, dx, ai, aj, f, ki, g, fshift, fda); /* 15 */
     }                                                                  /* 72 TOTAL	*/
     return vtot;
 }
@@ -804,6 +812,7 @@ real water_pol(int             nbonds,
                 ki = IVEC2IS(dt);
             }
 
+            rvec pf_forcevector;
             for (m = 0; (m < DIM); m++)
             {
                 /* This is a tensor operation but written out for speed */
@@ -811,12 +820,20 @@ real water_pol(int             nbonds,
                 ty  = dHH[m] * kdx[YY];
                 tz  = dOD[m] * kdx[ZZ];
                 fij = -tx - ty - tz;
+            	pf_forcevector[m] = fij;
                 f[aS][m] += fij;
                 f[aD][m] -= fij;
                 if (computeVirial(flavor))
                 {
                     fshift[ki][m] += fij;
                     fshift[CENTRAL][m] -= fij;
+                }
+            }
+
+            if (fda) {
+                fda->add_bonded(aS, aD, fda::InteractionType_POLAR, pf_forcevector);
+                for (m = 0; (m < DIM); m++) {
+                    fda->add_virial_bond(aS, aD, nW[m] * dHH[m] * dOD[m], kdx[XX], kdx[YY], kdx[ZZ]);
                 }
             }
         }
@@ -826,9 +843,10 @@ real water_pol(int             nbonds,
 
 template<BondedKernelFlavor flavor>
 static real
-do_1_thole(const rvec xi, const rvec xj, rvec fi, rvec fj, const t_pbc* pbc, real qq, rvec fshift[], real afac)
+do_1_thole(const rvec xi, const rvec xj, rvec fi, rvec fj, const t_pbc* pbc, real qq,
+           rvec fshift[], real afac, FDA *fda, int ai, int aj)
 {
-    rvec r12;
+    rvec r12, pf_forcevector;
     real r12sq, r12_1, r12bar, v0, v1, fscal, ebar, fff;
     int  m, t;
 
@@ -847,12 +865,18 @@ do_1_thole(const rvec xi, const rvec xj, rvec fi, rvec fj, const t_pbc* pbc, rea
         fff = fscal * r12[m];
         fi[m] += fff;
         fj[m] -= fff;
+        pf_forcevector[m] = fff;
         if (computeVirial(flavor))
         {
             fshift[t][m] += fff;
             fshift[CENTRAL][m] -= fff;
         }
     } /* 15 */
+
+    if (fda) {
+        fda->add_bonded(ai, aj, fda::InteractionType_POLAR, pf_forcevector);
+        fda->add_virial_bond(ai, aj, fscal, r12[XX], r12[YY], r12[ZZ]);
+    }
 
     return v0 * v1; /* 1 */
     /* 54 */
@@ -893,10 +917,10 @@ real thole_pol(int             nbonds,
         al2  = forceparams[type].thole.alpha2;
         qq   = q1 * q2;
         afac = a * gmx::invsixthroot(al1 * al2);
-        V += do_1_thole<flavor>(x[a1], x[a2], f[a1], f[a2], pbc, qq, fshift, afac);
-        V += do_1_thole<flavor>(x[da1], x[a2], f[da1], f[a2], pbc, -qq, fshift, afac);
-        V += do_1_thole<flavor>(x[a1], x[da2], f[a1], f[da2], pbc, -qq, fshift, afac);
-        V += do_1_thole<flavor>(x[da1], x[da2], f[da1], f[da2], pbc, qq, fshift, afac);
+        V += do_1_thole<flavor>(x[a1], x[a2], f[a1], f[a2], pbc, qq, fshift, afac, fda, a1, a2);
+        V += do_1_thole<flavor>(x[da1], x[a2], f[da1], f[a2], pbc, -qq, fshift, afac, fda, a1, a2);
+        V += do_1_thole<flavor>(x[a1], x[da2], f[a1], f[da2], pbc, -qq, fshift, afac, fda, a1, a2);
+        V += do_1_thole<flavor>(x[da1], x[da2], f[da1], f[da2], pbc, qq, fshift, afac, fda, a1, a2);
     }
     /* 290 flops */
     return V;
@@ -978,6 +1002,12 @@ angles(int             nbonds,
                 f[aj][m] += f_j[m];
                 f[ak][m] += f_k[m];
             }
+
+            if (fda) {
+                fda->add_angle(ai, aj, ak, f_i, f_j, f_k);
+                fda->add_virial_angle(ai, aj, ak, r_ij, r_kj, f_i, f_k);
+            }
+
             if (computeVirial(flavor))
             {
                 if (g != nullptr)
@@ -1215,6 +1245,12 @@ real linear_angles(int             nbonds,
             f[aj][m] += f_j[m];
             f[ak][m] += f_k[m];
         }
+
+        if (fda) {
+            fda->add_angle(ai, aj, ak, f_i, f_j, f_k);
+            fda->add_virial_angle(ai, aj, ak, r_ij, r_kj, f_i, f_k);
+        }
+
         va = 0.5 * klin * dr2;
         *dvdlambda += 0.5 * (kB - kA) * dr2 + klin * (aB - aA) * iprod(dx, r_ik);
 
@@ -1316,6 +1352,12 @@ urey_bradley(int             nbonds,
                 f[aj][m] += f_j[m];
                 f[ak][m] += f_k[m];
             }
+
+            if (fda) {
+                fda->add_angle(ai, aj, ak, f_i, f_j, f_k);
+                fda->add_virial_angle(ai, aj, ak, r_ij, r_kj, f_i, f_k);
+            }
+
             if (computeVirial(flavor))
             {
                 if (g)
@@ -1346,16 +1388,24 @@ urey_bradley(int             nbonds,
             ivec_sub(SHIFT_IVEC(g, ai), SHIFT_IVEC(g, ak), dt_ik);
             ki = IVEC2IS(dt_ik);
         }
+
+        rvec pf_forcevector;
         for (m = 0; (m < DIM); m++) /*  15		*/
         {
             fik = fbond * r_ik[m];
             f[ai][m] += fik;
             f[ak][m] -= fik;
+            pf_forcevector[m] = fik;
             if (computeVirial(flavor))
             {
                 fshift[ki][m] += fik;
                 fshift[CENTRAL][m] -= fik;
             }
+        }
+
+        if (fda) {
+            fda->add_bonded(ai, ak, fda::InteractionType_BOND, pf_forcevector);
+            fda->add_virial_bond(ai, ak, fbond, r_ik[XX], r_ik[YY], r_ik[ZZ]);
         }
     }
     return vtot;
@@ -1583,6 +1633,11 @@ real quartic_angles(int             nbonds,
                 f[ai][m] += f_i[m];
                 f[aj][m] += f_j[m];
                 f[ak][m] += f_k[m];
+            }
+
+            if (fda) {
+                fda->add_angle(ai, aj, ak, f_i, f_j, f_k);
+                fda->add_virial_angle(ai, aj, ak, r_ij, r_kj, f_i, f_k);
             }
 
             if (computeVirial(flavor))
@@ -2287,7 +2342,8 @@ real low_angres(int             nbonds,
                 const t_graph*  g,
                 real            lambda,
                 real*           dvdlambda,
-                gmx_bool        bZAxis)
+                gmx_bool        bZAxis,
+                FDA*            fda)
 {
     int  i, m, type, ai, aj, ak, al;
     int  t1, t2;
@@ -2353,6 +2409,18 @@ real low_angres(int             nbonds,
                 }
             }
 
+            if (fda) {
+                fda->add_bonded(ai, aj, fda::InteractionType_ANGLE, f_i);
+                //pbc_rvec_sub(pbc, x[ai], x[aj], dx);
+                //fda->add_virial_bond(ai, aj, bondforce, dx[XX], dx[YY], dx[ZZ]);
+                if (!bZAxis)
+                {
+                    fda->add_bonded(ak, al, fda::InteractionType_ANGLE, f_k);
+                    //pbc_rvec_sub(pbc, x[ak], x[al], dx);
+                    //fda->add_virial_bond(ak, al, bondforce, dx[XX], dx[YY], dx[ZZ]);
+                }
+            }
+
             if (computeVirial(flavor))
             {
                 if (g)
@@ -2396,7 +2464,7 @@ real angres(int             nbonds,
             FDA*            fda)
 {
     return low_angres<flavor>(nbonds, forceatoms, forceparams, x, f, fshift, pbc, g, lambda,
-                              dvdlambda, FALSE);
+                              dvdlambda, FALSE, fda);
 }
 
 template<BondedKernelFlavor flavor>
@@ -2416,7 +2484,7 @@ real angresz(int             nbonds,
              FDA*            fda)
 {
     return low_angres<flavor>(nbonds, forceatoms, forceparams, x, f, fshift, pbc, g, lambda,
-                              dvdlambda, TRUE);
+                              dvdlambda, TRUE, fda);
 }
 
 template<BondedKernelFlavor flavor>
@@ -2528,7 +2596,7 @@ real unimplemented(int gmx_unused nbonds,
                    const t_mdatoms gmx_unused* md,
                    t_fcdata gmx_unused* fcd,
                    int gmx_unused* global_atom_index,
-                   FDA* fda)
+                   FDA gmx_unused* fda)
 {
     gmx_impl("*** you are using a not implemented function");
 }
@@ -2626,6 +2694,14 @@ real restrangles(int             nbonds,
             f[ai][m] += f_i[m];
             f[aj][m] += f_j[m];
             f[ak][m] += f_k[m];
+        }
+
+        if (fda) {
+            rvec r_ij,r_kj;
+            pbc_dx_aiuc(pbc, x[ai], x[aj], r_ij);
+            pbc_dx_aiuc(pbc, x[ak], x[aj], r_kj);
+            fda->add_angle(ai, aj, ak, f_i, f_j, f_k);
+            fda->add_virial_angle(ai, aj, ak, r_ij, r_kj, f_i, f_k);
         }
 
         if (computeVirial(flavor))
@@ -2736,6 +2812,15 @@ real restrdihs(int             nbonds,
         rvec_inc(f[aj], f_j);
         rvec_inc(f[ak], f_k);
         rvec_inc(f[al], f_l);
+
+        if (fda) {
+            rvec r_ij,r_kj,r_kl;
+            pbc_dx_aiuc(pbc, x[ai], x[aj], r_ij);
+            pbc_dx_aiuc(pbc, x[ak], x[aj], r_kj);
+            pbc_dx_aiuc(pbc, x[ak], x[al], r_kl);
+            fda->add_dihedral(ai, aj, ak, al, f_i, f_j, f_k, f_l);
+            fda->add_virial_dihedral(ai, aj, ak, al, f_i, f_k, f_l, r_ij, r_kj, r_kl);
+        }
 
         if (computeVirial(flavor))
         {
@@ -2851,6 +2936,14 @@ real cbtdihs(int             nbonds,
         rvec_inc(f[ak], f_k);
         rvec_inc(f[al], f_l);
 
+        if (fda) {
+            rvec r_ij,r_kj,r_kl;
+            pbc_dx_aiuc(pbc, x[ai], x[aj], r_ij);
+            pbc_dx_aiuc(pbc, x[ak], x[aj], r_kj);
+            pbc_dx_aiuc(pbc, x[ak], x[al], r_kl);
+            fda->add_dihedral(ai, aj, ak, al, f_i, f_j, f_k, f_l);
+            fda->add_virial_dihedral(ai, aj, ak, al, f_i, f_k, f_l, r_ij, r_kj, r_kl);
+        }
 
         if (computeVirial(flavor))
         {
@@ -3354,6 +3447,11 @@ real cmap_dihs(int                   nbonds,
             f[a1l][i] = f[a1l][i] + f1_l[i]; /* h1[i] */
         }
 
+        if (fda) {
+            fda->add_dihedral(ai, aj, ak, al, f1_i, f1_j, f1_k, f1_l);
+            fda->add_virial_dihedral(ai, aj, ak, al, f1_i, f1_k, f1_l, r1_ij, r1_kj, r1_kl);
+        }
+
         /* Do forces - second torsion */
         fg2  = iprod(r2_ij, r2_kj);
         hg2  = iprod(r2_kl, r2_kj);
@@ -3381,6 +3479,11 @@ real cmap_dihs(int                   nbonds,
             f[a2j][i] = f[a2j][i] + f2_j[i]; /* - f2[i] - g2[i] */
             f[a2k][i] = f[a2k][i] + f2_k[i]; /* h2[i] + g2[i] */
             f[a2l][i] = f[a2l][i] + f2_l[i]; /* - h2[i] */
+        }
+
+        if (fda) {
+            fda->add_dihedral(ai, aj, ak, al, f2_i, f2_j, f2_k, f2_l);
+            fda->add_virial_dihedral(ai, aj, ak, al, f2_i, f2_k, f2_l, r2_ij, r2_kj, r2_kl);
         }
 
         /* Shift forces */
@@ -3499,7 +3602,7 @@ real g96bonds(int             nbonds,
 
         vtot += 0.5 * vbond; /* 1*/
 
-        spreadBondForces<flavor>(fbond, dx, ai, aj, f, ki, g, fshift); /* 15 */
+        spreadBondForces<flavor>(fbond, dx, ai, aj, f, ki, g, fshift, fda); /* 15 */
     }                                                                  /* 44 TOTAL	*/
     return vtot;
 }
@@ -3569,6 +3672,11 @@ real g96angles(int             nbonds,
             f[ai][m] += f_i[m];
             f[aj][m] += f_j[m];
             f[ak][m] += f_k[m];
+        }
+
+        if (fda) {
+            fda->add_angle(ai, aj, ak, f_i, f_j, f_k);
+            fda->add_virial_angle(ai, aj, ak, r_ij, r_kj, f_i, f_k);
         }
 
         if (computeVirial(flavor))
@@ -3653,6 +3761,11 @@ real cross_bond_bond(int             nbonds,
             f[ai][m] += f_i[m];
             f[aj][m] += f_j[m];
             f[ak][m] += f_k[m];
+        }
+
+        if (fda) {
+            fda->add_angle(ai, aj, ak, f_i, f_j, f_k);
+            fda->add_virial_angle(ai, aj, ak, r_ij, r_kj, f_i, f_k);
         }
 
         if (computeVirial(flavor))
@@ -3747,6 +3860,11 @@ real cross_bond_angle(int             nbonds,
             f[ai][m] += f_i[m];
             f[aj][m] += f_j[m];
             f[ak][m] += f_k[m];
+        }
+
+        if (fda) {
+            fda->add_angle(ai, aj, ak, f_i, f_j, f_k);
+            fda->add_virial_angle(ai, aj, ak, r_ij, r_kj, f_i, f_k);
         }
 
         if (computeVirial(flavor))
@@ -3863,7 +3981,7 @@ real tab_bonds(int             nbonds,
         vtot += vbond;              /* 1*/
         fbond *= gmx::invsqrt(dr2); /*   6		*/
 
-        spreadBondForces<flavor>(fbond, dx, ai, aj, f, ki, g, fshift); /* 15 */
+        spreadBondForces<flavor>(fbond, dx, ai, aj, f, ki, g, fshift, fda); /* 15 */
     }                                                                  /* 62 TOTAL	*/
     return vtot;
 }
@@ -3931,6 +4049,11 @@ real tab_angles(int             nbonds,
                 f[ai][m] += f_i[m];
                 f[aj][m] += f_j[m];
                 f[ak][m] += f_k[m];
+            }
+
+            if (fda) {
+                fda->add_angle(ai, aj, ak, f_i, f_j, f_k);
+                fda->add_virial_angle(ai, aj, ak, r_ij, r_kj, f_i, f_k);
             }
 
             if (computeVirial(flavor))
