@@ -103,81 +103,68 @@ TEST_P(FDATest, Basic)
     } else {
         ASSERT_FALSE(gmx_mdrun(callRerun.argc(), callRerun.argv()));
 
-		const double error_factor = 1e4;
-		const bool weight_by_magnitude = true;
-		const bool ignore_sign = false;
+        const double error_factor = 1e4;
+        const bool weight_by_magnitude = true;
+        const bool ignore_sign = false;
 
-		LogicallyEqualComparer<weight_by_magnitude, ignore_sign> comparer(error_factor);
+        LogicallyEqualComparer<weight_by_magnitude, ignore_sign> comparer(error_factor);
 
-		// Check results
-		if (!GetParam().atomFileExtension.empty()) {
-			if (GetParam().atomFileExtension == "pfa")
-				if (GetParam().is_vector)
-					EXPECT_TRUE((fda::PairwiseForces<fda::Force<fda::Vector>>(atomFilename).equal(
-						fda::PairwiseForces<fda::Force<fda::Vector>>(atomReference), comparer)));
-				else
-					EXPECT_TRUE((fda::PairwiseForces<fda::Force<real>>(atomFilename).equal(
-						fda::PairwiseForces<fda::Force<real>>(atomReference), comparer)));
-			else
-				EXPECT_TRUE((equal(TextSplitter(atomFilename), TextSplitter(atomReference), comparer)));
-		}
-		if (!GetParam().residueFileExtension.empty()) {
-			if (GetParam().residueFileExtension == "pfr")
-				if (GetParam().is_vector)
-					EXPECT_TRUE((fda::PairwiseForces<fda::Force<fda::Vector>>(residueFilename).equal(
-						fda::PairwiseForces<fda::Force<fda::Vector>>(residueReference), comparer)));
-				else
-					EXPECT_TRUE((fda::PairwiseForces<fda::Force<real>>(residueFilename).equal(
-						fda::PairwiseForces<fda::Force<real>>(residueReference), comparer)));
-			else
-				EXPECT_TRUE((equal(TextSplitter(residueFilename), TextSplitter(residueReference), comparer)));
-		}
-		gmx_chdir(cwd.c_str());
+        // Check results
+        if (!GetParam().atomFileExtension.empty()) {
+            if (GetParam().atomFileExtension == "pfa")
+                if (GetParam().is_vector)
+                    EXPECT_TRUE((fda::PairwiseForces<fda::Force<fda::Vector>>(atomFilename).equal(
+                        fda::PairwiseForces<fda::Force<fda::Vector>>(atomReference), comparer)));
+                else
+                    EXPECT_TRUE((fda::PairwiseForces<fda::Force<real>>(atomFilename).equal(
+                        fda::PairwiseForces<fda::Force<real>>(atomReference), comparer)));
+            else
+                EXPECT_TRUE((equal(TextSplitter(atomFilename), TextSplitter(atomReference), comparer)));
+        }
+        if (!GetParam().residueFileExtension.empty()) {
+            if (GetParam().residueFileExtension == "pfr")
+                if (GetParam().is_vector)
+                    EXPECT_TRUE((fda::PairwiseForces<fda::Force<fda::Vector>>(residueFilename).equal(
+                        fda::PairwiseForces<fda::Force<fda::Vector>>(residueReference), comparer)));
+                else
+                    EXPECT_TRUE((fda::PairwiseForces<fda::Force<real>>(residueFilename).equal(
+                        fda::PairwiseForces<fda::Force<real>>(residueReference), comparer)));
+            else
+                EXPECT_TRUE((equal(TextSplitter(residueFilename), TextSplitter(residueReference), comparer)));
+        }
+        gmx_chdir(cwd.c_str());
     }
 }
 
 std::vector<TestDataStructure> get_tests()
 {
-	std::vector<TestDataStructure> tests {
-		{"alagly_verlet_summed_scalar", "pfa", "pfr"},
-		{"alagly_verlet_pbc_summed_scalar", "pfa", "pfr"},
-		{"alagly_verlet_pbc_summed_scalar_binary", "pfa", "pfr", "traj.trr", false, false},
-		{"cmap_ignore_missing_potentials", "", "psr", "traj.xtc"},
-		{"cmap", "", "psr", "traj.xtc", false, true}
-	};
+    std::vector<TestDataStructure> tests;
+    tests.push_back({"alagly_verlet_summed_scalar", "pfa", "pfr"});
+    tests.push_back({"alagly_verlet_pbc_summed_scalar", "pfa", "pfr"});
+    tests.push_back({"alagly_verlet_pbc_summed_scalar_binary", "pfa", "pfr", "traj.trr"});
+    tests.push_back({"cmap", "", "psr", "traj.xtc"});
 
-	if (simdCompiled() == SimdType::None) {
-		tests.push_back({"alagly_pairwise_forces_scalar", "pfa", "pfr"});
-		tests.push_back({"alagly_pairwise_forces_scalar_atom_based", "pfa", ""});
-		tests.push_back({"alagly_pairwise_forces_scalar_no_residue_based", "pfa", ""});
-		tests.push_back({"alagly_pairwise_forces_scalar_detailed_no_residue_based", "pfa", ""});
-		tests.push_back({"alagly_pairwise_forces_vector", "pfa", "pfr", "traj.trr", true});
-		tests.push_back({"alagly_punctual_stress", "psa", "psr"});
-		tests.push_back({"alagly_punctual_stress_normalized", "psa", "psr"});
-		tests.push_back({"alagly_punctual_stress_normalized_renumbered", "psa", "psr"});
-		tests.push_back({"alagly_pairwise_forces_scalar_detailed_nonbonded", "pfa", "pfr"});
-		tests.push_back({"alagly_pairwise_forces_vector_detailed_nonbonded", "pfa", "pfr", "traj.trr", true});
-		tests.push_back({"alagly_group_excl", "pfa", "pfr"});
-		tests.push_back({"alagly_group_excl_uncomplete_cgs", "pfa", "pfr"});
-		tests.push_back({"alagly_pairwise_forces_scalar_all", "pfa", "pfr"});
-		tests.push_back({"glycine_trimer_group_excl1", "pfa", "pfr"});
-		tests.push_back({"glycine_trimer_group_excl2", "pfa", "pfr"});
-		tests.push_back({"glycine_trimer_group_excl3", "pfa", "pfr"});
-		tests.push_back({"glycine_trimer_group_excl4", "pfa", "pfr"});
-		tests.push_back({"glycine_trimer_group_excl5", "pfa", "pfr"});
-		tests.push_back({"glycine_trimer_group_excl6", "pfa", "pfr"});
-		tests.push_back({"glycine_trimer_group_bonded_excl1", "pfa", "pfr"});
-		tests.push_back({"glycine_trimer_virial_stress", "vsa", ""});
-		tests.push_back({"glycine_trimer_virial_stress_von_mises", "vma", ""});
-		tests.push_back({"alagly_deprecated_keywords", "pfa", "pfr", "", false, true});
-		tests.push_back({"alagly_unknown_option", "pfa", "pfr", "", false, true});
-		tests.push_back({"vwf_a2_domain_nframes1_pairwise_forces_scalar", "pfa", "pfr", "traj.xtc"});
-		tests.push_back({"vwf_a2_domain_nframes1_punctual_stress", "psa", "psr", "traj.xtc"});
-		tests.push_back({"vwf_a2_domain_nframes10_pairwise_forces_scalar", "pfa", "pfr", "traj.xtc"});
-		tests.push_back({"vwf_a2_domain_nframes10_punctual_stress", "psa", "psr", "traj.xtc"});
-	}
+    // tests.push_back({"alagly_pairwise_forces_scalar", "pfa", "pfr"});
+    // tests.push_back({"alagly_pairwise_forces_scalar_atom_based", "pfa", ""});
+    // tests.push_back({"alagly_pairwise_forces_scalar_no_residue_based", "pfa", ""});
+    // tests.push_back({"alagly_pairwise_forces_scalar_detailed_no_residue_based", "pfa", ""});
+    // tests.push_back({"alagly_pairwise_forces_vector", "pfa", "pfr", "traj.trr", true});
+    // tests.push_back({"alagly_punctual_stress", "psa", "psr"});
+    // tests.push_back({"alagly_punctual_stress_normalized", "psa", "psr"});
+    // tests.push_back({"alagly_punctual_stress_normalized_renumbered", "psa", "psr"});
+    // tests.push_back({"alagly_pairwise_forces_scalar_detailed_nonbonded", "pfa", "pfr"});
+    // tests.push_back({"alagly_pairwise_forces_vector_detailed_nonbonded", "pfa", "pfr", "traj.trr", true});
+    // tests.push_back({"alagly_pairwise_forces_scalar_all", "pfa", "pfr"});
+    // tests.push_back({"glycine_trimer_virial_stress", "vsa", ""});
+    // tests.push_back({"glycine_trimer_virial_stress_von_mises", "vma", ""});
+    // tests.push_back({"alagly_deprecated_keywords", "pfa", "pfr", "", false, true});
+    // tests.push_back({"alagly_unknown_option", "pfa", "pfr", "", false, true});
+    // tests.push_back({"vwf_a2_domain_nframes1_pairwise_forces_scalar", "pfa", "pfr", "traj.xtc"});
+    // tests.push_back({"vwf_a2_domain_nframes1_punctual_stress", "psa", "psr", "traj.xtc"});
+    // tests.push_back({"vwf_a2_domain_nframes10_pairwise_forces_scalar", "pfa", "pfr", "traj.xtc"});
+    // tests.push_back({"vwf_a2_domain_nframes10_punctual_stress", "psa", "psr", "traj.xtc"});
 
-	return tests;
+    return tests;
 }
 
 INSTANTIATE_TEST_CASE_P(AllFDATests, FDATest, ::testing::ValuesIn(get_tests()));
