@@ -1,12 +1,6 @@
 /* XPM */
-/* Created by: */
-/* GROMACS:      fda-graph-test, VERSION 5.0 */
-/* Executable:   /fast/doserbd/git/mbm_fda/gromacs-5.0/build_release/bin/fda-graph-test */
-/* Library dir:  /fast/doserbd/git/mbm_fda/gromacs-5.0/share/top */
-/* Command line: */
-/*   fda-graph-test --gtest_color=no --gtest_filter=* */
 /* This file can be converted to EPS by the GROMACS program xpm2ps */
-/* title:   "Punctual stress" */
+/* title:   "Punctual stress over residues" */
 /* legend:  "" */
 /* x-label: "Particle" */
 /* y-label: "Frame" */
@@ -23,6 +17,8 @@ static char *gromacs_xpm[] = {
 "H  c #393939 " /* "1.82e+03" */,
 "I  c #1C1C1C " /* "1.91e+03" */,
 "J  c #000000 " /* "2.01e+03" */,
+/* x-axis:  0 1 2 */
+/* y-axis:  0 1 2 3 4 5 6 7 8 9 10 */
 "AJI",
 "AIH",
 "AIH",

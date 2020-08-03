@@ -250,8 +250,14 @@ int gmx_fda_view_stress(int argc, char *argv[])
 
         FILE *out = gmx_ffopen(opt2fn("-o", NFILE, fnm), "w");
         t_rgb rlo = {1, 1, 1}, rhi = {0, 0, 0};
+        real *t_x;
+        real *t_y;
+        snew(t_x, nbParticles);
+        snew(t_y, nbFramesForOutput);
+        for (int i = 0; i < nbParticles; ++i) t_x[i] = i;
+        for (int i = 0; i < nbFramesForOutput; ++i) t_y[i] = i;
         write_xpm(out, 0, title.c_str(), "", "Particle", "Frame", nbParticles, nbFramesForOutput,
-            nullptr, nullptr, stressMatrix2, minValue, maxValue, rlo, rhi, &nbColors);
+            t_x, t_y, stressMatrix2, minValue, maxValue, rlo, rhi, &nbColors);
         gmx_ffclose(out);
 
     } else gmx_fatal(FARGS, "Missing output filename -opdb or -oxpm.");
