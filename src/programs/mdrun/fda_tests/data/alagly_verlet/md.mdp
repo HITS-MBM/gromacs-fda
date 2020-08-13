@@ -1,0 +1,16 @@
+integrator               = md
+dt                       = 0.001
+nsteps                   = 10
+
+nstxout                  = 1
+nstlog                   = 1
+nstenergy                = 1
+nstcalcenergy            = 1
+
+cutoff-scheme            = verlet
+verlet-buffer-tolerance  = 1e-10
+vdwtype                  = cut-off
+vdw-modifier             = force-switch
+rvdw-switch              = 0.8
+coulombtype              = PME
+fourierspacing           = 0.05
