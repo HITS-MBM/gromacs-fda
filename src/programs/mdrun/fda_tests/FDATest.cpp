@@ -33,6 +33,7 @@ namespace
 struct TestDataStructure
 {
     TestDataStructure(
+        std::string const& trajectoryDirectory,
         std::string const& testDirectory,
         std::string const& atomFileExtension,
         std::string const& residueFileExtension,
@@ -40,7 +41,8 @@ struct TestDataStructure
         bool is_vector = false,
         bool must_die = false
     )
-      : testDirectory(testDirectory),
+      : trajectoryDirectory(trajectoryDirectory),
+        testDirectory(testDirectory),
         atomFileExtension(atomFileExtension),
         residueFileExtension(residueFileExtension),
         trajectoryFilename(trajectoryFilename),
@@ -48,6 +50,7 @@ struct TestDataStructure
         must_die(must_die)
     {}
 
+    std::string trajectoryDirectory;
     std::string testDirectory;
     std::string atomFileExtension;
     std::string residueFileExtension;
@@ -74,6 +77,9 @@ TEST_P(FDATest, Basic)
     ASSERT_FALSE(system(cmd.c_str()));
 
     cmd = "cp -r " + dataPath + "/" + GetParam().testDirectory + "/* " + testPath;
+    ASSERT_FALSE(system(cmd.c_str()));
+
+    cmd = "cp -r " + dataPath + "/" + GetParam().trajectoryDirectory + "/* " + testPath;
     ASSERT_FALSE(system(cmd.c_str()));
 
     gmx_chdir(testPath.c_str());
@@ -139,12 +145,12 @@ TEST_P(FDATest, Basic)
 std::vector<TestDataStructure> get_tests()
 {
     std::vector<TestDataStructure> tests;
-    tests.push_back({"alagly_verlet_summed_scalar", "pfa", "pfr"});
-    tests.push_back({"alagly_verlet_pbc_summed_scalar", "pfa", "pfr"});
-    tests.push_back({"alagly_verlet_pbc_summed_scalar_binary", "pfa", "pfr", "traj.trr"});
-    tests.push_back({"cmap", "", "psr", "traj.xtc"});
+    tests.push_back({"alagly_verlet_summed_scalar", "alagly_verlet_summed_scalar", "pfa", "pfr"});
+    tests.push_back({"alagly_verlet_pbc_summed_scalar", "alagly_verlet_pbc_summed_scalar", "pfa", "pfr"});
+    tests.push_back({"alagly_verlet_pbc_summed_scalar_binary", "alagly_verlet_pbc_summed_scalar_binary", "pfa", "pfr", "traj.trr"});
+    tests.push_back({"cmap", "cmap", "", "psr", "traj.xtc"});
 
-    // tests.push_back({"alagly_pairwise_forces_scalar", "pfa", "pfr"});
+    tests.push_back({"alagly_verlet", "alagly_pairwise_forces_scalar", "pfa", "pfr"});
     // tests.push_back({"alagly_pairwise_forces_scalar_atom_based", "pfa", ""});
     // tests.push_back({"alagly_pairwise_forces_scalar_no_residue_based", "pfa", ""});
     // tests.push_back({"alagly_pairwise_forces_scalar_detailed_no_residue_based", "pfa", ""});

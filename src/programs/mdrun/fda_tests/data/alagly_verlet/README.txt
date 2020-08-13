@@ -1,2 +1,2 @@
-gmx grompp -f md.mdp -c conf.gro -p topol.top -o alagly.tpr
-gmx mdrun -s alagly.tpr
+gmx grompp -f md.mdp -c conf.gro -p topol.top -o topol.tpr
+gmx mdrun -s topol.tpr

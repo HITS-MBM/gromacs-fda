@@ -1,4 +1,4 @@
-           :-) GROMACS - gmx mdrun, 2021-dev-20200812-b1aa4d342f (-:
+       :-) GROMACS - gmx mdrun, 2020-dev-20200101-29dff3961c-unknown (-:
 
                             GROMACS is written by:
      Emile Apol      Rossen Apostolov      Paul Bauer     Herman J.C. Berendsen
@@ -26,16 +26,17 @@ under the terms of the GNU Lesser General Public License
 as published by the Free Software Foundation; either version 2.1
 of the License, or (at your option) any later version.
 
-GROMACS:      gmx mdrun, version 2021-dev-20200812-b1aa4d342f
+GROMACS:      gmx mdrun, version 2020-dev-20200101-29dff3961c-unknown
 Executable:   /home/bernd/git/gromacs/build/bin/gmx
 Data prefix:  /home/bernd/git/gromacs (source tree)
-Working dir:  /home/bernd/test
-Process ID:   9885
+Working dir:  /home/bernd/git/gromacs-fda/src/programs/mdrun/fda_tests/data/alagly_verlet
+Process ID:   22990
 Command line:
-  gmx mdrun -s alagly.tpr
+  gmx mdrun -s topol.tpr
 
-GROMACS version:    2021-dev-20200812-b1aa4d342f
-GIT SHA1 hash:      b1aa4d342fac3fa32ccb491df47848d40e5e40ab
+GROMACS version:    2020-dev-20200101-29dff3961c-unknown
+GIT SHA1 hash:      29dff3961c487ce4be0bd36ececd5f2e5a874532
+Branched from:      unknown
 Precision:          single
 Memory model:       64 bit
 MPI library:        thread_mpi
@@ -47,22 +48,22 @@ RDTSCP usage:       enabled
 TNG support:        enabled
 Hwloc support:      disabled
 Tracing support:    disabled
-C compiler:         /bin/gcc-9 GNU 9.3.0
-C compiler flags:   -mavx2 -mfma -Wall -Wno-unused -Wunused-value -Wunused-parameter -Wextra -Wno-sign-compare -Wpointer-arith -Wundef -Werror=stringop-truncation -Wno-missing-field-initializers -fno-inline -g
-C++ compiler:       /bin/g++-9 GNU 9.3.0
-C++ compiler flags: -mavx2 -mfma -Wall -Wextra -Wpointer-arith -Wmissing-declarations -Wundef -Wstringop-truncation -Wno-missing-field-initializers -fno-inline -fopenmp -g
+C compiler:         /bin/clang-9 Clang 9.0.1
+C compiler flags:   -mavx2 -mfma -Wall -Wno-unused -Wunused-value -Wunused-parameter
+C++ compiler:       /bin/clang++-9 Clang 9.0.1
+C++ compiler flags: -mavx2 -mfma -Wall -Wextra -Wno-missing-field-initializers -Wpointer-arith -Wmissing-prototypes -Wdeprecated -Wno-unused-function -fopenmp=libomp
 
 
-Running on 1 node with total 2 cores, 4 logical cores
+Running on 1 node with total 4 cores, 8 logical cores
 Hardware detected:
   CPU info:
     Vendor: Intel
-    Brand:  Intel(R) Core(TM) i5-6200U CPU @ 2.30GHz
-    Family: 6   Model: 78   Stepping: 3
-    Features: aes apic avx avx2 avx512secondFMA clfsh cmov cx8 cx16 f16c fma htt intel lahf mmx msr nonstop_tsc pcid pclmuldq pdcm pdpe1gb popcnt pse rdrnd rdtscp sse2 sse3 sse4.1 sse4.2 ssse3 tdt x2apic
+    Brand:  Intel(R) Core(TM) i7-4790K CPU @ 4.00GHz
+    Family: 6   Model: 60   Stepping: 3
+    Features: aes apic avx avx2 clfsh cmov cx8 cx16 f16c fma htt intel lahf mmx msr nonstop_tsc pcid pclmuldq pdcm pdpe1gb popcnt pse rdrnd rdtscp sse2 sse3 sse4.1 sse4.2 ssse3 tdt x2apic
   Hardware topology: Basic
     Sockets, cores, and logical processors:
-      Socket  0: [   0   2] [   1   3]
+      Socket  0: [   0   4] [   1   5] [   2   6] [   3   7]
 
 
 ++++ PLEASE READ AND CITE THE FOLLOWING REFERENCE ++++
@@ -120,6 +121,11 @@ GROMACS: A message-passing parallel molecular dynamics implementation
 Comp. Phys. Comm. 91 (1995) pp. 43-56
 -------- -------- --- Thank You --- -------- --------
 
+
+++++ PLEASE CITE THE DOI FOR THIS VERSION OF GROMACS ++++
+https://doi.org/10.5281/zenodo.3562495
+-------- -------- --- Thank You --- -------- --------
+
 Input Parameters:
    integrator                     = md
    tinit                          = 0
@@ -130,7 +136,7 @@ Input Parameters:
    comm-mode                      = Linear
    nstcomm                        = 100
    bd-fric                        = 0
-   ld-seed                        = -840912129
+   ld-seed                        = 1450989534
    emtol                          = 10
    emstep                         = 0.01
    niter                          = 20
@@ -200,6 +206,9 @@ Input Parameters:
       posres-comB[1]= 0.00000e+00
       posres-comB[2]= 0.00000e+00
    QMMM                           = false
+   QMconstraints                  = 0
+   QMMMscheme                     = 0
+   MMChargeScaleFactor            = 1
 qm-opts:
    ngQM                           = 0
    constraint-algorithm           = Lincs
@@ -288,9 +297,11 @@ annealing-npoints:           0
 
 Can not increase nstlist because an NVE ensemble is used
 Using 1 MPI thread
-Using 4 OpenMP threads 
 
-Pinning threads with an auto-selected logical core stride of 1
+Non-default thread affinity set, disabling internal thread affinity
+
+Using 8 OpenMP threads 
+
 System total charge: -0.000
 Will do PME sum in reciprocal space for electrostatic interactions.
 
@@ -302,7 +313,7 @@ J. Chem. Phys. 103 (1995) pp. 8577-8592
 
 Using a Gaussian width (1/beta) of 0.320163 nm for Ewald
 Potential shift: LJ r^-12: -2.720e+00 r^-6: -1.740e+00, Ewald -1.000e-05
-Initialized non-bonded Ewald tables, spacing: 9.33e-04 size: 2145
+Initialized non-bonded Coulomb Ewald tables, spacing: 9.33e-04 size: 1073
 
 Generated table with 1050 data points for 1-4 COUL.
 Tabscale = 500 points/nm
@@ -311,11 +322,11 @@ Tabscale = 500 points/nm
 Generated table with 1050 data points for 1-4 LJ12.
 Tabscale = 500 points/nm
 
-
 Using SIMD 4x8 nonbonded short-range kernels
 
 Using a 4x8 pair-list setup:
   updated every 10 steps, buffer 0.100 nm, rlist 1.100 nm
+
 Removing pbc first time
 There are: 20 Atoms
 Center of mass motion removal mode is Linear
@@ -323,7 +334,7 @@ We have the following groups for center of mass motion removal:
   0:  rest
 Initial temperature: 0 K
 
-Started mdrun on rank 0 Wed Aug 12 17:16:57 2020
+Started mdrun on rank 0 Thu Aug 13 16:43:34 2020
 
            Step           Time
               0        0.00000
@@ -332,20 +343,20 @@ Started mdrun on rank 0 Wed Aug 12 17:16:57 2020
            Bond          Angle    Proper Dih. Ryckaert-Bell.          LJ-14
     1.38424e+02    3.07372e+01    2.19721e-03   -8.14073e+00    4.07324e+01
      Coulomb-14        LJ (SR)   Coulomb (SR)   Coul. recip.      Potential
-    4.57686e+02    6.39173e+01   -1.06542e+03    2.18828e+02   -1.23232e+02
+    4.57686e+02    6.39173e+01   -1.06542e+03    2.18829e+02   -1.23232e+02
     Kinetic En.   Total Energy    Temperature Pressure (bar)
-    2.07283e+01   -1.02504e+02    8.74750e+01    2.84858e+02
+    2.07283e+01   -1.02503e+02    8.74750e+01    2.84858e+02
 
            Step           Time
               1        0.00100
 
    Energies (kJ/mol)
            Bond          Angle    Proper Dih. Ryckaert-Bell.          LJ-14
-    9.40028e+01    2.86154e+01    2.25295e-03   -8.18831e+00    3.60732e+01
+    9.40028e+01    2.86154e+01    2.25295e-03   -8.18832e+00    3.60732e+01
      Coulomb-14        LJ (SR)   Coulomb (SR)   Coul. recip.      Potential
     4.56907e+02    4.49640e+01   -1.06550e+03    2.17427e+02   -1.95694e+02
     Kinetic En.   Total Energy    Temperature Pressure (bar)
-    8.45368e+01   -1.11158e+02    3.56752e+02    1.80911e+02
+    8.45368e+01   -1.11157e+02    3.56752e+02    1.80911e+02
 
            Step           Time
               2        0.00200
@@ -356,7 +367,7 @@ Started mdrun on rank 0 Wed Aug 12 17:16:57 2020
      Coulomb-14        LJ (SR)   Coulomb (SR)   Coul. recip.      Potential
     4.55590e+02    2.40466e+01   -1.06590e+03    2.14876e+02   -2.77691e+02
     Kinetic En.   Total Energy    Temperature Pressure (bar)
-    1.58799e+02   -1.18892e+02    6.70145e+02    9.87177e+00
+    1.58799e+02   -1.18892e+02    6.70145e+02    9.87213e+00
 
            Step           Time
               3        0.00300
@@ -365,38 +376,38 @@ Started mdrun on rank 0 Wed Aug 12 17:16:57 2020
            Bond          Angle    Proper Dih. Ryckaert-Bell.          LJ-14
     2.88034e+01    3.33935e+01    1.94310e-02   -8.43336e+00    2.56839e+01
      Coulomb-14        LJ (SR)   Coulomb (SR)   Coul. recip.      Potential
-    4.54045e+02    9.98238e+00   -1.06688e+03    2.11561e+02   -3.11822e+02
+    4.54045e+02    9.98238e+00   -1.06688e+03    2.11562e+02   -3.11822e+02
     Kinetic En.   Total Energy    Temperature Pressure (bar)
-    1.91979e+02   -1.19844e+02    8.10166e+02   -1.92516e+02
+    1.91979e+02   -1.19843e+02    8.10166e+02   -1.92516e+02
 
            Step           Time
               4        0.00400
 
    Energies (kJ/mol)
            Bond          Angle    Proper Dih. Ryckaert-Bell.          LJ-14
-    5.61907e+01    4.40752e+01    4.99683e-02   -8.61374e+00    2.28026e+01
+    5.61908e+01    4.40752e+01    4.99683e-02   -8.61374e+00    2.28026e+01
      Coulomb-14        LJ (SR)   Coulomb (SR)   Coul. recip.      Potential
-    4.52537e+02    2.31181e+00   -1.06858e+03    2.07897e+02   -2.91331e+02
+    4.52537e+02    2.31181e+00   -1.06858e+03    2.07897e+02   -2.91330e+02
     Kinetic En.   Total Energy    Temperature Pressure (bar)
-    1.76819e+02   -1.14512e+02    7.46189e+02   -3.73364e+02
+    1.76819e+02   -1.14512e+02    7.46189e+02   -3.73365e+02
 
            Step           Time
               5        0.00500
 
    Energies (kJ/mol)
            Bond          Angle    Proper Dih. Ryckaert-Bell.          LJ-14
-    8.98356e+01    5.83694e+01    1.04971e-01   -8.79043e+00    2.14950e+01
+    8.98357e+01    5.83694e+01    1.04971e-01   -8.79043e+00    2.14950e+01
      Coulomb-14        LJ (SR)   Coulomb (SR)   Coul. recip.      Potential
-    4.51244e+02   -1.48334e+00   -1.07100e+03    2.04263e+02   -2.55965e+02
+    4.51244e+02   -1.48334e+00   -1.07100e+03    2.04263e+02   -2.55964e+02
     Kinetic En.   Total Energy    Temperature Pressure (bar)
-    1.47038e+02   -1.08927e+02    6.20513e+02   -4.60111e+02
+    1.47038e+02   -1.08926e+02    6.20513e+02   -4.60111e+02
 
            Step           Time
               6        0.00600
 
    Energies (kJ/mol)
            Bond          Angle    Proper Dih. Ryckaert-Bell.          LJ-14
-    9.25337e+01    7.33235e+01    1.91174e-01   -8.90514e+00    2.16513e+01
+    9.25338e+01    7.33235e+01    1.91174e-01   -8.90514e+00    2.16513e+01
      Coulomb-14        LJ (SR)   Coulomb (SR)   Coul. recip.      Potential
     4.50275e+02   -3.28873e+00   -1.07399e+03    2.00962e+02   -2.47247e+02
     Kinetic En.   Total Energy    Temperature Pressure (bar)
@@ -409,9 +420,9 @@ Started mdrun on rank 0 Wed Aug 12 17:16:57 2020
            Bond          Angle    Proper Dih. Ryckaert-Bell.          LJ-14
     6.71339e+01    8.59095e+01    3.13406e-01   -8.89151e+00    2.31626e+01
      Coulomb-14        LJ (SR)   Coulomb (SR)   Coul. recip.      Potential
-    4.49691e+02   -4.14630e+00   -1.07727e+03    1.98198e+02   -2.65899e+02
+    4.49691e+02   -4.14630e+00   -1.07727e+03    1.98198e+02   -2.65898e+02
     Kinetic En.   Total Energy    Temperature Pressure (bar)
-    1.52206e+02   -1.13693e+02    6.42321e+02   -2.12881e+02
+    1.52206e+02   -1.13692e+02    6.42321e+02   -2.12882e+02
 
            Step           Time
               8        0.00800
@@ -420,9 +431,9 @@ Started mdrun on rank 0 Wed Aug 12 17:16:57 2020
            Bond          Angle    Proper Dih. Ryckaert-Bell.          LJ-14
     5.19156e+01    9.34682e+01    4.73382e-01   -8.70104e+00    2.55086e+01
      Coulomb-14        LJ (SR)   Coulomb (SR)   Coul. recip.      Potential
-    4.49539e+02   -4.55454e+00   -1.08052e+03    1.96073e+02   -2.76794e+02
+    4.49540e+02   -4.55454e+00   -1.08052e+03    1.96073e+02   -2.76794e+02
     Kinetic En.   Total Energy    Temperature Pressure (bar)
-    1.59696e+02   -1.17098e+02    6.73931e+02    3.66402e+01
+    1.59696e+02   -1.17098e+02    6.73931e+02    3.66396e+01
 
            Step           Time
               9        0.00900
@@ -433,12 +444,12 @@ Started mdrun on rank 0 Wed Aug 12 17:16:57 2020
      Coulomb-14        LJ (SR)   Coulomb (SR)   Coul. recip.      Potential
     4.49864e+02   -4.72785e+00   -1.08346e+03    1.94614e+02   -2.55238e+02
     Kinetic En.   Total Energy    Temperature Pressure (bar)
-    1.40745e+02   -1.14493e+02    5.93953e+02    2.60861e+02
+    1.40745e+02   -1.14493e+02    5.93954e+02    2.60862e+02
 
            Step           Time
              10        0.01000
 
-Writing checkpoint, step 10 at Wed Aug 12 17:16:57 2020
+Writing checkpoint, step 10 at Thu Aug 13 16:43:35 2020
 
 
    Energies (kJ/mol)
@@ -447,7 +458,7 @@ Writing checkpoint, step 10 at Wed Aug 12 17:16:57 2020
      Coulomb-14        LJ (SR)   Coulomb (SR)   Coul. recip.      Potential
     4.50680e+02   -4.74269e+00   -1.08591e+03    1.93801e+02   -2.20788e+02
     Kinetic En.   Total Energy    Temperature Pressure (bar)
-    1.12397e+02   -1.08391e+02    4.74326e+02    4.06593e+02
+    1.12397e+02   -1.08391e+02    4.74326e+02    4.06592e+02
 
 
 	<======  ###############  ==>
@@ -458,21 +469,21 @@ Writing checkpoint, step 10 at Wed Aug 12 17:16:57 2020
 
    Energies (kJ/mol)
            Bond          Angle    Proper Dih. Ryckaert-Bell.          LJ-14
-    7.77240e+01    5.97321e+01    2.47514e-01   -8.46546e+00    2.74780e+01
+    7.77241e+01    5.97321e+01    2.47514e-01   -8.46546e+00    2.74780e+01
      Coulomb-14        LJ (SR)   Coulomb (SR)   Coul. recip.      Potential
     4.52551e+02    1.11162e+01   -1.07313e+03    2.05318e+02   -2.47427e+02
     Kinetic En.   Total Energy    Temperature Pressure (bar)
-    1.34847e+02   -1.12581e+02    5.69065e+02   -4.19581e+01
+    1.34847e+02   -1.12580e+02    5.69065e+02   -4.19583e+01
 
    Total Virial (kJ/mol)
     1.36338e+02   -3.18976e+01    1.25995e+02
-   -3.18978e+01    2.91165e+01   -5.38490e+01
-    1.25995e+02   -5.38488e+01    7.17268e+01
+   -3.18972e+01    2.91164e+01   -5.38489e+01
+    1.25995e+02   -5.38487e+01    7.17270e+01
 
    Pressure (bar)
-   -8.07411e+01    5.21925e+01   -1.54231e+02
-    5.21928e+01    3.63229e-01    4.58468e+01
-   -1.54231e+02    4.58466e+01   -4.54966e+01
+   -8.07413e+01    5.21926e+01   -1.54231e+02
+    5.21921e+01    3.63293e-01    4.58466e+01
+   -1.54232e+02    4.58465e+01   -4.54968e+01
 
 
 	M E G A - F L O P S   A C C O U N T I N G
@@ -507,32 +518,32 @@ Writing checkpoint, step 10 at Wed Aug 12 17:16:57 2020
 
      R E A L   C Y C L E   A N D   T I M E   A C C O U N T I N G
 
-On 1 MPI rank, each using 4 OpenMP threads
+On 1 MPI rank, each using 8 OpenMP threads
 
  Computing:          Num   Num      Call    Wall time         Giga-Cycles
                      Ranks Threads  Count      (s)         total sum    %
 -----------------------------------------------------------------------------
- Neighbor search        1    4          2       0.001          0.011   0.7
- Force                  1    4         11       0.022          0.214  14.1
- PME mesh               1    4         11       0.099          0.952  63.0
- NB X/F buffer ops.     1    4         20       0.005          0.049   3.2
- Write traj.            1    4         11       0.026          0.250  16.6
- Update                 1    4         11       0.001          0.006   0.4
- Rest                                           0.003          0.029   1.9
+ Neighbor search        1    8          2       0.001          0.023   0.2
+ Force                  1    8         11       0.003          0.086   0.9
+ PME mesh               1    8         11       0.084          2.681  28.3
+ NB X/F buffer ops.     1    8         20       0.001          0.024   0.3
+ Write traj.            1    8         11       0.155          4.947  52.2
+ Update                 1    8         11       0.027          0.872   9.2
+ Rest                                           0.027          0.852   9.0
 -----------------------------------------------------------------------------
- Total                                          0.157          1.510 100.0
+ Total                                          0.296          9.486 100.0
 -----------------------------------------------------------------------------
  Breakdown of PME mesh computation
 -----------------------------------------------------------------------------
- PME spread             1    4         11       0.012          0.114   7.6
- PME gather             1    4         11       0.005          0.046   3.1
- PME 3D-FFT             1    4         22       0.025          0.242  16.1
- PME solve Elec         1    4         11       0.057          0.547  36.2
+ PME spread             1    8         11       0.003          0.103   1.1
+ PME gather             1    8         11       0.011          0.348   3.7
+ PME 3D-FFT             1    8         22       0.047          1.511  15.9
+ PME solve Elec         1    8         11       0.022          0.715   7.5
 -----------------------------------------------------------------------------
 
                Core t (s)   Wall t (s)        (%)
-       Time:        0.627        0.157      398.9
+       Time:        2.369        0.296      799.2
                  (ns/day)    (hour/ns)
-Performance:        6.043        3.972
-Finished mdrun on rank 0 Wed Aug 12 17:16:57 2020
+Performance:        3.206        7.485
+Finished mdrun on rank 0 Thu Aug 13 16:43:35 2020
 

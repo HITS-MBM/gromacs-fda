@@ -1,17 +1,17 @@
 ;
 ;	File 'mdout.mdp' was generated
 ;	By user: unknown (1026)
-;	On host: xps
-;	At date: Wed Aug 12 17:15:17 2020
+;	On host: dragon
+;	At date: Thu Aug 13 16:43:16 2020
 ;
 ;	Created by:
-;	          :-) GROMACS - gmx grompp, 2021-dev-20200812-b1aa4d342f (-:
+;	      :-) GROMACS - gmx grompp, 2020-dev-20200101-29dff3961c-unknown (-:
 ;	
 ;	Executable:   /home/bernd/git/gromacs/build/bin/gmx
 ;	Data prefix:  /home/bernd/git/gromacs (source tree)
-;	Working dir:  /home/bernd/test
+;	Working dir:  /home/bernd/git/gromacs-fda/src/programs/mdrun/fda_tests/data/alagly_verlet
 ;	Command line:
-;	  gmx grompp -f md.mdp -c conf.gro -p topol.top -o alagly.tpr
+;	  gmx grompp -f md.mdp -c conf.gro -p topol.top -o topol.tpr
 
 ; VARIOUS PREPROCESSING OPTIONS
 ; Preprocessor information: use cpp syntax.
