@@ -1,6 +1,6 @@
-FROM braintwister/ubuntu-18.04-cuda-10.2-gcc-8-clang-7-doxygen-1.8.5
+FROM braintwister/ubuntu-20.04-cuda-devel-11.0-gcc-8-clang-7-doxygen-1.8.5
 
-MAINTAINER Bernd Doser <bernd.doser@h-its.org>
+LABEL maintainer="Bernd Doser <bernd.doser@h-its.org>"
 
 RUN apt-get update \
  && apt-get install -y \
