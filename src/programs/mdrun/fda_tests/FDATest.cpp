@@ -151,16 +151,19 @@ std::vector<TestDataStructure> get_tests()
     tests.push_back({"alagly_verlet", "alagly_pairwise_forces_scalar_summed_no_residue_based", "pfa", ""});
     tests.push_back({"alagly_verlet", "alagly_pairwise_forces_scalar_detailed", "pfa", "pfr"});
     tests.push_back({"alagly_verlet", "alagly_pairwise_forces_vector", "pfa", "pfr", "traj.trr", true});
-    // tests.push_back({"alagly_verlet", "alagly_punctual_stress", "psa", "psr"});
-    // tests.push_back({"alagly_verlet", "alagly_punctual_stress_normalized", "psa", "psr"});
-    // tests.push_back({"alagly_verlet", "alagly_punctual_stress_normalized_renumbered", "psa", "psr"});
-    // tests.push_back({"alagly_verlet", "alagly_pairwise_forces_scalar_detailed_nonbonded", "pfa", "pfr"});
-    // tests.push_back({"alagly_verlet", "alagly_pairwise_forces_vector_detailed_nonbonded", "pfa", "pfr", "traj.trr", true});
-    // tests.push_back({"alagly_verlet", "alagly_pairwise_forces_scalar_all", "pfa", "pfr"});
-    // tests.push_back({"alagly_verlet", "alagly_deprecated_keywords", "", "", "", false, true});
-    // tests.push_back({"alagly_verlet", "alagly_unknown_option", "", "", "", false, true});
+    tests.push_back({"alagly_verlet", "alagly_pairwise_forces_scalar_detailed_nonbonded", "pfa", "pfr"});
+    tests.push_back({"alagly_verlet", "alagly_pairwise_forces_vector_detailed_nonbonded", "pfa", "pfr", "traj.trr", true});
+    tests.push_back({"alagly_verlet", "alagly_pairwise_forces_scalar_all", "pfa", "pfr"});
 
-    // tests.push_back({"cmap", "cmap", "", "psr", "traj.xtc"});
+    tests.push_back({"alagly_verlet", "alagly_punctual_stress", "psa", "psr"});
+    tests.push_back({"alagly_verlet", "alagly_punctual_stress_binary", "", ""});
+    tests.push_back({"alagly_verlet", "alagly_punctual_stress_normalized", "psa", "psr"});
+    tests.push_back({"alagly_verlet", "alagly_punctual_stress_normalized_renumbered", "psa", "psr"});
+
+    tests.push_back({"alagly_verlet", "alagly_deprecated_keywords", "", "", "", false, true});
+    tests.push_back({"alagly_verlet", "alagly_unknown_option", "", "", "", false, true});
+
+    tests.push_back({"cmap", "cmap", "", "psr", "traj.xtc"});
 
     // tests.push_back({"glycine_trimer_virial_stress", "vsa", ""});
     // tests.push_back({"glycine_trimer_virial_stress_von_mises", "vma", ""});
