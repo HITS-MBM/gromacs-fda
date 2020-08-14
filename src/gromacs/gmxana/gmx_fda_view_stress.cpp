@@ -59,9 +59,9 @@ int gmx_fda_view_stress(int argc, char *argv[])
     };
 
     gmx_output_env_t *oenv;
-    static const char* frameString = "average 1";
-    static bool convert = false;
-    static int nbColors = 10;
+    const char* frameString = "average 1";
+    bool convert = false;
+    int nbColors = 10;
 
     t_pargs pa[] = {
         { "-frame", FALSE, etSTR, {&frameString}, "Specify a single frame number or \"average n\" to take the mean over every n-th frame"

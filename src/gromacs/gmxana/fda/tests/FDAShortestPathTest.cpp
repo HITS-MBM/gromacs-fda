@@ -131,21 +131,21 @@ INSTANTIATE_TEST_CASE_P(AllFDAShortestPathTests, FDAShortestPathTest, ::testing:
         "result.pdb",
         "FDAShortestPathTest.ref1.pdb"
     ),
-    TestDataStructure(
+    TestDataStructure( // 2
         "glycine_trimer",
         {"-i", "fda.pfr", "-s", "glycine_trimer.pdb", "-n", "index.ndx", "-frame", "average 3", "-source", "0", "-dest", "2", "-nk", "2", "-convert", "-pymol", "result.pml"},
         "C-alpha",
         "result.pdb",
         "FDAShortestPathTest.ref2.pdb"
     ),
-    TestDataStructure(
+    TestDataStructure( // 3
         "glycine_trimer",
         {"-i", "fda.pfr", "-s", "glycine_trimer.pdb", "-n", "index.ndx", "-frame", "all", "-source", "0", "-dest", "2", "-nk", "2", "-pymol", "result.pml"},
         "C-alpha",
         "result.pdb",
         "FDAShortestPathTest.ref3.pdb"
     ),
-    TestDataStructure(
+    TestDataStructure( // 4
         "glycine_trimer",
         {"-i", "fda.pfr", "-s", "glycine_trimer.pdb", "-n", "index.ndx", "-frame", "skip 3", "-source", "0", "-dest", "2", "-nk", "2", "-pymol", "result.pml"},
         "C-alpha",

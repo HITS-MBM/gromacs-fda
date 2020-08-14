@@ -59,11 +59,11 @@ int gmx_fda_shortest_path(int argc, char *argv[])
     };
 
     gmx_output_env_t *oenv;
-    static const char* frameString = "average 1";
-    static int source = 0;
-    static int dest = 0;
-    static int numberOfShortestPaths = 1;
-    static bool convert = false;
+    const char* frameString = "average 1";
+    int source = 0;
+    int dest = 0;
+    int numberOfShortestPaths = 1;
+    bool convert = false;
 
     t_pargs pa[] = {
         { "-frame", FALSE, etSTR, {&frameString}, "Specify a single frame number or \"average n\" to take the mean over every n-th frame"
