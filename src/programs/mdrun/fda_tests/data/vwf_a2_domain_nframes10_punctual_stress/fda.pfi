@@ -1,8 +1,0 @@
-onepair = summed
-group1 = Protein
-group2 = Protein
-type = all
-atombased = punctual_stress
-residuebased = punctual_stress
-residuesrenumber = yes
-no_end_zeros = yes
