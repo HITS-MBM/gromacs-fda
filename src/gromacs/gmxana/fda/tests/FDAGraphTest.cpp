@@ -120,19 +120,21 @@ TEST_P(FDAGraphTest, binary)
 INSTANTIATE_TEST_CASE_P(AllFDAGraphTests, FDAGraphTest, ::testing::Values(
     TestDataStructure(
         "maxime_all_prot",
-        {"-i", "cap0_all_prot.pfr", "-diff", "cap1_all_prot.pfr", "-s", "1G6N.pdb", "-n", "index.ndx", "-frame", "0", "-t", "100", "-min", "2", "-convert"},
+        {"-i", "cap0_all_prot.pfr", "-diff", "cap1_all_prot.pfr", "-s", "1G6N.pdb",
+         "-n", "index.ndx", "-frame", "0", "-t", "100", "-min", "2", "-convert"},
         "C-alpha",
         "result.pdb",
         "FDAGraphTest.ref0.pdb"
     ),
     TestDataStructure(
         "maxime_all_prot",
-        {"-i", "cap0_all_prot.pfr", "-diff", "cap1_all_prot.pfr", "-s", "1G6N.pdb", "-n", "index.ndx", "-frame", "0", "-t", "20", "-min", "2", "-convert"},
+        {"-i", "cap0_all_prot.pfr", "-diff", "cap1_all_prot.pfr", "-s", "1G6N.pdb",
+         "-n", "index.ndx", "-frame", "0", "-t", "20", "-min", "2", "-convert"},
         "C-alpha",
         "result.dmc",
         "FDAGraphTest.ref1.dmc"
     ),
-    TestDataStructure(
+    TestDataStructure( // 2
         "alagly",
         {"-i", "fda.pfa", "-s", "conf.gro", "-frame", "0"},
         "",
@@ -160,12 +162,20 @@ INSTANTIATE_TEST_CASE_P(AllFDAGraphTests, FDAGraphTest, ::testing::Values(
         "result.pdb",
         "FDAGraphTest.ref5.pdb"
     ),
-    TestDataStructure(
+    TestDataStructure( // 6
         "glycine_trimer",
         {"-i", "fda.pfr", "-s", "glycine_trimer.pdb", "-f", "traj.trr", "-n", "index.ndx", "-frame", "all", "-pymol", "result.pml"},
         "C-alpha",
         "result.pdb",
         "FDAGraphTest.ref6.pdb"
+    ),
+    TestDataStructure(
+        "maxime_all_prot",
+        {"-i", "cap0_all_prot.pfr", "-diff", "cap1_all_prot.pfr", "-s", "1G6N.pdb",
+         "-n", "index.ndx", "-frame", "0", "-t", "100", "-min", "4", "-convert", "-big"},
+        "C-alpha",
+        "result.pdb",
+        "FDAGraphTest.ref7.pdb"
     )
 ));
 

@@ -115,7 +115,7 @@ void Graph::convertInDIMACSMinGraphOrder(std::string const& outFilename, double 
     convertNetworkToDIMACS(outFilename, networks, threshold, minGraphOrder);
 }
 
-void Graph::createNetworkMinGraphOrder(Networks& networks, double threshold, size_t minGraphOrder,
+void Graph::createNetworkMinGraphOrder(Networks& networks, double threshold, size_t& minGraphOrder,
     bool onlyBiggestNetwork) const
 {
 	int iNetwork = 0;

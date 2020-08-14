@@ -43,7 +43,7 @@ private:
 	typedef std::vector<int> Network;
 	typedef std::vector<Network> Networks;
 
-	void createNetworkMinGraphOrder(Networks& networks, double threshold, size_t minGraphOrder, bool onlyBiggestNetwork) const;
+	void createNetworkMinGraphOrder(Networks& networks, double threshold, size_t& minGraphOrder, bool onlyBiggestNetwork) const;
 
 	void convertNetworkToPDB(std::string const& outFilename, Networks const& networks, double threshold,
 		size_t minGraphOrder, bool append) const;

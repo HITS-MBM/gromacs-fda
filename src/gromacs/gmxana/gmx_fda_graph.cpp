@@ -62,11 +62,11 @@ int gmx_fda_graph(int argc, char *argv[])
     };
 
     gmx_output_env_t *oenv;
-    static real threshold = 0.0;
-    static const char* frameString = "average 1";
-    static int minGraphOrder = 2;
-    static bool onlyBiggestNetwork = false;
-    static bool convert = false;
+    real threshold = 0.0;
+    const char* frameString = "average 1";
+    int minGraphOrder = 2;
+    bool onlyBiggestNetwork = false;
+    bool convert = false;
 
     t_pargs pa[] = {
         { "-frame", FALSE, etSTR, {&frameString}, "Specify a single frame number or \"average n\" to take the mean over every n-th frame"
