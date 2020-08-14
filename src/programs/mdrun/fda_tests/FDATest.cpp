@@ -145,26 +145,26 @@ TEST_P(FDATest, Basic)
 std::vector<TestDataStructure> get_tests()
 {
     std::vector<TestDataStructure> tests;
-    tests.push_back({"alagly_verlet_summed_scalar", "alagly_verlet_summed_scalar", "pfa", "pfr"});
-    tests.push_back({"alagly_verlet_pbc_summed_scalar", "alagly_verlet_pbc_summed_scalar", "pfa", "pfr"});
-    tests.push_back({"alagly_verlet_pbc_summed_scalar_binary", "alagly_verlet_pbc_summed_scalar_binary", "pfa", "pfr", "traj.trr"});
-    tests.push_back({"cmap", "cmap", "", "psr", "traj.xtc"});
 
-    tests.push_back({"alagly_verlet", "alagly_pairwise_forces_scalar", "pfa", "pfr"});
-    // tests.push_back({"alagly_pairwise_forces_scalar_atom_based", "pfa", ""});
-    // tests.push_back({"alagly_pairwise_forces_scalar_no_residue_based", "pfa", ""});
-    // tests.push_back({"alagly_pairwise_forces_scalar_detailed_no_residue_based", "pfa", ""});
-    // tests.push_back({"alagly_pairwise_forces_vector", "pfa", "pfr", "traj.trr", true});
-    // tests.push_back({"alagly_punctual_stress", "psa", "psr"});
-    // tests.push_back({"alagly_punctual_stress_normalized", "psa", "psr"});
-    // tests.push_back({"alagly_punctual_stress_normalized_renumbered", "psa", "psr"});
-    // tests.push_back({"alagly_pairwise_forces_scalar_detailed_nonbonded", "pfa", "pfr"});
-    // tests.push_back({"alagly_pairwise_forces_vector_detailed_nonbonded", "pfa", "pfr", "traj.trr", true});
-    // tests.push_back({"alagly_pairwise_forces_scalar_all", "pfa", "pfr"});
+    tests.push_back({"alagly_verlet", "alagly_pairwise_forces_scalar_summed", "pfa", "pfr"});
+    tests.push_back({"alagly_verlet", "alagly_pairwise_forces_scalar_summed_atom_based", "pfa", ""});
+    tests.push_back({"alagly_verlet", "alagly_pairwise_forces_scalar_summed_no_residue_based", "pfa", ""});
+    tests.push_back({"alagly_verlet", "alagly_pairwise_forces_scalar_detailed", "pfa", "pfr"});
+    tests.push_back({"alagly_verlet", "alagly_pairwise_forces_vector", "pfa", "pfr", "traj.trr", true});
+    // tests.push_back({"alagly_verlet", "alagly_punctual_stress", "psa", "psr"});
+    // tests.push_back({"alagly_verlet", "alagly_punctual_stress_normalized", "psa", "psr"});
+    // tests.push_back({"alagly_verlet", "alagly_punctual_stress_normalized_renumbered", "psa", "psr"});
+    // tests.push_back({"alagly_verlet", "alagly_pairwise_forces_scalar_detailed_nonbonded", "pfa", "pfr"});
+    // tests.push_back({"alagly_verlet", "alagly_pairwise_forces_vector_detailed_nonbonded", "pfa", "pfr", "traj.trr", true});
+    // tests.push_back({"alagly_verlet", "alagly_pairwise_forces_scalar_all", "pfa", "pfr"});
+    // tests.push_back({"alagly_verlet", "alagly_deprecated_keywords", "", "", "", false, true});
+    // tests.push_back({"alagly_verlet", "alagly_unknown_option", "", "", "", false, true});
+
+    // tests.push_back({"cmap", "cmap", "", "psr", "traj.xtc"});
+
     // tests.push_back({"glycine_trimer_virial_stress", "vsa", ""});
     // tests.push_back({"glycine_trimer_virial_stress_von_mises", "vma", ""});
-    // tests.push_back({"alagly_deprecated_keywords", "pfa", "pfr", "", false, true});
-    // tests.push_back({"alagly_unknown_option", "pfa", "pfr", "", false, true});
+
     // tests.push_back({"vwf_a2_domain_nframes1_pairwise_forces_scalar", "pfa", "pfr", "traj.xtc"});
     // tests.push_back({"vwf_a2_domain_nframes1_punctual_stress", "psa", "psr", "traj.xtc"});
     // tests.push_back({"vwf_a2_domain_nframes10_pairwise_forces_scalar", "pfa", "pfr", "traj.xtc"});
