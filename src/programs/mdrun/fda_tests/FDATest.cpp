@@ -165,8 +165,8 @@ std::vector<TestDataStructure> get_tests()
 
     tests.push_back({"cmap", "cmap", "", "psr", "traj.xtc"});
 
-    // tests.push_back({"glycine_trimer_virial_stress", "vsa", ""});
-    // tests.push_back({"glycine_trimer_virial_stress_von_mises", "vma", ""});
+    tests.push_back({"glycine_trimer", "glycine_trimer_virial_stress", "vsa", ""});
+    tests.push_back({"glycine_trimer", "glycine_trimer_virial_stress_von_mises", "vma", ""});
 
     // tests.push_back({"vwf_a2_domain_nframes1_pairwise_forces_scalar", "pfa", "pfr", "traj.xtc"});
     // tests.push_back({"vwf_a2_domain_nframes1_punctual_stress", "psa", "psr", "traj.xtc"});

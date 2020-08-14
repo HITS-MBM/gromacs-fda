@@ -13,6 +13,8 @@ declare -a arr=(
   "alagly_punctual_stress_binary"
   "alagly_punctual_stress_normalized"
   "alagly_punctual_stress_normalized_renumbered"
+  "glycine_trimer_virial_stress"
+  "glycine_trimer_virial_stress_von_mises"
 )
 
 declare -a files=(
