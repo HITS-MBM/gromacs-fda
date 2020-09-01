@@ -16,6 +16,7 @@ pipeline {
                 -DGMX_BUILD_FDA=ON \
                 -DGMX_DEFAULT_SUFFIX=OFF \
                 -DGMX_BINARY_SUFFIX=_fda \
+                -DGMX_SIMD=NONE \
                 -DGMX_BUILD_UNITTESTS=ON \
                 -DGMX_BUILD_OWN_FFTW=ON \
                 ..
