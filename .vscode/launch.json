@@ -5,10 +5,17 @@
     "version": "0.2.0",
     "configurations": [
         {
+<<<<<<< HEAD
             "name": "(gdb) fda-integration-tests",
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/bin/fda-integration-tests",
+=======
+            "name": "(gdb) Launch",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "enter program name, for example ${workspaceFolder}/a.out",
+>>>>>>> release-2019-fda
             "args": [],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
@@ -23,6 +30,7 @@
                 }
             ]
         },
+<<<<<<< HEAD
         {
             "name": "(gdb) fda-graph-test",
             "type": "cppdbg",
@@ -42,5 +50,7 @@
                 }
             ]
         }
+=======
+>>>>>>> release-2019-fda
     ]
 }
