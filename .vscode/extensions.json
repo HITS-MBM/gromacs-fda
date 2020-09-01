@@ -1,5 +1,4 @@
 {
-<<<<<<< HEAD
     "recommendations": [
         "eamodio.gitlens",
         "kriegalex.vscode-cudacpp",
@@ -7,20 +6,5 @@
         "ms-vscode.cmake-tools",
         "ms-vscode.cpptools",
         "twxs.cmake"
-=======
-    // See https://go.microsoft.com/fwlink/?LinkId=827846 to learn about workspace recommendations.
-    // Extension identifier format: ${publisher}.${name}. Example: vscode.csharp
-
-    // List of extensions which should be recommended for users of this workspace.
-    "recommendations": [
-        "kriegalex.vscode-cudacpp",
-        "ms-vscode.cmake-tools",
-        "ms-vscode.cpptools",
-        "twxs.cmake"
-    ],
-    // List of extensions recommended by VS Code that should not be recommended for users of this workspace.
-    "unwantedRecommendations": [
-        
->>>>>>> release-2019-fda
     ]
 }

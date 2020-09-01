@@ -1,17 +1,11 @@
 {
-<<<<<<< HEAD
     "cmake.configureSettings": {
-=======
-    "cmake.configureSettings":
-    {
->>>>>>> release-2019-fda
         "GMX_BUILD_OWN_FFTW": "ON",
         "GMX_BUILD_MDRUN_ONLY": "OFF",
         "GMX_BUILD_FDA": "ON",
         "GMX_DEFAULT_SUFFIX": "OFF",
         "GMX_BINARY_SUFFIX": "_fda",
         "GMX_SIMD": "NONE",
-<<<<<<< HEAD
         "GMX_BUILD_UNITTESTS": "ON",
         "BOOST_ROOT": "~/.conan/data/boost/1.72.0/_/_/package/f419497daccab81a781a793e5fffd7f228cf234e"
     },
@@ -90,9 +84,3 @@
         "filesystem": "cpp"
     }
 }
-=======
-        "GMX_BUILD_UNITTESTS": "ON"
-    },
-    "cmake.generator": "Unix Makefiles"
-}
->>>>>>> release-2019-fda

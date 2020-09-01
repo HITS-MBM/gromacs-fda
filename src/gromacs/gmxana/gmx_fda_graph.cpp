@@ -116,7 +116,6 @@ int gmx_fda_graph(int argc, char *argv[])
     if (ftp2bSet(efNDX, NFILE, fnm)) {
         fprintf(stderr, "\nSelect group for residue model points:\n");
         rd_index(ftp2fn(efNDX, NFILE, fnm), 1, &isize, &index, &grpname);
-        if (isize != nbParticles) gmx_fatal(FARGS, "Number of atoms in group %i does not match number of FDA points %i.", isize, nbParticles);
     }
 
     int frameValue;
@@ -148,15 +147,6 @@ int gmx_fda_graph(int argc, char *argv[])
     int ePBC;
     matrix box;
     read_tps_conf(ftp2fn(efTPS, NFILE, fnm), &top, &ePBC, &coord, nullptr, box, TRUE);
-
-    if (fn2ftp(opt2fn("-s", NFILE, fnm)) == efGRO) {
-        // Convert from nm to Angstrom
-        for (int i = 0; i < top.atoms.nr; ++i) {
-            coord[i][0] *= 10.0;
-            coord[i][1] *= 10.0;
-            coord[i][2] *= 10.0;
-        }
-    }
 
     std::vector<double> forceMatrix, forceMatrix2;
 
@@ -207,15 +197,6 @@ int gmx_fda_graph(int argc, char *argv[])
         {
             if (frame == 0) read_first_x(oenv, &status, opt2fn("-f", NFILE, fnm), &time, &coord_traj, box);
             else read_next_x(oenv, status, &time, coord_traj, box);
-
-            if (fn2ftp(opt2fn("-s", NFILE, fnm)) == efGRO) {
-                // Convert from nm to Angstrom
-                for (int i = 0; i < top.atoms.nr; ++i) {
-                    coord_traj[i][0] *= 10.0;
-                    coord_traj[i][1] *= 10.0;
-                    coord_traj[i][2] *= 10.0;
-                }
-            }
 
             if (frameType == SKIP and frame%frameValue) continue;
 

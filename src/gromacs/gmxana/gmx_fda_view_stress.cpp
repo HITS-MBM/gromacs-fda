@@ -116,7 +116,6 @@ int gmx_fda_view_stress(int argc, char *argv[])
     if (ftp2fn_null(efNDX, NFILE, fnm)) {
         fprintf(stderr, "\nSelect group for residue model points:\n");
         rd_index(ftp2fn(efNDX, NFILE, fnm), 1, &isize, &index, &grpname);
-        if (isize != nbParticles) gmx_fatal(FARGS, "Number of atoms in group does not match number of FDA points.");
     }
 
     #ifdef PRINT_DEBUG
