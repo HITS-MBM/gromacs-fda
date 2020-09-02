@@ -109,7 +109,6 @@ int gmx_fda_shortest_path(int argc, char *argv[])
     char *grpname;
     fprintf(stderr, "\nSelect group for residue model points:\n");
     rd_index(ftp2fn(efNDX, NFILE, fnm), 1, &isize, &index, &grpname);
-    if (isize != nbParticles) gmx_fatal(FARGS, "Number of atoms in group does not match number of FDA points.");
 
     int frameValue;
     FrameType frameType = getFrameTypeAndSkipValue(frameString, frameValue);
