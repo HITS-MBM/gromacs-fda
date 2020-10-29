@@ -3448,8 +3448,8 @@ real cmap_dihs(int                   nbonds,
         }
 
         if (fda) {
-            fda->add_dihedral(ai, aj, ak, al, f1_i, f1_j, f1_k, f1_l);
-            fda->add_virial_dihedral(ai, aj, ak, al, f1_i, f1_k, f1_l, r1_ij, r1_kj, r1_kl);
+            fda->add_dihedral(a1i, a1j, a1k, a1l, f1_i, f1_j, f1_k, f1_l);
+            fda->add_virial_dihedral(a1i, a1j, a1k, a1l, f1_i, f1_k, f1_l, r1_ij, r1_kj, r1_kl);
         }
 
         /* Do forces - second torsion */
@@ -3482,8 +3482,8 @@ real cmap_dihs(int                   nbonds,
         }
 
         if (fda) {
-            fda->add_dihedral(ai, aj, ak, al, f2_i, f2_j, f2_k, f2_l);
-            fda->add_virial_dihedral(ai, aj, ak, al, f2_i, f2_k, f2_l, r2_ij, r2_kj, r2_kl);
+            fda->add_dihedral(a2i, a2j, a2k, a2l, f2_i, f2_j, f2_k, f2_l);
+            fda->add_virial_dihedral(a2i, a2j, a2k, a2l, f2_i, f2_k, f2_l, r2_ij, r2_kj, r2_kl);
         }
 
         /* Shift forces */
