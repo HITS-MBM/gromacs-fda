@@ -132,18 +132,17 @@ void FDA::add_nonbonded(int i, int j, real pf_coul, real pf_lj, real dx, real dy
     rvec pf_lj_atom_v, pf_lj_residue_v, pf_coul_atom_v, pf_coul_residue_v;
 
     /* first check that the interaction is interesting before doing expensive calculations and atom lookup*/
-    if (!(fda_settings.type & fda::InteractionType_COULOMB))
-        if (!(fda_settings.type & fda::InteractionType_LJ))
-            return;
-        else {
-            add_nonbonded_single(i, j, fda::InteractionType_LJ, pf_lj, dx, dy, dz);
-            return;
-        }
-    else
-        if (!(fda_settings.type & fda::InteractionType_LJ)) {
-            add_nonbonded_single(i, j, fda::InteractionType_COULOMB, pf_coul, dx, dy, dz);
-            return;
-        }
+    bool ret = false;
+    if (fda_settings.type & fda::InteractionType_COULOMB) {
+        add_nonbonded_single(i, j, fda::InteractionType_COULOMB, pf_coul, dx, dy, dz);
+        ret = true;
+    }
+    if (fda_settings.type & fda::InteractionType_LJ)
+    {
+        add_nonbonded_single(i, j, fda::InteractionType_LJ, pf_lj, dx, dy, dz);
+        ret = true;
+    }
+    if(ret) {return;}
 
     if (!fda_settings.atoms_in_groups(i, j)) return;
 
