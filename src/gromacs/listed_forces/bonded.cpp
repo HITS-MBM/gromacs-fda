@@ -1837,8 +1837,12 @@ void do_dih_fup(int            i,
         rvec_inc(f[l], f_l);           /*  3	*/
 
         if (fda) {
+            rvec_opp(f_j);
+            rvec_opp(f_k);
             fda->add_dihedral(i, j, k, l, f_i, f_j, f_k, f_l);
             fda->add_virial_dihedral(i, j, k, l, f_i, f_k, f_l, r_ij, r_kj, r_kl);
+            rvec_opp(f_j);
+            rvec_opp(f_k);
         }
 
         if (computeVirial(flavor))
