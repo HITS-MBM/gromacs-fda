@@ -7,7 +7,8 @@
         "GMX_BINARY_SUFFIX": "_fda",
         "GMX_SIMD": "NONE",
         "GMX_BUILD_UNITTESTS": "ON",
-        "BOOST_ROOT": "~/.conan/data/boost/1.72.0/_/_/package/f419497daccab81a781a793e5fffd7f228cf234e"
+        "BOOST_ROOT": "~/.conan/data/boost/1.72.0/_/_/package/f419497daccab81a781a793e5fffd7f228cf234e",
+        "CMAKE_INSTALL_PREFIX": "/home/bernd/install/gromacs-fda"
     },
     "cmake.generator": "Unix Makefiles",
     "clang-format.executable": "/usr/bin/clang-format-7",
