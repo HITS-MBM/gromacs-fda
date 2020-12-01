@@ -41,6 +41,54 @@
                     "ignoreFailures": true
                 }
             ]
+        },
+        {
+            "name": "(gdb) grompp alagly",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/bin/gmx_fda",
+            "args": ["grompp",
+                     "-f", "md.mdp",
+                     "-c", "conf.gro",
+                     "-p", "topol.top",
+                     "-o", "alagly.tpr"],
+            "stopAtEntry": false,
+            "cwd": "/home/bernd/alagly",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
+        },
+        {
+            "name": "(gdb) fda alagly",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/bin/gmx_fda",
+            "args": ["mdrun", "-deffnm", "rerun",
+                     "-s", "alagly.tpr",
+                     "-rerun", "traj.trr",
+                     "-nt", "1",
+                     "-pfn", "index.ndx",
+                     "-pfi", "fda.pfi",
+                     "-pfa", "fda.pfa"],
+            "stopAtEntry": false,
+            "cwd": "/home/bernd/alagly/oplsaa.pbc",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
         }
     ]
 }
