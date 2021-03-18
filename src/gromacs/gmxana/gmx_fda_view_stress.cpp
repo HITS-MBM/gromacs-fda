@@ -153,7 +153,7 @@ int gmx_fda_view_stress(int argc, char *argv[])
 
         rvec *xp;
         t_topology top;
-        int ePBC;
+        PbcType ePBC;
         matrix box;
 
         read_tps_conf(ftp2fn(efTPS, NFILE, fnm), &top, &ePBC, &xp, nullptr, box, TRUE);

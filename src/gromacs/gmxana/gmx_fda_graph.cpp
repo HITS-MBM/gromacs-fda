@@ -144,7 +144,7 @@ int gmx_fda_graph(int argc, char *argv[])
     // Read input structure coordinates
     rvec *coord;
     t_topology top;
-    int ePBC;
+    PbcType ePBC;
     matrix box;
     read_tps_conf(ftp2fn(efTPS, NFILE, fnm), &top, &ePBC, &coord, nullptr, box, TRUE);
 
