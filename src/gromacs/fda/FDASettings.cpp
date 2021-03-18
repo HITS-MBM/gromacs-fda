@@ -271,7 +271,7 @@ void FDASettings::fill_atom2residue(gmx_mtop_t *mtop)
     // any residue nr. obtained via atoms->resinfo[].nr is guaranteed to be smaller than this;
     // this will be used for residue nr. collision detection - initialized to -1,
     // will be set to the renumbered value on the first encounter, then a new renumbered value means a collision
-    int resnrmax = gmx_mtop_maxresnr(mtop, 0);
+    int resnrmax = mtop->maxResNumberNotRenumbered();
     std::vector<int> resnr2renum(resnrmax + 1, -1);
 
     int atom_global_index = 0;
