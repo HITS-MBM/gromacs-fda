@@ -220,6 +220,8 @@ inline void spreadBondForces(const real bondForce,
                              rvec*      fshift,
                              FDA*       fda)
 {
+    rvec pf_forcevector;
+
     for (int m = 0; m < DIM; m++) /*  15          */
     {
         const real fij = bondForce * dx[m];
