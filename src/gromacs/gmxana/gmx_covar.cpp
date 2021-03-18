@@ -3,7 +3,8 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014,2015,2016,2017,2018,2019, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016,2017 by the GROMACS development team.
+ * Copyright (c) 2018,2019,2020, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -53,12 +54,54 @@
 #include "gromacs/pbcutil/rmpbc.h"
 #include "gromacs/topology/index.h"
 #include "gromacs/topology/topology.h"
+#include "gromacs/utility/arrayref.h"
 #include "gromacs/utility/arraysize.h"
 #include "gromacs/utility/cstringutil.h"
+#include "gromacs/utility/exceptions.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/futil.h"
 #include "gromacs/utility/smalloc.h"
 #include "gromacs/utility/sysinfo.h"
+
+
+namespace gmx
+{
+
+namespace
+{
+
+/*! \brief Throw an error if any element in index exceeds a given number.
+ *
+ * \param[in] indices to be acessed
+ * \param[in] largestOkayIndex to be accessed
+ * \param[in] indexUsagePurpose to be more explicit in the error message
+ *
+ * \throws RangeError if largestOkayIndex is larger than any element in indices
+ *
+ */
+void throwErrorIfIndexOutOfBounds(ArrayRef<const int> indices,
+                                  const int           largestOkayIndex,
+                                  const std::string&  indexUsagePurpose)
+{
+    // do nothing if index is empty
+    if (indices.ssize() == 0)
+    {
+        return;
+    }
+    const int largestIndex = *std::max_element(indices.begin(), indices.end());
+    if (largestIndex < largestOkayIndex)
+    {
+        GMX_THROW(RangeError("The provided structure file only contains "
+                             + std::to_string(largestOkayIndex) + " coordinates, but coordinate index "
+                             + std::to_string(largestIndex) + " was requested for " + indexUsagePurpose
+                             + ". Make sure to update structure files "
+                               "and index files if you store only a part of your system."));
+    }
+};
+
+} // namespace
+
+} // namespace gmx
 
 int gmx_covar(int argc, char* argv[])
 {
@@ -113,7 +156,7 @@ int gmx_covar(int argc, char* argv[])
     FILE*             out = nullptr; /* initialization makes all compilers happy */
     t_trxstatus*      status;
     t_topology        top;
-    int               ePBC;
+    PbcType           pbcType;
     t_atoms*          atoms;
     rvec *            x, *xread, *xref, *xav, *xproj;
     matrix            box, zerobox;
@@ -164,13 +207,15 @@ int gmx_covar(int argc, char* argv[])
     xpmfile    = opt2fn_null("-xpm", NFILE, fnm);
     xpmafile   = opt2fn_null("-xpma", NFILE, fnm);
 
-    read_tps_conf(fitfile, &top, &ePBC, &xref, nullptr, box, TRUE);
+    read_tps_conf(fitfile, &top, &pbcType, &xref, nullptr, box, TRUE);
     atoms = &top.atoms;
 
     if (bFit)
     {
         printf("\nChoose a group for the least squares fit\n");
         get_index(atoms, ndxfile, 1, &nfit, &ifit, &fitname);
+        // Make sure that we never attempt to access a coordinate out of range
+        gmx::throwErrorIfIndexOutOfBounds({ ifit, ifit + nfit }, atoms->nr, "fitting");
         if (nfit < 3)
         {
             gmx_fatal(FARGS, "Need >= 3 points to fit!\n");
@@ -182,6 +227,7 @@ int gmx_covar(int argc, char* argv[])
     }
     printf("\nChoose a group for the covariance analysis\n");
     get_index(atoms, ndxfile, 1, &natoms, &index, &ananame);
+    gmx::throwErrorIfIndexOutOfBounds({ index, index + natoms }, atoms->nr, "analysis");
 
     bDiffMass1 = FALSE;
     if (bFit)
@@ -238,7 +284,7 @@ int gmx_covar(int argc, char* argv[])
     /* Prepare reference frame */
     if (bPBC)
     {
-        gpbc = gmx_rmpbc_init(&top.idef, ePBC, atoms->nr);
+        gpbc = gmx_rmpbc_init(&top.idef, pbcType, atoms->nr);
         gmx_rmpbc(gpbc, atoms->nr, box, xref);
     }
     if (bFit)
@@ -260,9 +306,14 @@ int gmx_covar(int argc, char* argv[])
     nat      = read_first_x(oenv, &status, trxfile, &t, &xread, box);
     if (nat != atoms->nr)
     {
-        fprintf(stderr, "\nWARNING: number of atoms in tpx (%d) and trajectory (%d) do not match\n",
+        fprintf(stderr,
+                "\nWARNING: number of atoms in structure file (%d) and trajectory (%d) do not "
+                "match\n",
                 natoms, nat);
     }
+    gmx::throwErrorIfIndexOutOfBounds({ ifit, ifit + nfit }, nat, "fitting");
+    gmx::throwErrorIfIndexOutOfBounds({ index, index + natoms }, nat, "analysis");
+
     do
     {
         nframes0++;
@@ -293,7 +344,7 @@ int gmx_covar(int argc, char* argv[])
         }
     }
     write_sto_conf_indexed(opt2fn("-av", NFILE, fnm), "Average structure", atoms, xread, nullptr,
-                           epbcNONE, zerobox, natoms, index);
+                           PbcType::No, zerobox, natoms, index);
     sfree(xread);
 
     fprintf(stderr, "Constructing covariance matrix (%dx%d) ...\n", static_cast<int>(ndim),

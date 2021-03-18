@@ -1,7 +1,8 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2015,2016,2017,2018,2019, by the GROMACS development team, led by
+ * Copyright (c) 2015,2016,2017,2018,2019, The GROMACS development team.
+ * Copyright (c) 2020,2021, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -171,6 +172,9 @@ public:
     void calculateForces(const ForceProviderInput& forceProviderInput,
                          ForceProviderOutput*      forceProviderOutput) override;
 
+    void subscribeToSimulationSetupNotifications(MdModulesNotifier* /* notifier */) override {}
+    void subscribeToPreProcessingNotifications(MdModulesNotifier* /* notifier */) override {}
+
 private:
     //! Return whether or not to apply a field
     bool isActive() const;
@@ -310,7 +314,7 @@ void ElectricField::calculateForces(const ForceProviderInput& forceProviderInput
             if (fieldStrength != 0)
             {
                 // TODO: Check parallellism
-                for (index i = 0; i != ssize(f); ++i)
+                for (int i = 0; i < mdatoms.homenr; ++i)
                 {
                     // NOTE: Not correct with perturbed charges
                     f[i][m] += mdatoms.chargeA[i] * fieldStrength;
