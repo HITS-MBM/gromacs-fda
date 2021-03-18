@@ -553,6 +553,81 @@ static void ilistcat(int ftype, t_ilist* dest, const InteractionList& src, int c
 }
 
 static void pf_ilistcat(int                     ftype,
+		                InteractionList        *dest,
+						const InteractionList  &src,
+						int                     copies,
+                        int                     dnum,
+						int                     snum,
+						fda::FDASettings const &fda_settings)
+{
+	// Return if no bonded interaction is needed.
+	if (!(fda_settings.type & (fda::InteractionType_BONDED + fda::InteractionType_NB14))) return;
+
+    int nral, c, i, a, atomIdx;
+    char needed;
+
+    nral = NRAL(ftype);
+
+    t_iatom *tmp;
+    snew(tmp, copies*src.size());
+    int len = 0;
+
+    int *g1atomsBeg = fda_settings.groups->a + fda_settings.groups->index[fda_settings.index_group1];
+    int *g1atomsEnd = fda_settings.groups->a + fda_settings.groups->index[fda_settings.index_group1 + 1];
+    int *g1atomsCur = nullptr;
+    int *g2atomsBeg = fda_settings.groups->a + fda_settings.groups->index[fda_settings.index_group2];
+    int *g2atomsEnd = fda_settings.groups->a + fda_settings.groups->index[fda_settings.index_group2 + 1];
+    int *g2atomsCur = nullptr;
+
+    for (c = 0; c < copies; c++)
+    {
+        for (i = 0; i < src.size(); )
+        {
+            needed = 0;
+            for (a = 0; a < nral; a++)
+            {
+            	atomIdx = dnum + src.iatoms[i+a+1];
+        		for (g1atomsCur = g1atomsBeg; g1atomsCur < g1atomsEnd; ++g1atomsCur) {
+        			if (atomIdx == *g1atomsCur) needed = 1;
+        		}
+        		for (g2atomsCur = g2atomsBeg; g2atomsCur < g2atomsEnd; ++g2atomsCur) {
+        			if (atomIdx == *g2atomsCur) needed = 1;
+        		}
+            }
+            if (needed) {
+                tmp[len++] = src.iatoms[i];
+                for (a = 0; a < nral; a++) tmp[len++] = dnum + src.iatoms[i+a+1];
+
+                #ifdef FDA_BONDEXCL_PRINT_DEBUG_ON
+					fprintf(stderr, "=== DEBUG === bonded interaction %i", ftype);
+					fprintf(stderr, " %i", src->iatoms[i]);
+					for (a = 0; a < nral; a++) fprintf(stderr, " %i", dnum + src->iatoms[i + a + 1]);
+					fprintf(stderr, " needed\n");
+					fflush(stderr);
+                #endif
+            } else {
+                #ifdef FDA_BONDEXCL_PRINT_DEBUG_ON
+					fprintf(stderr, "=== DEBUG === bonded interaction %i", ftype);
+					fprintf(stderr, " %i", src->iatoms[i]);
+					for (a = 0; a < nral; a++) fprintf(stderr, " %i", dnum + src->iatoms[i + a + 1]);
+					fprintf(stderr, " not needed\n");
+					fflush(stderr);
+                #endif
+            }
+            i += a + 1;
+        }
+        dnum += snum;
+    }
+
+    size_t destIndex = dest->iatoms.size();
+    dest->iatoms.resize(dest->iatoms.size() + len);
+
+    for (i = 0; i < len; i++) dest->iatoms[destIndex++] = tmp[i];
+
+    sfree(tmp);
+}
+
+static void pf_ilistcat(int                     ftype,
 		                t_ilist                *dest,
 						const InteractionList  &src,
 						int                     copies,
