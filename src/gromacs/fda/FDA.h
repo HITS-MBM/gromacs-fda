@@ -102,7 +102,7 @@ public:
      * writing because for this fda->atoms would need to be initialized (to get the atom
      * number or to get the sys2ps mapping) which only happens when AtomBased is non-zero
      */
-    void save_and_write_scalar_time_averages(gmx::PaddedHostVector<gmx::RVec> const& x, const matrix box, gmx_mtop_t *mtop);
+    void save_and_write_scalar_time_averages(gmx::PaddedHostVector<gmx::RVec> const& x, const matrix box, const gmx_mtop_t *mtop);
 
     /**
      * Write scalar time averages; this is similar to pf_write_frame, except that time averages are used
@@ -117,7 +117,7 @@ public:
      */
     void write_scalar_time_averages();
 
-    void write_frame(gmx::PaddedHostVector<gmx::RVec> const& x, const matrix box, gmx_mtop_t *mtop);
+    void write_frame(gmx::PaddedHostVector<gmx::RVec> const& x, const matrix box, const gmx_mtop_t *mtop);
 
     fda::FDASettings get_settings() const { return fda_settings; }
 
@@ -129,7 +129,7 @@ private:
      * not express the COM of the whole residue but the COM of the atoms of the residue which
      * are interesting for PF
      */
-    gmx::PaddedHostVector<gmx::RVec> get_residues_com(gmx::PaddedHostVector<gmx::RVec> const& x, gmx_mtop_t *mtop) const;
+    gmx::PaddedHostVector<gmx::RVec> get_residues_com(gmx::PaddedHostVector<gmx::RVec> const& x, const gmx_mtop_t *mtop) const;
 
     /// Settings
     fda::FDASettings const& fda_settings;

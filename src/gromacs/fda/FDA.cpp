@@ -395,7 +395,7 @@ void FDA::add_virial_dihedral(int i, int j, int k, int l,
     add_virial(l, v, QUARTER);
 }
 
-void FDA::save_and_write_scalar_time_averages(gmx::PaddedHostVector<gmx::RVec> const& x, const matrix box, gmx_mtop_t *mtop)
+void FDA::save_and_write_scalar_time_averages(gmx::PaddedHostVector<gmx::RVec> const& x, const matrix box, const gmx_mtop_t *mtop)
 {
     if (fda_settings.time_averaging_period != 1) {
         if (atom_based.PF_or_PS_mode())
@@ -447,18 +447,18 @@ void FDA::write_scalar_time_averages()
     time_averaging_steps = 0;
 }
 
-void FDA::write_frame(gmx::PaddedHostVector<gmx::RVec> const& x, const matrix box, gmx_mtop_t *mtop)
+void FDA::write_frame(gmx::PaddedHostVector<gmx::RVec> const& x, const matrix box, const gmx_mtop_t *mtop)
 {
     atom_based.write_frame(x, box, nsteps);
     residue_based.write_frame(get_residues_com(x, mtop), box, nsteps);
     ++nsteps;
 }
 
-gmx::PaddedHostVector<gmx::RVec> FDA::get_residues_com(gmx::PaddedHostVector<gmx::RVec> const& x, gmx_mtop_t *mtop) const
+gmx::PaddedHostVector<gmx::RVec> FDA::get_residues_com(gmx::PaddedHostVector<gmx::RVec> const& x, const gmx_mtop_t *mtop) const
 {
     int mol_index, d;
     int i, atom_index, atom_global_index, residue_global_index;
-    t_atoms *atoms;
+    const t_atoms *atoms;
     t_atom *atom_info;
     rvec r;
 
