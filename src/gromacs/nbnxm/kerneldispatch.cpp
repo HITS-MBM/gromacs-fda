@@ -439,7 +439,8 @@ void nonbonded_verlet_t::dispatchNonbondedKernel(gmx::InteractionLocality   iLoc
             nbnxn_kernel_cpu(pairlistSet, kernelSetup(), nbat.get(), ic, fr.shift_vec, stepWork,
                              clearF, enerd->grpp.ener[egCOULSR].data(),
                              fr.bBHAM ? enerd->grpp.ener[egBHAMSR].data() : enerd->grpp.ener[egLJSR].data(),
-                             wcycle_, fr.fda, fr.nbv->pairSearch_->gridSet().atomIndices());
+                             wcycle_, fr.fda,
+                             fr.nbv ? fr.nbv->pairSearch_->gridSet().atomIndices() : gmx::ArrayRef<const int>());
             break;
 
         case Nbnxm::KernelType::Gpu8x8x8:
