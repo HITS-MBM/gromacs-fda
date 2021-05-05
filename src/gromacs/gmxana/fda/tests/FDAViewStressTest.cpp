@@ -174,6 +174,13 @@ INSTANTIATE_TEST_CASE_P(AllFDAViewStress, FDAViewStress, ::testing::Values(
         "",
         "result.pdb",
         "FDAViewStress.ref7.pdb"
+    ),
+    TestDataStructure(
+        "glycine_trimer",
+        {"-i", "punctual_stress.psa", "-s", "glycine_trimer.pdb", "-f", "traj.trr"},
+        "",
+        "result.pdb",
+        "FDAViewStress.ref8.pdb"
     )
 ));
 
