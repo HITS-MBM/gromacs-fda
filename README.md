@@ -43,7 +43,7 @@ GROMACS-FDA base on the official GROMACS. The actual molecular dynamic
 simulation will be performed with the official GROMACS, whereas the force
 distribution analysis will be performed with GROMACS-FDA. To avoid
 inconsistencies between different versions of GROMACS and GROMACS-FDA it is
-crucial that the gromacs version numbers ar identical. Please find the
+crucial that the GROMACS version numbers are identical. Please find the
 available FDA releases at https://github.com/HITS-MBM/gromacs-fda/releases
 
 ## Installation of GROMACS
@@ -103,7 +103,7 @@ package require pf_loaduser package require pf_draw
 # Principles
 ## Residue-based operation
 For residue-based operation, the following steps are done in order:
-1. building of an atom to residue correspondence table
+1. building of an atom according to residue correspondence table
 1. if an atom pair is part of those selected for pairwise forces calculations,
    the residue numbers of the 2 atoms are obtained from the correspondence table
 1. if the 2 residue numbers are equal (2 different atoms from the same residue),
@@ -125,18 +125,18 @@ sum/average/minimum/maximum value.
 ## Residue (re)numbering
 For GROMACS, residues are of secondary importance
 during the actual MD run – they are useful only to write out a structure
-file (f.e. PDB). The correspondence between numbering of atoms and residues is
+file (e.g. PDB). The correspondence between numbering of atoms and residues is
 made based on the information in the structure file where residues numbering
-might not start from 1 and might not be contiguous – to deal with all these
+might not start from 1 and might not be continuous – to deal with all these
 cases, by default GROMACS doesn't make any attempt to renumber residues and
 writes back whatever residue number was assigned to an atom in the input
 structure file.
 
 The PF2 code uses these residue numbers to identify which
 atoms belong to which residues and to output residue-based data. Dealing with
-residue numbers not starting from 1 or not being contiguous is easy – just
+residue numbers not starting from 1 or not being continuous is easy – just
 fill in the missing numbers starting from 1 and have the output contain zeros
-for them. But residue numbers can also appear multiple times, f.e. if the
+for them. But residue numbers can also appear multiple times, e.g. if the
 structure file contains several chains (say a protein, a ligand and solvent)
 and in each of them residues start being numbered at 1 or when there are many
 residues (more than 9999 which is the maximum number in a PDB file) and their
@@ -208,9 +208,9 @@ directly by gmx_fda mdrun, there is no need for a step equivalent to grompp.
 The .pfi file keywords are:
 
 **onepair** – describes how the pairwise forces between the same pair of atoms
-i and j is handled. Typically, a forcefield can allow either several types of
+i and j is handled. Typically, a force field can allow either several types of
 non-bonded interactions or several types of bonded interactions between the
-same pair of atoms. F.e. two distant atoms could interact through both Coulomb
+same pair of atoms. E.g. two distant atoms could interact through both Coulomb
 and Lennard-Jones interactions, while two bonded atoms could interact through a
 bond, several angle and several dihedral angle interactions. There are 2
 possible values for this keyword:
@@ -219,14 +219,14 @@ possible values for this keyword:
 same pair of atoms are summed; if atoms i and j interact, the code stores
 exactly one value of the pairwise force between them
 
-*detailed* – all pairwise forces of the same type (f.e. angle interactions) between the same pair of atoms are stored separately; if atoms i and j interact, the code stores at least one, possibly many, pairwise forces between them, corresponding to
+*detailed* – all pairwise forces of the same type (e.g. angle interactions) between the same pair of atoms are stored separately; if atoms i and j interact, the code stores at least one, possibly many, pairwise forces between them, corresponding to
 each type of interaction that exists between them.
 
 Using *detailed* can lead to
 a significant increase in the amount of memory needed compared with the summed
 option. *detailed* should probably only be used in the rare cases where
 simultaneous output of pairwise forces separated by potential type should be
-obtained, like forcefield development/debugging. The default is *summed*. For
+obtained, like force field development/debugging. The default is *summed*. For
 example, the following set of options will compute a sum of all interactions of
 the same type (say dihedral angles) between the atoms i and j:
 
@@ -288,14 +288,14 @@ If no type is specified, `'type = all'` is assumed.
 
 GROMACS contains several functions which calculate potentials and forces for
 bonds, angles and dihedral angles. Which ones are used depends on the
-forcefield, choices in the .mdp file (f.e. “morse=yes”) and user
-modifications to the topology files (f.e. to add extra harmonic potentials).
+force field, choices in the .mdp file (e.g. “morse=yes”) and user
+modifications to the topology files (e.g. to add extra harmonic potentials).
 The PF2 code treats them based on the number of particles involved: all bonded
 interactions involving 2 particles are considered bonds, all bonded
 interactions involving 3 particles are considered angles and all bonded
 interactions involving 4 particles are considered dihedral angles. This makes
 impossible to differentiate between several types of interactions involving the
-same number of atoms; f.e. in a protein topology using the OPLS-AA forcefield,
+same number of atoms; e.g. in a protein topology using the OPLS-AA force field,
 the dihedral angles are modeled using a Ryckaert-Bellemans form while the
 improper dihedral angles are modeled using a classical dihedral angle form
 – both these types of interactions will be selected by *dihedral*.
@@ -567,7 +567,7 @@ i j force_x force_y force_z interaction_type
 ```
 
 for atombased/residuebased set to vector. i and j are integer numbers which
-represent the atom indeces (0-based); scalar_force is a floating point number
+represent the atom indices (0-based); scalar_force is a floating point number
 which represents the magnitude of the pairwise force vector; force_x, force_y
 and force_z are floating point numbers which represent the X, Y and Z
 components of the pairwise force vector; interaction_type is an integer number
@@ -588,7 +588,7 @@ The first value on the line corresponds to the first atom/residue, the second
 value on the line corresponds to the second atom/residue, etc.; on each line
 there are as many per-atom values as the number of atoms and as many
 per-residue values as the number of residues. If an atom/residue does not have
-any pairwise interactions (f.e. because it is located further than the cutoff
+any pairwise interactions (e.g. because it is located further than the cutoff
 from other atoms, because it doesn't have any interactions of the type
 specified with type or because it was included neither in group1 nor in
 group2), the corresponding value is 0.0.
@@ -596,7 +596,7 @@ group2), the corresponding value is 0.0.
 For per-residue data, residue
 numbering depends on whether residue renumbering has taken place. If the
 residue renumbering has not taken place, the residue numbers start from 0 and
-continue until the highest number found in the input structure file. F.e. if
+continue until the highest number found in the input structure file. E.g. if
 the input structure contains 4 residues numbered 5, 6, 8 and 9, the output will
 contain 10 values: the first 5 values and the 8th value will always be zero. If
 the residue renumbering has taken place, the residue numbers start from 0 and
