@@ -89,6 +89,81 @@
                     "ignoreFailures": true
                 }
             ]
+        },
+        {
+            "name": "(gdb) fda check-forces water",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/bin/gmx_fda",
+            "args": ["mdrun",
+                     "-deffnm", "rerun",
+                     "-s", "topol.tpr",
+                     "-rerun", "traj.trr",
+                     "-nt", "1",
+                     "-pfn", "index.ndx",
+                     "-pfi", "fda.pfi"],
+            "stopAtEntry": false,
+            "cwd": "/home/bernd/hits/MBM-FDA-8/check_forces/water/test3",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
+        },
+        {
+            "name": "(gdb) fda check-forces h2",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/bin/gmx_fda",
+            "args": ["mdrun",
+                     "-deffnm", "rerun",
+                     "-s", "topol.tpr",
+                     "-rerun", "traj.trr",
+                     "-nt", "1",
+                     "-pfn", "index.ndx",
+                     "-pfi", "fda.pfi"],
+            "stopAtEntry": false,
+            "cwd": "/home/bernd/hits/MBM-FDA-8/check_forces/h2",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
+        },
+        {
+            "name": "(gdb) fda check-forces alagly_verlet_no_rvec_opp",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/bin/gmx_fda",
+            "args": ["mdrun",
+                     "-deffnm", "rerun",
+                     "-s", "topol.tpr",
+                     "-rerun", "traj.trr",
+                     "-nt", "1",
+                     "-pfn", "index.ndx",
+                     "-pfi", "fda.pfi"],
+            "stopAtEntry": false,
+            "cwd": "/home/bernd/hits/MBM-FDA-8/check_forces/alagly_verlet_no_rvec_opp",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
         }
     ]
 }
