@@ -140,7 +140,7 @@ private:
     /// Residue-based operation
     fda::FDABase<fda::Residue> residue_based;
 
-    /// Counter for current step, incremented for every call of pf_save_and_write_scalar_averages()
+    /// Counter for current step, incremented for every call of save_and_write_scalar_time_averages()
     /// When it reaches time_averages_steps, data is written
     int time_averaging_steps;
 

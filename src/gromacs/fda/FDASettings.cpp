@@ -137,7 +137,7 @@ FDASettings::FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *mtop, bool
     // Read group information
     char** group_names;
     t_blocka *groups = init_index(opt2fn("-pfn", nfile, fnm), &group_names);
-    if(groups->nr == 0) gmx_fatal(FARGS, "No groups found in the indexfile.\n");
+    if (groups->nr == 0) gmx_fatal(FARGS, "No groups found in the indexfile.\n");
 
     // Map atoms to residues
     fill_atom2residue(mtop);
@@ -168,13 +168,15 @@ FDASettings::FDASettings(int nfile, const t_filenm fnm[], gmx_mtop_t *mtop, bool
 
     // Read time averaging period
     time_averaging_period = get_eint(&inp, "time_averages_period", 1, wi);
-    if (time_averaging_period < 0)
+    if (time_averaging_period < 0) {
         gmx_fatal(FARGS, "Invalid value for time_averages_period: %d\n", time_averaging_period);
+    }
 
     // Check for valid input options using time averaging
     if (time_averaging_period != 1) {
-        if (one_pair != OnePair::SUMMED)
+        if (one_pair != OnePair::SUMMED) {
             gmx_fatal(FARGS, "Can only save scalar time averages from summed interactions.\n");
+        }
         if (PF_or_PS_mode(atom_based_result_type)) {
             if (!(compatibility_mode(atom_based_result_type) or atom_based_result_type == ResultType::PAIRWISE_FORCES_SCALAR))
                 gmx_fatal(FARGS, "Can only use time averages with scalar or compatibility output.\n");
