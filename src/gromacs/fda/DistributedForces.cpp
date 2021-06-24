@@ -41,6 +41,10 @@ void DistributedForces::add_summed(int i, int j, Vector const& force, Interactio
 {
     if (i > j) throw std::runtime_error("Only upper triangle allowed (i < j).");
 
+    //real scalar_force = 0.0;
+    real scalar_force = vector2signedscalar(force.get_pointer(), x[i], x[j], box, fda_settings.v2s);
+    if (std::abs(scalar_force) <= fda_settings.threshold) return;
+
     auto & summed_i = summed[i];
     auto & indices_i = indices[i];
 
@@ -199,9 +203,11 @@ void DistributedForces::write_scalar(std::ostream& os) const
             for (size_t p = 0; p != scalar_i.size(); ++p) {
                 size_t j = scalar_indices_i[p];
                 auto const& scalar_j = scalar_i[p];
-                os << i << " " << j << " "
-                   << scalar_j.force << " "
-                   << scalar_j.type << std::endl;
+                if (std::abs(scalar_j.force) > fda_settings.threshold) {
+                    os << i << " " << j << " "
+                    << scalar_j.force << " "
+                    << scalar_j.type << std::endl;
+                }
             }
         }
     }
