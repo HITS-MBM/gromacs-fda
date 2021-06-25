@@ -443,6 +443,7 @@ void FDA::write_scalar_time_averages()
     }
 
     time_averaging_steps = 0;
+    ++nsteps;
 }
 
 void FDA::write_frame(gmx::PaddedHostVector<gmx::RVec> const& x, const matrix box, gmx_mtop_t *mtop)
