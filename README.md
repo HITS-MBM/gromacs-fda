@@ -1,7 +1,5 @@
 [![Build
 Status](https://jenkins.h-its.org/buildStatus/icon?job=MBM/HITS-MBM/gromacs-fda/release-2020-fda)](https://jenkins.h-its.org/job/MBM/job/HITS-MBM/job/gromacs-fda/job/release-2020-fda/)
-[![Build
-Status](https://travis-ci.org/HITS-MBM/gromacs-fda.svg?branch=release-2020-fda)](https://travis-ci.org/HITS-MBM/gromacs-fda)
 
 
 # Force Distribution Analysis (FDA)
