@@ -19,10 +19,7 @@ pipeline {
         sh '''
           mkdir -p build
           cd build
-          cmake -DCMAKE_BUILD_TYPE=release \
-                -DCMAKE_C_COMPILER=/usr/bin/gcc \
-                -DCMAKE_CXX_COMPILER=/usr/bin/g++ \
-                -DGMX_BUILD_MDRUN_ONLY=OFF \
+          cmake -DGMX_BUILD_MDRUN_ONLY=OFF \
                 -DGMX_BUILD_FDA=ON \
                 -DGMX_DEFAULT_SUFFIX=OFF \
                 -DGMX_BINARY_SUFFIX=_fda \
@@ -30,27 +27,30 @@ pipeline {
                 -DGMX_BUILD_UNITTESTS=ON \
                 -DGMX_BUILD_OWN_FFTW=ON \
                 ..
-          make
+          make 2>&1 |tee make.out
         '''
+      }
+      post {
+        always {
+          recordIssues enabledForFailure: true, aggregatingResults: false,
+            tool: gcc(id: 'gcc', pattern: 'build/make.out')
+        }
       }
     }
     stage('Test') {
       steps {
-        script {
-          try {
-            sh '''
-              cd build
-              make check
-            '''
-          } catch (err) {
-            echo "Failed: ${err}"
-          } finally {
-            step([
-              $class: 'XUnitBuilder',
-              thresholds: [[$class: 'FailedThreshold', unstableThreshold: '1']],
-              tools: [[$class: 'GoogleTestType', pattern: 'build/Testing/Temporary/*.xml']]
-            ])
-          }
+        sh '''
+          cd build
+          make check
+        '''
+      }
+      post {
+        always {
+          step([
+            $class: 'XUnitPublisher',
+            thresholds: [[$class: 'FailedThreshold', unstableThreshold: '1']],
+            tools: [[$class: 'GoogleTestType', pattern: 'build/Testing/Temporary/*.xml']]
+          ])
         }
       }
     }
