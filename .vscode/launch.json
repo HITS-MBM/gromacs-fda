@@ -141,7 +141,7 @@
             ]
         },
         {
-            "name": "(gdb) fda check-forces alagly_verlet_no_rvec_opp",
+            "name": "(gdb) fda check-forces alagly_verlet",
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/bin/gmx_fda",
@@ -153,7 +153,7 @@
                      "-pfn", "index.ndx",
                      "-pfi", "fda.pfi"],
             "stopAtEntry": false,
-            "cwd": "/home/bernd/hits/MBM-FDA-8/check_forces/alagly_verlet_no_rvec_opp",
+            "cwd": "/home/bernd/hits/MBM-FDA-8/check_forces/alagly_verlet",
             "environment": [],
             "externalConsole": false,
             "MIMode": "gdb",
