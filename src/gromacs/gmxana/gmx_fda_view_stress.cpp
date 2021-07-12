@@ -195,7 +195,7 @@ int gmx_fda_view_stress(int argc, char *argv[])
                 else fp = gmx_ffopen(opt2fn("-o", NFILE, fnm), "w");
 
                 for (int i = 0; i < nbParticles; ++i) {
-                    currentStress = stress[frameValue][i];
+                    currentStress = stress[frame][i];
                     top.atoms.pdbinfo[i].bfac = currentStress;
                     if (currentStress > 999.99) {
                         valueToLargeForPDB = true;

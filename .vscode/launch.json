@@ -91,6 +91,127 @@
             ]
         },
         {
+            "name": "(gdb) fda check-forces water",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/bin/gmx_fda",
+            "args": ["mdrun",
+                     "-deffnm", "rerun",
+                     "-s", "topol.tpr",
+                     "-rerun", "traj.trr",
+                     "-nt", "1",
+                     "-pfn", "index.ndx",
+                     "-pfi", "fda.pfi"],
+            "stopAtEntry": false,
+            "cwd": "/home/bernd/hits/MBM-FDA-8/check_forces/water/test3",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
+        },
+        {
+            "name": "(gdb) fda check-forces h2",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/bin/gmx_fda",
+            "args": ["mdrun",
+                     "-deffnm", "rerun",
+                     "-s", "topol.tpr",
+                     "-rerun", "traj.trr",
+                     "-nt", "1",
+                     "-pfn", "index.ndx",
+                     "-pfi", "fda.pfi"],
+            "stopAtEntry": false,
+            "cwd": "/home/bernd/hits/MBM-FDA-8/check_forces/h2",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
+        },
+        {
+            "name": "(gdb) fda check-forces alagly_verlet",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/bin/gmx_fda",
+            "args": ["mdrun",
+                     "-deffnm", "rerun",
+                     "-s", "topol.tpr",
+                     "-rerun", "traj.trr",
+                     "-nt", "1",
+                     "-pfn", "index.ndx",
+                     "-pfi", "fda.pfi"],
+            "stopAtEntry": false,
+            "cwd": "/home/bernd/hits/MBM-FDA-8/check_forces/alagly_verlet",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
+        },
+        {
+            "name": "(gdb) fda_get_stress",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/bin/gmx_fda",
+            "args": ["fda_get_stress",
+                     "-i", "fda.pfr",
+                     "-o", "pull.psr"],
+            "stopAtEntry": false,
+            "cwd": "/home/bernd/hits/MBM-FDA-8/issue-tangtong/punctual_stress_average/pfr_and_psr",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
+        },
+        {
+            "name": "(gdb) fda punctual stress average",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/bin/gmx_fda",
+            "args": ["mdrun",
+                     "-deffnm", "rerun",
+                     "-s", "topol.tpr",
+                     "-rerun", "traj.trr",
+                     "-nt", "1",
+                     "-pfn", "index.ndx",
+                     "-pfi", "fda.pfi"],
+            "stopAtEntry": false,
+            "cwd": "/home/bernd/hits/MBM-FDA-8/punctual_stress_average",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
+        },
+        {
             "name": "(gdb) argon-forces-integration",
             "type": "cppdbg",
             "request": "launch",

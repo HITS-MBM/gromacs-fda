@@ -148,6 +148,8 @@ int gmx_fda_shortest_path(int argc, char *argv[])
         pmlFile << "set connect_mode, 1" << std::endl;
         pmlFile << "load " << opt2fn("-o", NFILE, fnm) << ", object=network, discrete=1, multiplex=1" << std::endl;
         pmlFile << "spectrum segi, blue_white_red, network" << std::endl;
+        pmlFile << "show_as lines, trajectory" << std::endl;
+        pmlFile << "show_as sticks, network" << std::endl;
         molecularTrajectoryFile = gmx_ffopen(molecularTrajectoryFilename.c_str(), "w");
     }
 
