@@ -42,6 +42,7 @@
 #define GROMACS_MODULARSIMULATOR_MODULARSIMULATOR_H
 
 #include <queue>
+#include <limits>
 
 #include "gromacs/mdlib/md_support.h"
 #include "gromacs/mdlib/resethandler.h"
