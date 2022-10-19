@@ -210,6 +210,29 @@
                     "ignoreFailures": true
                 }
             ]
+        },
+        {
+            "name": "(gdb) issue-49",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/bin/gmx_fda",
+            "args": ["fda_shortest_path",
+                     "-i", "${workspaceFolder}/issue-49/output.pfr",
+                     "-s", "${workspaceFolder}/issue-49/md.tpr",
+                     "-n", "${workspaceFolder}/issue-49/index.ndx",
+                     "-o", "shortest.pdb"],
+            "stopAtEntry": true,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
         }
     ]
 }
