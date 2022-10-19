@@ -5,8 +5,14 @@ LABEL maintainer="Bernd Doser <bernd.doser@h-its.org>"
 RUN apt-get update \
  && DEBIAN_FRONTEND=noninteractive TZ=Europe/Berlin apt-get -y install \
     cmake \
+    ghostscript \
     git \
+    graphviz \
     libboost-graph-dev \
+    mscgen \
+    texlive \
+    texlive-lang-english \
+    texlive-latex-extra \
     tzdata \
     wget \
  && apt-get clean \
@@ -24,6 +30,12 @@ RUN wget -q https://github.com/google/googletest/archive/release-1.8.0.tar.gz \
  && make -j \
  && make install \
  && rm -r /tmp/googletest-release-1.8.0
+
+RUN wget -q https://sourceforge.net/projects/doxygen/files/rel-$VERSION/doxygen-$VERSION.linux.bin.tar.gz \
+ && tar xf doxygen-$VERSION.linux.bin.tar.gz \
+ && rm doxygen-$VERSION.linux.bin.tar.gz \
+ && mv doxygen-$VERSION /opt \
+ && ln -sf /opt/doxygen-$VERSION/bin/doxygen /usr/bin/doxygen
 
 WORKDIR /
 
