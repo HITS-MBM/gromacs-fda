@@ -5,6 +5,7 @@ LABEL maintainer="Bernd Doser <bernd.doser@h-its.org>"
 RUN apt-get update \
  && DEBIAN_FRONTEND=noninteractive TZ=Europe/Berlin apt-get -y install \
     cmake \
+    git \
     libboost-graph-dev \
     tzdata \
     wget \
