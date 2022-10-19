@@ -1,10 +1,13 @@
-FROM braintwister/ubuntu-20.04-cuda-devel-11.0-gcc-8-clang-9-doxygen-1.8.5:0.3
+FROM nvidia/cuda:11.7.1-devel-ubuntu20.04
 
 LABEL maintainer="Bernd Doser <bernd.doser@h-its.org>"
 
 RUN apt-get update \
- && apt-get install -y \
+ && DEBIAN_FRONTEND=noninteractive TZ=Europe/Berlin apt-get -y install \
+    cmake \
     libboost-graph-dev \
+    tzdata \
+    wget \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
 
