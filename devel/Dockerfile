@@ -31,11 +31,11 @@ RUN wget -q https://github.com/google/googletest/archive/release-1.8.0.tar.gz \
  && make install \
  && rm -r /tmp/googletest-release-1.8.0
 
-RUN wget -q https://sourceforge.net/projects/doxygen/files/rel-$VERSION/doxygen-$VERSION.linux.bin.tar.gz \
- && tar xf doxygen-$VERSION.linux.bin.tar.gz \
- && rm doxygen-$VERSION.linux.bin.tar.gz \
- && mv doxygen-$VERSION /opt \
- && ln -sf /opt/doxygen-$VERSION/bin/doxygen /usr/bin/doxygen
+RUN wget -q https://sourceforge.net/projects/doxygen/files/rel-1.8.5/doxygen-1.8.5.linux.bin.tar.gz \
+ && tar xf doxygen-1.8.5.linux.bin.tar.gz \
+ && rm doxygen-1.8.5.linux.bin.tar.gz \
+ && mv doxygen-1.8.5 /opt \
+ && ln -sf /opt/doxygen-1.8.5/bin/doxygen /usr/bin/doxygen
 
 WORKDIR /
 
