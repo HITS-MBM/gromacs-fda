@@ -178,7 +178,15 @@ int gmx_fda_graph(int argc, char *argv[])
         // Convert from kJ/mol/nm into pN
         if (convert) for (auto & f : forceMatrix) f *= 1.66;
 
+        std::cout << "isize " << isize << std::endl;
+        std::cout << "index ";
+        for (int i = 0; i != isize; ++i) {
+            std::cout << index[i] << " ";
+        }
+        std::cout << std::endl;
         Graph graph(forceMatrix, coord, index, isize);
+        std::cout << graph << std::endl;
+
         if (resultFormat == PDB)
             graph.convertInPDBMinGraphOrder(opt2fn("-o", NFILE, fnm), threshold, minGraphOrder, onlyBiggestNetwork, false);
         else if (resultFormat == DIMACS)

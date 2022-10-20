@@ -118,7 +118,7 @@ TEST_P(FDAGraphTest, binary)
 }
 
 INSTANTIATE_TEST_CASE_P(AllFDAGraphTests, FDAGraphTest, ::testing::Values(
-    TestDataStructure(
+    TestDataStructure( // 0
         "maxime_all_prot",
         {"-i", "cap0_all_prot.pfr", "-diff", "cap1_all_prot.pfr", "-s", "1G6N.pdb",
          "-n", "index.ndx", "-frame", "0", "-t", "100", "-min", "2", "-convert"},
@@ -126,7 +126,7 @@ INSTANTIATE_TEST_CASE_P(AllFDAGraphTests, FDAGraphTest, ::testing::Values(
         "result.pdb",
         "FDAGraphTest.ref0.pdb"
     ),
-    TestDataStructure(
+    TestDataStructure( // 1
         "maxime_all_prot",
         {"-i", "cap0_all_prot.pfr", "-diff", "cap1_all_prot.pfr", "-s", "1G6N.pdb",
          "-n", "index.ndx", "-frame", "0", "-t", "20", "-min", "2", "-convert"},
@@ -141,21 +141,21 @@ INSTANTIATE_TEST_CASE_P(AllFDAGraphTests, FDAGraphTest, ::testing::Values(
         "result.pdb",
         "FDAGraphTest.ref2.pdb"
     ),
-    TestDataStructure(
+    TestDataStructure( // 3
         "alagly",
         {"-i", "fda.pfa", "-s", "conf.gro", "-frame", "all", "-t", "1000", "-pymol", "result.pml"},
         "",
         "result.pdb",
         "FDAGraphTest.ref3.pdb"
     ),
-    TestDataStructure(
+    TestDataStructure( // 4
         "alagly",
         {"-i", "fda.pfa", "-s", "conf.gro", "-frame", "skip 3", "-t", "1000", "-pymol", "result.pml"},
         "",
         "result.pdb",
         "FDAGraphTest.ref4.pdb"
     ),
-    TestDataStructure(
+    TestDataStructure( // 5
         "alagly",
         {"-i", "fda.pfa", "-s", "conf.gro", "-frame", "average 3", "-t", "1000", "-pymol", "result.pml"},
         "",
@@ -169,20 +169,28 @@ INSTANTIATE_TEST_CASE_P(AllFDAGraphTests, FDAGraphTest, ::testing::Values(
         "result.pdb",
         "FDAGraphTest.ref6.pdb"
     ),
-    TestDataStructure(
+    TestDataStructure( // 7
         "maxime_all_prot",
         {"-i", "cap0_all_prot.pfr", "-diff", "cap1_all_prot.pfr", "-s", "1G6N.pdb",
          "-n", "index.ndx", "-frame", "0", "-t", "100", "-min", "4", "-convert", "-big"},
         "C-alpha",
         "result.pdb",
         "FDAGraphTest.ref7.pdb"
-    // ),
-    // TestDataStructure( // 8
-    //     "alagly",
-    //     {"-i", "fda.pfr", "-s", "conf.gro", "-t", "1000", "-n", "index.ndx"},
-    //     "C-alpha",
-    //     "result.pdb",
-    //     "FDAGraphTest.ref8.pdb"
+    ),
+    TestDataStructure( // 8
+        "maxime_all_prot",
+        {"-i", "cap0_all_prot.pfr", "-s", "1G6N.pdb",
+         "-n", "index.ndx", "-frame", "0", "-t", "100", "-min", "4", "-big"},
+        "C-alpha",
+        "result.pdb",
+        "FDAGraphTest.ref8.pdb"
+    ),
+    TestDataStructure( // 9
+        "alagly",
+        {"-i", "fda.pfr", "-s", "conf.gro", "-n", "index.ndx", "-frame", "0"},
+        "C-alpha",
+        "result.pdb",
+        "FDAGraphTest.ref9.pdb"
     )
 ));
 
