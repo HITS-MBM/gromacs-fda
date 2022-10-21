@@ -1,10 +1,20 @@
-FROM braintwister/ubuntu-20.04-cuda-devel-11.0-gcc-8-clang-9-doxygen-1.8.5:0.3
+FROM nvidia/cuda:11.7.1-devel-ubuntu20.04
 
 LABEL maintainer="Bernd Doser <bernd.doser@h-its.org>"
 
 RUN apt-get update \
- && apt-get install -y \
+ && DEBIAN_FRONTEND=noninteractive TZ=Europe/Berlin apt-get -y install \
+    cmake \
+    ghostscript \
+    git \
+    graphviz \
     libboost-graph-dev \
+    mscgen \
+    texlive \
+    texlive-lang-english \
+    texlive-latex-extra \
+    tzdata \
+    wget \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
 
@@ -20,6 +30,12 @@ RUN wget -q https://github.com/google/googletest/archive/release-1.8.0.tar.gz \
  && make -j \
  && make install \
  && rm -r /tmp/googletest-release-1.8.0
+
+RUN wget -q https://sourceforge.net/projects/doxygen/files/rel-1.8.5/doxygen-1.8.5.linux.bin.tar.gz \
+ && tar xf doxygen-1.8.5.linux.bin.tar.gz \
+ && rm doxygen-1.8.5.linux.bin.tar.gz \
+ && mv doxygen-1.8.5 /opt \
+ && ln -sf /opt/doxygen-1.8.5/bin/doxygen /usr/bin/doxygen
 
 WORKDIR /
 

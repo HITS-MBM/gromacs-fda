@@ -97,7 +97,10 @@ int gmx_fda_shortest_path(int argc, char *argv[])
 
     // Open pairwise forces file
     fda::PairwiseForces<fda::Force<real>> pairwise_forces(opt2fn("-i", NFILE, fnm));
-    fda::PairwiseForces<fda::Force<real>> pairwise_forces_diff(opt2fn("-diff", NFILE, fnm));
+    std::shared_ptr<fda::PairwiseForces<fda::Force<real>>> ptr_pairwise_forces_diff;
+    if (opt2bSet("-diff", NFILE, fnm)) {
+    	ptr_pairwise_forces_diff = std::make_shared<fda::PairwiseForces<fda::Force<real>>>(opt2fn("-diff", NFILE, fnm));
+    }
 
     // Get number of particles
     int nbParticles = pairwise_forces.get_max_index_second_column_first_frame() + 1;
@@ -153,12 +156,18 @@ int gmx_fda_shortest_path(int argc, char *argv[])
         molecularTrajectoryFile = gmx_ffopen(molecularTrajectoryFilename.c_str(), "w");
     }
 
+    int nbFrames = pairwise_forces.get_number_of_frames();
+    if (nbFrames == 1) {
+        std::cerr << "Change frameType into SINGLE, since only one frame was found." << std::endl;
+        frameType = SINGLE;
+    }
+
     if (frameType == SINGLE) {
 
         int frame = atoi(frameString);
         forceMatrix = pairwise_forces.get_forcematrix_of_frame(nbParticles, frame);
         if (opt2bSet("-diff", NFILE, fnm)) {
-            forceMatrix2 = pairwise_forces_diff.get_forcematrix_of_frame(nbParticles, frame);
+            forceMatrix2 = ptr_pairwise_forces_diff->get_forcematrix_of_frame(nbParticles, frame);
             for (int i = 0; i < nbParticles2; ++i) forceMatrix[i] -= forceMatrix2[i];
         }
 
@@ -180,7 +189,6 @@ int gmx_fda_shortest_path(int argc, char *argv[])
         rvec *coord_traj;
         matrix box;
 
-        int nbFrames = pairwise_forces.get_number_of_frames();
         for (int frame = 0; frame < nbFrames; ++frame)
         {
             if (frame == 0) read_first_x(oenv, &status, opt2fn("-f", NFILE, fnm), &time, &coord_traj, box);
@@ -190,7 +198,7 @@ int gmx_fda_shortest_path(int argc, char *argv[])
 
             forceMatrix = pairwise_forces.get_forcematrix_of_frame(nbParticles, frame);
             if (opt2bSet("-diff", NFILE, fnm)) {
-                forceMatrix2 = pairwise_forces_diff.get_forcematrix_of_frame(nbParticles, frame);
+                forceMatrix2 = ptr_pairwise_forces_diff->get_forcematrix_of_frame(nbParticles, frame);
                 for (int i = 0; i < nbParticles2; ++i) forceMatrix[i] -= forceMatrix2[i];
             }
             for (auto & f : forceMatrix) f = std::abs(f);
@@ -204,7 +212,7 @@ int gmx_fda_shortest_path(int argc, char *argv[])
                     std::vector<double> forceMatrixAvg, forceMatrixAvg2;
                     forceMatrixAvg = pairwise_forces.get_forcematrix_of_frame(nbParticles, frame);
                     if (opt2bSet("-diff", NFILE, fnm)) {
-                        forceMatrixAvg2 = pairwise_forces_diff.get_forcematrix_of_frame(nbParticles, frame);
+                        forceMatrixAvg2 = ptr_pairwise_forces_diff->get_forcematrix_of_frame(nbParticles, frame);
                         for (int i = 0; i < nbParticles2; ++i) forceMatrixAvg[i] -= forceMatrixAvg2[i];
                     }
 
