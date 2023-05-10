@@ -176,6 +176,13 @@ INSTANTIATE_TEST_CASE_P(AllFDAGraphTests, FDAGraphTest, ::testing::Values(
         "C-alpha",
         "result.pdb",
         "FDAGraphTest.ref7.pdb"
+    ),
+    TestDataStructure(
+        "alagly",
+        {"-i", "fda.pfr", "-s", "conf.gro", "-t", "1000", "-n", "index.ndx"},
+        "C-alpha",
+        "result.pdb",
+        "FDAGraphTest.ref8.pdb"
     )
 ));
 
