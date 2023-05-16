@@ -8,6 +8,7 @@ gmx_add_gtest_executable(
     FDAGraphTest.cpp
     FDAShortestPathTest.cpp
     FDAViewStressTest.cpp
+    GraphTest.cpp
     PDBTest.cpp
 )
 
