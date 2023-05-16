@@ -28,7 +28,7 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/bin/fda-graph-test",
-            "args": ["--gtest_filter=AllFDAGraphTests/FDAGraphTest.text/8"],
+            "args": [],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
