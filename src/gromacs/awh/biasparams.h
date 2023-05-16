@@ -50,6 +50,7 @@
 #ifndef GMX_AWH_BIASPARAMS_H
 #define GMX_AWH_BIASPARAMS_H
 
+#include <limits>
 #include <vector>
 
 #include "gromacs/math/vectypes.h"

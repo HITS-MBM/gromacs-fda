@@ -141,7 +141,7 @@
             ]
         },
         {
-            "name": "(gdb) fda check-forces alagly_verlet_no_rvec_opp",
+            "name": "(gdb) fda check-forces alagly_verlet",
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/bin/gmx_fda",
@@ -153,7 +153,7 @@
                      "-pfn", "index.ndx",
                      "-pfi", "fda.pfi"],
             "stopAtEntry": false,
-            "cwd": "/home/bernd/hits/MBM-FDA-8/check_forces/alagly_verlet_no_rvec_opp",
+            "cwd": "/home/bernd/hits/MBM-FDA-8/check_forces/alagly_verlet",
             "environment": [],
             "externalConsole": false,
             "MIMode": "gdb",
@@ -200,6 +200,59 @@
                      "-pfi", "fda.pfi"],
             "stopAtEntry": false,
             "cwd": "/home/bernd/hits/MBM-FDA-8/punctual_stress_average",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
+        },
+        {
+            "name": "(gdb) issue-49",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/bin/gmx_fda",
+            "args": ["fda_shortest_path",
+                     "-i", "${workspaceFolder}/issue-49/output.pfr",
+                     "-s", "${workspaceFolder}/issue-49/md.tpr",
+                     "-n", "${workspaceFolder}/issue-49/index.ndx",
+                     "-o", "shortest.pdb"],
+            "stopAtEntry": true,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
+        },
+        {
+            "name": "(gdb) giulia-20221115",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/bin/gmx_fda",
+            "args": ["fda_shortest_path",
+                     "-i", "/data/giulia-20221115/output_onlySc.pfr",
+                     "-s", "/data/giulia-20221115/md.tpr",
+                     "-n", "/data/giulia-20221115/index.ndx",
+                     "-f", "/data/giulia-20221115/TRAJ1us-strip.xtc",
+                     "-o", "result.pdb",
+                     "-frame", "average 100000",
+                     "-source", "3379",
+                     "-dest", "3374",
+                     "-nk", "1",
+                     "-pymol",
+                     "-convert"],
+            "stopAtEntry": true,
+            "cwd": "${workspaceFolder}",
             "environment": [],
             "externalConsole": false,
             "MIMode": "gdb",
