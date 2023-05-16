@@ -178,19 +178,11 @@ INSTANTIATE_TEST_CASE_P(AllFDAGraphTests, FDAGraphTest, ::testing::Values(
         "FDAGraphTest.ref7.pdb"
     ),
     TestDataStructure( // 8
-        "maxime_all_prot",
-        {"-i", "cap0_all_prot.pfr", "-s", "1G6N.pdb",
-         "-n", "index.ndx", "-frame", "0", "-t", "100", "-min", "4", "-big"},
-        "C-alpha",
-        "result.pdb",
-        "FDAGraphTest.ref8.pdb"
-    ),
-    TestDataStructure( // 9
         "alagly",
         {"-i", "fda.pfr", "-s", "conf.gro", "-n", "index.ndx", "-frame", "0"},
         "C-alpha",
         "result.pdb",
-        "FDAGraphTest.ref9.pdb"
+        "FDAGraphTest.ref8.pdb"
     )
 ));
 

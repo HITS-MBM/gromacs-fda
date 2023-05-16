@@ -147,6 +147,7 @@ std::vector<TestDataStructure> get_tests()
     std::vector<TestDataStructure> tests;
 
     tests.push_back({"alagly_verlet", "alagly_pairwise_forces_scalar_summed", "pfa", "pfr"});
+    tests.push_back({"alagly_verlet", "alagly_pairwise_forces_scalar_summed_renumbered", "pfa", "pfr"});
     tests.push_back({"alagly_verlet", "alagly_pairwise_forces_scalar_summed_atom_based", "pfa", ""});
     tests.push_back({"alagly_verlet", "alagly_pairwise_forces_scalar_summed_no_residue_based", "pfa", ""});
     tests.push_back({"alagly_verlet", "alagly_pairwise_forces_scalar_average_0", "pfa", "pfr"});
