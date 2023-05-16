@@ -4,6 +4,7 @@ pipeline {
 
   agent {
     dockerfile {
+      label 'docker-gpu-host'
       filename 'devel/Dockerfile'
     }
   }
