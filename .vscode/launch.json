@@ -9,7 +9,7 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/bin/fda-integration-tests",
-            "args": [],
+            "args": ["--gtest_filter=AllFDATests/FDATest.Basic/4"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],

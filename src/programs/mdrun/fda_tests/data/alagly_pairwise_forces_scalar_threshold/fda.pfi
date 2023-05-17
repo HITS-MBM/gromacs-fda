@@ -1,0 +1,11 @@
+onepair = summed
+
+group1 = ala
+group2 = gly
+
+atombased = pairwise_forces_scalar
+residuebased = pairwise_forces_scalar
+
+type = all
+
+threshold = 2000.0

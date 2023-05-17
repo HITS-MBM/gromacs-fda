@@ -130,7 +130,6 @@ void
     real qi[UNROLLI];
 
 #ifdef CALC_ENERGIES
-    real fda_threshold = fda->get_settings().threshold;
 #    ifndef ENERGY_GROUPS
 
     real Vvdw_ci, Vc_ci;

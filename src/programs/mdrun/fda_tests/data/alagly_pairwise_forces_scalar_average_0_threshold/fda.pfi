@@ -1,0 +1,13 @@
+onepair = summed
+
+group1 = ala
+group2 = gly
+
+atombased = pairwise_forces_scalar
+residuebased = pairwise_forces_scalar
+
+type = all
+
+time_averages_period = 0
+
+threshold = 2e+3

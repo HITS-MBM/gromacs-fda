@@ -2,8 +2,13 @@
 
 declare -a arr=(
   "alagly_pairwise_forces_scalar_summed"
+  "alagly_pairwise_forces_scalar_summed_renumbered"
   "alagly_pairwise_forces_scalar_summed_atom_based"
   "alagly_pairwise_forces_scalar_summed_no_residue_based"
+  "alagly_pairwise_forces_scalar_threshold"
+  "alagly_pairwise_forces_scalar_average_0"
+  "alagly_pairwise_forces_scalar_average_3"
+  "alagly_pairwise_forces_scalar_average_0_threshold"
   "alagly_pairwise_forces_scalar_detailed"
   "alagly_pairwise_forces_vector"
   "alagly_pairwise_forces_scalar_detailed_nonbonded"
