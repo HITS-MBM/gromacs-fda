@@ -153,6 +153,7 @@ void DistributedForces::write_summed_scalar(std::ostream& os, gmx::PaddedHostVec
             uint num_j = summed[i].size();
             os.write(reinterpret_cast<char*>(&num_j), sizeof(uint));
             for (uint p = 0; p != num_j; ++p) {
+                if (std::abs(scalar[i][p].force) < fda_settings.threshold) continue;
                 uint j = indices[i][p];
                 os.write(reinterpret_cast<char*>(&j), sizeof(uint));
                 real scalar = vector2signedscalar(summed[i][p].force.get_pointer(), x[i], x[j], box, fda_settings.v2s);
@@ -167,9 +168,12 @@ void DistributedForces::write_summed_scalar(std::ostream& os, gmx::PaddedHostVec
             for (size_t p = 0; p != summed_i.size(); ++p) {
                 size_t j = indices_i[p];
                 auto const& summed_j = summed_i[p];
-                os << i << " " << j << " "
-                   << vector2signedscalar(summed_j.force.get_pointer(), x[i], x[j], box, fda_settings.v2s) << " "
-                   << summed_j.type << std::endl;
+                auto&& summed_j_scalar_force = vector2signedscalar(summed_j.force.get_pointer(), x[i], x[j], box, fda_settings.v2s);
+                if (std::abs(summed_j_scalar_force) >= fda_settings.threshold) {
+                    os << i << " " << j << " "
+                       << summed_j_scalar_force << " "
+                       << summed_j.type << std::endl;
+                }
             }
         }
     }
@@ -186,6 +190,7 @@ void DistributedForces::write_scalar(std::ostream& os) const
             uint num_j = scalar[i].size();
             os.write(reinterpret_cast<char*>(&num_j), sizeof(uint));
             for (uint p = 0; p != num_j; ++p) {
+                if (std::abs(scalar[i][p].force) < fda_settings.threshold) continue;
                 uint j = indices[i][p];
                 os.write(reinterpret_cast<char*>(&j), sizeof(uint));
                 os.write(reinterpret_cast<const char*>(&scalar[i][p].force), sizeof(real));
@@ -199,9 +204,11 @@ void DistributedForces::write_scalar(std::ostream& os) const
             for (size_t p = 0; p != scalar_i.size(); ++p) {
                 size_t j = scalar_indices_i[p];
                 auto const& scalar_j = scalar_i[p];
-                os << i << " " << j << " "
-                   << scalar_j.force << " "
-                   << scalar_j.type << std::endl;
+                if (std::abs(scalar_j.force) >= fda_settings.threshold) {
+                    os << i << " " << j << " "
+                       << scalar_j.force << " "
+                       << scalar_j.type << std::endl;
+                }
             }
         }
     }
