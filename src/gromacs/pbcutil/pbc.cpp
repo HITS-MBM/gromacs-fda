@@ -4,7 +4,7 @@
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
  * Copyright (c) 2013,2014,2015,2016,2017 by the GROMACS development team.
- * Copyright (c) 2018,2019,2020, by the GROMACS development team, led by
+ * Copyright (c) 2018,2019,2020,2021, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -98,8 +98,7 @@ int numPbcDimensions(PbcType pbcType)
         case PbcType::XY: npbcdim = 2; break;
         case PbcType::Screw: npbcdim = 3; break;
         case PbcType::No: npbcdim = 0; break;
-        default:
-            gmx_fatal(FARGS, "Unknown pbcType=%s in numPbcDimensions", c_pbcTypeNames[pbcType].c_str());
+        default: GMX_RELEASE_ASSERT(false, "Invalid pbcType in numPbcDimensions");
     }
 
     return npbcdim;
@@ -139,7 +138,17 @@ const char* check_box(PbcType pbcType, const matrix box)
         return nullptr;
     }
 
-    if ((box[XX][YY] != 0) || (box[XX][ZZ] != 0) || (box[YY][ZZ] != 0))
+    GMX_ASSERT(box != nullptr, "check_box requires a valid box unless pbcType is No");
+
+    if (pbcType == PbcType::Xyz && box[XX][XX] == 0 && box[YY][YY] == 0 && box[ZZ][ZZ] == 0)
+    {
+        ptr = "Empty diagonal for a 3-dimensional periodic box";
+    }
+    else if (pbcType == PbcType::XY && box[XX][XX] == 0 && box[YY][YY] == 0)
+    {
+        ptr = "Empty diagonal for a 2-dimensional periodic box";
+    }
+    else if ((box[XX][YY] != 0) || (box[XX][ZZ] != 0) || (box[YY][ZZ] != 0))
     {
         ptr = "Only triclinic boxes with the first vector parallel to the x-axis and the second "
               "vector in the xy-plane are supported.";
@@ -213,6 +222,7 @@ static gmx_bool bWarnedGuess = FALSE;
 PbcType guessPbcType(const matrix box)
 {
     PbcType pbcType;
+    GMX_RELEASE_ASSERT(box != nullptr, "guessPbcType requires a valid box");
 
     if (box[XX][XX] > 0 && box[YY][YY] > 0 && box[ZZ][ZZ] > 0)
     {

@@ -5,7 +5,7 @@ prepare-release-version:
     - .variables:default
     - .rules:nightly-only-for-release
   cache: {}
-  image: ${CI_REGISTRY}/gromacs/gromacs/ci-ubuntu-18.04-llvm-7-docs
+  image: ${CI_REGISTRY}/gromacs/gromacs/ci-ubuntu-18.04-llvm-7-docs:release-2021
   stage: configure-build
   variables:
     KUBERNETES_CPU_LIMIT: 1
@@ -25,7 +25,7 @@ regressiontests:prepare:
     - .variables:default
     - .rules:merge-and-post-merge-acceptance
   cache: {}
-  image: ${CI_REGISTRY}/gromacs/gromacs/ci-ubuntu-18.04-llvm-7-docs
+  image: ${CI_REGISTRY}/gromacs/gromacs/ci-ubuntu-18.04-llvm-7-docs:release-2021
   stage: configure-build
   variables:
     KUBERNETES_CPU_LIMIT: 1
@@ -69,7 +69,7 @@ regressiontests:package:
   cache: {}
   # Docker image uploaded to dockerhub by user eriklindahl
   # TODO: Get DockerFile for admin/dockerfiles
-  image: ${CI_REGISTRY}/gromacs/gromacs/ci-ubuntu-18.04-llvm-7-docs
+  image: ${CI_REGISTRY}/gromacs/gromacs/ci-ubuntu-18.04-llvm-7-docs:release-2021
   stage: release-package
   variables:
     KUBERNETES_CPU_LIMIT: 1
@@ -143,7 +143,7 @@ archive:configure:release:
     - .use-ccache
     - .before_script:default
     - .docs:build
-  image: ${CI_REGISTRY}/gromacs/gromacs/ci-ubuntu-18.04-llvm-7-docs
+  image: ${CI_REGISTRY}/gromacs/gromacs/ci-ubuntu-18.04-llvm-7-docs:release-2021
   variables:
     KUBERNETES_CPU_LIMIT: 4
     KUBERNETES_CPU_REQUEST: 2
@@ -155,13 +155,12 @@ archive:configure:release:
     - cmake --build . --target man -- -j4 2>&1 | tee manBuildLogFile.log
     - cmake --build . --target completion -- -j4 2>&1 | tee completionBuildLogFile.log
     - cmake --build . --target install-guide -- -j4 2>&1 | tee installGuideBuildLogFile.log
-    - cmake --build . --target reference_checksum -- -j4 2>&1 | tee checksumBuildLogFile.log
     - cmake --build . --target package_source -- -j4 2>&1 | tee packageBuildLogFile.log
     - awk '/warning/,/warning.*generated|^$/' buildLogFile.log manBuildLogFile.log
       completionBuildLogFile.log installGuideBuildLogFile.log checksumBuildLogFile.log
       packageBuildLogFile.log | grep -v "CMake" | tee buildErrors.log || true
     - grep "cannot be built" buildLogFile.log manBuildLogFile.log
-      completionBuildLogFile.log installGuideBuildLogFile.log checksumBuildLogFile.log
+      completionBuildLogFile.log installGuideBuildLogFile.log
       packageBuildLogFile.log | tee -a buildErrors.log || true
     - if [ -s buildErrors.log ] ; then echo "Found warnings during build"; cat buildErrors.log; exit 1; fi
     - mv gromacs*tar.gz ..
@@ -206,7 +205,7 @@ archive:package:
     BUILD_DIR: build-package
 
 release-verify:
-  image: ${CI_REGISTRY}/gromacs/gromacs/ci-ubuntu-18.04-llvm-7-docs
+  image: ${CI_REGISTRY}/gromacs/gromacs/ci-ubuntu-18.04-llvm-7-docs:release-2021
   stage: release-verify
   extends:
     - .variables:default

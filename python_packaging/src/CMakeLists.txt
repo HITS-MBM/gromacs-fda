@@ -1,7 +1,7 @@
 #
 # This file is part of the GROMACS molecular simulation package.
 #
-# Copyright (c) 2019,2020, by the GROMACS development team, led by
+# Copyright (c) 2019,2020,2021, by the GROMACS development team, led by
 # Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
 # and including many others, as listed in the AUTHORS file in the
 # top-level source directory and at http://www.gromacs.org.
@@ -55,7 +55,7 @@ set(CMAKE_OSX_ARCHITECTURES x86_64 CACHE STRING
 # Note that this is the gmxapi._gmxapi Python bindings package version,
 # not the C++ API version. It is not essential that it match the pure Python
 # package version, but is likely to do so.
-project(gmxapi VERSION 0.2.0)
+project(gmxapi)
 
 # Check if Python package is being built directly or via add_subdirectory
 set(GMXAPI_MASTER_PROJECT OFF)
@@ -76,10 +76,13 @@ if(POLICY CMP0074) #3.12
 endif()
 
 if(GMXAPI_MASTER_PROJECT)
-    # TODO: Retain compatibility with libgmxapi 0.1 and back down the requirement.
-    find_package(gmxapi 0.2.0 REQUIRED
+    find_package(gmxapi 0.2 REQUIRED
                  HINTS "$ENV{GROMACS_DIR}"
                  )
+    if (gmxapi_VERSION VERSION_LESS 0.2.1)
+        message(WARNING "Your GROMACS installation does not support custom MD plugins. "
+                "If you need this feature, please install GROMACS 2021.3 or higher.")
+    endif ()
 endif()
 if(gmxapi_FOUND)
     set(_suffix "")
@@ -133,6 +136,18 @@ pybind11_add_module(_gmxapi
                     ${GMXAPI_PYTHON_EXTENSION_SOURCES}
                     )
 
+if (NOT DEFINED gmxapi_VERSION)
+    get_target_property(gmxapi_VERSION Gromacs::gmxapi VERSION)
+endif ()
+if (NOT DEFINED gmxapi_VERSION)
+    message(FATAL_ERROR "gmxapi library version not detected.")
+endif ()
+if (gmxapi_VERSION VERSION_GREATER_EQUAL 0.2.1)
+    target_sources(_gmxapi PRIVATE gmxapi/launch_021.cpp)
+else()
+    target_sources(_gmxapi PRIVATE gmxapi/launch_020.cpp)
+endif()
+
 target_include_directories(_gmxapi PRIVATE
                            ${CMAKE_CURRENT_SOURCE_DIR}/gmxapi
                            ${CMAKE_CURRENT_BINARY_DIR}/gmxapi
@@ -153,9 +168,17 @@ set_target_properties(_gmxapi PROPERTIES
 if(GMXAPI_MASTER_PROJECT)
     # TODO: This requirement is probably overly restrictive.
     find_package(GROMACS 2021 REQUIRED
-                 NAMES gromacs gromacs_mpi
+                 NAMES gromacs gromacs_mpi gromacs_d
                  HINTS "$ENV{GROMACS_DIR}"
                  )
+    if (NOT DEFINED GROMACS_IS_DOUBLE)
+        message(AUTHOR_WARNING "GROMACS_IS_DOUBLE undefined.")
+    endif ()
+else()
+    if (NOT DEFINED GMX_DOUBLE)
+        message(AUTHOR_WARNING "GMX_DOUBLE undefined.")
+    endif ()
+    set(GROMACS_IS_DOUBLE ${GMX_DOUBLE})
 endif()
 
 # Get details of GROMACS installation needed by the Python package at run time.
@@ -191,10 +214,16 @@ endif ()
 if (NOT _gmx_bindir OR NOT _gmx_executable)
     message(FATAL_ERROR "Could not get path for gmx wrapper binary.")
 endif ()
+if (GROMACS_IS_DOUBLE)
+    set(_gmx_double "true")
+else()
+    set(_gmx_double "false")
+endif()
 configure_file(gmxapi/gmxconfig.json.in ${GMXAPI_PYTHON_STAGING_DIR}/gmxapi/gmxconfig.json)
 unset(_gmx_executable)
 unset(_gmx_bindir)
 unset(_gmx_mpi_type)
+unset(_gmx_double)
 
 # scikit-build sets SKBUILD when running Python packaging tools through setup.py
 # (e.g. with pip)
@@ -252,5 +281,7 @@ endif()
 # to the `check` target. Normal usage is to first install the Python package,
 # then run `pytest` on the `tests` directory. Refer to gmxapi package documentation.
 if(NOT GMXAPI_MASTER_PROJECT)
-    add_subdirectory(test)
+	if (BUILD_TESTING)
+		add_subdirectory(test)
+	endif()
 endif()

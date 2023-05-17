@@ -2,7 +2,7 @@
 # This file is part of the GROMACS molecular simulation package.
 #
 # Copyright (c) 2014,2015,2016,2017,2018 by the GROMACS development team.
-# Copyright (c) 2019,2020,2021, by the GROMACS development team, led by
+# Copyright (c) 2019,2020,2021,2022, by the GROMACS development team, led by
 # Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
 # and including many others, as listed in the AUTHORS file in the
 # top-level source directory and at http://www.gromacs.org.
@@ -364,6 +364,13 @@ if (SPHINX_FOUND)
         how-to/visualize.rst
         install-guide/index.rst
         release-notes/index.rst
+        release-notes/2021/2021.7.rst
+        release-notes/2021/2021.6.rst
+        release-notes/2021/2021.5.rst
+        release-notes/2021/2021.4.rst
+        release-notes/2021/2021.3.rst
+        release-notes/2021/2021.2.rst
+        release-notes/2021/2021.1.rst
         release-notes/2021/major/highlights.rst
         release-notes/2021/major/features.rst
         release-notes/2021/major/performance.rst
@@ -379,6 +386,7 @@ if (SPHINX_FOUND)
         release-notes/2020/2020.4.rst
         release-notes/2020/2020.5.rst
         release-notes/2020/2020.6.rst
+        release-notes/2020/2020.7.rst
         release-notes/2020/major/highlights.rst
         release-notes/2020/major/features.rst
         release-notes/2020/major/performance.rst
@@ -444,6 +452,7 @@ if (SPHINX_FOUND)
         user-guide/force-fields.rst
         user-guide/getting-started.rst
         user-guide/index.rst
+        user-guide/known-issues.rst
         user-guide/managing-simulations.rst
         user-guide/mdp-options.rst
         user-guide/mdrun-features.rst
